@@ -15,7 +15,7 @@ import CompanionsModal from './components/CompanionsModal';
 import CountrySettingsModal from './components/CountrySettingsModal';
 import TripSelectionScreen from './components/TripSelectionScreen';
 import VisaCheckModal from './components/VisaCheckModal'; // New Import
-import { Plus, CheckCircle, Trash2, Users, Globe, ArrowLeft, Book, Pencil, CalendarDays } from 'lucide-react';
+import { Plus, CheckCircle, Trash2, Users, Globe, ArrowLeft, Book, Pencil, CalendarDays, Info } from 'lucide-react';
 
 // Helper to generate unique IDs safe for all environments
 const generateId = () => {
@@ -1002,6 +1002,16 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 p-4 overflow-y-auto">
+        {/* API Key Warning */}
+        {(!import.meta.env.VITE_GEMINI_API_KEY && !(process.env as any).GEMINI_API_KEY && !(process.env as any).API_KEY) && (
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center gap-3">
+                <Info size={18} className="flex-shrink-0" />
+                <div>
+                    <p className="font-bold">AI 功能尚未啟用</p>
+                    <p className="text-xs opacity-80">請在 Vercel 設定中新增環境變數 <code>VITE_GEMINI_API_KEY</code> 並重新部署。</p>
+                </div>
+            </div>
+        )}
         
         {currentPhase === 'summary' ? (
            /* Full Screen Summary View */

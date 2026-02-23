@@ -9,11 +9,26 @@ const cleanJsonString = (str: string) => {
 };
 
 const getAiModel = () => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
+    // Safe access to environment variables
+    let apiKey = '';
+    
+    // 1. Try Vite's import.meta.env (standard for Vite)
+    try {
+        apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    } catch (e) {}
+
+    // 2. Try process.env (often defined via Vite's 'define' config)
+    if (!apiKey || apiKey === 'undefined') {
+        try {
+            apiKey = (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY;
+        } catch (e) {}
+    }
+
     if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
-        console.warn("Gemini API Key missing or invalid");
+        console.error("Gemini API Key is missing. Please set VITE_GEMINI_API_KEY in your deployment environment.");
         return null;
     }
+    
     return new GoogleGenAI({ apiKey });
 };
 

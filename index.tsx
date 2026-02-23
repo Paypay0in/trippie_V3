@@ -1,6 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './index.css';
+
+// Polyfill process for libraries that might expect it in the browser
+if (typeof window !== 'undefined' && !window.process) {
+  (window as any).process = { env: {} };
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
