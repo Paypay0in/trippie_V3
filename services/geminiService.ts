@@ -9,8 +9,12 @@ const cleanJsonString = (str: string) => {
 };
 
 const getAiModel = () => {
-    if (!process.env.API_KEY) return null;
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
+    if (!apiKey || apiKey === 'undefined' || apiKey === 'null') {
+        console.warn("Gemini API Key missing or invalid");
+        return null;
+    }
+    return new GoogleGenAI({ apiKey });
 };
 
 // Retry helper for API calls
