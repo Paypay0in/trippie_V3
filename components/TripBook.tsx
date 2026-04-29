@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Trip } from '../types';
-import { Calendar, Trash2, Edit3, Check } from 'lucide-react';
+import { Calendar, Trash2, Edit3, Check, Plus } from 'lucide-react';
 
 interface Props {
   trip?: Trip; // If undefined, it acts as a "New Trip" placeholder
@@ -116,20 +116,20 @@ const TripBook: React.FC<Props> = ({
     return (
       <div 
         onClick={onClick}
-        className="group relative w-full aspect-[3/4] cursor-pointer perspective-1000"
+        className="group relative w-full aspect-[2/1] cursor-pointer"
       >
-        <div className="absolute inset-0 bg-gray-100 rounded-r-xl rounded-l-md border-2 border-dashed border-gray-300 flex flex-col items-center justify-center transition-transform duration-300 group-hover:-translate-y-2 shadow-sm hover:shadow-md hover:border-brand-400 hover:bg-brand-50">
-           <div className="w-12 h-12 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center mb-3 group-hover:border-brand-400 group-hover:text-brand-500 text-gray-400 transition-colors">
-              <Edit3 size={24} />
+        <div className="absolute inset-0 bg-white rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center transition-all duration-300 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:shadow-md">
+           <div className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center mb-2 group-hover:bg-white group-hover:scale-110 transition-all text-gray-400 group-hover:text-brand-500">
+              <Plus size={24} />
            </div>
-           <span className="font-bold text-gray-500 group-hover:text-brand-600">開啟新旅程</span>
+           <span className="font-bold text-gray-400 group-hover:text-brand-600 text-sm">開啟新旅程</span>
         </div>
       </div>
     );
   }
 
   // 2. Render Actual Book (Draft or Archived)
-  const coverColor = isDraft ? 'bg-white border-2 border-brand-500' : getColor(trip!.id);
+  const coverColor = isDraft ? 'bg-white border border-brand-100' : getColor(trip!.id);
   const totalCost = isDraft ? draftTotal : trip!.totalCost;
   const count = isDraft ? draftExpenseCount : trip!.expenses.length;
   const dateStr = getDateDisplay();
@@ -137,37 +137,40 @@ const TripBook: React.FC<Props> = ({
   return (
     <div 
         onClick={onClick}
-        className="group relative w-full aspect-[3/4] cursor-pointer perspective-1000"
+        className="group relative w-full aspect-[2/1] cursor-pointer"
     >
-        {/* Book Spine (Left side shadow/depth) */}
-        <div className="absolute left-0 top-1 bottom-1 w-4 bg-gray-900/20 rounded-l-sm z-0 transform translate-x-1 translate-y-1"></div>
-        
-        {/* Main Cover */}
-        <div className={`absolute inset-0 rounded-r-xl rounded-l-md shadow-md transition-all duration-300 group-hover:-translate-y-2 group-hover:shadow-xl group-hover:shadow-black/20 overflow-hidden flex flex-col ${coverColor} ${isDraft ? 'text-gray-800' : 'text-white'}`}>
+        {/* Main Cover Card */}
+        <div className={`absolute inset-0 rounded-2xl shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-black/10 overflow-hidden flex ${coverColor} ${isDraft ? 'text-gray-800' : 'text-white'}`}>
             
-            {/* Spine Highlight */}
-            <div className="absolute left-0 top-0 bottom-0 w-6 bg-black/10 border-r border-white/10"></div>
+            {/* Book Spine Metaphor (Left accent) */}
+            <div className={`w-3 h-full ${isDraft ? 'bg-brand-500' : 'bg-black/20'} shrink-0`}></div>
             
             {/* Content Container */}
-            <div className="flex-1 p-4 pl-8 flex flex-col relative z-10">
+            <div className="flex-1 p-5 flex flex-col relative z-10">
                 
                 {/* Header / Badge & Actions */}
-                <div className="flex justify-between items-start mb-2">
-                    {isDraft ? (
-                        <span className="bg-brand-100 text-brand-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-brand-200">
-                            進行中
-                        </span>
-                    ) : (
-                         <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-md">
-                            已封存
-                        </span>
-                    )}
+                <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-2">
+                        {isDraft ? (
+                            <span className="bg-brand-50 text-brand-600 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider border border-brand-100">
+                                Draft
+                            </span>
+                        ) : (
+                             <span className="bg-white/20 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider backdrop-blur-md">
+                                Archived
+                            </span>
+                        )}
+                        <div className="flex items-center gap-1 text-[10px] opacity-60 font-bold">
+                            <Calendar size={10} />
+                            {dateStr}
+                        </div>
+                    </div>
                     
                     <div className="flex gap-1">
                         {onRename && !isEditing && (
                             <button 
                                 onClick={handleEditClick}
-                                className={`p-1.5 rounded transition-colors ${isDraft ? 'hover:bg-gray-100 text-gray-400' : 'bg-black/10 hover:bg-black/20 text-white/80 hover:text-white'}`}
+                                className={`p-1.5 rounded-lg transition-colors ${isDraft ? 'hover:bg-gray-100 text-gray-400' : 'bg-white/10 hover:bg-white/20 text-white/80'}`}
                             >
                                 <Edit3 size={14} />
                             </button>
@@ -175,7 +178,7 @@ const TripBook: React.FC<Props> = ({
                         {!isDraft && onDelete && (
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onDelete(e); }}
-                                className="p-1.5 rounded bg-black/10 hover:bg-black/20 text-white/80 hover:text-white transition-colors"
+                                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 transition-colors"
                             >
                                 <Trash2 size={14} />
                             </button>
@@ -183,54 +186,51 @@ const TripBook: React.FC<Props> = ({
                     </div>
                 </div>
 
-                {/* Title */}
-                {isEditing ? (
-                    <div className="mb-auto" onClick={handleInputClick}>
-                        <textarea
-                            ref={inputRef as any}
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={handleSave}
-                            onKeyDown={handleKeyDown}
-                            className="w-full bg-white/90 text-gray-900 p-1 rounded text-lg font-bold outline-none resize-none shadow-inner"
-                            rows={3}
-                            maxLength={30}
-                        />
-                        <div className="text-[10px] opacity-70 mt-1 flex items-center gap-1">
-                            <Check size={10} /> Enter 儲存
+                {/* Title Section */}
+                <div className="flex-1 min-w-0">
+                    {isEditing ? (
+                        <div className="mb-auto" onClick={handleInputClick}>
+                            <input
+                                ref={inputRef}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={handleSave}
+                                onKeyDown={handleKeyDown}
+                                className="w-full bg-white/90 text-gray-900 px-2 py-1 rounded-lg text-lg font-bold outline-none shadow-inner"
+                                maxLength={30}
+                            />
                         </div>
-                    </div>
-                ) : (
-                    <h3 className={`font-bold text-lg leading-tight mb-auto line-clamp-3 ${isDraft ? 'text-gray-800' : 'text-white drop-shadow-sm'}`}>
-                        {displayTitle}
-                    </h3>
-                )}
-
-                {/* Metadata */}
-                <div className={`space-y-1 text-xs ${isDraft ? 'text-gray-500' : 'text-white/80'}`}>
-                    <div className="flex items-center gap-1.5">
-                        <Calendar size={12} />
-                        <span className="font-medium">{dateStr}</span>
-                    </div>
-                    {/* Decorative Line */}
-                    <div className={`h-px w-full my-2 ${isDraft ? 'bg-gray-200' : 'bg-white/30'}`}></div>
+                    ) : (
+                        <h3 className={`font-black text-xl leading-tight mb-1 truncate ${isDraft ? 'text-gray-900' : 'text-white'}`}>
+                            {displayTitle}
+                        </h3>
+                    )}
                     
-                    <div className="flex justify-between items-end">
-                        <div>
-                            <div className="text-[10px] opacity-70">總花費</div>
-                            <div className={`font-mono font-bold text-lg ${isDraft ? 'text-brand-600' : 'text-white'}`}>
-                                ${Math.round(totalCost || 0).toLocaleString()}
-                            </div>
+                    {/* Subtitle / Location Placeholder */}
+                    <p className={`text-xs font-medium opacity-60 truncate ${isDraft ? 'text-gray-500' : 'text-white'}`}>
+                        {count} 筆消費記錄 • {isDraft ? '編輯中' : '已結算'}
+                    </p>
+                </div>
+
+                {/* Footer / Stats */}
+                <div className="mt-auto pt-4 flex items-end justify-between border-t border-white/10">
+                    <div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-50 block mb-0.5">Total Cost</span>
+                        <div className={`font-mono font-black text-2xl ${isDraft ? 'text-brand-600' : 'text-white'}`}>
+                            ${Math.round(totalCost || 0).toLocaleString()}
+                            <span className="text-xs ml-1 opacity-60">TWD</span>
                         </div>
-                        <div className={`px-2 py-1 rounded text-[10px] font-bold ${isDraft ? 'bg-gray-100 text-gray-600' : 'bg-black/20 text-white'}`}>
-                            {count} 筆
-                        </div>
+                    </div>
+                    
+                    {/* Decorative Element */}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDraft ? 'bg-brand-50 text-brand-500' : 'bg-white/10 text-white'}`}>
+                        <Edit3 size={18} className="opacity-40" />
                     </div>
                 </div>
             </div>
             
             {/* Texture Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-black/5 to-white/10 pointer-events-none"></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-black/5 pointer-events-none"></div>
         </div>
     </div>
   );

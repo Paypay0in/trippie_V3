@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { Category, PaymentMethod, TaxRule, VisaInfo } from '../types';
+import { Category, PaymentMethod, TaxRule, VisaInfo, Expense, Trip, TravelBook, ItineraryItem, PublicTrip } from '../types';
 
 const cleanJsonString = (str: string) => {
     // Remove markdown code blocks if present
@@ -309,6 +309,150 @@ export const fetchVisaAndEntryInfo = async (destination: string, origin: string)
   }
 };
 
+export const generateTravelBook = async (trip: Trip): Promise<TravelBook | null> => {
+    const ai = getAiModel();
+    if (!ai) return null;
+
+    try {
+        const expensesSummary = trip.expenses.map(e => `${e.date}: ${e.description} (${e.category})`).join('\n');
+        const prompt = `
+            Based on these trip expenses, generate a beautiful "Travel Book" summary in Traditional Chinese.
+            1. Summary: A 2-sentence emotional summary of the trip.
+            2. Trajectory: A list of 5-8 key location highlights or activities.
+            3. AI Narrative: A poetic narrative of the journey (approx 150 words).
+            
+            Trip Name: ${trip.name}
+            Expenses:
+            ${expensesSummary}
+            
+            Return JSON.
+        `;
+
+        const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        summary: { type: Type.STRING },
+                        trajectory: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        aiNarrative: { type: Type.STRING }
+                    },
+                    required: ["summary", "trajectory", "aiNarrative"]
+                }
+            }
+        }));
+
+        if (response.text) {
+            const data = JSON.parse(cleanJsonString(response.text));
+            return {
+                tripId: trip.id,
+                ...data
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error("Gemini travel book error:", error);
+        return null;
+    }
+};
+
+export const extractItineraryFromExpenses = async (expenses: Expense[]): Promise<ItineraryItem[]> => {
+    const ai = getAiModel();
+    if (!ai || expenses.length === 0) return [];
+
+    try {
+        const expensesData = expenses.map(e => ({
+            id: e.id,
+            desc: e.description,
+            date: e.date,
+            cat: e.category
+        }));
+
+        const prompt = `
+            Analyze these expenses and extract a structured itinerary (calendar).
+            Focus on Flights, Hotels, and major Activities.
+            Assign a specific time if possible, otherwise use "09:00", "14:00", etc.
+            
+            Expenses:
+            ${JSON.stringify(expensesData)}
+            
+            Return JSON as an array of ItineraryItems.
+        `;
+
+        const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            id: { type: Type.STRING },
+                            time: { type: Type.STRING, description: "HH:MM format" },
+                            title: { type: Type.STRING },
+                            location: { type: Type.STRING },
+                            notes: { type: Type.STRING },
+                            type: { type: Type.STRING, enum: ['FLIGHT', 'HOTEL', 'ACTIVITY', 'FOOD', 'TRANSPORT'] },
+                            linkedExpenseId: { type: Type.STRING }
+                        },
+                        required: ["time", "title", "type"]
+                    }
+                }
+            }
+        }));
+
+        if (response.text) {
+            return JSON.parse(cleanJsonString(response.text));
+        }
+        return [];
+    } catch (error) {
+        console.error("Gemini itinerary extraction error:", error);
+        return [];
+    }
+};
+
+export const recommendTrips = async (nextTripDescription: string, publicTrips: PublicTrip[]): Promise<PublicTrip[]> => {
+    const ai = getAiModel();
+    if (!ai || !nextTripDescription) return [];
+
+    try {
+        const tripsMeta = publicTrips.map(t => ({ id: t.id, name: t.name, tags: t.tags }));
+        const prompt = `
+            The user is planning a trip: "${nextTripDescription}".
+            Recommend the top 3 most relevant trips from this public list:
+            ${JSON.stringify(tripsMeta)}
+            
+            Return only the IDs of the recommended trips as a JSON array.
+        `;
+
+        const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING }
+                }
+            }
+        }));
+
+        if (response.text) {
+            const recommendedIds = JSON.parse(cleanJsonString(response.text));
+            return publicTrips.filter(t => recommendedIds.includes(t.id));
+        }
+        return [];
+    } catch (error) {
+        console.error("Gemini recommendation error:", error);
+        return [];
+    }
+};
+
 export const fetchShoppingSuggestions = async (tripDescription: string): Promise<{suggestions: Array<{item: string, reason: string}>, country: string}> => {
     const ai = getAiModel();
     if (!ai || !tripDescription) return { suggestions: [], country: '' };
@@ -364,5 +508,61 @@ export const fetchShoppingSuggestions = async (tripDescription: string): Promise
     } catch (error) {
         console.error("Gemini shopping suggestion error:", error);
         return { suggestions: [], country: '' };
+    }
+};
+
+export const findCheapestTimes = async (location: string, publicTrips: PublicTrip[]): Promise<string> => {
+    const ai = getAiModel();
+    if (!ai || !location) return "";
+
+    try {
+        const relevantTrips = publicTrips.filter(t => t.expenses.some(e => e.description.includes(location)));
+        const data = relevantTrips.map(t => t.expenses.filter(e => e.description.includes(location)).map(e => ({ date: e.date, amount: e.amount, currency: e.currency })));
+        
+        const prompt = `
+            Analyze these shared expenses for "${location}" and identify the cheapest times to visit (e.g., lunch vs dinner, or specific months).
+            Data: ${JSON.stringify(data)}
+            
+            Provide a short summary in Traditional Chinese.
+        `;
+
+        const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt
+        }));
+
+        return response.text || "";
+    } catch (error) {
+        console.error("Gemini cheapest times error:", error);
+        return "";
+    }
+};
+
+export const fetchCurrentExchangeRate = async (fromCurrency: string, toCurrency: string = 'TWD'): Promise<number | null> => {
+    const ai = getAiModel();
+    if (!ai || !fromCurrency || fromCurrency === toCurrency) return null;
+
+    try {
+        const prompt = `What is the current exchange rate from ${fromCurrency} to ${toCurrency}? Provide only the numerical rate.`;
+        
+        const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }]
+            }
+        }));
+
+        if (response.text) {
+            // Extract number from text (e.g., "0.22" or "The rate is 0.22")
+            const match = response.text.match(/(\d+(\.\d+)?)/);
+            if (match) {
+                return parseFloat(match[0]);
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error("Gemini exchange rate fetch error:", error);
+        return null;
     }
 };

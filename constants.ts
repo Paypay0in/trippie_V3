@@ -74,6 +74,10 @@ export const COMMON_CURRENCIES: CurrencyOption[] = [
   { code: 'CNY', name: '人民幣', defaultRate: 4.5 },
   { code: 'THB', name: '泰銖', defaultRate: 0.9 },
   { code: 'GBP', name: '英鎊', defaultRate: 41.0 },
+  { code: 'CAD', name: '加幣', defaultRate: 23.5 },
+  { code: 'AUD', name: '澳幣', defaultRate: 21.5 },
+  { code: 'SGD', name: '新幣', defaultRate: 24.0 },
+  { code: 'HKD', name: '港幣', defaultRate: 4.1 },
 ];
 
 export const POPULAR_COUNTRIES = [

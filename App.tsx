@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Phase, Expense, Category, Trip, PaymentMethod, Companion, ShoppingItem, TaxRule, VisaInfo } from './types';
-import { fetchTaxRefundRules, parseImageExpenseWithGemini } from './services/geminiService';
+import { motion, AnimatePresence } from "motion/react";
+import { Phase, Expense, Category, Trip, PaymentMethod, Companion, ShoppingItem, TaxRule, VisaInfo, PublicTrip, UserProfile, TravelBook, ItineraryItem, MarketplaceService, InboxMessage } from './types';
+import { fetchTaxRefundRules, parseImageExpenseWithGemini, generateTravelBook, extractItineraryFromExpenses, recommendTrips, findCheapestTimes } from './services/geminiService';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES } from './constants';
 import PhaseSelector from './components/PhaseSelector';
 import ExpenseForm from './components/ExpenseForm';
@@ -14,8 +15,16 @@ import TripSummaryModal from './components/TripSummaryModal';
 import CompanionsModal from './components/CompanionsModal';
 import CountrySettingsModal from './components/CountrySettingsModal';
 import TripSelectionScreen from './components/TripSelectionScreen';
-import VisaCheckModal from './components/VisaCheckModal'; // New Import
-import { Plus, CheckCircle, Trash2, Users, Globe, ArrowLeft, Book, Pencil, CalendarDays, Info } from 'lucide-react';
+import VisaCheckModal from './components/VisaCheckModal';
+import CommunityFeed from './components/CommunityFeed';
+import Marketplace from './components/Marketplace';
+import ItineraryCalendar from './components/ItineraryCalendar';
+import TravelBookView from './components/TravelBookView';
+import PointsDashboard from './components/PointsDashboard';
+import MapExplorer from './components/MapExplorer';
+import { Plus, CheckCircle, Trash2, Users, Globe, ArrowLeft, Book, Pencil, CalendarDays, Info, Users2, ShoppingBag, Map as MapIcon, Award, Sparkles, Receipt, Share2 } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
+import QRShareModal from './components/QRShareModal';
 
 // Helper to generate unique IDs safe for all environments
 const generateId = () => {
@@ -78,13 +87,75 @@ const migrateShoppingList = (data: any[]): ShoppingItem[] => {
 
 const App: React.FC = () => {
   // Navigation State
-  const [viewMode, setViewMode] = useState<'bookshelf' | 'trip'>('bookshelf');
+  const [viewMode, setViewMode] = useState<'bookshelf' | 'trip' | 'community' | 'marketplace' | 'points' | 'map'>('bookshelf');
+
+  const [userId] = useState<string>(() => {
+    let id = localStorage.getItem('trippie_user_id');
+    if (!id) {
+      id = generateId();
+      localStorage.setItem('trippie_user_id', id);
+    }
+    return id;
+  });
+
+  const [friends, setFriends] = useState<Companion[]>(() => {
+    const saved = localStorage.getItem('trippie_friends');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const [currentPhase, setCurrentPhase] = useState<Phase>('pre');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCompanionsOpen, setIsCompanionsOpen] = useState(false);
   const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
-  const [isVisaModalOpen, setIsVisaModalOpen] = useState(false); // New Modal State
+  const [isVisaModalOpen, setIsVisaModalOpen] = useState(false);
+  const [isTravelBookOpen, setIsTravelBookOpen] = useState(false);
+  
+  // Community & Social State
+  const [publicTrips, setPublicTrips] = useState<PublicTrip[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem('trippie_profile');
+    return saved ? JSON.parse(saved) : {
+      id: 'me',
+      name: '旅人',
+      points: 1200,
+      trippieCoins: 50,
+      level: 3
+    };
+  });
+  const [itinerary, setItinerary] = useState<ItineraryItem[]>([]);
+  const [travelBook, setTravelBook] = useState<TravelBook | null>(null);
+  const [marketplaceServices, setMarketplaceServices] = useState<MarketplaceService[]>([
+    {
+      id: 's1',
+      providerName: 'Yuki',
+      serviceType: 'BOOKING',
+      title: '代訂日本米其林餐廳',
+      description: '協助預訂東京、大阪熱門餐廳，保證成功率 90% 以上。',
+      price: 500,
+      currency: 'TWD',
+      rating: 4.9
+    },
+    {
+      id: 's2',
+      providerName: 'Marco',
+      serviceType: 'GUIDE',
+      title: '羅馬私房景點導覽',
+      description: '帶你走進觀光客不知道的小巷弄，體驗最道地的義大利生活。',
+      price: 1200,
+      currency: 'TWD',
+      rating: 4.8
+    }
+  ]);
+
+  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([
+    { id: 'msg1', serviceTitle: '代訂京都米其林餐廳', sender: 'Alice', lastMessage: '請問下週三晚上還有空位嗎？', time: '10:30 AM', unread: true },
+    { id: 'msg2', serviceTitle: '東京地鐵一日導覽', sender: 'Bob', lastMessage: '好的，那我們明天早上 9 點在新宿站見！', time: '昨天', unread: false },
+  ]);
+
+  const unreadInboxCount = inboxMessages.filter(m => m.unread).length;
   
   // Form Prefill State
   const [initialFormCategory, setInitialFormCategory] = useState<Category | undefined>(undefined);
@@ -154,6 +225,92 @@ const App: React.FC = () => {
       return localStorage.getItem('trippie_draft_name') || '';
   });
 
+  // Socket Connection & Sync
+  useEffect(() => {
+    const newSocket = io(window.location.origin);
+    setSocket(newSocket);
+
+    newSocket.on('trip-update', (newState: any) => {
+      if (newState.expenses) setExpenses(newState.expenses);
+      if (newState.companions) setCompanions(newState.companions);
+      if (newState.shoppingList) setShoppingList(newState.shoppingList);
+      if (newState.startDate) setTripStartDate(newState.startDate);
+      if (newState.endDate) setTripEndDate(newState.endDate);
+      if (newState.name) setDraftName(newState.name);
+    });
+
+    return () => {
+      newSocket.close();
+    };
+  }, []);
+
+  // Sync state to server when it changes and we are in a shared trip
+  useEffect(() => {
+    if (socket && currentLoadedTripId) {
+      socket.emit('update-trip', {
+        tripId: currentLoadedTripId,
+        state: {
+          expenses,
+          companions,
+          shoppingList,
+          startDate: tripStartDate,
+          endDate: tripEndDate,
+          name: draftName
+        }
+      });
+    }
+  }, [expenses, companions, shoppingList, tripStartDate, tripEndDate, draftName, socket, currentLoadedTripId]);
+
+  useEffect(() => {
+    if (socket && currentLoadedTripId) {
+      socket.emit('join-trip', currentLoadedTripId);
+    }
+  }, [socket, currentLoadedTripId]);
+
+  const handleScanSuccess = (data: any) => {
+    if (data.type === 'SHARE_TRIP') {
+      // 1. Add to friends if not already there
+      const isFriend = friends.some(f => f.id === data.userId);
+      if (!isFriend) {
+        const newFriend = { id: data.userId, name: data.userName };
+        const updatedFriends = [...friends, newFriend];
+        setFriends(updatedFriends);
+        localStorage.setItem('trippie_friends', JSON.stringify(updatedFriends));
+        showToast(`已將 ${data.userName} 加入好友`);
+      }
+
+      // 2. If tripId is present, join the trip
+      if (data.tripId) {
+        setCurrentLoadedTripId(data.tripId);
+        localStorage.setItem('trippie_current_trip_id', data.tripId);
+        setDraftName(data.tripName || '共享旅程');
+        setViewMode('trip');
+        showToast(`已加入共享旅程：${data.tripName}`);
+        
+        // Add the owner as a companion if not already there
+        const isCompanion = companions.some(c => c.id === data.userId);
+        if (!isCompanion) {
+          setCompanions(prev => [...prev, { id: data.userId, name: data.userName }]);
+        }
+      }
+      
+      setIsShareModalOpen(false);
+    }
+  };
+
+  const handleOpenShareModal = () => {
+    if (!currentLoadedTripId) {
+      const newId = generateId();
+      setCurrentLoadedTripId(newId);
+      localStorage.setItem('trippie_current_trip_id', newId);
+      if (!draftName) {
+        setDraftName('新共享旅程');
+        localStorage.setItem('trippie_draft_name', '新共享旅程');
+      }
+    }
+    setIsShareModalOpen(true);
+  };
+
   // Archived Trips
   const [tripHistory, setTripHistory] = useState<Trip[]>(() => {
     const saved = localStorage.getItem('trippie_history');
@@ -178,7 +335,28 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem('trippie_expenses', JSON.stringify(expenses)); }, [expenses]);
   useEffect(() => { localStorage.setItem('trippie_companions', JSON.stringify(companions)); }, [companions]);
   useEffect(() => { localStorage.setItem('trippie_shopping_list', JSON.stringify(shoppingList)); }, [shoppingList]);
-  useEffect(() => { localStorage.setItem('trippie_history', JSON.stringify(tripHistory)); }, [tripHistory]);
+  useEffect(() => { localStorage.setItem('trippie_profile', JSON.stringify(userProfile)); }, [userProfile]);
+
+  // Load public trips (Mock for now, but ready for real API)
+  useEffect(() => {
+    const mockPublic: PublicTrip[] = tripHistory.filter(t => t.expenses.length > 5).map(t => ({
+      ...t,
+      authorName: '匿名旅人',
+      likes: Math.floor(Math.random() * 100),
+      clones: Math.floor(Math.random() * 50),
+      isPublic: true,
+      tags: ['自助旅行', '美食之旅'],
+      photos: []
+    }));
+    setPublicTrips(mockPublic);
+  }, [tripHistory]);
+
+  // AI Itinerary Auto-generation
+  useEffect(() => {
+    if (viewMode === 'trip' && expenses.length > 3) {
+      extractItineraryFromExpenses(expenses).then(setItinerary);
+    }
+  }, [expenses, viewMode]);
   useEffect(() => { localStorage.setItem('trippie_country', travelCountry); }, [travelCountry]);
   useEffect(() => { localStorage.setItem('trippie_origin_country', originCountry); }, [originCountry]);
   useEffect(() => { localStorage.setItem('trippie_draft_name', draftName); }, [draftName]);
@@ -296,6 +474,11 @@ const App: React.FC = () => {
     const newCompanion = { id: generateId(), name };
     setCompanions(prev => [...prev, newCompanion]);
     showToast(`已新增旅伴：${name}`);
+  };
+
+  const handleAddFriendToTrip = (friend: Companion) => {
+    setCompanions(prev => [...prev, friend]);
+    showToast(`已將好友 ${friend.name} 加入此旅程`);
   };
 
   const handleRemoveCompanion = (id: string) => {
@@ -566,6 +749,82 @@ const App: React.FC = () => {
         setTripHistory(prev => prev.filter(t => t.id !== id));
         showToast("已刪除旅程紀錄", "error");
       }
+  };
+
+  const handleCloneTrip = (publicTrip: PublicTrip) => {
+    const confirmClone = window.confirm(`確定要複製「${publicTrip.name}」的行程規劃嗎？這將會建立一個新的草稿。`);
+    if (!confirmClone) return;
+
+    // Clone expenses but reset IDs and dates
+    const today = new Date().toISOString().split('T')[0];
+    const clonedExpenses: Expense[] = publicTrip.expenses.map(e => ({
+      ...e,
+      id: generateId(),
+      date: today,
+      needsReview: true // Mark for review since dates/rates might change
+    }));
+
+    setExpenses(clonedExpenses);
+    setDraftName(`複製自: ${publicTrip.name}`);
+    setShoppingList(publicTrip.shoppingList || []);
+    setTravelCountry(publicTrip.taxRule?.country || '');
+    setTaxRule(publicTrip.taxRule || null);
+    setCurrentLoadedTripId(null);
+    setViewMode('trip');
+    showToast("行程已複製！請檢查支出日期與匯率。");
+  };
+
+  const handleGenerateTravelBook = async () => {
+    if (expenses.length < 3) {
+      showToast("支出太少，無法產生回憶錄", "error");
+      return;
+    }
+    
+    showToast("AI 正在編寫您的旅程回憶錄...");
+    const currentTrip: Trip = {
+      id: currentLoadedTripId || 'draft',
+      name: currentTripName,
+      startDate: tripStartDate,
+      endDate: tripEndDate,
+      expenses,
+      companions,
+      shoppingList,
+      totalCost: expenses.reduce((sum, e) => sum + e.twdAmount, 0),
+      archivedAt: new Date().toISOString()
+    };
+
+    const book = await generateTravelBook(currentTrip);
+    if (book) {
+      setTravelBook(book);
+      setIsTravelBookOpen(true);
+      // Reward points for using AI
+      setUserProfile(prev => ({ ...prev, points: prev.points + 100 }));
+    } else {
+      showToast("產生失敗，請稍後再試", "error");
+    }
+  };
+
+  const handleBookService = (service: MarketplaceService) => {
+    if (userProfile.trippieCoins < service.price) {
+      showToast("Trippie Coins 不足，請先賺取積分", "error");
+      return;
+    }
+    
+    const confirm = window.confirm(`確定要花費 ${service.price} Trippie Coins 預約「${service.title}」嗎？`);
+    if (confirm) {
+      setUserProfile(prev => ({ ...prev, trippieCoins: prev.trippieCoins - service.price }));
+      showToast("預約成功！當地人將在 24 小時內與您聯繫。");
+    }
+  };
+
+  const handleAddMarketplaceService = (service: Omit<MarketplaceService, 'id' | 'rating'>) => {
+    const newService: MarketplaceService = {
+      ...service,
+      id: generateId(),
+      rating: 5.0
+    };
+    setMarketplaceServices(prev => [newService, ...prev]);
+    showToast("服務已成功發佈！");
   };
 
   // Helper to get exchange rate synchronously
@@ -892,22 +1151,75 @@ const App: React.FC = () => {
       }
       
       return (
-          <>
-            <TripSelectionScreen 
-                currentDraftExpenses={expenses}
-                draftName={draftName} // Pass Draft Name
-                draftStartDate={displayStart}
-                draftEndDate={displayEnd}
-                tripHistory={tripHistory}
-                onOpenDraft={handleOpenDraft}
-                onOpenTrip={handleRestoreTrip}
-                onCreateNew={handleCreateNewTrip}
-                onDeleteTrip={handleDeleteHistory}
-                onRenameTrip={handleRenameFromBookshelf} // Pass Rename Handler
-                onSmartScan={handleSmartScanBatch} // Use new Batch Handler
-                onAddShoppingItem={handleAddShoppingItem} // Pass Add Item Handler (Still used for single inline adds if needed, though now we prefer batch)
-                onBatchAddShoppingItems={handleBatchAddShoppingItems} // New Batch Handler
-            />
+          <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
+            <header className="bg-white pt-10 pb-6 px-6 sticky top-0 z-10 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-black text-gray-900 tracking-tight">我的旅程書架</h1>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Personal Travel Archive</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={handleOpenShareModal}
+                    className="p-2 hover:bg-brand-50 rounded-xl text-brand-600 border border-brand-100 transition-colors flex items-center gap-2"
+                  >
+                    <Share2 size={18} />
+                    <span className="text-xs font-bold hidden sm:inline">共享</span>
+                  </button>
+                  <div className="bg-brand-50 px-3 py-1.5 rounded-xl text-[10px] font-black text-brand-600 border border-brand-100 shadow-sm shadow-brand-50">
+                    {tripHistory.length + (expenses.length > 0 ? 1 : 0)} BOOKS
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            <main className="flex-1 overflow-y-auto">
+              <TripSelectionScreen 
+                  currentDraftExpenses={expenses}
+                  draftName={draftName}
+                  draftStartDate={displayStart}
+                  draftEndDate={displayEnd}
+                  tripHistory={tripHistory}
+                  onOpenDraft={handleOpenDraft}
+                  onOpenTrip={handleRestoreTrip}
+                  onCreateNew={handleCreateNewTrip}
+                  onDeleteTrip={handleDeleteHistory}
+                  onRenameTrip={handleRenameFromBookshelf}
+                  onSmartScan={handleSmartScanBatch}
+                  onAddShoppingItem={handleAddShoppingItem}
+                  onBatchAddShoppingItems={handleBatchAddShoppingItems}
+              />
+            </main>
+            
+            {/* Bottom Nav for Bookshelf */}
+            <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
+              <button onClick={() => setViewMode('bookshelf')} className={`flex flex-col items-center gap-1 ${viewMode === 'bookshelf' ? 'text-brand-600' : 'text-gray-400'}`}>
+                <Book size={20} />
+                <span className="text-[10px] font-bold">書架</span>
+              </button>
+              <button onClick={() => setViewMode('community')} className={`flex flex-col items-center gap-1 ${viewMode === 'community' ? 'text-brand-600' : 'text-gray-400'}`}>
+                <Users2 size={20} />
+                <span className="text-[10px] font-bold">社群</span>
+              </button>
+              <button onClick={() => setViewMode('map')} className={`flex flex-col items-center gap-1 ${viewMode === 'map' ? 'text-brand-600' : 'text-gray-400'}`}>
+                <MapIcon size={20} />
+                <span className="text-[10px] font-bold">地圖</span>
+              </button>
+              <button onClick={() => setViewMode('marketplace')} className={`flex flex-col items-center gap-1 relative ${viewMode === 'marketplace' ? 'text-brand-600' : 'text-gray-400'}`}>
+                <ShoppingBag size={20} />
+                <span className="text-[10px] font-bold">服務</span>
+                {unreadInboxCount > 0 && (
+                  <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
+                    {unreadInboxCount}
+                  </span>
+                )}
+              </button>
+              <button onClick={() => setViewMode('points')} className={`flex flex-col items-center gap-1 ${viewMode === 'points' ? 'text-brand-600' : 'text-gray-400'}`}>
+                <Award size={20} />
+                <span className="text-[10px] font-bold">積分</span>
+              </button>
+            </div>
+
             {/* Toast Notification (Global) */}
             {toast && (
                 <div className={`fixed top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full shadow-lg z-[60] flex items-center gap-2 text-sm font-bold animate-fade-in-down ${
@@ -917,8 +1229,210 @@ const App: React.FC = () => {
                     {toast.msg}
                 </div>
             )}
-          </>
+
+            <QRShareModal 
+              isOpen={isShareModalOpen}
+              onClose={() => setIsShareModalOpen(false)}
+              userId={userId}
+              userName={userProfile.name}
+              currentTripId={currentLoadedTripId}
+              currentTripName={draftName || (currentLoadedTripId ? '歷史旅程' : undefined)}
+              onScanSuccess={handleScanSuccess}
+            />
+          </div>
       );
+  }
+
+  // 1.1 Community View
+  if (viewMode === 'community') {
+    return (
+      <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
+        <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setViewMode('bookshelf')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+              <ArrowLeft size={24} />
+            </button>
+            <h1 className="text-xl font-black text-brand-900">旅人社群</h1>
+          </div>
+        </header>
+        <main className="flex-1 p-4 overflow-y-auto">
+          <CommunityFeed trips={publicTrips} onClone={handleCloneTrip} onView={(t) => showToast(`查看 ${t.name}`)} />
+        </main>
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
+          <button onClick={() => setViewMode('bookshelf')} className={`flex flex-col items-center gap-1 ${viewMode === 'bookshelf' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Book size={20} />
+            <span className="text-[10px] font-bold">書架</span>
+          </button>
+          <button onClick={() => setViewMode('community')} className={`flex flex-col items-center gap-1 ${viewMode === 'community' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Users2 size={20} />
+            <span className="text-[10px] font-bold">社群</span>
+          </button>
+          <button onClick={() => setViewMode('map')} className={`flex flex-col items-center gap-1 ${viewMode === 'map' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <MapIcon size={20} />
+            <span className="text-[10px] font-bold">地圖</span>
+          </button>
+          <button onClick={() => setViewMode('marketplace')} className={`flex flex-col items-center gap-1 relative ${viewMode === 'marketplace' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <ShoppingBag size={20} />
+            <span className="text-[10px] font-bold">服務</span>
+            {unreadInboxCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
+                {unreadInboxCount}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setViewMode('points')} className={`flex flex-col items-center gap-1 ${viewMode === 'points' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Award size={20} />
+            <span className="text-[10px] font-bold">積分</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 1.2 Marketplace View
+  if (viewMode === 'marketplace') {
+    return (
+      <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
+        <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setViewMode('bookshelf')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+              <ArrowLeft size={24} />
+            </button>
+            <h1 className="text-xl font-black text-brand-900">當地人服務</h1>
+          </div>
+        </header>
+        <main className="flex-1 p-4 overflow-y-auto">
+          <Marketplace 
+            services={marketplaceServices} 
+            inboxMessages={inboxMessages}
+            onBook={handleBookService} 
+            onAddService={handleAddMarketplaceService}
+            onMarkMessageRead={(id) => {
+              setInboxMessages(prev => prev.map(m => m.id === id ? { ...m, unread: false } : m));
+            }}
+          />
+        </main>
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
+          <button onClick={() => setViewMode('bookshelf')} className={`flex flex-col items-center gap-1 ${viewMode === 'bookshelf' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Book size={20} />
+            <span className="text-[10px] font-bold">書架</span>
+          </button>
+          <button onClick={() => setViewMode('community')} className={`flex flex-col items-center gap-1 ${viewMode === 'community' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Users2 size={20} />
+            <span className="text-[10px] font-bold">社群</span>
+          </button>
+          <button onClick={() => setViewMode('map')} className={`flex flex-col items-center gap-1 ${viewMode === 'map' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <MapIcon size={20} />
+            <span className="text-[10px] font-bold">地圖</span>
+          </button>
+          <button onClick={() => setViewMode('marketplace')} className={`flex flex-col items-center gap-1 relative ${viewMode === 'marketplace' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <ShoppingBag size={20} />
+            <span className="text-[10px] font-bold">服務</span>
+            {unreadInboxCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
+                {unreadInboxCount}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setViewMode('points')} className={`flex flex-col items-center gap-1 ${viewMode === 'points' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Award size={20} />
+            <span className="text-[10px] font-bold">積分</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 1.3 Points View
+  if (viewMode === 'points') {
+    return (
+      <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
+        <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setViewMode('bookshelf')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+              <ArrowLeft size={24} />
+            </button>
+            <h1 className="text-xl font-black text-brand-900">我的積分</h1>
+          </div>
+        </header>
+        <main className="flex-1 p-4 overflow-y-auto">
+          <PointsDashboard profile={userProfile} />
+        </main>
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
+          <button onClick={() => setViewMode('bookshelf')} className={`flex flex-col items-center gap-1 ${viewMode === 'bookshelf' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Book size={20} />
+            <span className="text-[10px] font-bold">書架</span>
+          </button>
+          <button onClick={() => setViewMode('community')} className={`flex flex-col items-center gap-1 ${viewMode === 'community' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Users2 size={20} />
+            <span className="text-[10px] font-bold">社群</span>
+          </button>
+          <button onClick={() => setViewMode('map')} className={`flex flex-col items-center gap-1 ${viewMode === 'map' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <MapIcon size={20} />
+            <span className="text-[10px] font-bold">地圖</span>
+          </button>
+          <button onClick={() => setViewMode('marketplace')} className={`flex flex-col items-center gap-1 relative ${viewMode === 'marketplace' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <ShoppingBag size={20} />
+            <span className="text-[10px] font-bold">服務</span>
+            {unreadInboxCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
+                {unreadInboxCount}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setViewMode('points')} className={`flex flex-col items-center gap-1 ${viewMode === 'points' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Award size={20} />
+            <span className="text-[10px] font-bold">積分</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 1.4 Map View
+  if (viewMode === 'map') {
+    return (
+      <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
+        <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setViewMode('bookshelf')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500">
+              <ArrowLeft size={24} />
+            </button>
+            <h1 className="text-xl font-black text-brand-900">地圖探索</h1>
+          </div>
+        </header>
+        <main className="flex-1 overflow-hidden">
+          <MapExplorer trips={publicTrips} onSelectTrip={(t) => showToast(`查看 ${t.name}`)} />
+        </main>
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
+          <button onClick={() => setViewMode('bookshelf')} className={`flex flex-col items-center gap-1 ${viewMode === 'bookshelf' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Book size={20} />
+            <span className="text-[10px] font-bold">書架</span>
+          </button>
+          <button onClick={() => setViewMode('community')} className={`flex flex-col items-center gap-1 ${viewMode === 'community' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Users2 size={20} />
+            <span className="text-[10px] font-bold">社群</span>
+          </button>
+          <button onClick={() => setViewMode('map')} className={`flex flex-col items-center gap-1 ${viewMode === 'map' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <MapIcon size={20} />
+            <span className="text-[10px] font-bold">地圖</span>
+          </button>
+          <button onClick={() => setViewMode('marketplace')} className={`flex flex-col items-center gap-1 relative ${viewMode === 'marketplace' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <ShoppingBag size={20} />
+            <span className="text-[10px] font-bold">服務</span>
+            {unreadInboxCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
+                {unreadInboxCount}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setViewMode('points')} className={`flex flex-col items-center gap-1 ${viewMode === 'points' ? 'text-brand-600' : 'text-gray-400'}`}>
+            <Award size={20} />
+            <span className="text-[10px] font-bold">積分</span>
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // 2. Trip Detail View
@@ -994,6 +1508,13 @@ const App: React.FC = () => {
                         <Users size={20} />
                         {companions.length > 0 && <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white"></span>}
                     </button>
+                    <button 
+                        onClick={handleOpenShareModal}
+                        className="p-2.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100 transition-colors flex items-center justify-center"
+                        title="共享帳本"
+                    >
+                        <Share2 size={20} />
+                    </button>
                 </div>
             </div>
         </div>
@@ -1001,87 +1522,141 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 p-4 overflow-y-auto">
-        {/* API Key Warning */}
-        {(!import.meta.env.VITE_GEMINI_API_KEY && !(process.env as any).GEMINI_API_KEY && !(process.env as any).API_KEY) && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center gap-3">
-                <Info size={18} className="flex-shrink-0" />
-                <div>
-                    <p className="font-bold">AI 功能尚未啟用</p>
-                    <p className="text-xs opacity-80">請在 Vercel 設定中新增環境變數 <code>VITE_GEMINI_API_KEY</code> 並重新部署。</p>
+      <main className="flex-1 p-4 overflow-y-auto overflow-x-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentPhase}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="space-y-6 pb-24"
+          >
+            {/* API Key Warning */}
+            {(!import.meta.env.VITE_GEMINI_API_KEY && !(process.env as any).GEMINI_API_KEY && !(process.env as any).API_KEY) && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm flex items-center gap-3">
+                    <Info size={18} className="flex-shrink-0" />
+                    <div>
+                        <p className="font-bold">AI 功能尚未啟用</p>
+                        <p className="text-xs opacity-80">請在 Vercel 設定中新增環境變數 <code>VITE_GEMINI_API_KEY</code> 並重新部署。</p>
+                    </div>
                 </div>
-            </div>
-        )}
-        
-        {currentPhase === 'summary' ? (
-           /* Full Screen Summary View */
-           <TripSummaryModal 
-                expenses={expenses}
-                onArchive={handleArchiveTrip}
-                taxRule={taxRule}
-                variant="embedded"
-                initialTripName={currentTripName} // Pass current name to summary
-           />
-        ) : (
-           /* Standard Phase Views */
-           <>
-              <Dashboard 
-                  expenses={expenses} 
-                  companions={companions}
-                  onExport={handleExport}
-                  onAddCash={() => handleQuickAdd(Category.EXCHANGE)}
-                  onAddExpense={handleSaveExpense}
-                  currentPhase={currentPhase}
-                  taxRule={taxRule}
-                  visaInfo={visaInfo}
-              />
-              
-              {/* Pre-trip Category Shortcuts */}
-              {currentPhase === 'pre' && (
-                <PreTripChecklist 
-                    onQuickAddCategory={handleQuickAdd} 
-                    expenses={expenses}
-                />
-              )}
-
-              {/* Post-trip/Airport Category Shortcuts (NEW) */}
-              {currentPhase === 'post' && (
-                <PostTripChecklist 
-                    onQuickAddCategory={handleQuickAdd} 
-                    expenses={expenses}
-                />
-              )}
-
-              {/* Shared Shopping List Panel (Enabled for Pre, During, and Post) */}
-              {currentPhase !== 'summary' && (
-                  <ShoppingListPanel 
-                      title={shoppingPanelTitle}
-                      shoppingList={shoppingList.filter(item => item.phase === currentPhase)}
-                      onAddItem={handleAddShoppingItem}
-                      onRemoveItem={handleRemoveShoppingItem}
-                      onPurchaseItem={handlePurchaseShoppingItem}
+            )}
+            
+            {currentPhase === 'summary' ? (
+               /* Full Screen Summary View */
+               <div className="space-y-6">
+                 <TripSummaryModal 
+                      expenses={expenses}
+                      onArchive={handleArchiveTrip}
+                      taxRule={taxRule}
+                      variant="embedded"
+                      initialTripName={currentTripName}
+                 />
+                 <button 
+                   onClick={handleGenerateTravelBook}
+                   className="w-full bg-gradient-to-r from-brand-600 to-indigo-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 hover:scale-[1.02] transition-transform"
+                 >
+                   <Sparkles size={20} /> 產生 AI 旅程回憶錄
+                 </button>
+               </div>
+            ) : (
+               /* Standard Phase Views */
+               <>
+                  {itinerary.length > 0 && (
+                    <ItineraryCalendar items={itinerary} />
+                  )}
+                  
+                  <Dashboard 
+                      expenses={expenses} 
+                      companions={companions}
+                      onExport={handleExport}
+                      onAddCash={() => handleQuickAdd(Category.EXCHANGE)}
+                      onAddExpense={handleSaveExpense}
+                      currentPhase={currentPhase}
+                      taxRule={taxRule}
+                      visaInfo={visaInfo}
                   />
-              )}
+                  
+                  {/* Phase Specific Context Card */}
+                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity pointer-events-none">
+                        {currentPhase === 'pre' && <ShoppingBag size={120} />}
+                        {currentPhase === 'during' && <Globe size={120} />}
+                        {currentPhase === 'post' && <Award size={120} />}
+                    </div>
 
-              <div className="flex items-center justify-between mb-4 px-2">
-                  <h3 className="font-bold text-gray-700">
-                      {currentPhase === 'pre' && '行前準備清單'}
-                      {currentPhase === 'during' && '旅途消費紀錄'}
-                      {currentPhase === 'post' && '回國機場消費'}
-                  </h3>
-                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                      共 {filteredExpenses.length} 筆
-                  </span>
-              </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-lg font-black text-gray-900">
+                                    {currentPhase === 'pre' && '行前準備'}
+                                    {currentPhase === 'during' && '旅途記帳'}
+                                    {currentPhase === 'post' && '回國結算'}
+                                </h3>
+                                <p className="text-xs text-gray-400 font-bold">
+                                    {currentPhase === 'pre' && '規劃預算、準備必備物品'}
+                                    {currentPhase === 'during' && '即時記錄每一筆旅途消費'}
+                                    {currentPhase === 'post' && '辦理退稅、查看最終報表'}
+                                </p>
+                            </div>
+                            <div className="bg-brand-50 text-brand-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                {currentPhase}
+                            </div>
+                        </div>
 
-              <ExpenseList 
-                  expenses={filteredExpenses} 
-                  onDelete={handleDeleteExpense} 
-                  onEdit={handleEditExpense} 
-                  taxRule={taxRule}
-              />
-           </>
-        )}
+                        <div className="space-y-6">
+                            {currentPhase === 'pre' && (
+                                <PreTripChecklist 
+                                    onQuickAddCategory={handleQuickAdd} 
+                                    expenses={expenses}
+                                />
+                            )}
+
+                            {currentPhase === 'post' && (
+                                <PostTripChecklist 
+                                    onQuickAddCategory={handleQuickAdd} 
+                                    expenses={expenses}
+                                />
+                            )}
+
+                            {/* Shared Shopping List Panel */}
+                            <ShoppingListPanel 
+                                title={shoppingPanelTitle}
+                                shoppingList={shoppingList.filter(item => item.phase === currentPhase)}
+                                onAddItem={handleAddShoppingItem}
+                                onRemoveItem={handleRemoveShoppingItem}
+                                onPurchaseItem={handlePurchaseShoppingItem}
+                            />
+                        </div>
+                    </div>
+                  </div>
+
+                  {/* Expense List Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                            <Receipt size={18} className="text-gray-400" />
+                            {currentPhase === 'pre' && '準備清單'}
+                            {currentPhase === 'during' && '消費紀錄'}
+                            {currentPhase === 'post' && '機場消費'}
+                        </h3>
+                        <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-2 py-1 rounded-full uppercase tracking-tighter">
+                            {filteredExpenses.length} ITEMS
+                        </span>
+                    </div>
+
+                    <ExpenseList 
+                        expenses={filteredExpenses} 
+                        onDelete={handleDeleteExpense} 
+                        onEdit={handleEditExpense} 
+                        taxRule={taxRule}
+                    />
+                  </div>
+               </>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Floating Action Button (Only show if NOT in summary) */}
@@ -1118,7 +1693,9 @@ const App: React.FC = () => {
       {isCompanionsOpen && (
           <CompanionsModal 
             companions={companions}
+            friends={friends}
             onAdd={handleAddCompanion}
+            onAddFriendToTrip={handleAddFriendToTrip}
             onRemove={handleRemoveCompanion}
             onClose={() => setIsCompanionsOpen(false)}
           />
@@ -1144,6 +1721,31 @@ const App: React.FC = () => {
             onAddVisaExpense={handleAddVisaExpense}
           />
       )}
+
+      {/* Travel Book Modal */}
+      {isTravelBookOpen && travelBook && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg relative">
+            <button 
+              onClick={() => setIsTravelBookOpen(false)}
+              className="absolute -top-12 right-0 text-white hover:text-brand-200 transition-colors"
+            >
+              <Plus size={32} className="rotate-45" />
+            </button>
+            <TravelBookView book={travelBook} onShare={() => showToast("分享功能即將推出！")} />
+          </div>
+        </div>
+      )}
+
+      <QRShareModal 
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        userId={userId}
+        userName={userProfile.name}
+        currentTripId={currentLoadedTripId}
+        currentTripName={currentTripName || (currentLoadedTripId ? '歷史旅程' : undefined)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 };

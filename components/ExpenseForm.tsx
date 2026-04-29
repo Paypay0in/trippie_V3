@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG } from '../constants';
-import { parseExpenseWithGemini, parseImageExpenseWithGemini } from '../services/geminiService';
+import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
 import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon } from 'lucide-react';
 
 interface Props {
@@ -35,13 +35,16 @@ const ExpenseForm: React.FC<Props> = ({
   linkedItemId,
   taxRule
 }) => {
+  const defaultCurrency = initialData?.currency || initialCurrency || (taxRule?.currency || 'TWD');
+  const defaultPaymentMethod = initialData?.paymentMethod || (defaultCurrency !== 'TWD' ? PaymentMethod.CASH_FOREIGN : PaymentMethod.CASH_TWD);
+
   const [description, setDescription] = useState(initialData?.description || initialDescription || '');
   const [amount, setAmount] = useState<string>(initialData?.amount.toString() || (initialAmount ? initialAmount.toString() : ''));
-  const [currency, setCurrency] = useState(initialData?.currency || initialCurrency || (taxRule?.currency || 'TWD')); 
+  const [currency, setCurrency] = useState(defaultCurrency); 
   const [exchangeRate, setExchangeRate] = useState<string>(initialData?.exchangeRate.toString() || '1');
   const [handlingFee, setHandlingFee] = useState<string>(initialData?.handlingFee?.toString() || '0');
   const [category, setCategory] = useState<Category>(initialData?.category || initialCategory || CATEGORIES_BY_PHASE[currentPhase][0]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialData?.paymentMethod || PaymentMethod.CASH_TWD);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
   
   // Split Bill State
@@ -69,6 +72,7 @@ const ExpenseForm: React.FC<Props> = ({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [showAiInput, setShowAiInput] = useState(false);
   const [autoRateApplied, setAutoRateApplied] = useState(!!initialData);
+  const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   
   // Image Upload Ref
@@ -110,27 +114,41 @@ const ExpenseForm: React.FC<Props> = ({
         return;
     }
 
-    if (paymentMethod === PaymentMethod.CASH_FOREIGN && !autoRateApplied) {
-        const exchanges = existingExpenses.filter(e => e.category === Category.EXCHANGE && e.currency === currency);
-        if (exchanges.length > 0) {
-            const totalForeign = exchanges.reduce((acc, curr) => acc + curr.amount, 0);
-            const totalCostTwd = exchanges.reduce((acc, curr) => acc + curr.twdAmount, 0);
-            
-            if (totalForeign > 0) {
-                const avgRate = totalCostTwd / totalForeign;
-                setExchangeRate(avgRate.toFixed(4));
-                return;
+    const fetchInitialRate = async () => {
+        if (!autoRateApplied && !initialData) {
+            // Try to find historical average for cash first
+            if (paymentMethod === PaymentMethod.CASH_FOREIGN) {
+                const exchanges = existingExpenses.filter(e => e.category === Category.EXCHANGE && e.currency === currency);
+                if (exchanges.length > 0) {
+                    const totalForeign = exchanges.reduce((acc, curr) => acc + curr.amount, 0);
+                    const totalCostTwd = exchanges.reduce((acc, curr) => acc + curr.twdAmount, 0);
+                    if (totalForeign > 0) {
+                        setExchangeRate((totalCostTwd / totalForeign).toFixed(4));
+                        setAutoRateApplied(true);
+                        return;
+                    }
+                }
+            }
+
+            // If no historical data, fetch from Google/AI
+            setIsFetchingRate(true);
+            const rate = await fetchCurrentExchangeRate(currency);
+            setIsFetchingRate(false);
+            if (rate) {
+                setExchangeRate(rate.toFixed(4));
+                setAutoRateApplied(true);
+            } else {
+                // Fallback to constants
+                const target = COMMON_CURRENCIES.find(c => c.code === currency);
+                if (target) {
+                    setExchangeRate(target.defaultRate.toString());
+                }
             }
         }
-    }
+    };
 
-    if (!autoRateApplied) {
-        const target = COMMON_CURRENCIES.find(c => c.code === currency);
-        if (target) {
-            setExchangeRate(target.defaultRate.toString());
-        }
-    }
-  }, [currency, paymentMethod, existingExpenses, autoRateApplied]);
+    fetchInitialRate();
+  }, [currency, paymentMethod, existingExpenses, autoRateApplied, initialData]);
 
   // Handle AI Text Parse
   const handleAiParse = async () => {
@@ -266,15 +284,40 @@ const ExpenseForm: React.FC<Props> = ({
       }
   };
 
-  const handleCurrencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleCurrencyChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
       const newCurrency = e.target.value;
       setCurrency(newCurrency);
       setAutoRateApplied(false);
-      if (newCurrency !== 'TWD' && paymentMethod === PaymentMethod.CASH_TWD) {
-          setPaymentMethod(PaymentMethod.CASH_FOREIGN);
+      
+      if (newCurrency !== 'TWD') {
+          if (paymentMethod === PaymentMethod.CASH_TWD) {
+              setPaymentMethod(PaymentMethod.CASH_FOREIGN);
+          }
+          
+          // Auto-fetch current rate from AI/Google
+          setIsFetchingRate(true);
+          const rate = await fetchCurrentExchangeRate(newCurrency);
+          setIsFetchingRate(false);
+          if (rate) {
+              setExchangeRate(rate.toFixed(4));
+              setAutoRateApplied(true);
+          }
+      } else {
+          if (paymentMethod === PaymentMethod.CASH_FOREIGN) {
+              setPaymentMethod(PaymentMethod.CASH_TWD);
+          }
+          setExchangeRate('1');
       }
-      if (newCurrency === 'TWD' && paymentMethod === PaymentMethod.CASH_FOREIGN) {
-          setPaymentMethod(PaymentMethod.CASH_TWD);
+  };
+
+  const handleRefreshRate = async () => {
+      if (currency === 'TWD') return;
+      setIsFetchingRate(true);
+      const rate = await fetchCurrentExchangeRate(currency);
+      setIsFetchingRate(false);
+      if (rate) {
+          setExchangeRate(rate.toFixed(4));
+          setAutoRateApplied(true);
       }
   };
 
@@ -532,6 +575,18 @@ const ExpenseForm: React.FC<Props> = ({
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
                         匯率 (1 {currency} = ? TWD)
+                        <button 
+                          type="button" 
+                          onClick={handleRefreshRate}
+                          disabled={isFetchingRate}
+                          className="ml-1 px-2 py-1 hover:bg-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 border border-orange-200 bg-white shadow-sm"
+                          title="使用 AI 抓取最新匯率"
+                        >
+                          {isFetchingRate ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                          <span className="text-[10px] font-bold whitespace-nowrap">
+                            {new Date().toISOString().split('T')[0].replace(/-/g, '/')} Google 當日匯率
+                          </span>
+                        </button>
                     </label>
                     <input 
                       type="number" 

@@ -114,6 +114,64 @@ export interface CurrencyOption {
   defaultRate: number; // Rough estimate defaults
 }
 
+export interface ItineraryItem {
+  id: string;
+  time: string;
+  title: string;
+  location: string;
+  notes: string;
+  type: 'FLIGHT' | 'HOTEL' | 'ACTIVITY' | 'FOOD' | 'TRANSPORT';
+  linkedExpenseId?: string;
+}
+
+export interface PublicTrip extends Trip {
+  authorName: string;
+  authorAvatar?: string;
+  likes: number;
+  clones: number;
+  isPublic: boolean;
+  tags: string[];
+  photos: string[];
+}
+
+export interface MarketplaceService {
+  id: string;
+  providerName: string;
+  providerAvatar?: string;
+  serviceType: 'BOOKING' | 'TRANSLATION' | 'GUIDE';
+  title: string;
+  description: string;
+  price: number;
+  currency: string;
+  rating: number;
+}
+
+export interface InboxMessage {
+  id: string;
+  serviceTitle: string;
+  sender: string;
+  lastMessage: string;
+  time: string;
+  unread: boolean;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  avatar?: string;
+  points: number;
+  trippieCoins: number;
+  level: number;
+}
+
+export interface TravelBook {
+  tripId: string;
+  summary: string;
+  trajectory: string[]; // List of locations/highlights
+  aiNarrative: string;
+  coverPhoto?: string;
+}
+
 export interface SummaryStats {
   totalTWD: number;
   byPhase: Record<Phase, number>;

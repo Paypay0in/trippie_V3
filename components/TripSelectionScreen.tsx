@@ -102,12 +102,7 @@ const TripSelectionScreen: React.FC<Props> = ({
   };
 
   return (
-    <div className="min-h-screen bg-stone-100 flex flex-col items-center py-10 px-4 relative overflow-y-auto">
-        {/* Background Texture */}
-        <div className="absolute inset-0 opacity-5 pointer-events-none" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-        }}></div>
-
+    <div className="p-4 space-y-8 pb-10">
         {/* Loading Overlay */}
         {isScanning && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white animate-fade-in">
@@ -128,65 +123,70 @@ const TripSelectionScreen: React.FC<Props> = ({
             </div>
         )}
 
-        {/* Header */}
-        <div className="w-full max-w-4xl mb-8 z-10 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-center md:text-left">
-                <h1 className="text-3xl md:text-4xl font-black text-gray-800 tracking-tight flex items-center justify-center md:justify-start gap-3">
-                    <span className="text-4xl md:text-5xl">✈️</span> Trippie 旅行管家
-                </h1>
-                <p className="text-gray-500 mt-2 font-medium text-sm md:text-base">收藏您的每一段精彩旅程與回憶</p>
+        {/* Stats Summary */}
+        <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Trophy size={40} />
+                </div>
+                <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-2">封存總額</div>
+                <div className="font-mono font-black text-2xl text-gray-900">
+                    <span className="text-brand-600 text-sm mr-1">$</span>
+                    {Math.round(tripHistory.reduce((acc, t) => acc + t.totalCost, 0)).toLocaleString()}
+                </div>
+                <div className="mt-2 h-1 w-12 bg-brand-500 rounded-full"></div>
             </div>
-            
-            {/* Stats Badge */}
-            <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-gray-200 flex items-center gap-4">
-                <div className="text-center">
-                    <div className="text-[10px] md:text-xs text-gray-400 font-bold uppercase">總旅程數</div>
-                    <div className="font-black text-lg md:text-xl text-gray-700">{tripHistory.length + (hasDraft ? 1 : 0)}</div>
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <MapPin size={40} />
                 </div>
-                <div className="w-px h-8 bg-gray-200"></div>
-                <div className="text-center">
-                    <div className="text-[10px] md:text-xs text-gray-400 font-bold uppercase">封存總額</div>
-                    <div className="font-black text-lg md:text-xl text-brand-600">
-                        ${Math.round(tripHistory.reduce((acc, t) => acc + t.totalCost, 0)).toLocaleString()}
-                    </div>
+                <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-2">平均每趟花費</div>
+                <div className="font-mono font-black text-2xl text-gray-900">
+                    <span className="text-gray-400 text-sm mr-1">$</span>
+                    {tripHistory.length > 0 
+                        ? Math.round(tripHistory.reduce((acc, t) => acc + t.totalCost, 0) / tripHistory.length).toLocaleString() 
+                        : '0'}
                 </div>
+                <div className="mt-2 h-1 w-12 bg-gray-200 rounded-full"></div>
             </div>
         </div>
 
         {/* AI TRIP PLANNER SECTION */}
-        <div className="w-full max-w-4xl z-10 mb-8">
-            <div className="bg-white rounded-2xl shadow-sm border border-purple-100 p-1 overflow-hidden transition-all duration-300">
-                <div className="p-4 md:p-6 bg-gradient-to-r from-purple-50 to-white">
-                    <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-4">
+        <div className="w-full">
+            <div className="bg-white rounded-2xl shadow-sm border border-purple-100 overflow-hidden transition-all duration-300">
+                <div className="p-6 bg-gradient-to-br from-purple-50/50 via-white to-white">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="bg-purple-600 p-2 rounded-xl text-white shadow-lg shadow-purple-200">
+                            <Sparkles size={20} />
+                        </div>
                         <div>
-                            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                <Sparkles className="text-purple-500" size={20} /> AI 旅程行前規劃
-                            </h2>
-                            <p className="text-xs text-gray-500 mt-1">
-                                告訴我您的目的地與計畫（例如：去冰島看極光自駕遊），我將為您推薦必備的採買清單。
-                            </p>
+                            <h2 className="text-lg font-black text-gray-900">AI 旅程行前規劃</h2>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Smart Trip Assistant</p>
                         </div>
                     </div>
+                    
+                    <p className="text-sm text-gray-600 mb-6 leading-relaxed">
+                        告訴我您的目的地與計畫，我將為您推薦必備的採買清單與行前準備。
+                    </p>
 
                     <div className="flex gap-2 relative">
                         <div className="relative flex-1">
-                            <MapPin className="absolute left-3 top-3 text-gray-400" size={18} />
+                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                             <input 
                                 type="text" 
                                 value={tripDescription}
                                 onChange={(e) => setTripDescription(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleGetSuggestions()}
-                                placeholder="輸入您的旅程計畫... (例如: 冬天去北海道滑雪、泰國曼谷自由行)"
-                                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none shadow-inner text-gray-700"
+                                placeholder="例如: 冬天去北海道滑雪..."
+                                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-gray-700 font-medium"
                             />
                         </div>
                         <button 
                             onClick={handleGetSuggestions}
                             disabled={isPlanning || !tripDescription.trim()}
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50 transition-colors shrink-0"
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-6 rounded-2xl font-black flex items-center gap-2 disabled:opacity-50 transition-all shadow-lg shadow-purple-200 active:scale-95 shrink-0"
                         >
-                            {isPlanning ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
-                            <span className="hidden md:inline">產生建議</span>
+                            {isPlanning ? <Loader2 className="animate-spin" size={20} /> : <ArrowRight size={20} />}
                         </button>
                     </div>
 
@@ -330,7 +330,7 @@ const TripSelectionScreen: React.FC<Props> = ({
         )}
 
         {/* SMART ACTION AREA */}
-        <div className="w-full max-w-4xl z-10 mb-10">
+        <div className="w-full">
             <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -341,41 +341,43 @@ const TripSelectionScreen: React.FC<Props> = ({
             />
             <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white p-1 rounded-2xl shadow-lg shadow-indigo-200 transition-all group transform hover:scale-[1.01]"
+                className="w-full bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all group text-left relative overflow-hidden"
             >
-                <div className="bg-white/10 border border-white/20 rounded-xl p-4 md:p-6 flex flex-col md:flex-row items-center justify-between backdrop-blur-sm gap-4">
-                    <div className="flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
-                        <div className="bg-white text-indigo-600 p-3 md:p-4 rounded-full shadow-inner">
-                            <Camera size={28} className="md:w-8 md:h-8" />
-                        </div>
-                        <div>
-                            <h2 className="text-lg md:text-xl font-bold flex flex-col md:flex-row items-center gap-2">
-                                📸 智慧識別 / 批次匯入
-                                <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-normal border border-white/30 flex items-center gap-1">
-                                    <Sparkles size={10} /> 支援多張圖片
-                                </span>
-                            </h2>
-                            <p className="text-indigo-100 text-xs md:text-sm opacity-90 mt-1">
-                                一次選擇多張收據、機票或截圖，AI 自動辨識並歸入對應旅程。
-                            </p>
-                        </div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-50 rounded-full -mr-16 -mt-16 opacity-50 group-hover:scale-110 transition-transform"></div>
+                
+                <div className="flex items-center gap-5 relative z-10">
+                    <div className="bg-brand-600 text-white p-4 rounded-2xl shadow-lg shadow-brand-100 group-hover:scale-110 transition-transform">
+                        <Camera size={28} />
                     </div>
-                    <div className="bg-white/20 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hidden md:block">
-                         <ImageIcon size={24} />
+                    <div>
+                        <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                            智慧識別 / 批次匯入
+                            <span className="text-[10px] bg-brand-50 text-brand-600 px-2 py-0.5 rounded-full font-black border border-brand-100">
+                                AI POWERED
+                            </span>
+                        </h2>
+                        <p className="text-gray-500 text-sm mt-1 font-medium">
+                            一次選擇多張收據、機票或截圖，AI 自動辨識並歸入對應旅程。
+                        </p>
                     </div>
                 </div>
             </button>
         </div>
 
         {/* Bookshelf Grid */}
-        <div className="w-full max-w-4xl z-10">
+        <div className="w-full">
             {/* Shelf Level 1 - Active & New */}
             <div className="mb-12">
-                <div className="flex items-center gap-2 mb-4">
-                    <div className="w-2 h-8 bg-brand-500 rounded-full"></div>
-                    <h2 className="text-xl font-bold text-gray-700">準備出發</h2>
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-1.5 h-6 bg-brand-500 rounded-full"></div>
+                        <h2 className="text-xl font-bold text-gray-800">準備出發</h2>
+                    </div>
+                    <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-md">
+                        {hasDraft ? 2 : 1} 個項目
+                    </span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <TripBook onClick={onCreateNew} />
                     {hasDraft && (
                         <TripBook 
@@ -395,11 +397,16 @@ const TripSelectionScreen: React.FC<Props> = ({
             {/* Shelf Level 2 - History */}
             {tripHistory.length > 0 && (
                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                        <div className="w-2 h-8 bg-gray-400 rounded-full"></div>
-                        <h2 className="text-xl font-bold text-gray-700">回憶錄</h2>
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-6 bg-gray-400 rounded-full"></div>
+                            <h2 className="text-xl font-bold text-gray-800">回憶錄</h2>
+                        </div>
+                        <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-md">
+                            {tripHistory.length} 本藏書
+                        </span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {tripHistory.map(trip => (
                             <TripBook 
                                 key={trip.id} 
