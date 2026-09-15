@@ -9,7 +9,7 @@ import TravelAdvisoryWidget from './TravelAdvisoryWidget';
 import { deriveDuringRefundState } from '../services/duringRefundState';
 import TaxRefundSummaryCard from './TaxRefundSummaryCard';
 import { calculateOutstandingDebts } from '../services/settlementConsumption';
-import { buildMinimumSettlementTransfers } from '../services/minimumSettlement';
+import { buildViewerBalanceRows } from '../services/viewerBalances';
 
 interface Props {
   expenses: Expense[];
@@ -232,28 +232,14 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
 
   const walletCurrencies = Object.keys(wallet).filter(c => wallet[c].in > 0 || wallet[c].refundIn > 0 || wallet[c].out > 0);
   const debtList = Object.entries(debts).filter(([_, amt]) => Math.abs(amt as number) > 1);
-  // The stored balances are absolute net amounts per member, which only read as
-  // "owes me" from the owner's seat. For anyone else, pairwise transfers say
-  // who actually pays whom.
+  // One place decides "who owes whom" from a seat; this screen only renders it.
   const ownerMemberId = (members || []).find(member => member.type === 'owner')?.id;
-  const viewerIsOwner = !viewerMemberId || !ownerMemberId || viewerMemberId === ownerMemberId;
-  const settlementRows: Array<{ id: string; amount: number }> = viewerIsOwner
-    ? debtList
-        .filter(([id]) => id !== ownerMemberId)
-        .map(([id, amount]) => ({ id, amount: amount as number }))
-    : buildMinimumSettlementTransfers(debts as Record<string, number>)
-        .filter(
-          transfer =>
-            transfer.fromMemberId === viewerMemberId ||
-            transfer.toMemberId === viewerMemberId,
-        )
-        .map(transfer => {
-          const isPaying = transfer.fromMemberId === viewerMemberId;
-          return {
-            id: isPaying ? transfer.toMemberId : transfer.fromMemberId,
-            amount: isPaying ? transfer.amount : -transfer.amount,
-          };
-        });
+  const settlementRows = buildViewerBalanceRows({
+    debts: debts as Record<string, number>,
+    members: members || [],
+    ownerMemberId,
+    viewerMemberId,
+  });
   const hasCreditCardUsage = creditCardStats.totalTWD > 0 || Object.keys(creditCardStats.byCurrency).length > 0;
 
   const walletHistory = useMemo(() => {
@@ -603,8 +589,9 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
               </div>
               {settlementRows.length > 0 ? (
                   <div className="space-y-3">
-                      {settlementRows.map(({ id, amount }) => {
-                          const name = (members || []).find(member => member.id === id)?.name || companions.find(c => c.id === id)?.name || '未知';
+                      {settlementRows.map(({ member, amount }) => {
+                          const id = member.id;
+                          const name = member.name || companions.find(c => c.id === id)?.name || '未知';
                           return (
                               <div key={id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
                                   <span className="font-medium text-gray-800">{name}</span>

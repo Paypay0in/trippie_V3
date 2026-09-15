@@ -32,6 +32,13 @@ import {
 } from "../services/settlementConsumption";
 import { normalizeOwnerMemberId } from "../services/memberIdentity";
 import { getOpenDisputes } from "../services/expenseDisputes";
+import {
+  buildViewerBalanceRows,
+  countPayable,
+  countReceivable,
+  sumPayable,
+  sumReceivable,
+} from "../services/viewerBalances";
 import { getCategoryIcon } from "../constants";
 import {
   EXPENSE_SELECTION_MODES,
@@ -215,47 +222,29 @@ const SettlementFlow: React.FC<Props> = ({
     .map((expense) => ({ expense, disputes: getOpenDisputes(expense) }))
     .filter((entry) => entry.disputes.length > 0);
 
-  // Who the balances are shown to. The stored balances are absolute net
-  // amounts per member, which only read as "owes me" from the owner's seat.
+  // Who the balances are shown to. Stored balances are absolute net amounts per
+  // member, which only read as "owes me" from the owner's seat; the service
+  // turns them around for anyone else.
   const viewerId = ownerId
     ? normalizeOwnerMemberId(viewerMemberId || ownerId, ownerId)
     : viewerMemberId;
   const viewerIsOwner = !viewerId || viewerId === ownerId;
-  // Pairwise transfers, so a non-owner viewer can be told who owes whom rather
-  // than being handed someone else's net balance.
   const minimumTransfers = buildMinimumSettlementTransfers(overviewDebts);
+  const overviewRows = buildViewerBalanceRows({
+    debts: overviewDebts,
+    members,
+    ownerMemberId: ownerId,
+    viewerMemberId: viewerId,
+  });
 
-  // Sign convention kept from the owner view: negative = they owe me,
-  // positive = I owe them.
-  const ownerRows = (Object.entries(overviewDebts) as [string, number][])
-    .filter(([id, amount]) => id !== ownerId && Math.abs(amount) > 0.5)
-    .map(([id, amount]) => ({ member: members.find((member) => member.id === id), amount }))
-    .filter((item): item is { member: TripMember; amount: number } => Boolean(item.member));
-
-  const viewerRows = minimumTransfers
-    .filter(
-      (transfer) =>
-        transfer.fromMemberId === viewerId || transfer.toMemberId === viewerId,
-    )
-    .map((transfer) => {
-      const isPaying = transfer.fromMemberId === viewerId;
-      const counterpartId = isPaying ? transfer.toMemberId : transfer.fromMemberId;
-      return {
-        member: members.find((member) => member.id === counterpartId),
-        amount: isPaying ? transfer.amount : -transfer.amount,
-      };
-    })
-    .filter((item): item is { member: TripMember; amount: number } => Boolean(item.member));
-
-  const overviewRows = viewerIsOwner ? ownerRows : viewerRows;
   const viewerName =
     members.find((member) => member.id === viewerId)?.name || "我";
-  const receivable = overviewRows.filter(({ amount }) => amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0);
-  const payable = overviewRows.filter(({ amount }) => amount > 0).reduce((sum, item) => sum + item.amount, 0);
+  const receivable = sumReceivable(overviewRows);
+  const payable = sumPayable(overviewRows);
   // Counts drive the subtitle under each figure; a number alone does not say
   // how many people it involves.
-  const receivableCount = overviewRows.filter(({ amount }) => amount < 0).length;
-  const payableCount = overviewRows.filter(({ amount }) => amount > 0).length;
+  const receivableCount = countReceivable(overviewRows);
+  const payableCount = countPayable(overviewRows);
   const memberDetail = members.find((member) => member.id === selectedMemberId);
   const memberExpenses = memberDetail
     ? outstandingExpenses.filter((expense) => {
