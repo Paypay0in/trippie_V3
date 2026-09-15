@@ -65,6 +65,7 @@ import { selectSpendingExpenses } from "./services/spendingLedger";
 import ExpenseList from "./components/ExpenseList";
 import DeleteExpenseConfirmModal from "./components/DeleteExpenseConfirmModal";
 import DevViewerSwitcher from "./components/DevViewerSwitcher";
+import ConfirmDialog, { ConfirmRequest } from "./components/ConfirmDialog";
 import ExpenseDisputeModal from "./components/ExpenseDisputeModal";
 import Dashboard from "./components/Dashboard";
 import SettlementFlow from "./components/SettlementFlow";
@@ -727,6 +728,9 @@ const App: React.FC = () => {
   // an id) lets the modal render from canonical data without re-querying state.
   // Dev-only: view the ledger as another TripMember. Never set in production.
   const [devViewerOverride, setDevViewerOverride] = useState<string | null>(null);
+  // Pending confirmation for consequential actions. Holding the callback keeps
+  // each caller's own follow-up next to its own wording.
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
   // Expense whose dispute thread is open. Stored by id so the modal always
   // renders the current record rather than a stale copy.
   const [disputeExpenseId, setDisputeExpenseId] = useState<string | null>(null);
@@ -3097,10 +3101,18 @@ const App: React.FC = () => {
   };
 
   const handleDeleteHistory = (id: string) => {
-    if (window.confirm("確定要刪除這本旅程紀錄嗎？此動作無法復原。")) {
-      setTripHistory((prev) => prev.filter((t) => t.id !== id));
-      showToast("已刪除旅程紀錄", "error");
-    }
+    const target = tripHistory.find((trip) => trip.id === id);
+    setConfirmRequest({
+      title: "刪除這本旅程紀錄？",
+      description: `「${target?.name || "這趟旅程"}」的所有紀錄將被移除，此動作無法復原。`,
+      confirmLabel: "刪除",
+      tone: "danger",
+      icon: "trash",
+      onConfirm: () => {
+        setTripHistory((prev) => prev.filter((t) => t.id !== id));
+        showToast("已刪除旅程紀錄", "error");
+      },
+    });
   };
 
   /**
@@ -3164,11 +3176,17 @@ const App: React.FC = () => {
   };
 
   const handleCloneTrip = (publicTrip: PublicTrip) => {
-    const confirmClone = window.confirm(
-      `確定要複製「${publicTrip.name}」的行程規劃嗎？這將會建立一個新的草稿。`,
-    );
-    if (!confirmClone) return;
+    setConfirmRequest({
+      title: "複製這份行程規劃？",
+      description: `會依照「${publicTrip.name}」建立一份新的草稿，原本的行程不受影響。`,
+      confirmLabel: "複製",
+      tone: "neutral",
+      icon: "copy",
+      onConfirm: () => performCloneTrip(publicTrip),
+    });
+  };
 
+  const performCloneTrip = (publicTrip: PublicTrip) => {
     // Clone expenses but reset IDs and dates
     const today = new Date().toISOString().split("T")[0];
     const clonedExpenses: Expense[] = publicTrip.expenses.map((e) => ({
@@ -3248,16 +3266,20 @@ const App: React.FC = () => {
       return;
     }
 
-    const confirm = window.confirm(
-      `確定要花費 ${service.price} Trippie Coins 預約「${service.title}」嗎？`,
-    );
-    if (confirm) {
-      setUserProfile((prev) => ({
-        ...prev,
-        trippieCoins: prev.trippieCoins - service.price,
-      }));
-      showToast("預約成功！當地人將在 24 小時內與您聯繫。");
-    }
+    setConfirmRequest({
+      title: "確認預約這項服務？",
+      description: `預約「${service.title}」將扣除 ${service.price} Trippie Coins，扣除後不會自動退還。`,
+      confirmLabel: `花費 ${service.price} 點`,
+      tone: "neutral",
+      icon: "coins",
+      onConfirm: () => {
+        setUserProfile((prev) => ({
+          ...prev,
+          trippieCoins: prev.trippieCoins - service.price,
+        }));
+        showToast("預約成功！當地人將在 24 小時內與您聯繫。");
+      },
+    });
   };
 
   const handleAddMarketplaceService = (
@@ -4646,6 +4668,17 @@ const App: React.FC = () => {
             handleEditExpense(expense);
           }}
         />
+        <ConfirmDialog
+          request={confirmRequest}
+          onCancel={() => setConfirmRequest(null)}
+          onConfirm={() => {
+            const pending = confirmRequest;
+            // Close first: a second press finds nothing pending,
+            // so an action can never run twice.
+            setConfirmRequest(null);
+            pending?.onConfirm();
+          }}
+        />
         <DeleteExpenseConfirmModal
           expense={pendingExpenseDeletion?.expense || null}
           adminCreatorName={pendingExpenseDeletion?.adminCreatorName}
@@ -4912,6 +4945,17 @@ const App: React.FC = () => {
         onOpenExpense={(expense) => {
           setDisputeExpenseId(null);
           handleEditExpense(expense);
+        }}
+      />
+      <ConfirmDialog
+        request={confirmRequest}
+        onCancel={() => setConfirmRequest(null)}
+        onConfirm={() => {
+          const pending = confirmRequest;
+          // Close first: a second press finds nothing pending,
+          // so an action can never run twice.
+          setConfirmRequest(null);
+          pending?.onConfirm();
         }}
       />
       <DeleteExpenseConfirmModal

@@ -70,6 +70,12 @@ const openDeleteDialog = async (user: ReturnType<typeof userEvent.setup>, id: st
   await user.click(screen.getByTestId(`delete-trip-${id}`));
 };
 
+/** Deleting now requires typing the word first; confirm stays disabled until then. */
+const confirmDelete = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.type(screen.getByTestId('delete-trip-confirm-input'), '刪除');
+  await user.click(screen.getByTestId('confirm-delete-trip'));
+};
+
 describe('delete trip runtime', () => {
   it('shows the destructive confirmation with the trip name before deleting', async () => {
     const user = await mountApp();
@@ -84,10 +90,39 @@ describe('delete trip runtime', () => {
     expect(storedIds()).toEqual(['A', 'B']);
   });
 
+  it('keeps delete disabled until the word 刪除 is typed exactly', async () => {
+    const user = await mountApp();
+    await openDeleteDialog(user, 'A');
+
+    const confirm = screen.getByTestId('confirm-delete-trip') as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+
+    // A near-miss is not a confirmation.
+    await user.type(screen.getByTestId('delete-trip-confirm-input'), '刪');
+    expect((screen.getByTestId('confirm-delete-trip') as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByTestId('confirm-delete-trip'));
+    expect(storedIds()).toEqual(['A', 'B']);
+
+    await user.type(screen.getByTestId('delete-trip-confirm-input'), '除');
+    expect((screen.getByTestId('confirm-delete-trip') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('does not carry a typed confirmation into the next dialog', async () => {
+    const user = await mountApp();
+    await openDeleteDialog(user, 'A');
+    await user.type(screen.getByTestId('delete-trip-confirm-input'), '刪除');
+    await user.click(screen.getByTestId('cancel-delete-trip'));
+
+    await openDeleteDialog(user, 'B');
+    expect((screen.getByTestId('delete-trip-confirm-input') as HTMLInputElement).value).toBe('');
+    expect((screen.getByTestId('confirm-delete-trip') as HTMLButtonElement).disabled).toBe(true);
+    expect(storedIds()).toEqual(['A', 'B']);
+  });
+
   it('§10 deletes only the named trip and leaves its same-named sibling', async () => {
     const user = await mountApp();
     await openDeleteDialog(user, 'A');
-    await user.click(screen.getByTestId('confirm-delete-trip'));
+    await confirmDelete(user);
 
     expect(storedIds()).toEqual(['B']);
     expect(storedDrafts()[0].name).toBe('釜山');
@@ -99,7 +134,7 @@ describe('delete trip runtime', () => {
   it('§9 stays deleted across a reload', async () => {
     const user = await mountApp();
     await openDeleteDialog(user, 'A');
-    await user.click(screen.getByTestId('confirm-delete-trip'));
+    await confirmDelete(user);
 
     cleanup();
     await mountApp();
@@ -123,7 +158,7 @@ describe('delete trip runtime', () => {
     seedStorage([TRIP_A, TRIP_B], 'A');
     const user = await mountApp();
     await openDeleteDialog(user, 'A');
-    await user.click(screen.getByTestId('confirm-delete-trip'));
+    await confirmDelete(user);
 
     expect(storedIds()).toEqual(['B']);
     const active = localStorage.getItem(ACTIVE_KEY);
@@ -136,7 +171,7 @@ describe('delete trip runtime', () => {
     seedStorage([TRIP_A], 'A');
     const user = await mountApp();
     await openDeleteDialog(user, 'A');
-    await user.click(screen.getByTestId('confirm-delete-trip'));
+    await confirmDelete(user);
 
     expect(storedIds()).toEqual([]);
     expect(localStorage.getItem(ACTIVE_KEY)).toBeNull();
@@ -155,7 +190,7 @@ describe('delete trip runtime', () => {
       });
 
     await openDeleteDialog(user, 'A');
-    await user.click(screen.getByTestId('confirm-delete-trip'));
+    await confirmDelete(user);
 
     setItemSpy.mockRestore();
 
@@ -177,7 +212,7 @@ describe('delete trip runtime', () => {
     expect(Object.keys(before).length).toBeGreaterThan(0);
 
     await openDeleteDialog(user, 'A');
-    await user.click(screen.getByTestId('confirm-delete-trip'));
+    await confirmDelete(user);
 
     const after = Object.fromEntries(
       Object.keys(localStorage)

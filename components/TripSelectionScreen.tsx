@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ConfirmDialog from './ConfirmDialog';
 import {
   ArrowRight,
   CalendarDays,
@@ -804,61 +805,41 @@ const TripSelectionScreen: React.FC<Props> = ({
         )}
       </div>
 
-      {pendingDeleteDraft && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-trip-title"
-          data-testid="delete-trip-dialog"
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#08152f]/70 p-4 backdrop-blur-sm"
-        >
-          <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white p-5 shadow-2xl">
-            <h2 id="delete-trip-title" className="flex items-center gap-2 font-black text-[#10204a]">
-              <Trash2 size={18} className="text-red-500" />
-              刪除這趟旅程？
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              「{getDraftDisplayName(pendingDeleteDraft)}」刪除後，這趟旅程的行程、記帳與相關資料將從目前的 Trip 資料中移除。
-            </p>
-            {deleteError && (
-              <p role="alert" className="mt-3 text-sm font-bold text-red-600">
-                {deleteError}
-              </p>
-            )}
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                data-testid="cancel-delete-trip"
-                onClick={() => {
-                  setPendingDeleteDraft(null);
-                  setDeleteError('');
-                }}
-                className="min-h-12 flex-1 rounded-2xl border border-slate-200 px-4 text-sm font-bold text-slate-500"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                data-testid="confirm-delete-trip"
-                onClick={() => {
-                  // Identity is the stable id, never the name or the position.
-                  const deleted = onDeleteDraft(pendingDeleteDraft.id);
-                  if (deleted) {
-                    setPendingDeleteDraft(null);
-                    setDeleteError('');
-                    return;
-                  }
-                  // The card stays, and the dialog explains why.
-                  setDeleteError('旅程刪除失敗，這趟旅程沒有被移除，請再試一次。');
-                }}
-                className="min-h-12 flex-1 rounded-2xl bg-red-600 px-4 text-sm font-black text-white shadow-[0_10px_20px_rgba(220,38,38,.2)]"
-              >
-                刪除旅程
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        request={
+          pendingDeleteDraft
+            ? {
+                title: '刪除這趟旅程？',
+                description: `「${getDraftDisplayName(pendingDeleteDraft)}」刪除後，這趟旅程的行程、記帳與相關資料將從目前的 Trip 資料中移除。`,
+                confirmLabel: '刪除旅程',
+                tone: 'danger',
+                icon: 'trash',
+              }
+            : null
+        }
+        error={deleteError}
+        requireTypedText="刪除"
+        dialogTestId="delete-trip-dialog"
+        cancelTestId="cancel-delete-trip"
+        confirmTestId="confirm-delete-trip"
+        inputTestId="delete-trip-confirm-input"
+        titleId="delete-trip-title"
+        onCancel={() => {
+          setPendingDeleteDraft(null);
+          setDeleteError('');
+        }}
+        onConfirm={() => {
+          if (!pendingDeleteDraft) return;
+          // Identity is the stable id, never the name or the position.
+          if (onDeleteDraft(pendingDeleteDraft.id)) {
+            setPendingDeleteDraft(null);
+            setDeleteError('');
+            return;
+          }
+          // The card stays, and the dialog explains why.
+          setDeleteError('旅程刪除失敗，這趟旅程沒有被移除，請再試一次。');
+        }}
+      />
 
       {isTargetModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#08152f]/70 p-4 backdrop-blur-sm">
