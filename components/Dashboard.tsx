@@ -593,12 +593,18 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
                           const id = member.id;
                           const name = member.name || companions.find(c => c.id === id)?.name || '未知';
                           return (
-                              <div key={id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                                  <span className="font-medium text-gray-800">{name}</span>
+                              // The name sits inside the phrase, not beside it:
+                              // "陳陳 · 應收" reads as if 陳陳 is the one collecting.
+                              <div key={id} className="flex justify-between items-center gap-3 bg-gray-50 p-3 rounded-lg">
+                                  <span className="min-w-0 flex-1 truncate font-medium text-gray-800">
+                                      {amount < 0 ? '應向 ' : '應付給 '}
+                                      <span className="font-black">{name}</span>
+                                      {amount < 0 ? ' 收取' : ''}
+                                  </span>
                                   {amount < 0 ? (
-                                      <span className="text-green-600 font-bold text-sm">應收 NT$ {Math.abs(Math.round(amount)).toLocaleString()}</span>
+                                      <span className="shrink-0 whitespace-nowrap text-green-600 font-bold text-sm">NT$ {Math.abs(Math.round(amount)).toLocaleString()}</span>
                                   ) : (
-                                      <span className="text-red-500 font-bold text-sm">應付 NT$ {Math.round(amount).toLocaleString()}</span>
+                                      <span className="shrink-0 whitespace-nowrap text-red-500 font-bold text-sm">NT$ {Math.round(amount).toLocaleString()}</span>
                                   )}
                               </div>
                           );
