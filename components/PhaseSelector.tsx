@@ -8,28 +8,34 @@ interface Props {
 }
 
 const PhaseSelector: React.FC<Props> = ({ currentPhase, onChange }) => {
+  const phaseMeta: Record<Phase, { title: string; subtitle: string }> = {
+    pre: { title: 'PLAN', subtitle: '旅行前' },
+    during: { title: 'TRIP', subtitle: '旅行中' },
+    post: { title: 'RETURN', subtitle: '返程中' },
+    summary: { title: 'RECAP', subtitle: '回顧紀錄' },
+  };
   return (
-    <div className="relative bg-gray-100/50 p-1 rounded-2xl flex w-full mb-8 border border-gray-200/50 backdrop-blur-sm">
+    <div className="relative -mt-1 flex w-full overflow-hidden rounded-b-[1.35rem] border border-slate-100 bg-white shadow-lg shadow-slate-900/5">
       {PHASES.map((phase) => {
         const isActive = currentPhase === phase.id;
         return (
           <button
             key={phase.id}
             onClick={() => onChange(phase.id)}
-            className={`relative flex-1 py-3 px-2 flex flex-col items-center justify-center gap-1 rounded-xl transition-all duration-300 group ${
+            className={`group relative flex min-h-16 flex-1 flex-col items-center justify-center gap-1 px-1 py-3 transition-all duration-300 ${
               isActive 
-                ? 'bg-white shadow-sm text-brand-600' 
-                : 'text-gray-400 hover:text-gray-600'
+                ? 'text-violet-600'
+                : 'text-slate-400 hover:text-slate-600'
             }`}
           >
-            <span className={`text-[10px] font-black uppercase tracking-widest transition-opacity ${isActive ? 'opacity-100' : 'opacity-40 group-hover:opacity-70'}`}>
-              {phase.id}
+            <span className="text-xs font-black tracking-wide">
+              {phaseMeta[phase.id].title}
             </span>
-            <span className={`text-sm font-bold ${isActive ? 'text-gray-900' : ''}`}>
-              {phase.label}
+            <span className={`text-[10px] font-bold ${isActive ? 'text-violet-700' : ''}`}>
+              {phaseMeta[phase.id].subtitle}
             </span>
             {isActive && (
-              <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${phase.color.replace('bg-', 'bg-')}`} />
+              <div className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-gradient-to-r from-blue-600 to-violet-600" />
             )}
           </button>
         );

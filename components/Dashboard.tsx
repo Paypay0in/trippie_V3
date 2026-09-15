@@ -1,34 +1,61 @@
 
 import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
-import { Expense, Category, PaymentMethod, Phase, Companion, TaxRule, VisaInfo } from '../types';
+import { Expense, Category, PaymentMethod, Phase, Companion, TripMember, SettlementBatch, TaxRule, VisaInfo, TravelRules } from '../types';
 import { PHASES, COMMON_CURRENCIES } from '../constants';
 import { Wallet, TrendingDown, Coins, PlusCircle, Users, Tag, ChevronDown, ChevronUp, CreditCard, Banknote, ArrowRight, ArrowDownLeft, History, X, ArrowUpRight, Receipt, CheckCircle, HandHelping, AlertCircle, Ban } from 'lucide-react';
 import TravelAdvisoryWidget from './TravelAdvisoryWidget';
+import { deriveDuringRefundState } from '../services/duringRefundState';
+import TaxRefundSummaryCard from './TaxRefundSummaryCard';
+import { calculateOutstandingDebts } from '../services/settlementConsumption';
 
 interface Props {
   expenses: Expense[];
   companions: Companion[];
+  members?: TripMember[];
+  batches?: SettlementBatch[];
   onExport: () => void;
   onAddCash: () => void;
   onAddExpense: (expense: Omit<Expense, 'id'>) => void;
   currentPhase: Phase;
   taxRule?: TaxRule | null;
+  travelRules?: TravelRules | null;
   visaInfo?: VisaInfo | null; // Added prop
+  onSettleRefund: () => void;
+  onOpenSettlement?: () => void;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
 
-const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash, onAddExpense, currentPhase, taxRule, visaInfo }) => {
+const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund, onOpenSettlement }) => {
   const [isRefundListExpanded, setIsRefundListExpanded] = useState(false);
-  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   
   // Wallet History State
   const [viewingWalletCurrency, setViewingWalletCurrency] = useState<string | null>(null);
   
   // Refund Action State
-  const [refundAmount, setRefundAmount] = useState('');
-  const [refundMethod, setRefundMethod] = useState<PaymentMethod>(PaymentMethod.CREDIT_CARD);
+  const [isSafeRefundListExpanded, setIsSafeRefundListExpanded] = useState(false);
+
+  const duringRefundState = useMemo(
+    () => deriveDuringRefundState({ expenses, travelRules }),
+    [expenses, travelRules],
+  );
+  const shoppingExpenses = expenses.filter(expense => expense.phase === 'during' && expense.category === Category.SHOPPING);
+  const qualifiedRefundCandidates = 'eligibleExpenses' in duringRefundState ? duringRefundState.eligibleExpenses : [];
+  const canCalculateTaxRefund = duringRefundState.status !== 'no_rule';
+
+
+  const candidateCurrencyTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    shoppingExpenses.forEach(expense => {
+      totals[expense.currency] = (totals[expense.currency] || 0) + expense.amount;
+    });
+    return totals;
+  }, [shoppingExpenses]);
+
+  const candidateSpendLabel = Object.entries(candidateCurrencyTotals)
+    .map(([currency, amount]) => `${amount.toLocaleString()} ${currency}`)
+    .join(' · ');
 
   const { stats, wallet, debts, taxRefundData, creditCardStats, hasRefundRecord, phaseSpecificStats, helpBuyTotal, helpBuyPotentialRefund } = useMemo(() => {
     // 0. Pre-check for Refund Record
@@ -55,7 +82,10 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
     };
 
     const d: Record<string, number> = {}; 
-    companions.forEach(c => d[c.id] = 0);
+    const accountingMembers = members || companions.map((companion, index) => ({ ...companion, type: index === 0 ? 'owner' as const : 'guest' as const }));
+    // Same outstanding accounting the settlement screens use, so a partly
+    // settled expense reports the same remaining balance everywhere.
+    Object.assign(d, calculateOutstandingDebts(expenses, accountingMembers, batches || []));
 
     const refundItems: Expense[] = [];
     let totalEstimatedRefundTWD = 0;
@@ -95,7 +125,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
 
       // Check Refund Eligibility Logic (Used for both personal and help buy)
       // Normalize currency check to be case insensitive
-      const isEligible = taxRule && 
+      const isEligible = currentPhase !== 'during' && taxRule &&
                          taxRule.refundRate > 0 && // Ensure refund rate is positive
                          e.phase === 'during' && 
                          e.currency.toUpperCase() === taxRule.currency.toUpperCase() && 
@@ -142,7 +172,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
           }
 
           // Debt Logic (Only for shared expenses, Help Buy is treated as separate receivable)
-          calculateDebt(e, d, companions);
+          // Debt calculation is performed once by the shared calculator below.
       }
     });
 
@@ -167,7 +197,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
         helpBuyTotal: helpBuyTWD,
         helpBuyPotentialRefund
     };
-  }, [expenses, companions, taxRule, currentPhase]);
+  }, [expenses, companions, members, batches, taxRule, currentPhase]);
 
   // Helper functions to keep useMemo clean
   function ccBillAccumulation(cc: any, e: Expense) {
@@ -177,77 +207,10 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
       }
   }
 
-  function calculateDebt(e: Expense, d: Record<string, number>, companions: Companion[]) {
-      if (e.category === Category.EXCHANGE) return;
-      
-      const addDebt = (debtorId: string, amount: number, payer: string) => {
-          if (payer === 'me') {
-              if (debtorId !== 'me') {
-                   d[debtorId] = (d[debtorId] || 0) + amount;
-              }
-          } else if (payer === debtorId) {
-              // Payer paying for themselves
-          } else {
-              if (debtorId === 'me') {
-                   d[payer] = (d[payer] || 0) - amount;
-              }
-          }
-      };
-
-      if (e.splitMethod === 'EQUAL') {
-          if (e.beneficiaries && e.beneficiaries.length > 0) {
-              const splitAmount = e.twdAmount / e.beneficiaries.length;
-              e.beneficiaries.forEach(uid => addDebt(uid, splitAmount as number, e.payerId));
-          }
-      } else if ((e.splitMethod === 'EXACT' || e.splitMethod === 'PERCENT') && e.splitAllocations) {
-          Object.entries(e.splitAllocations).forEach(([uid, amount]) => {
-              addDebt(uid, amount as number, e.payerId);
-          });
-      }
-  }
-
   const isPhaseSpecificView = currentPhase === 'pre' || currentPhase === 'during' || currentPhase === 'post';
   const displayTotal = isPhaseSpecificView ? phaseSpecificStats.totalTWD : stats.totalTWD;
   const displayCategories = isPhaseSpecificView ? phaseSpecificStats.byCategory : stats.byCategory;
 
-  const handleOpenRefundModal = () => {
-      if (taxRule) {
-          setRefundAmount(Math.floor(taxRefundData.totalRefundForeign).toString());
-      }
-      setIsRefundModalOpen(true);
-  };
-
-  const handleConfirmRefund = () => {
-      if (!refundAmount || !taxRule) return;
-      const amt = parseFloat(refundAmount);
-      if (isNaN(amt) || amt <= 0) return;
-
-      const walletInfo = wallet[taxRule.currency];
-      const rate = walletInfo && walletInfo.avgRate > 0 
-          ? walletInfo.avgRate 
-          : (COMMON_CURRENCIES.find(c => c.code === taxRule.currency)?.defaultRate || 1);
-
-      const twdVal = amt * rate;
-
-      onAddExpense({
-          date: new Date().toISOString().split('T')[0],
-          description: '退稅入帳 (Tax Refund)',
-          amount: -amt, 
-          currency: taxRule.currency,
-          exchangeRate: rate,
-          twdAmount: -twdVal,
-          category: Category.OTHER,
-          paymentMethod: refundMethod,
-          phase: 'post',
-          payerId: 'me',
-          beneficiaries: ['me'],
-          splitMethod: 'EQUAL',
-          splitAllocations: {},
-          handlingFee: 0
-      });
-
-      setIsRefundModalOpen(false);
-  };
 
   const categoryData = Object.entries(displayCategories)
     .map(([name, value]) => ({ name, value }))
@@ -320,8 +283,76 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
             </div>
         )}
 
-        {/* Tax Refund Tracker - Show if taxRule exists and NOT pre phase */}
-        {currentPhase !== 'pre' && taxRule && (
+        {/* TravelRules-safe DURING candidate tracker. Legacy TaxRule estimation is intentionally bypassed here. */}
+        {currentPhase === 'during' && (
+          <TaxRefundSummaryCard refundState={duringRefundState} onSettleRefund={onSettleRefund} />
+          /* <div className="rounded-2xl p-5 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 text-amber-800">
+                  <Tag size={18} />
+                  <h3 className="font-bold text-sm tracking-wide">
+                    {duringRefundState.status === 'no_rule' ? '退稅資格待確認'
+                      : duringRefundState.status === 'below_threshold' ? '尚未達退稅門檻'
+                      : duringRefundState.status === 'threshold_met' ? '已達退稅門檻'
+                      : (duringRefundState.ruleSource === 'model_knowledge' ? 'AI 預估退稅' : '預估退稅總額')}
+                  </h3>
+                </div>
+                {!canCalculateTaxRefund && (
+                  <p className="mt-2 text-xs leading-5 text-amber-800/80">
+                    目前有 {shoppingExpenses.length} 筆購物支出
+                  </p>
+                )}
+              </div>
+              {duringRefundState.status !== 'no_rule' ? (
+                <div className="text-right text-amber-700">
+                  {duringRefundState.status === 'estimate_available' ? <div className="text-2xl font-black">
+                    {Math.floor(duringRefundState.estimatedRefund).toLocaleString()} {duringRefundState.currency}
+                  </div>
+                  : duringRefundState.status === 'threshold_met' ? <div className="text-sm font-black">已確認達標</div> : <div className="text-sm font-black">目前購物金額：{duringRefundState.shoppingSpend.toLocaleString()} {duringRefundState.currency}</div>}
+                  {duringRefundState.status === 'estimate_available' || duringRefundState.status === 'threshold_met' ? <div className="text-[10px] font-bold">符合 {qualifiedRefundCandidates.length} 筆目前估算條件</div> : <div className="text-[10px]">退稅門檻：{duringRefundState.threshold.toLocaleString()} {duringRefundState.currency}</div>}
+                </div>
+              ) : null}
+            </div>
+            {!canCalculateTaxRefund && shoppingExpenses.length > 0 && (
+              <div className="mt-3 rounded-xl bg-white/60 border border-amber-100 px-3 py-2 text-xs text-amber-900">
+                <div className="font-bold">購物支出總額</div>
+                <div className="mt-1 font-mono">{candidateSpendLabel}</div>
+              </div>
+            )}
+            <p className="mt-3 text-[11px] leading-5 text-amber-800/70">
+              {duringRefundState.status === 'estimate_available'
+                ? (duringRefundState.ruleSource === 'model_knowledge'
+                  ? '此為 AI 依目前旅行規則資訊估算，實際退稅資格與金額依商家及最新官方規定為準。'
+                  : '依目前查得規則估算，實際退稅資格與金額依商家、商品類別及現場規定為準。')
+                : duringRefundState.status === 'no_rule' ? '目前無法安全估算退稅金額。' : '依目前退稅門檻判定，實際資格與金額依商家及現場規定為準。'}
+            </p>
+            {(duringRefundState.status === 'estimate_available' || duringRefundState.status === 'threshold_met' ? qualifiedRefundCandidates.length : shoppingExpenses.length) > 0 && (
+              <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white/60">
+                <button onClick={() => setIsSafeRefundListExpanded(value => !value)} className="flex w-full items-center justify-between px-3 py-2 text-xs font-bold text-amber-800">
+                  <span>{duringRefundState.status === 'estimate_available' || duringRefundState.status === 'threshold_met' ? '查看退稅清單與明細' : '查看購物支出'}</span>
+                  {isSafeRefundListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+                {isSafeRefundListExpanded && (
+                  <div className="divide-y divide-amber-100 px-3">
+                    {(duringRefundState.status === 'estimate_available' || duringRefundState.status === 'threshold_met' ? qualifiedRefundCandidates : shoppingExpenses).map(expense => (
+                      <div key={expense.id} className="flex items-center justify-between py-2 text-xs">
+                        <div className="min-w-0 pr-3">
+                          <div className="truncate font-medium text-gray-700">{duringRefundState.status === 'estimate_available' || duringRefundState.status === 'threshold_met' ? expense.description : '購物支出'}</div>
+                          <div className="text-[10px] text-gray-400">{expense.date} · {expense.category}</div>
+                        </div>
+                        <div className="shrink-0 font-mono font-bold text-amber-700">{expense.amount.toLocaleString()} {expense.currency}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div> */
+        )}
+
+        {/* Legacy refund UI remains available outside the new TravelRules DURING flow. */}
+        {currentPhase !== 'pre' && currentPhase !== 'during' && taxRule && (
             taxRule.refundRate === 0 ? (
                 // NO REFUND STATE
                 <div className="bg-gray-100 rounded-2xl p-5 border border-gray-200 text-center flex flex-col items-center justify-center gap-2">
@@ -370,7 +401,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
                           </div>
                         ) : (
                           <button 
-                              onClick={handleOpenRefundModal}
+                              onClick={onSettleRefund}
                               className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg font-bold text-sm mb-3 shadow-sm transition-colors flex items-center justify-center gap-2"
                           >
                               <Coins size={16} /> 辦理退稅入帳 (抵銷旅費)
@@ -538,19 +569,20 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
               <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-2">
                   <Users size={18} className="text-indigo-600" />
                   <h3 className="font-bold text-sm text-gray-700">分帳結算 (相對於我)</h3>
+                  {onOpenSettlement && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenSettlement(); }} className="ml-auto cursor-pointer rounded-lg px-2 py-1 text-xs font-bold text-violet-700 hover:bg-violet-50">查看結算</button>}
               </div>
               {debtList.length > 0 ? (
                   <div className="space-y-3">
-                      {debtList.map(([id, rawAmount]) => {
+                      {debtList.filter(([id]) => id !== (members || []).find(member => member.type === 'owner')?.id).map(([id, rawAmount]) => {
                           const amount = rawAmount as number;
-                          const name = companions.find(c => c.id === id)?.name || '未知';
+                          const name = (members || []).find(member => member.id === id)?.name || companions.find(c => c.id === id)?.name || '未知';
                           return (
                               <div key={id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
                                   <span className="font-medium text-gray-800">{name}</span>
-                                  {amount > 0 ? (
-                                      <span className="text-green-600 font-bold text-sm">欠我 NT$ {Math.round(amount).toLocaleString()}</span>
+                                  {amount < 0 ? (
+                                      <span className="text-green-600 font-bold text-sm">欠我 NT$ {Math.abs(Math.round(amount)).toLocaleString()}</span>
                                   ) : (
-                                      <span className="text-red-500 font-bold text-sm">我欠他 NT$ {Math.abs(Math.round(amount)).toLocaleString()}</span>
+                                      <span className="text-red-500 font-bold text-sm">我欠他 NT$ {Math.round(amount).toLocaleString()}</span>
                                   )}
                               </div>
                           );
@@ -635,8 +667,8 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
         </div>
       </div>
 
-      {/* ... Modals (Refund, Wallet) ... */}
-      {isRefundModalOpen && taxRule && (
+      {/* ... Modals (Wallet) ... */}
+      {false && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[80] animate-fade-in">
              <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl p-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
@@ -652,8 +684,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
                         <input 
                             type="number" 
                             autoFocus
-                            value={refundAmount}
-                            onChange={(e) => setRefundAmount(e.target.value)}
+                            value=""
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-lg font-mono font-bold focus:ring-2 focus:ring-amber-500 outline-none"
                             placeholder="0"
                         />
@@ -664,16 +695,16 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
                         <div className="grid grid-cols-2 gap-2">
                             <button
                                 type="button"
-                                onClick={() => setRefundMethod(PaymentMethod.CREDIT_CARD)}
-                                className={`p-3 rounded-xl border flex flex-col items-center gap-1 transition-all ${refundMethod === PaymentMethod.CREDIT_CARD ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                onClick={() => undefined}
+                                className="p-3 rounded-xl border flex flex-col items-center gap-1 transition-all"
                             >
                                 <CreditCard size={24} />
                                 <span className="text-xs font-bold">退到信用卡</span>
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setRefundMethod(PaymentMethod.CASH_FOREIGN)}
-                                className={`p-3 rounded-xl border flex flex-col items-center gap-1 transition-all ${refundMethod === PaymentMethod.CASH_FOREIGN ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                onClick={() => undefined}
+                                className="p-3 rounded-xl border flex flex-col items-center gap-1 transition-all"
                             >
                                 <Banknote size={24} />
                                 <span className="text-xs font-bold">領取外幣現金</span>
@@ -683,14 +714,14 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, onExport, onAddCash,
 
                     <div className="pt-2 flex gap-3">
                         <button 
-                            onClick={() => setIsRefundModalOpen(false)}
+                            onClick={() => undefined}
                             className="flex-1 py-3 text-gray-500 font-bold bg-gray-100 rounded-xl hover:bg-gray-200"
                         >
                             取消
                         </button>
                         <button 
-                            onClick={handleConfirmRefund}
-                            disabled={!refundAmount || parseFloat(refundAmount) <= 0}
+                            onClick={() => undefined}
+                            disabled
                             className="flex-1 py-3 text-white font-bold bg-amber-500 rounded-xl hover:bg-amber-600 shadow-lg shadow-amber-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
                         >
                              確認入帳 <ArrowRight size={16} />

@@ -380,6 +380,7 @@ export const extractItineraryFromExpenses = async (expenses: Expense[]): Promise
             ${JSON.stringify(expensesData)}
             
             Return JSON as an array of ItineraryItems.
+            Only assign date when it is explicitly supported by the matching expense date; otherwise omit date.
         `;
 
         const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
@@ -399,6 +400,7 @@ export const extractItineraryFromExpenses = async (expenses: Expense[]): Promise
                             notes: { type: Type.STRING },
                             type: { type: Type.STRING, enum: ['FLIGHT', 'HOTEL', 'ACTIVITY', 'FOOD', 'TRANSPORT'] },
                             linkedExpenseId: { type: Type.STRING }
+                            ,date: { type: Type.STRING, description: "YYYY-MM-DD only when traceable to the linked expense" }
                         },
                         required: ["time", "title", "type"]
                     }
@@ -407,7 +409,12 @@ export const extractItineraryFromExpenses = async (expenses: Expense[]): Promise
         }));
 
         if (response.text) {
-            return JSON.parse(cleanJsonString(response.text));
+            const parsed = JSON.parse(cleanJsonString(response.text)) as ItineraryItem[];
+            const expenseDates = new Map(expenses.map(expense => [expense.id, expense.date.slice(0, 10)]));
+            return parsed.map(item => ({
+                ...item,
+                date: item.linkedExpenseId ? expenseDates.get(item.linkedExpenseId) : undefined,
+            }));
         }
         return [];
     } catch (error) {

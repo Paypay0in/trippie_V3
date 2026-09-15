@@ -2,16 +2,72 @@
 import React from 'react';
 import { Expense, Category, TaxRule } from '../types';
 import { getCategoryIcon, PAYMENT_METHODS_CONFIG } from '../constants';
-import { Trash2, Pencil, Tag, ArrowDownLeft, AlertTriangle } from 'lucide-react';
+import { Trash2, Pencil, Tag, ArrowDownLeft, AlertTriangle, Users } from 'lucide-react';
+import { MessageCircleQuestion } from 'lucide-react';
+import { canDeleteExpense, canEditExpense } from '../services/expensePermissions';
+import { canRaiseDispute, getOpenDisputes } from '../services/expenseDisputes';
 
 interface Props {
   expenses: Expense[];
   onDelete: (id: string) => void;
   onEdit: (expense: Expense) => void;
   taxRule?: TaxRule | null;
+  /**
+   * Who is looking at the ledger, and who owns the trip. Optional so existing
+   * single-user call sites keep working; when both are given, edit/delete
+   * actions follow the ownership contract in services/expensePermissions.
+   */
+  viewerMemberId?: string;
+  tripOwnerMemberId?: string;
+  /** Opens the dispute thread for an expense. Omit to hide the entry. */
+  onOpenDisputes?: (expense: Expense) => void;
 }
 
-const ExpenseList: React.FC<Props> = ({ expenses, onDelete, onEdit, taxRule }) => {
+const ExpenseList: React.FC<Props> = ({
+  expenses,
+  onDelete,
+  onEdit,
+  taxRule,
+  viewerMemberId,
+  tripOwnerMemberId,
+  onOpenDisputes,
+}) => {
+  // Without an identity pair we cannot decide ownership, so we keep the
+  // existing single-user behavior. The handler in App enforces permission
+  // regardless of what is rendered here.
+  const permissionsKnown = Boolean(viewerMemberId && tripOwnerMemberId);
+  const mayEdit = (expense: Expense) =>
+    !permissionsKnown ||
+    canEditExpense({
+      expense,
+      viewerMemberId: viewerMemberId as string,
+      tripOwnerMemberId: tripOwnerMemberId as string,
+    });
+  const mayDelete = (expense: Expense) =>
+    !permissionsKnown ||
+    canDeleteExpense({
+      expense,
+      viewerMemberId: viewerMemberId as string,
+      tripOwnerMemberId: tripOwnerMemberId as string,
+    });
+
+  // The dispute entry is the outlet for members who may not edit or delete.
+  // It also stays visible once questions exist, so a thread is never hidden
+  // from the people it concerns.
+  const openDisputeCount = (expense: Expense) =>
+    permissionsKnown ? getOpenDisputes(expense).length : 0;
+  const mayRaiseDispute = (expense: Expense) =>
+    Boolean(onOpenDisputes) &&
+    permissionsKnown &&
+    canRaiseDispute({
+      expense,
+      viewerMemberId: viewerMemberId as string,
+      tripOwnerMemberId: tripOwnerMemberId as string,
+    }).allowed;
+  const mayDispute = (expense: Expense) =>
+    mayRaiseDispute(expense) ||
+    (Boolean(onOpenDisputes) && openDisputeCount(expense) > 0);
+
   if (expenses.length === 0) {
     return (
       <div className="text-center py-10 text-gray-400">
@@ -131,6 +187,11 @@ const ExpenseList: React.FC<Props> = ({ expenses, onDelete, onEdit, taxRule }) =
                                         <Tag size={10} /> 退稅資格
                                     </span>
                                 )}
+                                {(item.beneficiaries.length > 1 || Object.keys(item.splitAllocations || {}).length > 1 || Object.keys(item.payerAllocations || {}).length > 1) && (
+                                    <span className="flex items-center gap-0.5 bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded border border-violet-100 whitespace-nowrap font-bold">
+                                        <Users size={10} /> 分帳
+                                    </span>
+                                )}
                             </div>
                         </div>
                         
@@ -162,21 +223,54 @@ const ExpenseList: React.FC<Props> = ({ expenses, onDelete, onEdit, taxRule }) =
                             )}
                         </div>
 
-                        {/* Actions - In flow, separated by border */}
+                        {/* Actions — only rendered for someone who may use them.
+                            A greyed-out button still says "there is something
+                            here for you"; on another member's record there is
+                            nothing. Enforcement stays in the handler regardless. */}
+                        {(mayEdit(item) || mayDelete(item) || mayDispute(item)) && (
                         <div className="flex items-center gap-0.5 pl-2 border-l border-gray-200 ml-1 flex-shrink-0">
-                            <button 
+                            {mayDispute(item) && (
+                            // Labelled for someone who can actually ask: an
+                            // unlabelled icon gives no hint that this is the
+                            // way out when edit and delete are gone. Once a
+                            // thread exists it collapses back to the icon so it
+                            // does not crowd the creator's own actions.
+                            <button
+                                onClick={() => onOpenDisputes?.(item)}
+                                title={mayRaiseDispute(item) ? '提出疑問' : '查看疑問'}
+                                className={`relative flex items-center gap-1 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors ${
+                                    mayRaiseDispute(item)
+                                        ? 'px-2.5 py-2 text-violet-600 bg-violet-50 text-xs font-bold whitespace-nowrap'
+                                        : 'p-2'
+                                }`}
+                            >
+                                <MessageCircleQuestion size={18} />
+                                {mayRaiseDispute(item) && <span>提出疑問</span>}
+                                {openDisputeCount(item) > 0 && (
+                                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white" />
+                                )}
+                            </button>
+                            )}
+                            {mayEdit(item) && (
+                            <button
                                 onClick={() => onEdit(item)}
+                                title="編輯支出"
                                 className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
                             >
                                 <Pencil size={18} />
                             </button>
-                            <button 
+                            )}
+                            {mayDelete(item) && (
+                            <button
                                 onClick={() => onDelete(item.id)}
+                                title="刪除支出"
                                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                             >
                                 <Trash2 size={18} />
                             </button>
+                            )}
                         </div>
+                        )}
                     </div>
                     );
                 })}

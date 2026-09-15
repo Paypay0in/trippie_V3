@@ -11,11 +11,12 @@ interface Props {
   taxRule?: TaxRule | null;
   variant?: 'modal' | 'embedded';
   initialTripName?: string;
+  allowArchive?: boolean;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#84cc16'];
 
-const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '' }) => {
+const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true }) => {
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [tripName, setTripName] = useState(initialTripName);
 
@@ -709,7 +710,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             </div>
 
             {/* Archive Section */}
-            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-100 animate-fade-in-up mt-8 mb-8">
+            {allowArchive && <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-100 animate-fade-in-up mt-8 mb-8">
                 <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
                     <Archive size={18} /> 準備好開始下一段旅程了嗎？
                 </h3>
@@ -756,7 +757,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                         </div>
                     </div>
                 )}
-            </div>
+            </div>}
 
             {variant === 'modal' && onClose && (
                 <button type="button" onClick={onClose} className="w-full py-3 text-gray-400 text-sm font-medium hover:text-gray-600">

@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule } from '../types';
-import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG } from '../constants';
+import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
+import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
 import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
-import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon } from 'lucide-react';
+import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
+import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown } from 'lucide-react';
 
 interface Props {
   currentPhase: Phase;
@@ -18,6 +19,14 @@ interface Props {
   initialCurrency?: string; // New Prop
   linkedItemId?: string;
   taxRule?: TaxRule | null; 
+  travelRules?: TravelRules;
+  ownerMemberId?: string;
+  /**
+   * Opens the shared delete confirmation popup for the expense being edited.
+   * The form never deletes; it only asks. Omit to hide the delete entry.
+   */
+  onRequestDelete?: (expenseId: string) => void;
+  onManageMembers?: () => void;
   onFetchTaxRule?: (currency: string) => void; 
 }
 
@@ -33,8 +42,26 @@ const ExpenseForm: React.FC<Props> = ({
   initialAmount,
   initialCurrency,
   linkedItemId,
-  taxRule
+  taxRule,
+  travelRules
+  ,ownerMemberId, onRequestDelete, onManageMembers
 }) => {
+  const effectiveOwnerMemberId = ownerMemberId || LEGACY_OWNER_ID;
+  // Compatibility boundary: every historical owner encoding ('me', an owner id
+  // from another trip id) collapses onto the active owner TripMember id, so
+  // canonical state can never hold two identities for the same human.
+  const normalizeMemberId = (id: string) => normalizeOwnerMemberId(id, effectiveOwnerMemberId);
+  const normalizeMemberRecord = (record: Record<string, number>) =>
+    normalizeMemberAmountRecord(record, effectiveOwnerMemberId);
+
+  // Aliases of the same member are collapsed, never added together. If two
+  // aliases disagree on a non-zero amount the money is ambiguous, so the form
+  // reports it and refuses to save rather than persisting a guess.
+  const hydratedPayerAllocations = normalizeMemberRecord(
+    initialData ? (initialData.payerAllocations || { [initialData.payerId]: initialData.twdAmount }) : {}
+  );
+  const hydratedSplitAllocations = normalizeMemberRecord(initialData?.splitAllocations || {});
+  const hydrationConflicts = [...hydratedPayerAllocations.conflicts, ...hydratedSplitAllocations.conflicts];
   const defaultCurrency = initialData?.currency || initialCurrency || (taxRule?.currency || 'TWD');
   const defaultPaymentMethod = initialData?.paymentMethod || (defaultCurrency !== 'TWD' ? PaymentMethod.CASH_FOREIGN : PaymentMethod.CASH_TWD);
 
@@ -46,21 +73,36 @@ const ExpenseForm: React.FC<Props> = ({
   const [category, setCategory] = useState<Category>(initialData?.category || initialCategory || CATEGORIES_BY_PHASE[currentPhase][0]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+  const [expenseSaveDebug, setExpenseSaveDebug] = useState({ submitClicked: false, formValid: false, validationError: '', expenseObjectCreated: false, onSubmitCalled: false });
+  const [beneficiaryDebug, setBeneficiaryDebug] = useState({ clickedMemberId: '', previous: [] as string[], next: [] as string[] });
   
   // Split Bill State
-  const [payerId, setPayerId] = useState(initialData?.payerId || 'me');
+  const [payerId, setPayerId] = useState(normalizeMemberId(initialData?.payerId || effectiveOwnerMemberId));
+  const memberOptions: TripMember[] = [{ id: effectiveOwnerMemberId, name: '我', type: 'owner' }, ...companions.map(c => ({ ...c, type: 'guest' as const }))];
+  const [payerAllocations, setPayerAllocations] = useState<Record<string, string>>(() => {
+    if (!initialData) return { [effectiveOwnerMemberId]: '' };
+    return Object.fromEntries(
+      Object.entries(hydratedPayerAllocations.values).map(([id, value]) => [id, String(value)])
+    );
+  });
   const [splitMethod, setSplitMethod] = useState<SplitMethod>(initialData?.splitMethod || 'EQUAL');
+  const [splitEnabled, setSplitEnabled] = useState(Boolean(
+    initialData && (initialData.beneficiaries.length > 1 || Object.keys(initialData.splitAllocations || {}).length > 0)
+  ));
   
   // Equal Split State
-  const [beneficiaries, setBeneficiaries] = useState<string[]>(initialData?.beneficiaries || ['me', ...companions.map(c => c.id)]);
+  const [beneficiaries, setBeneficiaries] = useState<string[]>(() => normalizeMemberIds(
+    initialData?.beneficiaries || [effectiveOwnerMemberId, ...companions.map(c => c.id)],
+    effectiveOwnerMemberId
+  ));
   
   // Advanced Split State (Amount/Percent)
   const [customInputs, setCustomInputs] = useState<Record<string, string>>(() => {
-      const initial = { 'me': '' } as Record<string, string>;
+      const initial = { [effectiveOwnerMemberId]: '' } as Record<string, string>;
       companions.forEach(c => initial[c.id] = '');
       
       if (initialData?.splitAllocations && (initialData.splitMethod === 'EXACT' || initialData.splitMethod === 'PERCENT')) {
-           Object.entries(initialData.splitAllocations).forEach(([id, val]) => {
+           Object.entries(hydratedSplitAllocations.values).forEach(([id, val]) => {
                initial[id] = val.toString();
            });
       }
@@ -100,10 +142,16 @@ const ExpenseForm: React.FC<Props> = ({
       }
   }, [initialAmount, initialCurrency, initialData]);
 
-  // If companions change, ensure new ones are added to beneficiaries by default if creating new
+  // Keep beneficiaries as the single selection source. When the member list changes,
+  // preserve existing choices and only add genuinely new members for a new expense.
   useEffect(() => {
       if (!initialData && companions.length > 0) {
-          setBeneficiaries(['me', ...companions.map(c => c.id)]);
+          setBeneficiaries(prev => {
+              const available = new Set([effectiveOwnerMemberId, ...companions.map(c => c.id)]);
+              const existing = prev.filter(id => available.has(id));
+              const added = companions.map(c => c.id).filter(id => !prev.includes(id));
+              return [...existing, ...added];
+          });
       }
   }, [companions.length]); 
 
@@ -232,8 +280,8 @@ const ExpenseForm: React.FC<Props> = ({
                       handlingFee: 0,
                       phase: currentPhase,
                       // Default Split
-                      payerId: 'me',
-                      beneficiaries: ['me', ...companions.map(c => c.id)],
+                      payerId: effectiveOwnerMemberId,
+                      beneficiaries: [effectiveOwnerMemberId, ...companions.map(c => c.id)],
                       splitMethod: 'EQUAL',
                       splitAllocations: {},
                       needsReview: result.isUncertain
@@ -322,22 +370,79 @@ const ExpenseForm: React.FC<Props> = ({
   };
 
   const toggleBeneficiary = (id: string) => {
-    if (beneficiaries.includes(id)) {
-        if (beneficiaries.length > 1) {
-            setBeneficiaries(prev => prev.filter(b => b !== id));
-        }
-    } else {
-        setBeneficiaries(prev => [...prev, id]);
-    }
+    setBeneficiaries(previous => {
+      const canonicalId = normalizeMemberId(id);
+      const next = previous.includes(canonicalId)
+        ? (previous.length > 1 ? previous.filter(b => b !== canonicalId) : previous)
+        : normalizeMemberIds([...previous, canonicalId], effectiveOwnerMemberId);
+      setBeneficiaryDebug({ clickedMemberId: id, previous, next });
+      if (next.length !== previous.length) {
+        setCustomInputs(inputs => Object.fromEntries(Object.entries(inputs).filter(([memberId]) => next.includes(memberId))));
+      }
+      return next;
+    });
   };
 
   const handleCustomInputChange = (id: string, value: string) => {
       setCustomInputs(prev => ({ ...prev, [id]: value }));
   };
 
+  const currentTotalTwd = (parseFloat(amount || '0') * parseFloat(exchangeRate || '1')) + (category === Category.EXCHANGE ? parseFloat(handlingFee || '0') : 0);
+
+  const exactLastBeneficiaryId = splitMethod === 'EXACT' && beneficiaries.length > 0
+      ? beneficiaries[beneficiaries.length - 1]
+      : undefined;
+
+  const getExactManualTotal = () => beneficiaries
+      .filter(id => id !== exactLastBeneficiaryId)
+      .reduce((sum, id) => sum + Math.max(0, parseFloat(customInputs[id] || '0') || 0), 0);
+
+  const exactRemainder = splitMethod === 'EXACT'
+      ? Math.max(0, currentTotalTwd - getExactManualTotal())
+      : 0;
+
+  const exactAllocationExceedsTotal = splitMethod === 'EXACT' && getExactManualTotal() > currentTotalTwd + 0.0001;
+  const percentLastBeneficiaryId = splitMethod === 'PERCENT' && beneficiaries.length > 0
+      ? beneficiaries[beneficiaries.length - 1]
+      : undefined;
+  const getPercentManualTotal = () => beneficiaries
+      .filter(id => id !== percentLastBeneficiaryId)
+      .reduce((sum, id) => sum + Math.max(0, parseFloat(customInputs[id] || '0') || 0), 0);
+  const percentRemainder = splitMethod === 'PERCENT'
+      ? Math.max(0, 100 - getPercentManualTotal())
+      : 0;
+  const percentAllocationExceedsTotal = splitMethod === 'PERCENT' && getPercentManualTotal() > 100.0001;
+  const payerIds = Object.keys(payerAllocations).filter(id => memberOptions.some(m => m.id === id));
+  const payerManualIds = payerIds.length > 1 ? payerIds.slice(0, -1) : [];
+  const payerManualTotal = payerManualIds.reduce((sum, id) => sum + Math.max(0, parseFloat(payerAllocations[id] || '0') || 0), 0);
+  const resolvedPayerAllocations = payerIds.length > 1
+    ? Object.fromEntries(payerIds.map((id, index) => [id, index === payerIds.length - 1 ? Math.max(0, currentTotalTwd - payerManualTotal) : Math.max(0, parseFloat(payerAllocations[id] || '0') || 0)]))
+    : { [payerIds[0] || effectiveOwnerMemberId]: currentTotalTwd };
+  const payerAllocationExceedsTotal = payerIds.length > 1 && payerManualTotal > currentTotalTwd + 0.0001;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description || !amount) return;
+    setExpenseSaveDebug(current => ({ ...current, submitClicked: true, formValid: false, validationError: '', expenseObjectCreated: false, onSubmitCalled: false }));
+    const parsedAmount = parseFloat(amount);
+    if (!description.trim()) {
+        setExpenseSaveDebug(current => ({ ...current, validationError: '項目名稱不可為空' }));
+        return;
+    }
+    if (!amount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        setExpenseSaveDebug(current => ({ ...current, validationError: '金額必須大於 0' }));
+        return;
+    }
+    if (!date) {
+        setExpenseSaveDebug(current => ({ ...current, validationError: '日期不可為空' }));
+        return;
+    }
+    if (hydrationConflicts.length > 0) {
+        setExpenseSaveDebug(current => ({
+          ...current,
+          validationError: `同一成員存在衝突的分帳金額，請重新確認：${describeMemberAmountConflicts(hydrationConflicts)}`,
+        }));
+        return;
+    }
 
     const rate = parseFloat(exchangeRate);
     const amt = parseFloat(amount);
@@ -350,37 +455,54 @@ const ExpenseForm: React.FC<Props> = ({
 
     let finalAllocations: Record<string, number> = {};
     
-    if (splitMethod === 'EXACT') {
-        let totalAllocated = 0;
-        Object.entries(customInputs).forEach(([id, val]) => {
-            const num = parseFloat((val as string) || '0');
-            if (num > 0) {
-                finalAllocations[id] = num;
-                totalAllocated += num;
-            }
-        });
-        
-        if (Math.abs(totalAllocated - totalTwd) > 1) {
-            alert(`分帳金額總和 (${Math.round(totalAllocated)}) 與總支出 (${Math.round(totalTwd)}) 不符`);
+    if (splitEnabled && splitMethod === 'EXACT') {
+        const manualTotal = beneficiaries
+            .filter(id => id !== exactLastBeneficiaryId)
+            .reduce((sum, id) => {
+                const value = Math.max(0, parseFloat(customInputs[id] || '0') || 0);
+                if (value > 0) finalAllocations[id] = value;
+                return sum + value;
+            }, 0);
+
+        if (manualTotal > totalTwd + 0.0001) {
+            alert('分攤金額超過支出總額');
             return;
         }
-    } else if (splitMethod === 'PERCENT') {
-        let totalPercent = 0;
-        Object.entries(customInputs).forEach(([id, val]) => {
-            const pct = parseFloat((val as string) || '0');
-            if (pct > 0) {
-                finalAllocations[id] = (totalTwd * pct) / 100;
-                totalPercent += pct;
-            }
-        });
 
-        if (Math.abs(totalPercent - 100) > 0.1) {
-             alert(`分帳百分比總和 (${totalPercent}%) 必須為 100%`);
+        if (exactLastBeneficiaryId) {
+            finalAllocations[exactLastBeneficiaryId] = Math.max(0, totalTwd - manualTotal);
+        }
+    } else if (splitEnabled && splitMethod === 'PERCENT') {
+        const manualPercent = beneficiaries
+            .filter(id => id !== percentLastBeneficiaryId)
+            .reduce((sum, id) => {
+                const value = Math.max(0, parseFloat(customInputs[id] || '0') || 0);
+                if (value > 0) finalAllocations[id] = (totalTwd * value) / 100;
+                return sum + value;
+            }, 0);
+
+        if (manualPercent > 100.0001) {
+             alert('分攤比例超過 100%');
              return;
+        }
+
+        if (percentLastBeneficiaryId) {
+            finalAllocations[percentLastBeneficiaryId] = (totalTwd * Math.max(0, 100 - manualPercent)) / 100;
         }
     }
 
-    onSubmit({
+    const submittedPayerAllocations = normalizeMemberRecord(resolvedPayerAllocations);
+    const submittedSplitAllocations = normalizeMemberRecord(finalAllocations);
+    const submitConflicts = [...submittedPayerAllocations.conflicts, ...submittedSplitAllocations.conflicts];
+    if (splitEnabled && submitConflicts.length > 0) {
+        setExpenseSaveDebug(current => ({
+          ...current,
+          validationError: `同一成員存在衝突的分帳金額，請重新確認：${describeMemberAmountConflicts(submitConflicts)}`,
+        }));
+        return;
+    }
+
+    const nextExpense = {
       description,
       amount: amt,
       currency,
@@ -391,28 +513,33 @@ const ExpenseForm: React.FC<Props> = ({
       paymentMethod,
       phase: initialData ? initialData.phase : currentPhase,
       date,
-      payerId,
-      beneficiaries,
-      splitMethod,
-      splitAllocations: finalAllocations,
+      // Saved state is canonical-only: no legacy 'me', no foreign owner id.
+      payerId: normalizeMemberId(splitEnabled ? (payerIds[0] || payerId) : effectiveOwnerMemberId),
+      payerAllocations: splitEnabled
+        ? submittedPayerAllocations.values
+        : { [effectiveOwnerMemberId]: totalTwd },
+      beneficiaries: splitEnabled
+        ? normalizeMemberIds(beneficiaries, effectiveOwnerMemberId)
+        : [effectiveOwnerMemberId],
+      splitMethod: splitEnabled ? splitMethod : 'EQUAL',
+      splitAllocations: splitEnabled ? submittedSplitAllocations.values : {},
       needsReview: false // Manual entry assumes review is done
-    }, linkedItemId);
+    };
+    setExpenseSaveDebug(current => ({ ...current, formValid: true, expenseObjectCreated: true, onSubmitCalled: true }));
+    onSubmit(nextExpense, linkedItemId);
     onClose();
   };
 
   const isExchange = category === Category.EXCHANGE;
   const isEditing = !!initialData;
-  const currentTotalTwd = (parseFloat(amount || '0') * parseFloat(exchangeRate || '1')) + (category === Category.EXCHANGE ? parseFloat(handlingFee || '0') : 0);
-  
   const getRemaining = () => {
+      if (splitMethod === 'EXACT') {
+          return exactRemainder;
+      }
       let sum = 0;
       Object.values(customInputs).forEach(val => {
           sum += parseFloat((val as string) || '0');
       });
-
-      if (splitMethod === 'EXACT') {
-          return currentTotalTwd - sum;
-      }
       if (splitMethod === 'PERCENT') {
           return 100 - sum;
       }
@@ -427,24 +554,39 @@ const ExpenseForm: React.FC<Props> = ({
                               (currency.toUpperCase() === taxRule.currency.toUpperCase()); 
 
   const estimatedRefund = isEligibleForRefund ? parseFloat(amount || '0') * taxRule.refundRate : 0;
+  const taxRefundGuidance = category === Category.SHOPPING ? travelRules?.taxRefund : undefined;
+
+  // Section heading shared by the three form groups, so the grouping reads as
+  // one system rather than three ad-hoc labels.
+  const SectionHeading = ({ children }: { children: React.ReactNode }) => (
+    <div className="flex items-center gap-2 pt-1">
+      <span className="h-4 w-1 rounded-full bg-violet-500" />
+      <span className="text-sm font-black tracking-tight text-[#11183d]">{children}</span>
+    </div>
+  );
+
+  // Read-only context for the record being edited. It renders the stored
+  // expense, not the live form state, so it stays a stable reference point
+  // while the fields below are being changed.
+  const SummaryIcon = initialData ? getCategoryIcon(initialData.category) : null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-        <div className="p-4 border-b flex justify-between items-center bg-gray-50 flex-shrink-0">
-          <h2 className="text-lg font-bold text-gray-800">
-             {isEditing 
-                ? '編輯支出' 
-                : isExchange ? '新增換匯紀錄' : `新增支出 (${currentPhase === 'pre' ? '前' : currentPhase === 'during' ? '中' : '回國機場消費'})`
-             }
-          </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+      <div className="bg-white rounded-[28px] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-white flex-shrink-0">
+          <button onClick={onClose} aria-label="關閉" className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500">
             <X size={20} />
           </button>
+          <h2 className="text-xl font-black text-[#11183d]">
+             {isEditing 
+                ? '編輯支出' 
+                : isExchange ? '新增換匯紀錄' : '新增支出'
+             }
+          </h2>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+          <div className="px-5 py-5 space-y-5 overflow-y-auto flex-1">
             {/* Hidden File Input */}
             <input 
                 type="file" 
@@ -455,7 +597,7 @@ const ExpenseForm: React.FC<Props> = ({
             />
 
             {!showAiInput ? (
-               <div className="flex gap-2">
+               <div className="hidden">
                    <button 
                      type="button"
                      onClick={() => setShowAiInput(true)}
@@ -473,7 +615,7 @@ const ExpenseForm: React.FC<Props> = ({
                    </button>
                </div>
             ) : (
-              <div className="flex gap-2 animate-fade-in">
+              <div className="hidden">
                 <input 
                   type="text" 
                   value={aiInput}
@@ -493,6 +635,14 @@ const ExpenseForm: React.FC<Props> = ({
                 </button>
               </div>
             )}
+
+            {taxRefundGuidance && (
+              <div className="rounded-xl border border-violet-100 bg-violet-50/70 px-3 py-3 text-sm text-slate-700">
+                <div className="font-bold text-violet-900">購物退稅提醒</div>
+                <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">{taxRefundGuidance.guidance.split('\n').slice(0, 3).join('\n')}</p>
+                <p className="mt-2 text-[11px] text-slate-500">資格仍取決於居住地與官方/當地規定；目前未提供居住地，因此不判定是否符合資格。</p>
+              </div>
+            )}
             
             {isAiLoading && (
               <div className="text-center text-xs text-purple-600 animate-pulse">
@@ -502,49 +652,84 @@ const ExpenseForm: React.FC<Props> = ({
             
             {/* Only show manual form if not in middle of image auto-save */}
             {(!isAiLoading || statusMessage === '分析中...') && (
-            <div className="space-y-4 pt-2">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">項目名稱</label>
-                <input 
-                  required
-                  type="text" 
-                  value={description} 
-                  onChange={e => setDescription(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none"
-                  placeholder={isExchange ? "例如：桃園機場換匯" : "例如：東京地鐵三日券"}
-                />
-              </div>
+            <div className="space-y-5 pt-0">
+              {initialData && SummaryIcon && (
+                <div className="flex items-center gap-3 rounded-2xl bg-[#f5f1ff] p-4 ring-1 ring-violet-100">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white text-violet-600 shadow-sm">
+                    <SummaryIcon size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-bold text-[#11183d]">
+                      {initialData.description || '這筆支出'}
+                    </div>
+                    <div className="mt-0.5 text-xs font-medium text-slate-500">
+                      {initialData.date.replace(/-/g, '/')}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 whitespace-nowrap text-base font-black text-[#11183d]">
+                    NT$ {Math.round(initialData.twdAmount).toLocaleString()}
+                  </div>
+                </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    {isExchange ? '換得金額 (外幣)' : '金額'}
-                  </label>
+              <SectionHeading>基本資訊</SectionHeading>
+
+              <div>
+                <label className="block text-sm font-bold text-[#11183d] mb-2">項目名稱 <span className="text-red-500">*</span></label>
+                <div className="relative">
                   <input 
                     required
-                    type="number" 
-                    step="0.01"
-                    value={amount} 
-                    onChange={e => setAmount(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none font-mono"
-                    placeholder="0.00"
+                    type="text"
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    className="w-full h-12 border border-slate-200 rounded-2xl px-4 pr-11 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none"
+                    placeholder="例如：東京地鐵三日券"
                   />
+                  <FileText size={17} className="pointer-events-none absolute right-4 top-3.5 text-slate-300" />
+                </div>
+              </div>
+
+              <div>
+                 <div className="mb-2 flex items-center justify-between">
+                   <label className="block text-sm font-bold text-[#11183d]">分類 <span className="text-red-500">*</span></label>
+                   <button type="button" className="text-xs font-bold text-violet-600">自訂分類管理 &gt;</button>
+                 </div>
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                   {CATEGORIES_BY_PHASE[currentPhase].map(cat => (
+                     <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setCategory(cat)}
+                        className={`text-xs min-h-11 py-2 px-1 rounded-xl border transition-colors ${
+                        category === cat
+                          ? 'bg-violet-50 text-violet-700 border-violet-500'
+                          : 'bg-white text-gray-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                     >
+                       {cat}
+                     </button>
+                   ))}
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.38fr)_minmax(0,1fr)] gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-[#11183d] mb-2">金額 <span className="text-red-500">*</span></label>
+                  <div className="flex h-12 rounded-2xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-violet-200 focus-within:border-violet-400">
+                    <select value={currency} onChange={handleCurrencyChange} className="w-[29%] min-w-[4.25rem] border-r border-slate-200 px-2 sm:px-3 outline-none bg-white text-sm font-bold text-[#11183d]">
+                      {COMMON_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                      {taxRule && !COMMON_CURRENCIES.some(c => c.code === taxRule.currency) && <option value={taxRule.currency}>{taxRule.currency}</option>}
+                    </select>
+                    <input required type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="min-w-0 flex-1 px-4 outline-none font-mono text-base" placeholder="500" />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">幣別</label>
-                  <select 
-                    value={currency}
-                    onChange={handleCurrencyChange}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
-                  >
-                    {COMMON_CURRENCIES.map(c => (
-                      <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
-                    ))}
-                    {/* Add option for the country's currency if it's not in the common list but returned by taxRule */}
-                    {taxRule && !COMMON_CURRENCIES.some(c => c.code === taxRule.currency) && (
-                        <option value={taxRule.currency}>{taxRule.currency}</option>
-                    )}
-                  </select>
+                  <label className="block text-sm font-bold text-[#11183d] mb-2">日期 <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <CalendarDays size={17} className="absolute left-3 top-2.5 text-slate-500" />
+                    <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full h-12 border border-slate-200 rounded-2xl pl-10 pr-8 focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none bg-white text-sm whitespace-nowrap" />
+                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-3.5 text-slate-400" />
+                  </div>
                 </div>
               </div>
 
@@ -569,6 +754,175 @@ const ExpenseForm: React.FC<Props> = ({
                       </div>
                   </div>
               )}
+
+              {!isExchange && <SectionHeading>分帳設定</SectionHeading>}
+
+              {!isExchange && (
+                  <div className="rounded-2xl border border-violet-100 bg-[#f5f1ff] p-4 space-y-4">
+                      <button type="button" onClick={() => setSplitEnabled(value => !value)} className="w-full flex items-center justify-between text-left">
+                        <span className="flex items-center gap-3"><Users size={21} className="text-violet-600" /><span><span className="block text-sm font-bold text-[#11183d]">此筆支出需要分帳</span><span className="block text-xs text-slate-500 mt-0.5">開啟後可選擇分帳方式與分攤成員</span></span></span>
+                        <span className={`relative h-7 w-12 rounded-full transition-colors ${splitEnabled ? 'bg-violet-600' : 'bg-slate-300'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${splitEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></span>
+                      </button>
+                  {splitEnabled && <div className="space-y-5 border-t border-violet-200/70 pt-4">
+                      <div className="flex items-center justify-between pb-1">
+                           <div className="flex items-center gap-2 text-[#11183d]">
+                              <Users size={16} />
+                              <span className="text-sm font-bold">分帳設定</span>
+                           </div>
+                  <button type="button" onClick={onManageMembers} className="text-xs font-bold text-violet-600">調整成員 &gt;</button>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">1</span><div><div className="text-sm font-bold text-[#11183d]">付款者</div><div className="text-[11px] text-slate-500">選擇實際付款的人（可複選）</div></div></div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {memberOptions.map(member => {
+                          const selected = payerIds.includes(member.id);
+                          return <label key={member.id} className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 transition-colors ${selected ? 'border-violet-400 bg-violet-50' : 'border-slate-200 bg-white'}`}>
+                            <input type="checkbox" checked={selected} onChange={() => setPayerAllocations(prev => {
+                              if (selected && payerIds.length <= 1) return prev;
+                              if (selected) { const next = { ...prev }; delete next[member.id]; return next; }
+                              return { ...prev, [member.id]: '' };
+                            })} />
+                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${selected ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{member.name.charAt(0)}</span>
+                            <span className="flex-1 truncate text-xs font-bold text-[#11183d]">{member.name}</span>
+                          </label>;
+                        })}
+                        </div>
+                      </div>
+
+                      {(
+                          <div>
+                              <div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">2</span><div><div className="text-sm font-bold text-[#11183d]">分給誰（{beneficiaries.length} 人）</div><div className="text-[11px] text-slate-500">選擇需要分攤此筆支出的人</div></div></div><button type="button" onClick={onManageMembers} className="text-xs font-bold text-violet-600">調整成員 &gt;</button></div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                  <button
+                                      type="button"
+                                      onClick={() => toggleBeneficiary(effectiveOwnerMemberId)}
+                                      className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${beneficiaries.includes(effectiveOwnerMemberId) ? 'bg-violet-50 text-violet-700 border-violet-400' : 'bg-white text-gray-500 border-slate-200'}`}
+                                  >
+                                      <input type="checkbox" readOnly checked={beneficiaries.includes(effectiveOwnerMemberId)} className="accent-violet-600" aria-label="選擇我" />
+                                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${beneficiaries.includes(effectiveOwnerMemberId) ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>我</span>我
+                                  </button>
+                                  {companions.map(c => (
+                                      <button
+                                          key={c.id}
+                                          type="button"
+                                          onClick={() => toggleBeneficiary(c.id)}
+                                          className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${beneficiaries.includes(c.id) ? 'bg-violet-50 text-violet-700 border-violet-400' : 'bg-white text-gray-500 border-slate-200'}`}
+                                      >
+                                          <input type="checkbox" readOnly checked={beneficiaries.includes(c.id)} className="accent-violet-600" aria-label={`選擇${c.name}`} />
+                                          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${beneficiaries.includes(c.id) ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{c.name.charAt(0)}</span>{c.name}
+                                      </button>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 font-mono text-[10px] text-amber-900">
+                        <div className="font-bold">BENEFICIARY DEBUG</div>
+                        <div>ownerMemberId: {effectiveOwnerMemberId}</div>
+                        <div>amountConflicts: {hydrationConflicts.length ? describeMemberAmountConflicts(hydrationConflicts) : 'none'}</div>
+                        <div>rawInitialBeneficiaryIds: [{(initialData?.beneficiaries || []).join(', ')}]</div>
+                        <div>clickedMemberId: {beneficiaryDebug.clickedMemberId || 'none'}</div>
+                        <div>selectedBeneficiaryIds: [{beneficiaries.join(', ')}]</div>
+                        <div>selectedBeneficiaryCount: {beneficiaries.length}</div>
+                        <div>splitMethod: {splitMethod}</div>
+                        <div>equalShare: {beneficiaries.length ? (currentTotalTwd / beneficiaries.length).toFixed(2) : '0'}</div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">3</span><span className="text-sm font-bold text-[#11183d]">分帳方式</span></div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['EQUAL', 'EXACT', 'PERCENT'] as SplitMethod[]).map(method => (
+                            <button key={method} type="button" onClick={() => setSplitMethod(method)} className={`rounded-xl border py-2.5 text-xs font-bold transition-colors ${splitMethod === method ? 'border-violet-500 bg-white text-violet-700' : 'border-transparent bg-white/70 text-slate-500'}`}>
+                              {method === 'EQUAL' ? '平均分攤' : method === 'EXACT' ? '指定金額' : '百分比分攤'}
+                            </button>
+                          ))}
+                        </div>
+                        {splitMethod === 'EQUAL' && beneficiaries.length > 0 && (
+                          <div className="rounded-xl bg-violet-100/70 px-3 py-2 text-xs font-semibold text-violet-800">
+                            將由 {beneficiaries.length} 人平均分攤，每人 <span className="font-black">NT${Math.round(currentTotalTwd / beneficiaries.length).toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {(splitMethod === 'EXACT' || splitMethod === 'PERCENT') && (
+                          <div className="space-y-2">
+                              <div className="hidden">
+                                  <label className="text-xs font-medium text-gray-600">
+                                      {splitMethod === 'EXACT' ? '輸入各人負擔金額 (TWD)' : '輸入各人負擔百分比 (%)'}
+                                  </label>
+                                  <span className={`text-xs font-mono font-bold ${Math.abs(getRemaining()) < 0.1 ? 'text-green-600' : 'text-red-500'}`}>
+                                      {splitMethod === 'EXACT' ? '剩餘: $' : '剩餘: '}
+                                      {Math.round(getRemaining())}
+                                      {splitMethod === 'PERCENT' ? '%' : ''}
+                                  </span>
+                              </div>
+                              <div className="space-y-2">
+                                  <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2">
+                                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">我</span>
+                                      <span className="text-xs font-bold text-[#11183d] w-12">我</span>
+                                      <span className="text-[10px] font-bold text-slate-400">TWD</span>
+                                      <input 
+                                          type="number"
+                                      value={effectiveOwnerMemberId === exactLastBeneficiaryId ? Math.round(exactRemainder) : effectiveOwnerMemberId === percentLastBeneficiaryId ? Math.round(percentRemainder) : customInputs[effectiveOwnerMemberId]}
+                                          onChange={(e) => handleCustomInputChange(effectiveOwnerMemberId, e.target.value)}
+                                          readOnly={(splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)}
+                                          className={`flex-1 border rounded-xl px-2 py-2 text-sm font-mono text-right outline-none focus:border-violet-500 ${((splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)) ? 'border-violet-200 bg-violet-50 text-[#11183d]' : 'border-violet-200 bg-white text-[#11183d]'}`}
+                                          placeholder="0"
+                                      />
+                                      {((splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)) && <span className="text-[10px] font-bold text-violet-600 whitespace-nowrap">自動計算</span>}
+                                  </div>
+                                  {companions.filter(c => beneficiaries.includes(c.id)).map((c, companionIndex) => (
+                                      <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2">
+                                          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${companionIndex % 3 === 0 ? 'bg-pink-100 text-pink-700' : companionIndex % 3 === 1 ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`}>{c.name.charAt(0)}</span>
+                                          <span className="text-xs font-bold text-[#11183d] w-12 truncate">{c.name}</span>
+                                          <span className="text-[10px] font-bold text-slate-400">TWD</span>
+                                          <input 
+                                              type="number"
+                                              value={c.id === exactLastBeneficiaryId ? Math.round(exactRemainder) : c.id === percentLastBeneficiaryId ? Math.round(percentRemainder) : customInputs[c.id]}
+                                              onChange={(e) => handleCustomInputChange(c.id, e.target.value)}
+                                              readOnly={(splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)}
+                                              className={`flex-1 border rounded-xl px-2 py-2 text-sm font-mono text-right outline-none focus:border-violet-500 ${((splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)) ? 'border-violet-200 bg-violet-50 text-[#11183d]' : 'border-violet-200 bg-white text-[#11183d]'}`}
+                                              placeholder="0"
+                                          />
+                                          {((splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)) && <span className="text-[10px] font-bold text-violet-600 whitespace-nowrap">自動計算</span>}
+                                      </div>
+                                  ))}
+                              </div>
+                              {exactAllocationExceedsTotal && <p className="text-xs font-medium text-red-500">分攤金額超過支出總額</p>}
+                              {percentAllocationExceedsTotal && <p className="text-xs font-medium text-red-500">分攤比例超過 100%</p>}
+                          </div>
+                      )}
+                  </div>}
+                  </div>
+              )}
+
+
+              <SectionHeading>付款資訊</SectionHeading>
+
+              <div>
+                 <label className="block text-sm font-bold text-[#11183d] mb-2">付款方式 <span className="text-red-500">*</span></label>
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                   {Object.values(PaymentMethod).map(method => {
+                     const config = PAYMENT_METHODS_CONFIG[method];
+                     const Icon = config.icon;
+                     const isSelected = paymentMethod === method;
+                     return (
+                      <button
+                        key={method}
+                        type="button"
+                        onClick={() => setPaymentMethod(method)}
+                        className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                          isSelected
+                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300'
+                            : 'bg-white border border-slate-200 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Icon size={14} /> {config.label}
+                      </button>
+                     );
+                   })}
+                 </div>
+              </div>
 
               {currency !== 'TWD' && (
                 <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 space-y-3">
@@ -622,192 +976,62 @@ const ExpenseForm: React.FC<Props> = ({
                 </div>
               )}
 
-              {companions.length > 0 && !isExchange && (
-                  <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100 space-y-3">
-                      <div className="flex items-center justify-between border-b border-indigo-200 pb-2">
-                           <div className="flex items-center gap-2 text-indigo-700">
-                              <Users size={16} />
-                              <span className="text-xs font-bold">分帳設定</span>
-                           </div>
-                           <div className="flex bg-white rounded-lg p-0.5 border border-indigo-200">
-                              <button
-                                  type="button"
-                                  onClick={() => setSplitMethod('EQUAL')}
-                                  className={`p-1.5 rounded-md transition-colors ${splitMethod === 'EQUAL' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-400 hover:text-indigo-500'}`}
-                                  title="平分"
-                              >
-                                  <Divide size={14} />
-                              </button>
-                              <button
-                                  type="button"
-                                  onClick={() => setSplitMethod('EXACT')}
-                                  className={`p-1.5 rounded-md transition-colors ${splitMethod === 'EXACT' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-400 hover:text-indigo-500'}`}
-                                  title="指定金額"
-                              >
-                                  <DollarSign size={14} />
-                              </button>
-                              <button
-                                  type="button"
-                                  onClick={() => setSplitMethod('PERCENT')}
-                                  className={`p-1.5 rounded-md transition-colors ${splitMethod === 'PERCENT' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-400 hover:text-indigo-500'}`}
-                                  title="百分比"
-                              >
-                                  <Percent size={14} />
-                              </button>
-                           </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                          <label className="text-xs font-medium text-gray-600">誰付錢？</label>
-                          <select 
-                              value={payerId}
-                              onChange={(e) => setPayerId(e.target.value)}
-                              className="text-sm bg-white border border-indigo-200 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-indigo-500"
-                          >
-                              <option value="me">我</option>
-                              {companions.map(c => (
-                                  <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                          </select>
-                      </div>
-
-                      {splitMethod === 'EQUAL' && (
-                          <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">平均分攤給...</label>
-                              <div className="flex flex-wrap gap-2">
-                                  <button
-                                      type="button"
-                                      onClick={() => toggleBeneficiary('me')}
-                                      className={`text-xs px-2 py-1 rounded border ${beneficiaries.includes('me') ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}
-                                  >
-                                      我
-                                  </button>
-                                  {companions.map(c => (
-                                      <button
-                                          key={c.id}
-                                          type="button"
-                                          onClick={() => toggleBeneficiary(c.id)}
-                                          className={`text-xs px-2 py-1 rounded border ${beneficiaries.includes(c.id) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200'}`}
-                                      >
-                                          {c.name}
-                                      </button>
-                                  ))}
-                              </div>
-                          </div>
-                      )}
-
-                      {(splitMethod === 'EXACT' || splitMethod === 'PERCENT') && (
-                          <div className="space-y-2">
-                              <div className="flex justify-between items-center">
-                                  <label className="text-xs font-medium text-gray-600">
-                                      {splitMethod === 'EXACT' ? '輸入各人負擔金額 (TWD)' : '輸入各人負擔百分比 (%)'}
-                                  </label>
-                                  <span className={`text-xs font-mono font-bold ${Math.abs(getRemaining()) < 0.1 ? 'text-green-600' : 'text-red-500'}`}>
-                                      {splitMethod === 'EXACT' ? '剩餘: $' : '剩餘: '}
-                                      {Math.round(getRemaining())}
-                                      {splitMethod === 'PERCENT' ? '%' : ''}
-                                  </span>
-                              </div>
-                              <div className="space-y-1">
-                                  <div className="flex items-center gap-2">
-                                      <span className="text-xs w-16 text-right">我</span>
-                                      <input 
-                                          type="number"
-                                          value={customInputs['me']}
-                                          onChange={(e) => handleCustomInputChange('me', e.target.value)}
-                                          className="flex-1 border border-indigo-200 rounded px-2 py-1 text-sm outline-none focus:border-indigo-500 text-right font-mono"
-                                          placeholder="0"
-                                      />
-                                  </div>
-                                  {companions.map(c => (
-                                      <div key={c.id} className="flex items-center gap-2">
-                                          <span className="text-xs w-16 text-right truncate">{c.name}</span>
-                                          <input 
-                                              type="number"
-                                              value={customInputs[c.id]}
-                                              onChange={(e) => handleCustomInputChange(c.id, e.target.value)}
-                                              className="flex-1 border border-indigo-200 rounded px-2 py-1 text-sm outline-none focus:border-indigo-500 text-right font-mono"
-                                              placeholder="0"
-                                          />
-                                      </div>
-                                  ))}
-                              </div>
-                          </div>
-                      )}
-                  </div>
-              )}
 
               <div>
-                 <label className="block text-xs font-medium text-gray-500 mb-1">分類</label>
-                 <div className="grid grid-cols-3 gap-2">
-                   {CATEGORIES_BY_PHASE[currentPhase].map(cat => (
-                     <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setCategory(cat)}
-                      className={`text-xs py-2 px-1 rounded border transition-colors ${
-                        category === cat 
-                          ? 'bg-brand-500 text-white border-brand-600' 
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                      }`}
-                     >
-                       {cat}
-                     </button>
-                   ))}
-                 </div>
+                <label className="mb-2 block text-sm font-bold text-[#11183d]">備註（選填）</label>
+                <div className="flex items-stretch gap-3">
+                  <textarea
+                    disabled
+                    rows={3}
+                    placeholder="輸入備註..."
+                    className="min-h-[92px] flex-1 resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 outline-none placeholder:text-slate-300"
+                  />
+                  <button
+                    type="button"
+                    disabled
+                    className="flex h-12 shrink-0 items-center gap-1 self-end rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-400"
+                    title="照片功能尚未開放"
+                  >
+                    <Camera size={15} /> 新增照片
+                  </button>
+                </div>
               </div>
 
-              <div>
-                 <label className="block text-xs font-medium text-gray-500 mb-1">付款方式</label>
-                 <div className="grid grid-cols-2 gap-2">
-                   {Object.values(PaymentMethod).map(method => {
-                     const config = PAYMENT_METHODS_CONFIG[method];
-                     const Icon = config.icon;
-                     const isSelected = paymentMethod === method;
-                     return (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setPaymentMethod(method)}
-                        className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
-                          isSelected
-                            ? `${config.color} ring-2 ring-offset-1 ring-gray-200`
-                            : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
-                        }`}
-                      >
-                        <Icon size={14} /> {config.label}
-                      </button>
-                     );
-                   })}
-                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">日期</label>
-                <input 
-                  type="date" 
-                  value={date}
-                  onChange={e => setDate(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
             </div>
             )}
           </div>
 
           {(!isAiLoading || statusMessage === '分析中...') && (
-            <div className="p-4 bg-gray-50 border-t flex-shrink-0">
+            <div className="p-5 bg-white border-t border-slate-100 flex-shrink-0">
+                {expenseSaveDebug.submitClicked && expenseSaveDebug.validationError && (
+                  <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{expenseSaveDebug.validationError}</div>
+                )}
                 <button
                   type="submit"
-                  className={`w-full text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all duration-200 transform hover:-translate-y-px active:scale-[0.98] ${
-                      isEditing
+      disabled={exactAllocationExceedsTotal || percentAllocationExceedsTotal || payerAllocationExceedsTotal}
+                  className={`w-full text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all duration-200 transform hover:-translate-y-px active:scale-[0.98] ${
+                      exactAllocationExceedsTotal
+                        ? 'bg-gray-300 cursor-not-allowed shadow-none'
+                        : isEditing
                         ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/30'
-                        : 'bg-brand-500 hover:bg-brand-600 shadow-brand-500/30'
+                        : 'bg-gradient-to-r from-violet-600 to-fuchsia-500 hover:from-violet-700 hover:to-fuchsia-600 shadow-violet-500/30'
                   }`}
                 >
                   {isEditing ? <Save size={20} /> : <Plus size={20} />}
                   {isEditing ? '儲存變更' : (isExchange ? '新增換匯紀錄' : '新增這筆支出')}
                 </button>
+                {isEditing && initialData && onRequestDelete && (
+                  // Subtle destructive entry, deliberately not a large red
+                  // button competing with 儲存變更. It only opens the shared
+                  // confirmation popup — nothing is removed from here.
+                  <button
+                    type="button"
+                    onClick={() => onRequestDelete(initialData.id)}
+                    className="mt-3 w-full rounded-xl py-2.5 text-sm font-bold text-red-500 transition-colors hover:bg-red-50"
+                  >
+                    刪除這筆支出
+                  </button>
+                )}
             </div>
           )}
         </form>
