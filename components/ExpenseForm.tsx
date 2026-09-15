@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
@@ -21,6 +22,16 @@ interface Props {
   taxRule?: TaxRule | null; 
   travelRules?: TravelRules;
   ownerMemberId?: string;
+  /** Display name of the trip owner, for when the viewer is someone else. */
+  ownerName?: string;
+  /** TripMember viewing the form; decides who gets called 我. */
+  viewerMemberId?: string;
+  /**
+   * Opened by someone who may not edit this record: the same form, but the
+   * result is submitted as a proposal for the creator to approve rather than
+   * written straight to the ledger.
+   */
+  proposalMode?: boolean;
   /**
    * Opens the shared delete confirmation popup for the expense being edited.
    * The form never deletes; it only asks. Omit to hide the delete entry.
@@ -44,7 +55,7 @@ const ExpenseForm: React.FC<Props> = ({
   linkedItemId,
   taxRule,
   travelRules
-  ,ownerMemberId, onRequestDelete, onManageMembers
+  ,ownerMemberId, ownerName, viewerMemberId, proposalMode, onRequestDelete, onManageMembers
 }) => {
   const effectiveOwnerMemberId = ownerMemberId || LEGACY_OWNER_ID;
   // Compatibility boundary: every historical owner encoding ('me', an owner id
@@ -78,7 +89,23 @@ const ExpenseForm: React.FC<Props> = ({
   
   // Split Bill State
   const [payerId, setPayerId] = useState(normalizeMemberId(initialData?.payerId || effectiveOwnerMemberId));
-  const memberOptions: TripMember[] = [{ id: effectiveOwnerMemberId, name: '我', type: 'owner' }, ...companions.map(c => ({ ...c, type: 'guest' as const }))];
+  // "我" is whoever is looking, not whoever owns the trip. Labelling the owner
+  // as 我 for a different viewer makes them pick the wrong payer and the wrong
+  // share — a wrong ledger entry, not just a wrong caption.
+  const effectiveViewerMemberId = normalizeMemberId(viewerMemberId || effectiveOwnerMemberId);
+  const viewerIsOwner = effectiveViewerMemberId === effectiveOwnerMemberId;
+  // In proposal mode only the two proposable fields stay live. Leaving the
+  // rest editable would let someone change a number, submit, and have it
+  // silently dropped — the form would be lying about what it accepts.
+  const locked = Boolean(proposalMode);
+  // A disabled control that looks identical to a live one reads as broken, not
+  // as locked. The dimming is what makes "you cannot change this" visible.
+  const lockedStyle = locked ? ' opacity-45 grayscale cursor-not-allowed' : '';
+  const ownerLabel = viewerIsOwner ? '我' : (ownerName?.trim() || '旅程擁有者');
+  /** Marks the viewer's own row, whoever they are. */
+  const labelForMember = (id: string, name: string) =>
+    id === effectiveViewerMemberId && !viewerIsOwner ? `${name}（我）` : name;
+  const memberOptions: TripMember[] = [{ id: effectiveOwnerMemberId, name: ownerLabel, type: 'owner' }, ...companions.map(c => ({ ...c, name: labelForMember(c.id, c.name), type: 'guest' as const }))];
   const [payerAllocations, setPayerAllocations] = useState<Record<string, string>>(() => {
     if (!initialData) return { [effectiveOwnerMemberId]: '' };
     return Object.fromEntries(
@@ -571,16 +598,18 @@ const ExpenseForm: React.FC<Props> = ({
   const SummaryIcon = initialData ? getCategoryIcon(initialData.category) : null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-fade-in">
+    <div className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 ${OVERLAY.form} animate-fade-in`}>
       <div className="bg-white rounded-[28px] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-white flex-shrink-0">
           <button onClick={onClose} aria-label="關閉" className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500">
             <X size={20} />
           </button>
           <h2 className="text-xl font-black text-[#11183d]">
-             {isEditing 
-                ? '編輯支出' 
-                : isExchange ? '新增換匯紀錄' : '新增支出'
+             {proposalMode
+                ? '提出修正建議'
+                : isEditing
+                  ? '編輯支出'
+                  : isExchange ? '新增換匯紀錄' : '新增支出'
              }
           </h2>
         </div>
@@ -672,65 +701,79 @@ const ExpenseForm: React.FC<Props> = ({
                 </div>
               )}
 
-              <SectionHeading>基本資訊</SectionHeading>
+              {proposalMode && (
+                <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-medium leading-relaxed text-amber-900 ring-1 ring-amber-100">
+                  這筆帳由其他旅伴建立。你可以提議修改<b className="font-black">金額</b>、<b className="font-black">分攤成員</b>與<b className="font-black">分帳方式與金額</b>，送出後由建立者核准。
+                </p>
+              )}
 
-              <div>
-                <label className="block text-sm font-bold text-[#11183d] mb-2">項目名稱 <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <input 
-                    required
-                    type="text"
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    className="w-full h-12 border border-slate-200 rounded-2xl px-4 pr-11 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none"
-                    placeholder="例如：東京地鐵三日券"
-                  />
-                  <FileText size={17} className="pointer-events-none absolute right-4 top-3.5 text-slate-300" />
+              {!locked && <SectionHeading>基本資訊</SectionHeading>}
+
+              {!locked && (
+                <div>
+                  <label className="block text-sm font-bold text-[#11183d] mb-2">項目名稱 <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <input 
+                      required
+                      type="text"
+                      value={description}
+                      disabled={locked}
+                      onChange={e => setDescription(e.target.value)}
+                      className={`w-full h-12 border border-slate-200 rounded-2xl px-4 pr-11 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none${lockedStyle}`}
+                      placeholder="例如：東京地鐵三日券"
+                    />
+                    <FileText size={17} className="pointer-events-none absolute right-4 top-3.5 text-slate-300" />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div>
-                 <div className="mb-2 flex items-center justify-between">
-                   <label className="block text-sm font-bold text-[#11183d]">分類 <span className="text-red-500">*</span></label>
-                   <button type="button" className="text-xs font-bold text-violet-600">自訂分類管理 &gt;</button>
-                 </div>
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                   {CATEGORIES_BY_PHASE[currentPhase].map(cat => (
-                     <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setCategory(cat)}
-                        className={`text-xs min-h-11 py-2 px-1 rounded-xl border transition-colors ${
-                        category === cat
-                          ? 'bg-violet-50 text-violet-700 border-violet-500'
-                          : 'bg-white text-gray-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                     >
-                       {cat}
-                     </button>
-                   ))}
-                 </div>
-              </div>
+              {!locked && (
+                <div>
+                   <div className="mb-2 flex items-center justify-between">
+                     <label className="block text-sm font-bold text-[#11183d]">分類 <span className="text-red-500">*</span></label>
+                     <button type="button" className="text-xs font-bold text-violet-600">自訂分類管理 &gt;</button>
+                   </div>
+                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                     {CATEGORIES_BY_PHASE[currentPhase].map(cat => (
+                       <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setCategory(cat)}
+                        disabled={locked}
+                          className={`text-xs min-h-11 py-2 px-1 rounded-xl border transition-colors${lockedStyle} ${
+                          category === cat
+                            ? 'bg-violet-50 text-violet-700 border-violet-500'
+                            : 'bg-white text-gray-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                       >
+                         {cat}
+                       </button>
+                     ))}
+                   </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.38fr)_minmax(0,1fr)] gap-4">
                 <div>
                   <label className="block text-sm font-bold text-[#11183d] mb-2">金額 <span className="text-red-500">*</span></label>
                   <div className="flex h-12 rounded-2xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-violet-200 focus-within:border-violet-400">
-                    <select value={currency} onChange={handleCurrencyChange} className="w-[29%] min-w-[4.25rem] border-r border-slate-200 px-2 sm:px-3 outline-none bg-white text-sm font-bold text-[#11183d]">
+                    <select value={currency} disabled={locked} onChange={handleCurrencyChange} className={`w-[29%] min-w-[4.25rem] border-r border-slate-200 px-2 sm:px-3 outline-none bg-white text-sm font-bold text-[#11183d]${lockedStyle}`}>
                       {COMMON_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
                       {taxRule && !COMMON_CURRENCIES.some(c => c.code === taxRule.currency) && <option value={taxRule.currency}>{taxRule.currency}</option>}
                     </select>
                     <input required type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="min-w-0 flex-1 px-4 outline-none font-mono text-base" placeholder="500" />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-[#11183d] mb-2">日期 <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <CalendarDays size={17} className="absolute left-3 top-2.5 text-slate-500" />
-                    <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full h-12 border border-slate-200 rounded-2xl pl-10 pr-8 focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none bg-white text-sm whitespace-nowrap" />
-                    <ChevronDown size={16} className="pointer-events-none absolute right-3 top-3.5 text-slate-400" />
+                {!locked && (
+                  <div>
+                    <label className="block text-sm font-bold text-[#11183d] mb-2">日期 <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <CalendarDays size={17} className="absolute left-3 top-2.5 text-slate-500" />
+                      <input type="date" value={date} disabled={locked} onChange={e => setDate(e.target.value)} className={`w-full h-12 border border-slate-200 rounded-2xl pl-10 pr-8 focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none bg-white text-sm whitespace-nowrap${lockedStyle}`} />
+                      <ChevronDown size={16} className="pointer-events-none absolute right-3 top-3.5 text-slate-400" />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Tax Refund Alert */}
@@ -759,10 +802,12 @@ const ExpenseForm: React.FC<Props> = ({
 
               {!isExchange && (
                   <div className="rounded-2xl border border-violet-100 bg-[#f5f1ff] p-4 space-y-4">
-                      <button type="button" onClick={() => setSplitEnabled(value => !value)} className="w-full flex items-center justify-between text-left">
-                        <span className="flex items-center gap-3"><Users size={21} className="text-violet-600" /><span><span className="block text-sm font-bold text-[#11183d]">此筆支出需要分帳</span><span className="block text-xs text-slate-500 mt-0.5">開啟後可選擇分帳方式與分攤成員</span></span></span>
-                        <span className={`relative h-7 w-12 rounded-full transition-colors ${splitEnabled ? 'bg-violet-600' : 'bg-slate-300'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${splitEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></span>
-                      </button>
+                      {!locked && (
+                        <button type="button" disabled={locked} onClick={() => setSplitEnabled(value => !value)} className={`w-full flex items-center justify-between text-left${lockedStyle}`}>
+                          <span className="flex items-center gap-3"><Users size={21} className="text-violet-600" /><span><span className="block text-sm font-bold text-[#11183d]">此筆支出需要分帳</span><span className="block text-xs text-slate-500 mt-0.5">開啟後可選擇分帳方式與分攤成員</span></span></span>
+                          <span className={`relative h-7 w-12 rounded-full transition-colors ${splitEnabled ? 'bg-violet-600' : 'bg-slate-300'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${splitEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></span>
+                        </button>
+                      )}
                   {splitEnabled && <div className="space-y-5 border-t border-violet-200/70 pt-4">
                       <div className="flex items-center justify-between pb-1">
                            <div className="flex items-center gap-2 text-[#11183d]">
@@ -771,23 +816,25 @@ const ExpenseForm: React.FC<Props> = ({
                            </div>
                   <button type="button" onClick={onManageMembers} className="text-xs font-bold text-violet-600">調整成員 &gt;</button>
                       </div>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">1</span><div><div className="text-sm font-bold text-[#11183d]">付款者</div><div className="text-[11px] text-slate-500">選擇實際付款的人（可複選）</div></div></div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {memberOptions.map(member => {
-                          const selected = payerIds.includes(member.id);
-                          return <label key={member.id} className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 transition-colors ${selected ? 'border-violet-400 bg-violet-50' : 'border-slate-200 bg-white'}`}>
-                            <input type="checkbox" checked={selected} onChange={() => setPayerAllocations(prev => {
-                              if (selected && payerIds.length <= 1) return prev;
-                              if (selected) { const next = { ...prev }; delete next[member.id]; return next; }
-                              return { ...prev, [member.id]: '' };
-                            })} />
-                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${selected ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{member.name.charAt(0)}</span>
-                            <span className="flex-1 truncate text-xs font-bold text-[#11183d]">{member.name}</span>
-                          </label>;
-                        })}
+                      {!locked && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">1</span><div><div className="text-sm font-bold text-[#11183d]">付款者</div><div className="text-[11px] text-slate-500">選擇實際付款的人（可複選）</div></div></div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          {memberOptions.map(member => {
+                            const selected = payerIds.includes(member.id);
+                            return <label key={member.id} className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 transition-colors${lockedStyle} ${selected ? 'border-violet-400 bg-violet-50' : 'border-slate-200 bg-white'}`}>
+                              <input type="checkbox" checked={selected} disabled={locked} onChange={() => setPayerAllocations(prev => {
+                                if (selected && payerIds.length <= 1) return prev;
+                                if (selected) { const next = { ...prev }; delete next[member.id]; return next; }
+                                return { ...prev, [member.id]: '' };
+                              })} />
+                              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${selected ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{member.name.charAt(0)}</span>
+                              <span className="flex-1 truncate text-xs font-bold text-[#11183d]">{member.name}</span>
+                            </label>;
+                          })}
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {(
                           <div>
@@ -798,8 +845,8 @@ const ExpenseForm: React.FC<Props> = ({
                                       onClick={() => toggleBeneficiary(effectiveOwnerMemberId)}
                                       className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${beneficiaries.includes(effectiveOwnerMemberId) ? 'bg-violet-50 text-violet-700 border-violet-400' : 'bg-white text-gray-500 border-slate-200'}`}
                                   >
-                                      <input type="checkbox" readOnly checked={beneficiaries.includes(effectiveOwnerMemberId)} className="accent-violet-600" aria-label="選擇我" />
-                                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${beneficiaries.includes(effectiveOwnerMemberId) ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>我</span>我
+                                      <input type="checkbox" readOnly checked={beneficiaries.includes(effectiveOwnerMemberId)} className="accent-violet-600" aria-label={`選擇${ownerLabel}`} />
+                                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${beneficiaries.includes(effectiveOwnerMemberId) ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{ownerLabel.charAt(0)}</span>{ownerLabel}
                                   </button>
                                   {companions.map(c => (
                                       <button
@@ -808,7 +855,7 @@ const ExpenseForm: React.FC<Props> = ({
                                           onClick={() => toggleBeneficiary(c.id)}
                                           className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${beneficiaries.includes(c.id) ? 'bg-violet-50 text-violet-700 border-violet-400' : 'bg-white text-gray-500 border-slate-200'}`}
                                       >
-                                          <input type="checkbox" readOnly checked={beneficiaries.includes(c.id)} className="accent-violet-600" aria-label={`選擇${c.name}`} />
+                                          <input type="checkbox" readOnly checked={beneficiaries.includes(c.id)} className="accent-violet-600" aria-label={`選擇${labelForMember(c.id, c.name)}`} />
                                           <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${beneficiaries.includes(c.id) ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{c.name.charAt(0)}</span>{c.name}
                                       </button>
                                   ))}
@@ -816,8 +863,12 @@ const ExpenseForm: React.FC<Props> = ({
                           </div>
                       )}
 
+                      {import.meta.env.DEV && (
                       <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 font-mono text-[10px] text-amber-900">
                         <div className="font-bold">BENEFICIARY DEBUG</div>
+                        <div>createdByMemberId: {initialData?.createdByMemberId || 'none (legacy)'}</div>
+                        <div>viewerMemberId: {effectiveViewerMemberId}</div>
+                        <div>proposalMode: {proposalMode ? 'YES' : 'NO'}</div>
                         <div>ownerMemberId: {effectiveOwnerMemberId}</div>
                         <div>amountConflicts: {hydrationConflicts.length ? describeMemberAmountConflicts(hydrationConflicts) : 'none'}</div>
                         <div>rawInitialBeneficiaryIds: [{(initialData?.beneficiaries || []).join(', ')}]</div>
@@ -827,6 +878,7 @@ const ExpenseForm: React.FC<Props> = ({
                         <div>splitMethod: {splitMethod}</div>
                         <div>equalShare: {beneficiaries.length ? (currentTotalTwd / beneficiaries.length).toFixed(2) : '0'}</div>
                       </div>
+                      )}
 
                       <div className="space-y-2">
                         <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">3</span><span className="text-sm font-bold text-[#11183d]">分帳方式</span></div>
@@ -858,8 +910,8 @@ const ExpenseForm: React.FC<Props> = ({
                               </div>
                               <div className="space-y-2">
                                   <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2">
-                                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">我</span>
-                                      <span className="text-xs font-bold text-[#11183d] w-12">我</span>
+                                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">{ownerLabel.charAt(0)}</span>
+                                      <span className="w-12 truncate text-xs font-bold text-[#11183d]">{ownerLabel}</span>
                                       <span className="text-[10px] font-bold text-slate-400">TWD</span>
                                       <input 
                                           type="number"
@@ -897,105 +949,111 @@ const ExpenseForm: React.FC<Props> = ({
               )}
 
 
-              <SectionHeading>付款資訊</SectionHeading>
+              {!locked && <SectionHeading>付款資訊</SectionHeading>}
 
-              <div>
-                 <label className="block text-sm font-bold text-[#11183d] mb-2">付款方式 <span className="text-red-500">*</span></label>
-                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                   {Object.values(PaymentMethod).map(method => {
-                     const config = PAYMENT_METHODS_CONFIG[method];
-                     const Icon = config.icon;
-                     const isSelected = paymentMethod === method;
-                     return (
-                      <button
-                        key={method}
-                        type="button"
-                        onClick={() => setPaymentMethod(method)}
-                        className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all ${
-                          isSelected
-                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300'
-                            : 'bg-white border border-slate-200 text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        <Icon size={14} /> {config.label}
-                      </button>
-                     );
-                   })}
-                 </div>
-              </div>
-
-              {currency !== 'TWD' && (
-                <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
-                        匯率 (1 {currency} = ? TWD)
-                        <button 
-                          type="button" 
-                          onClick={handleRefreshRate}
-                          disabled={isFetchingRate}
-                          className="ml-1 px-2 py-1 hover:bg-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 border border-orange-200 bg-white shadow-sm"
-                          title="使用 AI 抓取最新匯率"
+              {!locked && (
+                <div>
+                   <label className="block text-sm font-bold text-[#11183d] mb-2">付款方式 <span className="text-red-500">*</span></label>
+                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                     {Object.values(PaymentMethod).map(method => {
+                       const config = PAYMENT_METHODS_CONFIG[method];
+                       const Icon = config.icon;
+                       const isSelected = paymentMethod === method;
+                       return (
+                        <button
+                          key={method}
+                          type="button"
+                          onClick={() => setPaymentMethod(method)}
+                          disabled={locked}
+                          className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all${lockedStyle} ${
+                            isSelected
+                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-300'
+                              : 'bg-white border border-slate-200 text-gray-500 hover:bg-gray-50'
+                          }`}
                         >
-                          {isFetchingRate ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                          <span className="text-[10px] font-bold whitespace-nowrap">
-                            {new Date().toISOString().split('T')[0].replace(/-/g, '/')} Google 當日匯率
-                          </span>
+                          <Icon size={14} /> {config.label}
                         </button>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="0.0001"
-                      value={exchangeRate}
-                      onChange={e => {
-                          setExchangeRate(e.target.value);
-                          setAutoRateApplied(true);
-                      }}
-                      className="w-24 border border-orange-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-orange-500 outline-none text-right"
-                    />
-                  </div>
-                  
-                  {isExchange && (
-                    <div className="flex items-center justify-between border-t border-orange-200 pt-2">
-                      <label className="text-xs font-medium text-orange-700">手續費 (TWD)</label>
-                      <input 
-                        type="number" 
-                        step="1"
-                        value={handlingFee}
-                        onChange={e => setHandlingFee(e.target.value)}
-                        className="w-24 border border-orange-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-orange-500 outline-none text-right"
-                        placeholder="0"
-                      />
-                    </div>
-                  )}
-                  
-                  <div className="text-right text-xs text-gray-500 pt-1 border-t border-orange-200 mt-2">
-                    成本計算: <span className="font-mono font-bold text-orange-800 text-sm">
-                      {Math.round(currentTotalTwd).toLocaleString()}
-                    </span> TWD
-                  </div>
+                       );
+                     })}
+                   </div>
                 </div>
               )}
 
+              {!locked && currency !== 'TWD' && (
+                  <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
+                          匯率 (1 {currency} = ? TWD)
+                          <button 
+                            type="button" 
+                            onClick={handleRefreshRate}
+                            disabled={isFetchingRate}
+                            className="ml-1 px-2 py-1 hover:bg-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 border border-orange-200 bg-white shadow-sm"
+                            title="使用 AI 抓取最新匯率"
+                          >
+                            {isFetchingRate ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            <span className="text-[10px] font-bold whitespace-nowrap">
+                              {new Date().toISOString().split('T')[0].replace(/-/g, '/')} Google 當日匯率
+                            </span>
+                          </button>
+                      </label>
+                      <input 
+                        type="number" 
+                        step="0.0001"
+                        value={exchangeRate}
+                        disabled={locked}
+                        onChange={e => {
+                            setExchangeRate(e.target.value);
+                            setAutoRateApplied(true);
+                        }}
+                        className="w-24 border border-orange-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-orange-500 outline-none text-right"
+                      />
+                    </div>
+                    
+                    {isExchange && (
+                      <div className="flex items-center justify-between border-t border-orange-200 pt-2">
+                        <label className="text-xs font-medium text-orange-700">手續費 (TWD)</label>
+                        <input 
+                          type="number" 
+                          step="1"
+                          value={handlingFee}
+                          disabled={locked}
+                          onChange={e => setHandlingFee(e.target.value)}
+                          className="w-24 border border-orange-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-orange-500 outline-none text-right"
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="text-right text-xs text-gray-500 pt-1 border-t border-orange-200 mt-2">
+                      成本計算: <span className="font-mono font-bold text-orange-800 text-sm">
+                        {Math.round(currentTotalTwd).toLocaleString()}
+                      </span> TWD
+                    </div>
+                  </div>
+              )}
 
-              <div>
-                <label className="mb-2 block text-sm font-bold text-[#11183d]">備註（選填）</label>
-                <div className="flex items-stretch gap-3">
-                  <textarea
-                    disabled
-                    rows={3}
-                    placeholder="輸入備註..."
-                    className="min-h-[92px] flex-1 resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 outline-none placeholder:text-slate-300"
-                  />
-                  <button
-                    type="button"
-                    disabled
-                    className="flex h-12 shrink-0 items-center gap-1 self-end rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-400"
-                    title="照片功能尚未開放"
-                  >
-                    <Camera size={15} /> 新增照片
-                  </button>
+              {!locked && (
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-[#11183d]">備註（選填）</label>
+                  <div className="flex items-stretch gap-3">
+                    <textarea
+                      disabled
+                      rows={3}
+                      placeholder="輸入備註..."
+                      className="min-h-[92px] flex-1 resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 outline-none placeholder:text-slate-300"
+                    />
+                    <button
+                      type="button"
+                      disabled
+                      className="flex h-12 shrink-0 items-center gap-1 self-end rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-400"
+                      title="照片功能尚未開放"
+                    >
+                      <Camera size={15} /> 新增照片
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
             )}
@@ -1018,9 +1076,15 @@ const ExpenseForm: React.FC<Props> = ({
                   }`}
                 >
                   {isEditing ? <Save size={20} /> : <Plus size={20} />}
-                  {isEditing ? '儲存變更' : (isExchange ? '新增換匯紀錄' : '新增這筆支出')}
+                  {proposalMode
+                    ? '送出修正建議'
+                    : isEditing
+                      ? '儲存變更'
+                      : isExchange
+                        ? '新增換匯紀錄'
+                        : '新增這筆支出'}
                 </button>
-                {isEditing && initialData && onRequestDelete && (
+                {isEditing && initialData && onRequestDelete && !proposalMode && (
                   // Subtle destructive entry, deliberately not a large red
                   // button competing with 儲存變更. It only opens the shared
                   // confirmation popup — nothing is removed from here.

@@ -72,6 +72,34 @@ export interface ShoppingItem {
 export type ExpenseDisputeStatus = 'open' | 'resolved' | 'withdrawn';
 
 /**
+ * The fields a member may propose changing on someone else's expense.
+ *
+ * Deliberately the split-related ones: the money and who it is shared with.
+ * Title, date and category are not disputes about the ledger, and letting a
+ * proposal rewrite them would turn approval into a blind signature.
+ */
+export type ExpenseProposalFields = Pick<
+  Expense,
+  | 'amount'
+  | 'payerId'
+  | 'payerAllocations'
+  | 'beneficiaries'
+  | 'splitMethod'
+  | 'splitAllocations'
+>;
+
+export interface ExpenseProposal {
+  /** Only the fields that actually differ from the record. */
+  changes: Partial<ExpenseProposalFields>;
+  /**
+   * The same fields as they stood when the proposal was written. If the record
+   * has moved on since, the proposal is stale and must not be applied blindly —
+   * and this is also what the before/after comparison is drawn from.
+   */
+  basedOn: Partial<ExpenseProposalFields>;
+}
+
+/**
  * A question raised about someone else's expense.
  *
  * Members who are affected by a record but did not create it cannot edit or
@@ -85,12 +113,24 @@ export interface ExpenseDispute {
   raisedByMemberId: string;
   /** What they are asking. */
   message: string;
+  /**
+   * An optional correction the raiser is proposing. A question plus the exact
+   * change the creator can accept in one tap, instead of a conversation that
+   * ends with the creator retyping it themselves.
+   */
+  proposal?: ExpenseProposal;
   status: ExpenseDisputeStatus;
   createdAt: string;
   /** Reply from the creator (or trip owner) when the question is closed. */
   response?: string;
   respondedByMemberId?: string;
   resolvedAt?: string;
+  /**
+   * Set when a proposal was approved and written onto the expense. Marks the
+   * one case that can be undone: a plain reply changed nothing, so there is
+   * nothing to take back.
+   */
+  appliedAt?: string;
 }
 
 export interface Expense {

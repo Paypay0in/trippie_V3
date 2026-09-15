@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { Expense, Category, PaymentMethod, Phase, Companion, TripMember, SettlementBatch, TaxRule, VisaInfo, TravelRules } from '../types';
@@ -8,6 +9,7 @@ import TravelAdvisoryWidget from './TravelAdvisoryWidget';
 import { deriveDuringRefundState } from '../services/duringRefundState';
 import TaxRefundSummaryCard from './TaxRefundSummaryCard';
 import { calculateOutstandingDebts } from '../services/settlementConsumption';
+import { buildMinimumSettlementTransfers } from '../services/minimumSettlement';
 
 interface Props {
   expenses: Expense[];
@@ -23,11 +25,17 @@ interface Props {
   visaInfo?: VisaInfo | null; // Added prop
   onSettleRefund: () => void;
   onOpenSettlement?: () => void;
+  /**
+   * Whose seat these balances are read from. Defaults to the trip owner, the
+   * historical behaviour; pass the real viewer so a member is not told they
+   * are owed money they actually owe.
+   */
+  viewerMemberId?: string;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
 
-const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund, onOpenSettlement }) => {
+const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund, onOpenSettlement, viewerMemberId }) => {
   const [isRefundListExpanded, setIsRefundListExpanded] = useState(false);
   
   // Wallet History State
@@ -224,6 +232,28 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
 
   const walletCurrencies = Object.keys(wallet).filter(c => wallet[c].in > 0 || wallet[c].refundIn > 0 || wallet[c].out > 0);
   const debtList = Object.entries(debts).filter(([_, amt]) => Math.abs(amt as number) > 1);
+  // The stored balances are absolute net amounts per member, which only read as
+  // "owes me" from the owner's seat. For anyone else, pairwise transfers say
+  // who actually pays whom.
+  const ownerMemberId = (members || []).find(member => member.type === 'owner')?.id;
+  const viewerIsOwner = !viewerMemberId || !ownerMemberId || viewerMemberId === ownerMemberId;
+  const settlementRows: Array<{ id: string; amount: number }> = viewerIsOwner
+    ? debtList
+        .filter(([id]) => id !== ownerMemberId)
+        .map(([id, amount]) => ({ id, amount: amount as number }))
+    : buildMinimumSettlementTransfers(debts as Record<string, number>)
+        .filter(
+          transfer =>
+            transfer.fromMemberId === viewerMemberId ||
+            transfer.toMemberId === viewerMemberId,
+        )
+        .map(transfer => {
+          const isPaying = transfer.fromMemberId === viewerMemberId;
+          return {
+            id: isPaying ? transfer.toMemberId : transfer.fromMemberId,
+            amount: isPaying ? transfer.amount : -transfer.amount,
+          };
+        });
   const hasCreditCardUsage = creditCardStats.totalTWD > 0 || Object.keys(creditCardStats.byCurrency).length > 0;
 
   const walletHistory = useMemo(() => {
@@ -571,18 +601,17 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
                   <h3 className="font-bold text-sm text-gray-700">分帳結算 (相對於我)</h3>
                   {onOpenSettlement && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenSettlement(); }} className="ml-auto cursor-pointer rounded-lg px-2 py-1 text-xs font-bold text-violet-700 hover:bg-violet-50">查看結算</button>}
               </div>
-              {debtList.length > 0 ? (
+              {settlementRows.length > 0 ? (
                   <div className="space-y-3">
-                      {debtList.filter(([id]) => id !== (members || []).find(member => member.type === 'owner')?.id).map(([id, rawAmount]) => {
-                          const amount = rawAmount as number;
+                      {settlementRows.map(({ id, amount }) => {
                           const name = (members || []).find(member => member.id === id)?.name || companions.find(c => c.id === id)?.name || '未知';
                           return (
                               <div key={id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
                                   <span className="font-medium text-gray-800">{name}</span>
                                   {amount < 0 ? (
-                                      <span className="text-green-600 font-bold text-sm">欠我 NT$ {Math.abs(Math.round(amount)).toLocaleString()}</span>
+                                      <span className="text-green-600 font-bold text-sm">應收 NT$ {Math.abs(Math.round(amount)).toLocaleString()}</span>
                                   ) : (
-                                      <span className="text-red-500 font-bold text-sm">我欠他 NT$ {Math.round(amount).toLocaleString()}</span>
+                                      <span className="text-red-500 font-bold text-sm">應付 NT$ {Math.round(amount).toLocaleString()}</span>
                                   )}
                               </div>
                           );
@@ -669,7 +698,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
 
       {/* ... Modals (Wallet) ... */}
       {false && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[80] animate-fade-in">
+        <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.modal} animate-fade-in`}>
              <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl p-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
                     <Coins className="text-amber-500" /> 辦理退稅入帳
@@ -734,7 +763,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
 
       {/* Wallet History Modal */}
       {viewingWalletCurrency && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[90] animate-fade-in">
+          <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.form} animate-fade-in`}>
               <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
                   <div className="p-4 border-b bg-emerald-600 text-white flex justify-between items-center shrink-0">
                       <h2 className="font-bold flex items-center gap-2">

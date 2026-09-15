@@ -56,6 +56,10 @@ const ExpenseList: React.FC<Props> = ({
   // from the people it concerns.
   const openDisputeCount = (expense: Expense) =>
     permissionsKnown ? getOpenDisputes(expense).length : 0;
+  // The pencil is for the creator only. A member with an objection goes through
+  // 提出疑問, which carries the split breakdown and offers the same form from
+  // inside — two buttons that both mean "I disagree" only look like a choice.
+  const mayOpenForm = (expense: Expense) => mayEdit(expense);
   const mayRaiseDispute = (expense: Expense) =>
     Boolean(onOpenDisputes) &&
     permissionsKnown &&
@@ -227,7 +231,7 @@ const ExpenseList: React.FC<Props> = ({
                             A greyed-out button still says "there is something
                             here for you"; on another member's record there is
                             nothing. Enforcement stays in the handler regardless. */}
-                        {(mayEdit(item) || mayDelete(item) || mayDispute(item)) && (
+                        {(mayOpenForm(item) || mayDelete(item) || mayDispute(item)) && (
                         <div className="flex items-center gap-0.5 pl-2 border-l border-gray-200 ml-1 flex-shrink-0">
                             {mayDispute(item) && (
                             // Labelled for someone who can actually ask: an
@@ -251,7 +255,7 @@ const ExpenseList: React.FC<Props> = ({
                                 )}
                             </button>
                             )}
-                            {mayEdit(item) && (
+                            {mayOpenForm(item) && (
                             <button
                                 onClick={() => onEdit(item)}
                                 title="編輯支出"

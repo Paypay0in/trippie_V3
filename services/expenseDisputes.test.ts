@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { Category, Expense, PaymentMethod } from '../types';
 import {
+  approveDisputeProposal,
+  buildExpenseProposal,
+  canRevertDisputeProposal,
   canRaiseDispute,
   canRespondToDispute,
   canWithdrawDispute,
   countOpenDisputes,
   getInvolvedMemberIds,
   getOpenDisputes,
+  getProposalChangedFields,
+  isDisputeProposalStale,
   raiseDispute,
   resolveDispute,
+  revertDisputeProposal,
   withdrawDispute,
 } from './expenseDisputes';
 
@@ -249,5 +255,287 @@ describe('ledger summary', () => {
 
     expect(countOpenDisputes([raised.expense, makeExpense({ id: 'e2' })])).toBe(1);
     expect(countOpenDisputes([closed.expense])).toBe(0);
+  });
+});
+
+
+describe('proposed corrections', () => {
+  const propose = (
+    edited: Parameters<typeof buildExpenseProposal>[1],
+    expense = makeExpense(),
+  ) =>
+    raiseDispute(ctx(expense, GINA), {
+      message: '這筆好像不太對',
+      id: 'dispute-1',
+      proposal: buildExpenseProposal(expense, edited),
+    });
+
+  it('records only the fields that actually differ, with their originals', () => {
+    const expense = makeExpense();
+    const proposal = buildExpenseProposal(expense, {
+      amount: 300,
+      // Unchanged fields must not enter the proposal.
+      beneficiaries: expense.beneficiaries,
+    });
+
+    expect(proposal.changes).toEqual({ amount: 300 });
+    expect(proposal.basedOn).toEqual({ amount: 3000 });
+    expect(getProposalChangedFields(proposal)).toEqual(['amount']);
+  });
+
+  it('captures a beneficiary change — "this one is not mine"', () => {
+    const expense = makeExpense();
+    const proposal = buildExpenseProposal(expense, { beneficiaries: [ANN] });
+    expect(proposal.changes.beneficiaries).toEqual([ANN]);
+    expect(proposal.basedOn.beneficiaries).toEqual([ANN, GINA]);
+  });
+
+  it('attaches the proposal without touching the money', () => {
+    const result = propose({ amount: 300 });
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') return;
+
+    expect(result.dispute.proposal?.changes).toEqual({ amount: 300 });
+    expect(result.expense.amount).toBe(3000);
+    expect(result.expense.twdAmount).toBe(3000);
+  });
+
+  it('treats a proposal that changes nothing as a plain question', () => {
+    const expense = makeExpense();
+    const result = propose({ amount: expense.amount }, expense);
+    if (result.status !== 'ok') throw new Error('setup failed');
+    expect(result.dispute.proposal).toBeUndefined();
+  });
+
+  it('applies the amount through the expense own rate when approved', () => {
+    const foreign = makeExpense({ amount: 100, currency: 'JPY', exchangeRate: 0.22, twdAmount: 22 });
+    const raised = propose({ amount: 80 }, foreign);
+    if (raised.status !== 'ok') throw new Error('setup failed');
+
+    const approved = approveDisputeProposal(ctx(raised.expense, ANN), {
+      disputeId: 'dispute-1',
+      response: '你說得對',
+    });
+    expect(approved.status).toBe('ok');
+    if (approved.status !== 'ok') return;
+
+    expect(approved.expense.amount).toBe(80);
+    expect(approved.expense.twdAmount).toBeCloseTo(80 * 0.22, 5);
+    expect(approved.dispute.status).toBe('resolved');
+    // Approving a correction is not a handover of the record.
+    expect(approved.expense.createdByMemberId).toBe(ANN);
+  });
+
+  it('applies a beneficiary change and leaves the total alone', () => {
+    const raised = propose({ beneficiaries: [ANN] });
+    if (raised.status !== 'ok') throw new Error('setup failed');
+
+    const approved = approveDisputeProposal(ctx(raised.expense, ANN), {
+      disputeId: 'dispute-1',
+    });
+    if (approved.status !== 'ok') throw new Error('approve failed');
+
+    expect(approved.expense.beneficiaries).toEqual([ANN]);
+    expect(approved.expense.amount).toBe(3000);
+    expect(approved.expense.twdAmount).toBe(3000);
+  });
+
+  it('keeps the handling fee in the recalculated total', () => {
+    const exchange = makeExpense({ amount: 100, exchangeRate: 2, handlingFee: 30, twdAmount: 230 });
+    const raised = propose({ amount: 50 }, exchange);
+    if (raised.status !== 'ok') throw new Error('setup failed');
+    const approved = approveDisputeProposal(ctx(raised.expense, ANN), { disputeId: 'dispute-1' });
+    if (approved.status !== 'ok') throw new Error('approve failed');
+    expect(approved.expense.twdAmount).toBe(50 * 2 + 30);
+  });
+
+  it('refuses a proposal whose expense has moved on since', () => {
+    const raised = propose({ amount: 300 });
+    if (raised.status !== 'ok') throw new Error('setup failed');
+
+    // The creator edited the amount after the proposal was written.
+    const edited = { ...raised.expense, amount: 2500, twdAmount: 2500 };
+    expect(isDisputeProposalStale(edited.disputes![0], edited)).toBe(true);
+    expect(
+      approveDisputeProposal(ctx(edited, ANN), { disputeId: 'dispute-1' }),
+    ).toEqual({ status: 'rejected', reason: 'stale-proposal' });
+  });
+
+  it('only calls a proposal stale when a field it touches moved', () => {
+    const raised = propose({ beneficiaries: [ANN] });
+    if (raised.status !== 'ok') throw new Error('setup failed');
+    // The creator changed something the proposal says nothing about.
+    const edited = { ...raised.expense, description: '晚餐（改名）' };
+    expect(isDisputeProposalStale(edited.disputes![0], edited)).toBe(false);
+  });
+
+  it('refuses approval from the raiser', () => {
+    const raised = propose({ amount: 300 });
+    if (raised.status !== 'ok') throw new Error('setup failed');
+    expect(
+      approveDisputeProposal(ctx(raised.expense, GINA), { disputeId: 'dispute-1' }),
+    ).toEqual({ status: 'rejected', reason: 'not-permitted' });
+  });
+
+  it('refuses to approve a question that carries no proposal', () => {
+    const plain = raiseDispute(ctx(makeExpense(), GINA), {
+      message: '這是什麼？',
+      id: 'dispute-2',
+    });
+    if (plain.status !== 'ok') throw new Error('setup failed');
+    expect(
+      approveDisputeProposal(ctx(plain.expense, ANN), { disputeId: 'dispute-2' }),
+    ).toEqual({ status: 'rejected', reason: 'not-found' });
+  });
+});
+
+
+describe('what a proposal may change', () => {
+  it('ignores fields outside the proposable set', () => {
+    const expense = makeExpense();
+    // Who actually paid is the creator's to state; a proposal cannot reassign
+    // it, so those edits are dropped.
+    const proposal = buildExpenseProposal(expense, {
+      payerId: GINA,
+      payerAllocations: { [GINA]: 3000 },
+    });
+    expect(proposal.changes).toEqual({});
+    expect(getProposalChangedFields(proposal)).toEqual([]);
+  });
+
+  it('carries cost and division, the things members argue about', () => {
+    const expense = makeExpense();
+    const proposal = buildExpenseProposal(expense, {
+      amount: 2000,
+      beneficiaries: [ANN, GINA],
+      splitMethod: 'EXACT',
+      splitAllocations: { [ANN]: 1000, [GINA]: 1000 },
+    });
+    expect(getProposalChangedFields(proposal)).toEqual([
+      'amount',
+      'splitMethod',
+      'splitAllocations',
+    ]);
+  });
+
+  it('applies a per-member share change on approval', () => {
+    const expense = makeExpense();
+    const raised = raiseDispute(ctx(expense, GINA), {
+      message: '我只用到 1000',
+      id: 'dispute-share',
+      proposal: buildExpenseProposal(expense, {
+        splitMethod: 'EXACT',
+        splitAllocations: { [ANN]: 2000, [GINA]: 1000 },
+      }),
+    });
+    if (raised.status !== 'ok') throw new Error('setup failed');
+
+    const approved = approveDisputeProposal(ctx(raised.expense, ANN), {
+      disputeId: 'dispute-share',
+    });
+    if (approved.status !== 'ok') throw new Error('approve failed');
+    expect(approved.expense.splitMethod).toBe('EXACT');
+    expect(approved.expense.splitAllocations).toEqual({ [ANN]: 2000, [GINA]: 1000 });
+    // The total is untouched: only its division moved.
+    expect(approved.expense.amount).toBe(3000);
+  });
+});
+
+
+describe('undoing an approved correction', () => {
+  const approved = () => {
+    const expense = makeExpense();
+    const raised = raiseDispute(ctx(expense, GINA), {
+      message: '金額不對',
+      id: 'dispute-1',
+      proposal: buildExpenseProposal(expense, { amount: 300 }),
+    });
+    if (raised.status !== 'ok') throw new Error('setup failed');
+    const done = approveDisputeProposal(ctx(raised.expense, ANN), {
+      disputeId: 'dispute-1',
+    });
+    if (done.status !== 'ok') throw new Error('approve failed');
+    return done.expense;
+  };
+
+  it('puts the original values back and reopens the question', () => {
+    const expense = approved();
+    expect(expense.amount).toBe(300);
+    expect(expense.disputes![0].appliedAt).toBeTruthy();
+
+    const reverted = revertDisputeProposal(ctx(expense, ANN), {
+      disputeId: 'dispute-1',
+    });
+    expect(reverted.status).toBe('ok');
+    if (reverted.status !== 'ok') return;
+
+    expect(reverted.expense.amount).toBe(3000);
+    expect(reverted.expense.twdAmount).toBe(3000);
+    // The disagreement is live again, and the proposal is still on the thread.
+    expect(reverted.dispute.status).toBe('open');
+    expect(reverted.dispute.appliedAt).toBeUndefined();
+    expect(reverted.dispute.proposal?.changes).toEqual({ amount: 300 });
+  });
+
+  it('can be approved again after being taken back', () => {
+    const expense = approved();
+    const reverted = revertDisputeProposal(ctx(expense, ANN), { disputeId: 'dispute-1' });
+    if (reverted.status !== 'ok') throw new Error('revert failed');
+
+    const again = approveDisputeProposal(ctx(reverted.expense, ANN), {
+      disputeId: 'dispute-1',
+    });
+    expect(again.status).toBe('ok');
+    if (again.status !== 'ok') return;
+    expect(again.expense.amount).toBe(300);
+  });
+
+  it('refuses to undo once the expense moved on again', () => {
+    const expense = approved();
+    const edited = { ...expense, amount: 450, twdAmount: 450 };
+    expect(canRevertDisputeProposal(edited.disputes![0], edited)).toBe(false);
+    expect(
+      revertDisputeProposal(ctx(edited, ANN), { disputeId: 'dispute-1' }),
+    ).toEqual({ status: 'rejected', reason: 'stale-proposal' });
+  });
+
+  it('recognises an approval made before the applied marker existed', () => {
+    const expense = approved();
+    // Same record, minus the marker: exactly how older data looks on disk.
+    const legacy = {
+      ...expense,
+      disputes: expense.disputes!.map(d => ({ ...d, appliedAt: undefined })),
+    };
+    expect(canRevertDisputeProposal(legacy.disputes[0], legacy)).toBe(true);
+
+    const reverted = revertDisputeProposal(ctx(legacy, ANN), { disputeId: 'dispute-1' });
+    expect(reverted.status).toBe('ok');
+    if (reverted.status !== 'ok') return;
+    expect(reverted.expense.amount).toBe(3000);
+  });
+
+  it('offers nothing to undo on a plain reply', () => {
+    const raised = raiseDispute(ctx(makeExpense(), GINA), {
+      message: '這是什麼？',
+      id: 'dispute-2',
+    });
+    if (raised.status !== 'ok') throw new Error('setup failed');
+    const replied = resolveDispute(ctx(raised.expense, ANN), {
+      disputeId: 'dispute-2',
+      response: '就是機票',
+    });
+    if (replied.status !== 'ok') throw new Error('resolve failed');
+
+    expect(canRevertDisputeProposal(replied.dispute, replied.expense)).toBe(false);
+    expect(
+      revertDisputeProposal(ctx(replied.expense, ANN), { disputeId: 'dispute-2' }),
+    ).toEqual({ status: 'rejected', reason: 'not-found' });
+  });
+
+  it('refuses an undo from the raiser', () => {
+    const expense = approved();
+    expect(
+      revertDisputeProposal(ctx(expense, GINA), { disputeId: 'dispute-1' }),
+    ).toEqual({ status: 'rejected', reason: 'not-permitted' });
   });
 });

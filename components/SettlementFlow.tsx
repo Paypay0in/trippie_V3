@@ -57,11 +57,45 @@ type Props = {
   onClose: () => void;
   /** Opens the dispute thread for an expense. Omit to render the list flat. */
   onOpenDisputes?: (expense: Expense) => void;
+  /**
+   * Whose seat the balances are read from. Defaults to the trip owner, which
+   * is the historical behaviour; pass the real viewer so a member is not told
+   * they are owed money they actually owe.
+   */
+  viewerMemberId?: string;
 };
 const money = (n: number) => `NT$ ${Math.round(Math.abs(n)).toLocaleString()}`;
 const avatar = (name: string) => (
   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 font-black text-violet-700">
     {name.slice(0, 1)}
+  </span>
+);
+
+/**
+ * Who pays whom, as a picture.
+ *
+ * "應付 NT$ 3,250" still makes the reader work out the direction from the row
+ * above it. Two faces and an arrow say it without being read.
+ */
+const transferFlow = (fromName: string, toName: string) => (
+  <span className="flex shrink-0 items-center gap-1.5">
+    <span className="flex flex-col items-center gap-1">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100 text-xs font-black text-violet-700">
+        {fromName.slice(0, 1)}
+      </span>
+      <span className="max-w-[4.5rem] truncate text-[10px] font-bold text-slate-500">
+        {fromName}
+      </span>
+    </span>
+    <ArrowRight size={16} className="mb-4 text-slate-300" />
+    <span className="flex flex-col items-center gap-1">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">
+        {toName.slice(0, 1)}
+      </span>
+      <span className="max-w-[4.5rem] truncate text-[10px] font-bold text-slate-500">
+        {toName}
+      </span>
+    </span>
   </span>
 );
 
@@ -76,6 +110,7 @@ const SettlementFlow: React.FC<Props> = ({
   onDeleteBatch,
   onClose,
   onOpenDisputes,
+  viewerMemberId,
 }) => {
   const [screen, setScreen] = useState<"overview" | "create" | "confirm" | "member" | "minimum">(
     "overview",
@@ -180,17 +215,47 @@ const SettlementFlow: React.FC<Props> = ({
     .map((expense) => ({ expense, disputes: getOpenDisputes(expense) }))
     .filter((entry) => entry.disputes.length > 0);
 
-  const overviewRows = (Object.entries(overviewDebts) as [string, number][])
+  // Who the balances are shown to. The stored balances are absolute net
+  // amounts per member, which only read as "owes me" from the owner's seat.
+  const viewerId = ownerId
+    ? normalizeOwnerMemberId(viewerMemberId || ownerId, ownerId)
+    : viewerMemberId;
+  const viewerIsOwner = !viewerId || viewerId === ownerId;
+  // Pairwise transfers, so a non-owner viewer can be told who owes whom rather
+  // than being handed someone else's net balance.
+  const minimumTransfers = buildMinimumSettlementTransfers(overviewDebts);
+
+  // Sign convention kept from the owner view: negative = they owe me,
+  // positive = I owe them.
+  const ownerRows = (Object.entries(overviewDebts) as [string, number][])
     .filter(([id, amount]) => id !== ownerId && Math.abs(amount) > 0.5)
     .map(([id, amount]) => ({ member: members.find((member) => member.id === id), amount }))
     .filter((item): item is { member: TripMember; amount: number } => Boolean(item.member));
+
+  const viewerRows = minimumTransfers
+    .filter(
+      (transfer) =>
+        transfer.fromMemberId === viewerId || transfer.toMemberId === viewerId,
+    )
+    .map((transfer) => {
+      const isPaying = transfer.fromMemberId === viewerId;
+      const counterpartId = isPaying ? transfer.toMemberId : transfer.fromMemberId;
+      return {
+        member: members.find((member) => member.id === counterpartId),
+        amount: isPaying ? transfer.amount : -transfer.amount,
+      };
+    })
+    .filter((item): item is { member: TripMember; amount: number } => Boolean(item.member));
+
+  const overviewRows = viewerIsOwner ? ownerRows : viewerRows;
+  const viewerName =
+    members.find((member) => member.id === viewerId)?.name || "我";
   const receivable = overviewRows.filter(({ amount }) => amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0);
   const payable = overviewRows.filter(({ amount }) => amount > 0).reduce((sum, item) => sum + item.amount, 0);
   // Counts drive the subtitle under each figure; a number alone does not say
   // how many people it involves.
   const receivableCount = overviewRows.filter(({ amount }) => amount < 0).length;
   const payableCount = overviewRows.filter(({ amount }) => amount > 0).length;
-  const minimumTransfers = buildMinimumSettlementTransfers(overviewDebts);
   const memberDetail = members.find((member) => member.id === selectedMemberId);
   const memberExpenses = memberDetail
     ? outstandingExpenses.filter((expense) => {
@@ -211,12 +276,15 @@ const SettlementFlow: React.FC<Props> = ({
   const memberDetailDebts = memberDetail
     ? calculateOutstandingDebts(memberExpenses, members, batches)
     : {};
-  const memberNet = memberDetail ? memberDetailDebts[memberDetail.id] || 0 : 0;
-  const ownerNet = ownerId ? memberDetailDebts[ownerId] || 0 : 0;
-  const memberPaid = memberDetail
-    ? memberExpenses.reduce((sum, expense) => sum + (expense.payerAllocations?.[memberDetail.id] ?? (expense.payerId === memberDetail.id ? expense.twdAmount : 0)), 0)
+  // From the owner's seat a member's own net balance reads directly as
+  // "owes me". A different viewer needs the pairwise amount between the two of
+  // them, not this member's balance with everyone.
+  const memberNet = memberDetail
+    ? viewerIsOwner
+      ? memberDetailDebts[memberDetail.id] || 0
+      : overviewRows.find((row) => row.member.id === memberDetail.id)?.amount || 0
     : 0;
-  const memberResponsibility = memberDetail ? memberPaid - memberNet : 0;
+  const ownerNet = ownerId ? memberDetailDebts[ownerId] || 0 : 0;
   const liveTotal = selectedExpenses.reduce(
     (sum, expense) => sum + expense.twdAmount,
     0,
@@ -462,20 +530,23 @@ const SettlementFlow: React.FC<Props> = ({
                       onClick={() => { setSelectedMemberId(id); setScreen("member"); }}
                       className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]"
                     >
-                      {avatar(member.name)}
-                      <span className="flex-1 text-left font-black text-[#11183d]">{member.name}</span>
-                      <span
-                        className={
-                          amount < 0
-                            ? "font-black text-emerald-600"
-                            : "font-black text-red-500"
-                        }
-                      >
-                        {amount < 0
-                          ? `欠我 ${money(amount)}`
-                          : `我欠他 ${money(amount)}`}{" "}
-                        <ChevronRight className="inline text-slate-300" size={16} />
+                      {/* amount > 0: the viewer pays out, so the arrow leaves them. */}
+                      {amount > 0
+                        ? transferFlow(viewerName, member.name)
+                        : transferFlow(member.name, viewerName)}
+                      <span className="min-w-0 flex-1 text-right">
+                        <span
+                          className={`block whitespace-nowrap font-black ${
+                            amount < 0 ? "text-emerald-600" : "text-red-500"
+                          }`}
+                        >
+                          {money(amount)}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                          {amount < 0 ? "應收" : "應付"}
+                        </span>
                       </span>
+                      <ChevronRight className="shrink-0 text-slate-300" size={18} />
                     </button>
                   );
                 })}
@@ -551,47 +622,59 @@ const SettlementFlow: React.FC<Props> = ({
           </>
         ) : (
           <div>
-            <h2 className="mb-2 font-black">已結算紀錄</h2>
+            <h2 className="mb-3 pt-1 text-lg font-black tracking-tight">已結算紀錄</h2>
             {settledBatches.length ? (
-              settledBatches.map((batch) => (
-                <button
-                  key={batch.id}
-                  onClick={() => {
-                    setSelectedBatchId(batch.id);
-                    setSelectedIds(batch.expenseIds);
-                    setSelectedMembers(batch.memberIds);
-                    setTitle(batch.title);
-                    setScreen("confirm");
-                  }}
-                  className="mb-2 flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left shadow-sm"
-                >
-                  {avatar(batch.title)}
-                  <span className="flex-1">
-                    <b>{batch.title}</b>
-                    <small className="block text-gray-400">
-                      {batch.startDate || "未指定日期"} ·{" "}
-                      {batch.settledAt
-                        ? new Date(batch.settledAt).toLocaleDateString("zh-TW")
-                        : ""}
-                    </small>
-                  </span>
-                  <b>
-                    {money(
-                      expenses
-                        .filter((e) => batch.expenseIds.includes(e.id))
-                        .reduce((s, e) => s + e.twdAmount, 0),
-                    )}
-                  </b>
-                  <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700">
-                    已結算
-                  </span>
-                  <ChevronRight size={16} />
-                </button>
-              ))
+              <div className="space-y-2">
+                {settledBatches.map((batch) => (
+                  <button
+                    key={batch.id}
+                    onClick={() => {
+                      setSelectedBatchId(batch.id);
+                      setSelectedIds(batch.expenseIds);
+                      setSelectedMembers(batch.memberIds);
+                      setTitle(batch.title);
+                      setScreen("confirm");
+                    }}
+                    className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-[0_6px_18px_rgba(17,24,61,.05)]"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                      <Check size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate font-black text-[#11183d]">{batch.title}</b>
+                      <small className="mt-0.5 block truncate text-xs font-medium text-slate-400">
+                        {batch.startDate || "未指定日期"}
+                        {batch.settledAt
+                          ? ` · 於 ${new Date(batch.settledAt).toLocaleDateString("zh-TW")} 結清`
+                          : ""}
+                      </small>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <b className="block whitespace-nowrap font-black text-[#11183d]">
+                        {money(
+                          expenses
+                            .filter((e) => batch.expenseIds.includes(e.id))
+                            .reduce((s, e) => s + e.twdAmount, 0),
+                        )}
+                      </b>
+                      <span className="mt-0.5 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700">
+                        已結算
+                      </span>
+                    </span>
+                    <ChevronRight size={18} className="shrink-0 text-slate-300" />
+                  </button>
+                ))}
+              </div>
             ) : (
-              <p className="rounded-2xl bg-white p-5 text-center text-sm text-gray-400">
-                尚無已結算紀錄
-              </p>
+              <div className="rounded-2xl bg-white p-8 text-center shadow-[0_6px_18px_rgba(17,24,61,.05)]">
+                <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-50 text-slate-300">
+                  <Check size={20} />
+                </span>
+                <p className="mt-3 text-sm font-bold text-slate-400">尚無已結算紀錄</p>
+                <p className="mt-1 text-xs font-medium text-slate-300">
+                  完成結算後，這裡會保留當時的金額與日期。
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -607,31 +690,36 @@ const SettlementFlow: React.FC<Props> = ({
           <h1 className="text-2xl font-black tracking-tight">成員結算明細</h1>
         </header>
 
+        {/* The counterpart's name beside "應付" reads as if THEY owe. The arrow
+            states the direction outright, so it cannot be read backwards. */}
         <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-          {avatar(memberDetail.name)}
-          <span className="min-w-0 flex-1 truncate font-black">{memberDetail.name}</span>
-          <strong
-            className={`shrink-0 whitespace-nowrap font-black ${
-              memberNet < 0 ? "text-emerald-600" : memberNet > 0 ? "text-rose-500" : "text-slate-400"
-            }`}
-          >
-            {memberNet === 0
-              ? "已結清"
-              : memberNet < 0
-                ? `欠我 ${money(memberNet)}`
-                : `我欠他 ${money(memberNet)}`}
-          </strong>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-            <p className="text-xs font-bold text-slate-400">他已付出</p>
-            <p className="mt-1.5 text-xl font-black">{money(memberPaid)}</p>
-          </div>
-          <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-            <p className="text-xs font-bold text-slate-400">他應分攤</p>
-            <p className="mt-1.5 text-xl font-black">{money(memberResponsibility)}</p>
-          </div>
+          {memberNet === 0 ? (
+            <>
+              {avatar(memberDetail.name)}
+              <span className="min-w-0 flex-1 truncate font-black">{memberDetail.name}</span>
+              <strong className="shrink-0 whitespace-nowrap font-black text-slate-400">
+                已結清
+              </strong>
+            </>
+          ) : (
+            <>
+              {memberNet > 0
+                ? transferFlow(viewerName, memberDetail.name)
+                : transferFlow(memberDetail.name, viewerName)}
+              <span className="min-w-0 flex-1 text-right">
+                <span
+                  className={`block whitespace-nowrap font-black ${
+                    memberNet < 0 ? "text-emerald-600" : "text-rose-500"
+                  }`}
+                >
+                  {money(memberNet)}
+                </span>
+                <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                  {memberNet < 0 ? "應收" : "應付"}
+                </span>
+              </span>
+            </>
+          )}
         </div>
 
         <div>
@@ -640,9 +728,15 @@ const SettlementFlow: React.FC<Props> = ({
             {memberExpenses.map((expense) => {
               const CategoryIcon = getCategoryIcon(expense.category);
               return (
-                <div
+                // Opens the expense thread: it carries the full split
+                // breakdown and, for whoever may edit it, a way in. Reusing it
+                // keeps one destination for "show me this record".
+                <button
                   key={expense.id}
-                  className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]"
+                  type="button"
+                  onClick={() => onOpenDisputes?.(expense)}
+                  disabled={!onOpenDisputes}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-[0_6px_18px_rgba(17,24,61,.05)] transition-colors enabled:hover:bg-slate-50 disabled:cursor-default"
                 >
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-500">
                     <CategoryIcon size={18} />
@@ -656,7 +750,10 @@ const SettlementFlow: React.FC<Props> = ({
                   <strong className="shrink-0 whitespace-nowrap text-sm font-black">
                     {money(expense.twdAmount)}
                   </strong>
-                </div>
+                  {onOpenDisputes && (
+                    <ChevronRight size={18} className="shrink-0 text-slate-300" />
+                  )}
+                </button>
               );
             })}
             {!memberExpenses.length && (
@@ -1047,8 +1144,8 @@ const SettlementFlow: React.FC<Props> = ({
               <span className="flex-1 font-bold">{member!.name}</span>
               <b className={amount < 0 ? "text-emerald-600" : "text-red-500"}>
                 {amount < 0
-                  ? `欠我 ${money(amount)}`
-                  : `我欠他 ${money(amount)}`}
+                  ? `應收 ${money(amount)}`
+                  : `應付 ${money(amount)}`}
               </b>
               <ChevronRight size={16} />
             </div>

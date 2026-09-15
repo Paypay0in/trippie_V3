@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import { ChevronRight, MessageCircleQuestion, Pencil, X } from 'lucide-react';
+import { OVERLAY } from '../constants/layers';
+import { Check, ChevronRight, MessageCircleQuestion, Pencil, Undo2, X } from 'lucide-react';
 import { Expense, ExpenseDispute, TripMember } from '../types';
 import { getCategoryIcon, PAYMENT_METHODS_CONFIG } from '../constants';
 import { canEditExpense } from '../services/expensePermissions';
+import ExpenseBreakdown from './ExpenseBreakdown';
+import ProposalDiff from './ProposalDiff';
 import {
   canRaiseDispute,
   canRespondToDispute,
   canWithdrawDispute,
+  canRevertDisputeProposal,
   getDisputes,
+  isDisputeProposalStale,
 } from '../services/expenseDisputes';
 
 interface Props {
@@ -18,6 +23,10 @@ interface Props {
   onClose: () => void;
   onRaise: (message: string) => void;
   onResolve: (disputeId: string, response: string) => void;
+  /** Accepts a proposed correction and writes it onto the expense. */
+  onApprove: (disputeId: string, response: string) => void;
+  /** Puts an approved correction back the way it was. */
+  onRevert: (disputeId: string) => void;
   onWithdraw: (disputeId: string) => void;
   /**
    * Opens the expense itself. Only offered to someone who may actually edit
@@ -54,6 +63,8 @@ const ExpenseDisputeModal: React.FC<Props> = ({
   onClose,
   onRaise,
   onResolve,
+  onApprove,
+  onRevert,
   onWithdraw,
   onOpenExpense,
 }) => {
@@ -72,11 +83,15 @@ const ExpenseDisputeModal: React.FC<Props> = ({
     roster.find(member => member.id === memberId)?.name || '旅伴';
 
   const meta = [expense.date.replace(/-/g, '/'), paymentLabel].filter(Boolean);
-  const canOpenExpense = Boolean(onOpenExpense) && canEditExpense(context);
+  const mayEditExpense = canEditExpense(context);
+  // Someone who may only propose still opens the same form — the difference is
+  // what happens on submit, not whether they can look.
+  const canOpenExpense =
+    Boolean(onOpenExpense) && (mayEditExpense || raisePermission.allowed);
 
   return (
     <div
-      className="fixed inset-0 z-[88] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className={`fixed inset-0 ${OVERLAY.thread} flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm`}
       onClick={onClose}
       role="presentation"
     >
@@ -130,9 +145,21 @@ const ExpenseDisputeModal: React.FC<Props> = ({
               onClick={() => onOpenExpense?.(expense)}
               className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-violet-200 py-2.5 text-sm font-black text-violet-600 transition-colors hover:bg-violet-50"
             >
-              <Pencil size={15} /> 開啟並修改這筆支出
+              <Pencil size={15} />
+              {mayEditExpense ? '開啟並修改這筆支出' : '修改數字並提出建議'}
             </button>
           )}
+
+          {/* The numbers behind the total. Shown to everyone: a member is being
+              asked to accept a share, so they get to see how it was worked out. */}
+          <div className="mt-4">
+            <ExpenseBreakdown
+              expense={expense}
+              roster={roster}
+              viewerMemberId={viewerMemberId}
+              tripOwnerMemberId={tripOwnerMemberId}
+            />
+          </div>
 
           {/* Existing thread */}
           {disputes.length > 0 && (
@@ -174,6 +201,38 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                       </div>
                     )}
 
+                    {dispute.proposal && (
+                      <>
+                        <ProposalDiff
+                          proposal={dispute.proposal}
+                          expense={expense}
+                          roster={roster}
+                        />
+                        {/* Staleness only matters while a proposal is still
+                            waiting: once approved, the values differing from
+                            the originals is the point, not a warning. */}
+                        {dispute.status === 'open' &&
+                          isDisputeProposalStale(dispute, expense) && (
+                          <p className="mt-2 rounded-xl bg-amber-100/70 px-3 py-2 text-[11px] font-bold leading-relaxed text-amber-900">
+                            這筆支出在建議提出後已被修改，無法直接套用。請先與提出者確認。
+                          </p>
+                          )}
+                      </>
+                    )}
+
+                    {dispute.status === 'open' &&
+                      mayRespond &&
+                      Boolean(dispute.proposal) &&
+                      !isDisputeProposalStale(dispute, expense) && (
+                        <button
+                          type="button"
+                          onClick={() => onApprove(dispute.id, responses[dispute.id] || '')}
+                          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-sm font-black text-white transition-colors hover:bg-emerald-700"
+                        >
+                          <Check size={15} /> 核准並套用
+                        </button>
+                      )}
+
                     {dispute.status === 'open' && mayRespond && (
                       <div className="mt-3 space-y-2">
                         <textarea
@@ -190,9 +249,21 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                           onClick={() => onResolve(dispute.id, responses[dispute.id] || '')}
                           className="w-full rounded-xl bg-violet-600 py-2.5 text-sm font-black text-white transition-colors hover:bg-violet-700"
                         >
-                          標記為已回覆
+                          {dispute.proposal ? '不採用，僅回覆' : '標記為已回覆'}
                         </button>
                       </div>
+                    )}
+
+                    {/* Approving is one tap, so changing your mind has to be
+                        one tap as well. */}
+                    {mayRespond && canRevertDisputeProposal(dispute, expense) && (
+                      <button
+                        type="button"
+                        onClick={() => onRevert(dispute.id)}
+                        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-50"
+                      >
+                        <Undo2 size={15} /> 撤銷這次修正
+                      </button>
                     )}
 
                     {dispute.status === 'open' && mayWithdraw && (
@@ -218,7 +289,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                 <span className="text-sm font-black tracking-tight text-[#11183d]">提出疑問</span>
               </div>
               <p className="mb-2 text-xs font-medium leading-relaxed text-slate-500">
-                這筆帳由其他旅伴建立，你無法直接修改。提出疑問後，建立者會看到並自行更正。
+                這筆帳由其他旅伴建立，你的修改不會直接生效。可以在這裡提問，或直接改數字送出修正建議，由建立者核准。
               </p>
               <textarea
                 rows={3}
@@ -227,6 +298,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                 placeholder="例如：這筆我那天不在，應該不用分攤？"
                 className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200"
               />
+
               <button
                 type="button"
                 disabled={!message.trim()}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { OVERLAY } from './constants/layers';
 import { motion, AnimatePresence } from "motion/react";
 import {
   Phase,
@@ -29,6 +30,7 @@ import {
   AuthStatus,
   SettlementBatch,
   FrozenSettlementResult,
+  ExpenseProposal,
 } from "./types";
 import {
   fetchTaxRefundRules,
@@ -52,8 +54,12 @@ import {
   resolveExpenseDeleteRequest,
 } from "./services/expensePermissions";
 import {
+  approveDisputeProposal,
+  buildExpenseProposal,
+  canRaiseDispute,
   raiseDispute,
   resolveDispute,
+  revertDisputeProposal,
   withdrawDispute,
 } from "./services/expenseDisputes";
 import {
@@ -734,6 +740,9 @@ const App: React.FC = () => {
   // Expense whose dispute thread is open. Stored by id so the modal always
   // renders the current record rather than a stale copy.
   const [disputeExpenseId, setDisputeExpenseId] = useState<string | null>(null);
+  // The edit form is open as a proposal: the submitted values become a request
+  // for the creator to approve, never a direct write.
+  const [isProposalMode, setIsProposalMode] = useState(false);
   const [pendingExpenseDeletion, setPendingExpenseDeletion] = useState<{
     expense: Expense;
     adminCreatorName?: string;
@@ -2255,6 +2264,24 @@ const App: React.FC = () => {
     linkedItemId?: string,
   ) => {
     if (editingExpense) {
+      // Proposal mode never writes: the edited values are turned into a list of
+      // changes for the creator to approve.
+      if (isProposalMode) {
+        // Everything the form can produce is offered; the service keeps only
+        // the fields a proposal is allowed to carry.
+        const proposal = buildExpenseProposal(editingExpense, {
+          amount: data.amount,
+          beneficiaries: data.beneficiaries,
+          splitMethod: data.splitMethod,
+          splitAllocations: data.splitAllocations,
+        });
+        if (!Object.keys(proposal.changes).length) {
+          showToast("沒有可提議的變更，未送出建議。", "error");
+          return;
+        }
+        handleRaiseDispute(editingExpense, "我想提出以下修正建議。", proposal);
+        return;
+      }
       if (
         !canEditExpense({
           expense: editingExpense,
@@ -2510,13 +2537,31 @@ const App: React.FC = () => {
     tripOwnerMemberId: activeOwnerMemberId,
   });
 
-  const handleRaiseDispute = (expense: Expense, message: string) => {
+  const handleRaiseDispute = (
+    expense: Expense,
+    message: string,
+    proposal?: ExpenseProposal,
+  ) => {
     applyDisputeOutcome(
       raiseDispute(disputeContextFor(expense), {
         message,
         id: generateId(),
+        proposal,
       }),
-      "已提出疑問",
+      proposal ? "已送出修正建議" : "已提出疑問",
+    );
+  };
+
+  // Approving writes the proposed number onto the expense and closes the
+  // question in one step; the service refuses if the record moved on since.
+  const handleApproveDisputeProposal = (
+    expense: Expense,
+    disputeId: string,
+    response: string,
+  ) => {
+    applyDisputeOutcome(
+      approveDisputeProposal(disputeContextFor(expense), { disputeId, response }),
+      "已核准並更新金額",
     );
   };
 
@@ -2528,6 +2573,13 @@ const App: React.FC = () => {
     applyDisputeOutcome(
       resolveDispute(disputeContextFor(expense), { disputeId, response }),
       "已標記為已回覆",
+    );
+  };
+
+  const handleRevertDisputeProposal = (expense: Expense, disputeId: string) => {
+    applyDisputeOutcome(
+      revertDisputeProposal(disputeContextFor(expense), { disputeId }),
+      "已撤銷這次修正",
     );
   };
 
@@ -2547,17 +2599,30 @@ const App: React.FC = () => {
   };
 
   const handleEditExpense = (expense: Expense) => {
-    // Non-creators get read-only detail; the edit form never opens for them.
-    if (
-      !canEditExpense({
+    // A non-creator does not edit — they propose. Same form, different outcome,
+    // so "this number is wrong" does not dead-end at a refusal toast.
+    const mayEdit = canEditExpense({
+      expense,
+      viewerMemberId,
+      tripOwnerMemberId: activeOwnerMemberId,
+    });
+    if (!mayEdit) {
+      const mayPropose = canRaiseDispute({
         expense,
         viewerMemberId,
         tripOwnerMemberId: activeOwnerMemberId,
-      })
-    ) {
-      showToast("這筆支出由其他旅伴建立，目前僅能檢視。", "error");
-      return;
+      }).allowed;
+      if (!mayPropose) {
+        showToast("這筆支出由其他旅伴建立，目前僅能檢視。", "error");
+        return;
+      }
+      setIsProposalMode(true);
+    } else {
+      setIsProposalMode(false);
     }
+    // Editing is a different context from settling: leaving the settlement
+    // sheet open behind the form buries it and makes "back" ambiguous.
+    setIsSettlementOpen(false);
     setExpenseFormPhase(expense.phase);
     setEditingExpense(expense);
     setIsFormOpen(true);
@@ -3734,6 +3799,7 @@ const App: React.FC = () => {
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
+    setIsProposalMode(false);
     setTimeout(() => {
       setInitialFormCategory(undefined);
       setInitialFormDescription(undefined);
@@ -4619,6 +4685,7 @@ const App: React.FC = () => {
               onAddExpense={handleSaveExpense}
               onSettleRefund={() => handleOpenRefundSettlement()}
               onOpenSettlement={handleOpenSettlement}
+              viewerMemberId={viewerMemberId}
               currentPhase={walletExpensePhase || "summary"}
               taxRule={taxRule}
               travelRules={travelRules}
@@ -4659,6 +4726,14 @@ const App: React.FC = () => {
             const target = expenses.find((e) => e.id === disputeExpenseId);
             if (target) handleResolveDispute(target, disputeId, response);
           }}
+          onApprove={(disputeId, response) => {
+            const target = expenses.find((e) => e.id === disputeExpenseId);
+            if (target) handleApproveDisputeProposal(target, disputeId, response);
+          }}
+          onRevert={(disputeId) => {
+            const target = expenses.find((e) => e.id === disputeExpenseId);
+            if (target) handleRevertDisputeProposal(target, disputeId);
+          }}
           onWithdraw={(disputeId) => {
             const target = expenses.find((e) => e.id === disputeExpenseId);
             if (target) handleWithdrawDispute(target, disputeId);
@@ -4690,28 +4765,30 @@ const App: React.FC = () => {
 
     return (
       <>
-        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 font-mono text-[10px] text-slate-700">
-          <div className="font-black">SETTLEMENT NAV DEBUG</div>
-          <div>clickCount: {settlementNavDebug.clickCount}</div>
-          <div>
-            handlerEntered: {settlementNavDebug.handlerEntered ? "YES" : "NO"}
+        {import.meta.env.DEV && (
+          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 font-mono text-[10px] text-slate-700">
+            <div className="font-black">SETTLEMENT NAV DEBUG</div>
+            <div>clickCount: {settlementNavDebug.clickCount}</div>
+            <div>
+              handlerEntered: {settlementNavDebug.handlerEntered ? "YES" : "NO"}
+            </div>
+            <div>tripId: {settlementTripId}</div>
+            <div>
+              activeTripId: {activeDraftId || currentLoadedTripId || "none"}
+            </div>
+            <div>currentTripView: {currentPhase}</div>
+            <div>targetTripView: settlement</div>
+            <div>
+              settlementViewState: {isSettlementOpen ? "settlement" : "closed"}
+            </div>
+            <div>
+              settlementComponentMounted: {isSettlementOpen ? "YES" : "NO"}
+            </div>
+            <div>
+              lastNavigationError: {settlementNavDebug.lastNavigationError}
+            </div>
           </div>
-          <div>tripId: {settlementTripId}</div>
-          <div>
-            activeTripId: {activeDraftId || currentLoadedTripId || "none"}
-          </div>
-          <div>currentTripView: {currentPhase}</div>
-          <div>targetTripView: settlement</div>
-          <div>
-            settlementViewState: {isSettlementOpen ? "settlement" : "closed"}
-          </div>
-          <div>
-            settlementComponentMounted: {isSettlementOpen ? "YES" : "NO"}
-          </div>
-          <div>
-            lastNavigationError: {settlementNavDebug.lastNavigationError}
-          </div>
-        </div>
+        )}
         <RefundSettlementModal
           isOpen={isRefundSettlementOpen}
           currency={
@@ -4786,6 +4863,9 @@ const App: React.FC = () => {
               existingExpenses={expenses}
               companions={companions}
               ownerMemberId={activeOwnerMemberId}
+              ownerName={authProfile?.displayName || userProfile.name || "我"}
+              viewerMemberId={viewerMemberId}
+              proposalMode={isProposalMode}
               initialCategory={initialFormCategory}
               initialDescription={initialFormDescription}
               initialAmount={initialFormAmount}
@@ -4884,8 +4964,8 @@ const App: React.FC = () => {
             />
           )}
           {isSettlementOpen && (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-3 sm:p-6">
-              <div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto">
+            <div className={`fixed inset-0 ${OVERLAY.sheet} flex items-center justify-center bg-slate-950/40 p-3 sm:p-6`}>
+              <div className="max-h-[85vh] w-full max-w-md overflow-y-auto">
                 <SettlementFlow
                   expenses={expenses}
                   outstandingExpenses={outstandingExpenses}
@@ -4902,6 +4982,7 @@ const App: React.FC = () => {
                   onUpdateBatch={handleUpdateSettlementBatch}
                   onDeleteBatch={handleDeleteSettlementBatch}
                   onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
+                  viewerMemberId={viewerMemberId}
                   onClose={() => setIsSettlementOpen(false)}
                 />
               </div>
@@ -4937,6 +5018,14 @@ const App: React.FC = () => {
         onResolve={(disputeId, response) => {
           const target = expenses.find((e) => e.id === disputeExpenseId);
           if (target) handleResolveDispute(target, disputeId, response);
+        }}
+        onApprove={(disputeId, response) => {
+          const target = expenses.find((e) => e.id === disputeExpenseId);
+          if (target) handleApproveDisputeProposal(target, disputeId, response);
+        }}
+        onRevert={(disputeId) => {
+          const target = expenses.find((e) => e.id === disputeExpenseId);
+          if (target) handleRevertDisputeProposal(target, disputeId);
         }}
         onWithdraw={(disputeId) => {
           const target = expenses.find((e) => e.id === disputeExpenseId);
@@ -5177,6 +5266,7 @@ const App: React.FC = () => {
                   travelRules={travelRules}
                   visaInfo={visaInfo}
                   onOpenSettlement={handleOpenSettlement}
+                  viewerMemberId={viewerMemberId}
                 />
 
                 {/* Phase Specific Context Card */}
@@ -5293,6 +5383,9 @@ const App: React.FC = () => {
           existingExpenses={expenses}
           companions={companions}
           ownerMemberId={activeOwnerMemberId}
+              ownerName={authProfile?.displayName || userProfile.name || "我"}
+              viewerMemberId={viewerMemberId}
+              proposalMode={isProposalMode}
           initialCategory={initialFormCategory}
           initialDescription={initialFormDescription}
           initialAmount={initialFormAmount}
@@ -5309,8 +5402,8 @@ const App: React.FC = () => {
       )}
 
       {isSettlementOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/40 p-3 sm:p-6">
-          <div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto">
+        <div className={`fixed inset-0 ${OVERLAY.sheet} flex items-center justify-center bg-slate-950/40 p-3 sm:p-6`}>
+          <div className="max-h-[85vh] w-full max-w-md overflow-y-auto">
             <SettlementFlow
               expenses={expenses}
               outstandingExpenses={outstandingExpenses}
@@ -5327,6 +5420,7 @@ const App: React.FC = () => {
               onUpdateBatch={handleUpdateSettlementBatch}
               onDeleteBatch={handleDeleteSettlementBatch}
               onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
+              viewerMemberId={viewerMemberId}
               onClose={() => setIsSettlementOpen(false)}
             />
           </div>
@@ -5385,7 +5479,7 @@ const App: React.FC = () => {
 
       {/* Travel Book Modal */}
       {isTravelBookOpen && travelBook && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className={`fixed inset-0 ${OVERLAY.alert} flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in`}>
           <div className="w-full max-w-lg relative">
             <button
               onClick={() => setIsTravelBookOpen(false)}
