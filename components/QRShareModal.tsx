@@ -72,52 +72,56 @@ const QRShareModal: React.FC<Props> = ({
 
   return (
     <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm ${OVERLAY.alert} flex items-center justify-center p-4 animate-fade-in`}>
-      <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-          <div>
-            <h2 className="text-xl font-black text-gray-900 tracking-tight">共享旅程帳本</h2>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Share & Connect</p>
+      <div className="flex max-h-[92vh] w-full max-w-sm flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_24px_60px_rgba(17,24,61,.22)]">
+        {/* Header — same shell and close-button placement as the other modals */}
+        <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <button onClick={onClose} aria-label="關閉" className="-ml-2 rounded-full p-2 text-slate-500 hover:bg-slate-100">
+            <X size={20} />
+          </button>
+          <h2 className="flex items-center gap-2 text-xl font-black text-[#11183d]">
+            <Share2 size={20} className="text-violet-600" /> 共享旅程帳本
+          </h2>
+        </div>
+
+        {/* Tabs — the pill pair used on the settlement screen */}
+        <div className="flex-shrink-0 px-5 pt-4">
+          <div className="grid grid-cols-2 rounded-2xl bg-slate-100 p-1.5 text-center text-sm font-black">
+            <button
+              onClick={() => setMode('show')}
+              className={`flex items-center justify-center gap-2 rounded-xl py-2.5 transition-colors ${
+                mode === 'show' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-400'
+              }`}
+            >
+              <QrCode size={17} /> 我的 QR Code
+            </button>
+            <button
+              onClick={() => setMode('scan')}
+              className={`flex items-center justify-center gap-2 rounded-xl py-2.5 transition-colors ${
+                mode === 'scan' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-400'
+              }`}
+            >
+              <Camera size={17} /> 掃描對方
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-            <X size={24} className="text-gray-500" />
-          </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b bg-white">
-          <button 
-            onClick={() => setMode('show')}
-            className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 transition-colors ${mode === 'show' ? 'text-brand-600 border-b-2 border-brand-600 bg-brand-50/30' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}
-          >
-            <QrCode size={18} /> 我的 QR Code
-          </button>
-          <button 
-            onClick={() => setMode('scan')}
-            className={`flex-1 py-4 font-bold text-sm flex items-center justify-center gap-2 transition-colors ${mode === 'scan' ? 'text-brand-600 border-b-2 border-brand-600 bg-brand-50/30' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}
-          >
-            <Camera size={18} /> 掃描對方
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-8 flex flex-col items-center justify-center min-h-[380px] bg-gray-50/50">
+        <div className="flex-1 overflow-y-auto px-5 py-5">
           {/* The scanner library injects its own controls into this element and
               tears them down asynchronously. Unmounting the node on tab switch
               left those controls behind, on top of the QR code. It now lives
               here for the life of the modal and is simply hidden instead. */}
           <div
             id="reader"
-            className={`w-full overflow-hidden rounded-3xl border-2 border-dashed border-brand-200 bg-white shadow-inner ${
+            className={`w-full overflow-hidden rounded-2xl border-2 border-dashed border-violet-200 bg-white ${
               mode === 'scan' ? 'block' : 'hidden'
             }`}
           />
           {mode === 'show' ? (
-            <div className="flex flex-col items-center animate-fade-in w-full">
-              <div className="p-6 bg-white rounded-[2rem] shadow-xl shadow-brand-100/50 border border-gray-100 mb-6 group transition-transform hover:scale-105">
-                <QRCodeSVG 
-                  value={qrData} 
-                  size={220} 
+            <div className="flex w-full flex-col items-center animate-fade-in">
+              <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
+                <QRCodeSVG
+                  value={qrData}
+                  size={200}
                   level="H"
                   includeMargin={true}
                   imageSettings={{
@@ -130,32 +134,32 @@ const QRShareModal: React.FC<Props> = ({
                   }}
                 />
               </div>
-              <div className="text-center">
-                <h3 className="font-black text-gray-900 text-2xl tracking-tight">{userName}</h3>
-                <p className="text-sm text-gray-500 mt-2 font-medium">讓朋友掃描此碼，即可加入好友並共享目前帳本</p>
-              </div>
-              
+
+              <h3 className="mt-4 text-xl font-black tracking-tight text-[#11183d]">{userName}</h3>
+              <p className="mt-1.5 text-center text-[13px] font-medium leading-relaxed text-slate-500">
+                讓朋友掃描此碼，即可加入好友並共享目前帳本
+              </p>
+
               {currentTripName && (
-                <div className="mt-6 bg-brand-50 px-5 py-2.5 rounded-xl border border-brand-100 flex items-center gap-2 shadow-sm">
-                  <Share2 size={16} className="text-brand-600" />
-                  <span className="text-xs font-black text-brand-700 tracking-wide">共享中：{currentTripName}</span>
+                <div className="mt-4 flex items-center gap-2 rounded-full bg-[#f5f1ff] px-4 py-2 ring-1 ring-violet-100">
+                  <Share2 size={15} className="text-violet-600" />
+                  <span className="text-xs font-black text-violet-700">共享中：{currentTripName}</span>
                 </div>
               )}
             </div>
           ) : (
-            <div className="w-full flex flex-col items-center animate-fade-in">
-              <p className="text-sm text-gray-500 mt-6 font-medium text-center bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+            <div className="flex w-full flex-col items-center animate-fade-in">
+              <p className="mt-4 text-center text-[13px] font-medium text-slate-500">
                 請將對方的 QR Code 置於框內進行掃描
               </p>
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className="p-6 bg-white border-t flex flex-col gap-3">
-          <div className="flex items-start gap-3 text-xs text-gray-500 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-            <CheckCircle size={18} className="text-emerald-500 shrink-0 mt-0.5" />
-            <p className="font-medium leading-relaxed">共享後，雙方皆可即時編輯消費、分攤金額，並同步更新至雲端。</p>
+          <div className="mt-5 flex items-start gap-2.5 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
+            <CheckCircle size={17} className="mt-0.5 shrink-0 text-emerald-500" />
+            <p className="text-xs font-medium leading-relaxed text-slate-500">
+              共享後，雙方皆可即時編輯消費、分攤金額，並同步更新至雲端。
+            </p>
           </div>
         </div>
       </div>
