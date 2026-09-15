@@ -53,6 +53,8 @@ const QRShareModal: React.FC<Props> = ({
 
     return () => {
       if (scanner) {
+        // Clearing is async; the container stays mounted so there is nothing
+        // for the library to race against.
         scanner.clear().catch(err => console.error("Failed to clear scanner", err));
       }
     };
@@ -100,6 +102,16 @@ const QRShareModal: React.FC<Props> = ({
 
         {/* Content */}
         <div className="p-8 flex flex-col items-center justify-center min-h-[380px] bg-gray-50/50">
+          {/* The scanner library injects its own controls into this element and
+              tears them down asynchronously. Unmounting the node on tab switch
+              left those controls behind, on top of the QR code. It now lives
+              here for the life of the modal and is simply hidden instead. */}
+          <div
+            id="reader"
+            className={`w-full overflow-hidden rounded-3xl border-2 border-dashed border-brand-200 bg-white shadow-inner ${
+              mode === 'scan' ? 'block' : 'hidden'
+            }`}
+          />
           {mode === 'show' ? (
             <div className="flex flex-col items-center animate-fade-in w-full">
               <div className="p-6 bg-white rounded-[2rem] shadow-xl shadow-brand-100/50 border border-gray-100 mb-6 group transition-transform hover:scale-105">
@@ -132,7 +144,6 @@ const QRShareModal: React.FC<Props> = ({
             </div>
           ) : (
             <div className="w-full flex flex-col items-center animate-fade-in">
-              <div id="reader" className="w-full overflow-hidden rounded-3xl border-2 border-dashed border-brand-200 bg-white shadow-inner"></div>
               <p className="text-sm text-gray-500 mt-6 font-medium text-center bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
                 請將對方的 QR Code 置於框內進行掃描
               </p>
