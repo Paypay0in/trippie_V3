@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React from 'react';
 import { Trip } from '../types';
 import { X, Calendar, ArrowRight, Trash2, RotateCcw } from 'lucide-react';
@@ -12,7 +13,7 @@ interface Props {
 
 const HistoryModal: React.FC<Props> = ({ history, onClose, onRestore, onDelete }) => {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+    <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.modal} animate-fade-in`}>
       <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
         <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
             <h2 className="font-bold text-gray-800 flex items-center gap-2">

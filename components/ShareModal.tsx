@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React, { useState } from 'react';
 import { X, Copy, Check, Share2, AlertTriangle } from 'lucide-react';
 
@@ -31,7 +32,7 @@ const ShareModal: React.FC<Props> = ({ link, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-fade-in">
+    <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.sheet} animate-fade-in`}>
       <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
         <div className="bg-brand-600 p-4 text-white flex justify-between items-center">
             <h2 className="font-bold flex items-center gap-2">

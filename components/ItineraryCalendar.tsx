@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { OVERLAY } from '../constants/layers';
 import { ItineraryItem, PlaceCommerceInfo } from '../types';
 import { Clock, MapPin, Plane, Hotel, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
@@ -729,7 +730,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       {onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 py-3 text-sm font-black text-brand-600">＋ 新增行程</button>}
 
       {removeTarget && onDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-6">
+        <div className={`fixed inset-0 ${OVERLAY.modal} flex items-center justify-center bg-slate-950/35 p-6`}>
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
             <h2 className="text-lg font-black text-[#111A4A]">刪除這個行程？</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">「{removeTarget.title}」將從這趟旅行中移除。</p>

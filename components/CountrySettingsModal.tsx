@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Globe, Search, Loader2 } from 'lucide-react';
 import { POPULAR_COUNTRIES } from '../constants';
@@ -59,7 +60,7 @@ const CountrySettingsModal: React.FC<Props> = ({ initialCountry, onSave, onClose
   }, [wrapperRef]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-fade-in">
+    <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.sheet} animate-fade-in`}>
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-visible shadow-2xl flex flex-col">
         <div className="p-4 border-b bg-gray-50 flex justify-between items-center rounded-t-2xl">
             <h2 className="font-bold text-gray-800 flex items-center gap-2">

@@ -1,4 +1,5 @@
 import React from 'react';
+import { OVERLAY } from '../constants/layers';
 
 export type GlobalActionContext = 'community' | 'travel' | 'wallet';
 
@@ -19,7 +20,7 @@ const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onCreatePost, on
     : context === 'travel'
       ? [['新增旅程', onCreateTrip], ['新增地點', onAddPlace], ['新增筆記', onAddNote], ['AI 匯入', onAiImport]]
       : [['新增支出', onAddExpense]];
-  return <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/35 p-4" onClick={onClose}>
+  return <div className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-950/35 p-4`} onClick={onClose}>
     <div className="w-full max-w-2xl rounded-[28px] bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()}>
       <div className="mx-auto mb-5 h-1.5 w-12 rounded-full bg-slate-200" />
       <h2 className="mb-4 text-lg font-black text-[#11183d]">快速操作</h2>

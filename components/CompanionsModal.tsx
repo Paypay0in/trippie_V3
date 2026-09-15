@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React, { useState } from 'react';
 import { Companion } from '../types';
 import { X, UserPlus, Trash2, Users } from 'lucide-react';
@@ -59,7 +60,7 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
   const ownerLabel = ownerName?.trim() || '我';
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+    <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.modal} animate-fade-in`}>
       <div className="flex max-h-[92vh] w-full max-w-sm flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_24px_60px_rgba(17,24,61,.22)]">
         {/* Header — same shell and close-button style as the other expense modals */}
         <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4">

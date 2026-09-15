@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React from 'react';
 import { Trip, Expense, Companion, ShoppingItem } from '../types';
 import { Download, Users, ShoppingBag, Receipt, AlertCircle } from 'lucide-react';
@@ -21,7 +22,7 @@ const ImportModal: React.FC<Props> = ({ data, onConfirm, onCancel }) => {
   const dateStr = new Date(data.generatedAt).toLocaleString();
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70] animate-fade-in">
+    <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.sheet} animate-fade-in`}>
       <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white text-center">
             <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 backdrop-blur-md">

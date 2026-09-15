@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { OVERLAY } from '../constants/layers';
 import { MarketplaceService, InboxMessage } from '../types';
 import { Star, MessageCircle, ShieldCheck, Zap, Plus, X, Info, Inbox, ArrowLeft } from 'lucide-react';
 
@@ -197,7 +198,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
 
       {/* Chat Modal */}
       {chattingWith && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[110] animate-fade-in">
+        <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.devTools} animate-fade-in`}>
           <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col h-[500px]">
             <div className="p-4 border-b flex justify-between items-center bg-brand-600 text-white">
               <div className="flex items-center gap-3">
@@ -260,7 +261,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
 
       {/* Add Service Modal */}
       {isAddingService && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-fade-in">
+        <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.alert} animate-fade-in`}>
           <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800">提供您的服務</h3>

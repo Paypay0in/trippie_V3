@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React, { useState, useEffect } from 'react';
 import { VisaInfo, Category } from '../types';
 import { fetchVisaAndEntryInfo } from '../services/geminiService';
@@ -49,7 +50,7 @@ const VisaCheckModal: React.FC<Props> = ({ destination, defaultOrigin, onClose, 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[80] animate-fade-in">
+    <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.modal} animate-fade-in`}>
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
         
         {/* Header */}

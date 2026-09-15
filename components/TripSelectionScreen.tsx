@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { OVERLAY } from '../constants/layers';
 import ConfirmDialog from './ConfirmDialog';
 import {
   ArrowRight,
@@ -408,7 +409,7 @@ const TripSelectionScreen: React.FC<Props> = ({
   return (
     <div className="min-h-full bg-[#fbfcff] px-4 pb-10 pt-5 text-[#10204a] sm:px-6 sm:pt-7">
       {isScanning && (
-        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center bg-[#08152f]/80 text-white backdrop-blur-sm">
+        <div className={`fixed inset-0 ${OVERLAY.sheet} flex flex-col items-center justify-center bg-[#08152f]/80 text-white backdrop-blur-sm`}>
           <Loader2 size={44} className="mb-4 animate-spin text-cyan-300" />
           <h3 className="text-lg font-bold">
             {scanProgress && scanProgress.total > 1 ? '正在批次處理資料…' : '正在分析圖片…'}
@@ -842,7 +843,7 @@ const TripSelectionScreen: React.FC<Props> = ({
       />
 
       {isTargetModalOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#08152f]/70 p-4 backdrop-blur-sm">
+        <div className={`fixed inset-0 ${OVERLAY.modal} flex items-center justify-center bg-[#08152f]/70 p-4 backdrop-blur-sm`}>
           <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-100 p-4">
               <h2 className="flex items-center gap-2 font-black text-[#10204a]">

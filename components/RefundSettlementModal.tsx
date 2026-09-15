@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { OVERLAY } from '../constants/layers';
 import { ArrowRight, Banknote, Coins, CreditCard } from 'lucide-react';
 import { PaymentMethod } from '../types';
 
@@ -15,7 +16,7 @@ const RefundSettlementModal: React.FC<Props> = ({ isOpen, currency, estimatedRef
   const [method, setMethod] = useState<PaymentMethod>(PaymentMethod.CREDIT_CARD);
   if (!isOpen) return null;
   const parsedAmount = Number(amount);
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+  return <div className={`fixed inset-0 ${OVERLAY.modal} flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm`}>
     <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white p-6 shadow-2xl">
       <h3 className="mb-2 flex items-center gap-2 text-lg font-bold text-gray-800"><Coins className="text-amber-500" />辦理退稅入帳</h3>
       <p className="mb-4 text-xs text-gray-500">系統將新增一筆「負向支出」，用以抵銷您的旅費總額。</p>

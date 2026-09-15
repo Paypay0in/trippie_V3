@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { OVERLAY } from '../constants/layers';
 import { AlertTriangle, Coins, Copy, LucideIcon, Trash2 } from 'lucide-react';
 
 export type ConfirmTone = 'danger' | 'neutral';
@@ -81,7 +82,7 @@ const ConfirmDialog: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[92] flex items-center justify-center bg-[#08152f]/70 p-4 backdrop-blur-sm"
+      className={`fixed inset-0 ${OVERLAY.confirm} flex items-center justify-center bg-[#08152f]/70 p-4 backdrop-blur-sm`}
       onClick={onCancel}
       role="presentation"
     >

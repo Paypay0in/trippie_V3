@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { OVERLAY } from '../constants/layers';
 import { Ellipsis, MapPin, Plus } from 'lucide-react';
 import { CommunityPost, SavedTravelInspiration } from '../types';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
@@ -105,7 +106,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
         </article>;
       })}
     </section>
-    {removeTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-6">
+    {removeTarget && <div className={`fixed inset-0 ${OVERLAY.modal} flex items-center justify-center bg-slate-950/35 p-6`}>
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-black">移除這個地點？</h2><p className="mt-2 text-sm leading-6 text-slate-500">只會移除你收藏的「{removeTarget.placeName}」，不會刪除原始貼文。</p><div className="mt-5 flex gap-3"><button type="button" onClick={() => setRemoveTarget(null)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-black text-slate-600">取消</button><button type="button" onClick={() => { onRemove(removeTarget.id); setRemoveTarget(null); }} className="flex-1 rounded-xl bg-rose-600 py-3 text-sm font-black text-white">確認移除</button></div></div>
     </div>}
   </main>;

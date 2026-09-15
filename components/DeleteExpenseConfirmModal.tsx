@@ -1,4 +1,5 @@
 import React from 'react';
+import { OVERLAY } from '../constants/layers';
 import { Trash2 } from 'lucide-react';
 import { Category, Expense } from '../types';
 import { getCategoryIcon, PAYMENT_METHODS_CONFIG } from '../constants';
@@ -52,7 +53,7 @@ const DeleteExpenseConfirmModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className={`fixed inset-0 ${OVERLAY.confirm} flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm`}
       // Overlay dismisses, exactly like cancel. Deleting is only ever the
       // explicit button press.
       onClick={onCancel}

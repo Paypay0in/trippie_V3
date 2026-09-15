@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
@@ -339,7 +340,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
   };
 
   const containerClasses = variant === 'modal' 
-    ? "fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in"
+    ? `fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.modal} animate-fade-in`
     : "w-full animate-fade-in";
   
   const cardClasses = variant === 'modal'
@@ -770,7 +771,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
       {/* Bill Preview Modal Overlay */}
       {showBillPreview && (
           <div 
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-fade-in overflow-y-auto"
+            className={`fixed inset-0 ${OVERLAY.alert} flex flex-col items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-fade-in overflow-y-auto`}
             onClick={() => setShowBillPreview(false)} // Click outside to close
           >
               <div className="relative w-full max-w-sm my-auto" onClick={e => e.stopPropagation()}>

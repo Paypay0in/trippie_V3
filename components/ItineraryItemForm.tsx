@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { OVERLAY } from '../constants/layers';
 import { ItineraryItem } from '../types';
 import { autocompletePlaces, getPlaceDetails, PlaceSuggestion, ResolvedPlace } from '../services/placeService';
 import { Activity, CalendarDays, Car, Check, Clock3, Hotel, MapPin, MapPinned, Plane, Search, Utensils, X } from 'lucide-react';
@@ -66,7 +67,7 @@ const ItineraryItemForm: React.FC<Props> = ({ item, startDate, endDate, onSave, 
     });
   };
 
-  return <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-3 sm:items-center">
+  return <div className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-900/40 p-3 sm:items-center`}>
     <form onSubmit={submit} className="w-full max-w-lg space-y-3 rounded-[30px] border border-slate-100 bg-white p-4 shadow-[0_24px_70px_rgba(17,26,74,0.18)] sm:p-5">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-500">Itinerary</p><h3 className="mt-0.5 text-xl font-black tracking-tight text-[#111A4A]">{item ? '編輯行程' : '新增行程'}</h3></div><button type="button" onClick={onCancel} aria-label="關閉" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 transition hover:border-brand-200 hover:text-brand-600"><X size={16} /></button></div>
       <div className="space-y-2.5">

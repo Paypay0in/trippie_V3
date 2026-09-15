@@ -1,4 +1,5 @@
 
+import { OVERLAY } from '../constants/layers';
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -68,7 +69,7 @@ const QRShareModal: React.FC<Props> = ({
   });
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+    <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm ${OVERLAY.alert} flex items-center justify-center p-4 animate-fade-in`}>
       <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
         {/* Header */}
         <div className="p-6 border-b flex justify-between items-center bg-gray-50">
