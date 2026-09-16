@@ -1841,6 +1841,18 @@ const App: React.FC = () => {
     ? `${resolvedPassport.country}護照`
     : undefined;
 
+  /**
+   * Typing a destination on the overview.
+   *
+   * The country follows from it when the table recognises the place, so the
+   * entry-rules lookup has what it needs without a second field to fill.
+   */
+  const handleDestinationFieldChange = (value: string) => {
+    setTripDestination(value);
+    const detected = detectDestinationFromTripName(value);
+    if (detected) setTravelCountry(detected.country);
+  };
+
   const handleResearchTravelRules = async (selectedId?: string) => {
     const passport = profilePassports.find((item) => item.id === selectedId);
     if (!tripDestination.trim()) throw new Error("尚未設定本次旅程目的地。");
@@ -5280,7 +5292,10 @@ const App: React.FC = () => {
                   handleResearchTravelRules(resolvedPassportId)
                 }
                 onOpenIdentity={() => setIsTravelIdentityOpen(true)}
-                onEditDestination={() => setViewMode("tripSetup")}
+                passports={profilePassports}
+                selectedPassportId={resolvedPassportId}
+                onSelectPassport={setSelectedPassportId}
+                onChangeDestination={handleDestinationFieldChange}
                 onTogglePreparationItem={handleTogglePreparationItem}
                 onAddPreparationItems={(items) =>
                   handleBatchAddShoppingItems(items, "draft")
@@ -5335,7 +5350,10 @@ const App: React.FC = () => {
                 handleResearchTravelRules(resolvedPassportId)
               }
               onOpenIdentity={() => setIsTravelIdentityOpen(true)}
-              onEditDestination={() => setViewMode("tripSetup")}
+              passports={profilePassports}
+              selectedPassportId={resolvedPassportId}
+              onSelectPassport={setSelectedPassportId}
+              onChangeDestination={handleDestinationFieldChange}
               onTogglePreparationItem={handleTogglePreparationItem}
               onAddPreparationItems={(items) =>
                 handleBatchAddShoppingItems(items, "draft")
