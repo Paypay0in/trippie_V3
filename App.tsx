@@ -5275,7 +5275,6 @@ const App: React.FC = () => {
                 }
                 travelRules={travelRules}
                 hasPassport={Boolean(resolvedPassportId)}
-              passportLabel={resolvedPassportLabel}
                 passportLabel={resolvedPassportLabel}
                 onResearchEntryRules={() =>
                   handleResearchTravelRules(resolvedPassportId)
