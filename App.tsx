@@ -4845,15 +4845,21 @@ const App: React.FC = () => {
               travelRules={travelRules}
               visaInfo={visaInfo}
             />
-            <ExpenseList
-              expenses={walletExpenses}
-              onDelete={handleDeleteExpense}
-              onEdit={handleEditExpense}
-              taxRule={taxRule}
-              viewerMemberId={viewerMemberId}
-              tripOwnerMemberId={activeOwnerMemberId}
-              onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
-            />
+            {/* No running list of individual expenses on 結算. That tab answers
+                "what did this trip come to and who owes whom"; the itemised
+                ledger is what the other tabs are for, and repeating it here
+                buried the totals. */}
+            {walletPhase !== "summary" && (
+              <ExpenseList
+                expenses={walletExpenses}
+                onDelete={handleDeleteExpense}
+                onEdit={handleEditExpense}
+                taxRule={taxRule}
+                viewerMemberId={viewerMemberId}
+                tripOwnerMemberId={activeOwnerMemberId}
+                onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
+              />
+            )}
           </>
         )}
         {walletPhase === "summary" && (
