@@ -146,7 +146,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
               const tone = RULE_TONES[index % RULE_TONES.length];
               const Icon = tone.icon;
               const isExpanded = expandedTaskId === task.id;
-              return <button type="button" key={task.id} onClick={() => setExpandedTaskId(current => current === task.id ? null : task.id)} aria-expanded={isExpanded} className={`relative flex w-44 shrink-0 items-center gap-2.5 rounded-2xl px-3 py-3 text-left transition ${tone.surface} ${isExpanded ? 'ring-2 ring-violet-300' : 'ring-1 ring-transparent'}`}>
+              return <button type="button" key={task.id} onClick={() => setExpandedTaskId(current => current === task.id ? null : task.id)} aria-expanded={isExpanded} className={`relative flex min-h-[4.5rem] w-48 shrink-0 items-center gap-2.5 rounded-2xl px-3 py-3 text-left transition ${tone.surface} ${isExpanded ? 'ring-2 ring-violet-300' : 'ring-1 ring-transparent'}`}>
                 {/* Done is a mark added in the corner, not a change to the
                     tile's own content: the icon and the name say which
                     requirement this is, and they stay true after you deal with
@@ -154,8 +154,11 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                 {task.isPurchased && <span aria-label="已完成" className="absolute right-2 top-2 text-sm leading-none">✅</span>}
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 ${tone.icon_color}`}><Icon size={17} /></span>
                 <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-sm font-black ${task.isPurchased ? 'text-slate-500' : tone.title_color}`}>{task.name}</span>
-                  <span className="mt-0.5 block truncate text-[11px] text-slate-500">{task.timingText || task.description || '查看詳情'}</span>
+                  {/* Two lines, not one: Japan's formalities are all called
+                      「Visit Japan Web…」 and truncating to one line made every
+                      tile read the same. The difference is in the tail. */}
+                  <span className={`line-clamp-2 block text-sm font-black leading-4 ${task.isPurchased ? 'text-slate-500' : tone.title_color}`}>{task.name}</span>
+                  <span className="mt-1 block truncate text-[11px] text-slate-500">{task.timingText || task.description || '查看詳情'}</span>
                 </span>
               </button>;
             })}
