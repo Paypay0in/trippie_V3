@@ -4149,8 +4149,11 @@ const App: React.FC = () => {
               onSignOut={handleAuthSignOut}
               onSaveProfile={handleProfileSave}
               myPosts={myCommunityPosts}
+              savedInspirations={savedTravelInspirations}
+              completedTripCount={tripHistory.length}
               onTogglePostVisibility={handleTogglePostVisibility}
               onDeletePost={handleDeleteCommunityPost}
+              onCreatePost={openCommunityComposer}
             />
             <AppBottomNav
               active="profile"

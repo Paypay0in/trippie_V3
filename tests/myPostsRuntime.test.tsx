@@ -37,8 +37,11 @@ const renderAccount = (overrides: Partial<React.ComponentProps<typeof AccountScr
     onSignOut: vi.fn(),
     onSaveProfile: vi.fn(async () => {}),
     myPosts: [post],
+    savedInspirations: [],
+    completedTripCount: 3,
     onTogglePostVisibility: vi.fn(),
     onDeletePost: vi.fn(),
+    onCreatePost: vi.fn(),
     ...overrides,
   };
   render(<AccountScreen {...props} />);
@@ -49,24 +52,37 @@ describe('我的貼文', () => {
   it('sits inside the account page, with the post listed', () => {
     renderAccount();
     const main = screen.getByRole('main');
-    expect(within(main).getByText('我的貼文')).toBeTruthy();
+    // Both the tab and the heading say 我的貼文; the heading is what proves the
+    // panel rendered inside the page rather than a screen below it.
+    expect(within(main).getByRole('heading', { name: '我的貼文' })).toBeTruthy();
     expect(within(main).getByText(post.title)).toBeTruthy();
     expect(within(main).getByText('公開')).toBeTruthy();
   });
 
-  it('offers the reversible action and the destructive one', async () => {
+  it('offers the reversible action above the destructive one', async () => {
     const props = renderAccount();
     const user = userEvent.setup();
 
-    await user.click(screen.getByText('改為不公開'));
+    await user.click(screen.getByLabelText(`貼文選項：${post.title}`));
+    await user.click(screen.getByText('改為僅自己可見'));
     expect(props.onTogglePostVisibility).toHaveBeenCalledWith('post-1');
 
+    await user.click(screen.getByLabelText(`貼文選項：${post.title}`));
     await user.click(screen.getByLabelText(`刪除貼文：${post.title}`));
     expect(props.onDeletePost).toHaveBeenCalledWith(post);
   });
 
-  it('says so plainly when there is nothing to show', () => {
-    renderAccount({ myPosts: [] });
-    expect(screen.getByText('還沒有發過貼文')).toBeTruthy();
+  it('always offers a way to write the next one', async () => {
+    const props = renderAccount({ myPosts: [] });
+    const user = userEvent.setup();
+    await user.click(screen.getByText('新增貼文'));
+    expect(props.onCreatePost).toHaveBeenCalled();
+  });
+
+  it('shows saved inspirations under their own tab', async () => {
+    renderAccount({ savedInspirations: [{ id: 's1', title: '廣藏市場', country: '韓國', city: '首爾' }] });
+    const user = userEvent.setup();
+    await user.click(screen.getByText('我的收藏'));
+    expect(screen.getByText('廣藏市場')).toBeTruthy();
   });
 });
