@@ -5329,20 +5329,11 @@ const App: React.FC = () => {
             className="space-y-6 pb-24"
           >
             {/* API Key Warning */}
-            {!import.meta.env.VITE_GEMINI_API_KEY &&
-              !(process.env as any).GEMINI_API_KEY &&
-              !(process.env as any).API_KEY && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm flex items-center gap-3">
-                  <Info size={18} className="flex-shrink-0" />
-                  <div>
-                    <p className="font-bold">AI 功能尚未啟用</p>
-                    <p className="text-xs opacity-80">
-                      請在 Vercel 設定中新增環境變數{" "}
-                      <code>VITE_GEMINI_API_KEY</code> 並重新部署。
-                    </p>
-                  </div>
-                </div>
-              )}
+            {/* The 「AI 功能尚未啟用」 banner used to live here. It tested for a
+                browser-side VITE_GEMINI_API_KEY, but the key moved to the
+                server long ago — so it fired on a working app and told people
+                to set a variable that no longer does anything. Each AI feature
+                reports its own failure where it happens. */}
 
             {currentPhase === "summary" ? (
               /* Full Screen Summary View */
