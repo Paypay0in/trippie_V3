@@ -53,6 +53,12 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [showAllRules, setShowAllRules] = useState(false);
   const context = destination?.trim();
   const localTips = getDestinationTips(destinationCountry || destination);
+  // Two different things had been sharing one list. Entry formalities come
+  // from the travel-rules lookup and are what a country requires; everything
+  // else is what this traveller decided to do. Calling the section 入境規定
+  // made the mixing obvious — a ski-hire enquiry is not an entry rule.
+  const entryRules = shoppingPreTasks.filter(task => task.sourceType === 'travel_rules');
+  const ownTasks = shoppingPreTasks.filter(task => task.sourceType !== 'travel_rules');
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
   const expandedLink = expandedTask ? findOfficialLink(destinationCountry || destination, expandedTask.name) : null;
 
@@ -108,15 +114,15 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 font-black"><Receipt size={18} className="text-violet-600" />入境規定</h2>
-          {preTasks.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 text-xs font-black text-violet-600">{showAllRules ? '收合' : '查看詳情'}<ChevronRight size={14} /></button>}
+          {entryRules.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 text-xs font-black text-violet-600">{showAllRules ? '收合' : '查看詳情'}<ChevronRight size={14} /></button>}
         </div>
-        {preTasks.length === 0 ? <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">目前沒有明確待辦。這裡不會把沒有紀錄的項目假設為未完成。</p> : (
+        {entryRules.length === 0 ? <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">還沒有這個目的地的入境資訊。填好目的地與護照後，這裡會列出簽證、入境卡與海關規定。</p> : (
           /* Laid out across rather than down: these are a handful of named
              formalities, and a row of tiles reads as "here is what this country
              asks of you" where a vertical checklist read as chores. Tapping one
              opens its detail underneath, so the tiles stay uniform. */
           <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
-            {shoppingPreTasks.map((task, index) => {
+            {entryRules.map((task, index) => {
               const tone = RULE_TONES[index % RULE_TONES.length];
               const Icon = tone.icon;
               const isExpanded = expandedTaskId === task.id;
@@ -132,7 +138,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         )}
         {(expandedTask || showAllRules) && (
           <div className="mt-3 space-y-2">
-            {(showAllRules ? shoppingPreTasks : expandedTask ? [expandedTask] : []).map(ruleTask => {
+            {(showAllRules ? entryRules : expandedTask && entryRules.includes(expandedTask) ? [expandedTask] : []).map(ruleTask => {
               const ruleLink = findOfficialLink(destinationCountry || destination, ruleTask.name);
               return <div key={ruleTask.id} className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">
                 <div className="mb-1.5 flex items-start justify-between gap-3">
@@ -153,6 +159,29 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
           </div>
         )}
       </section>
+
+      {ownTasks.length > 0 && (
+        /* The traveller's own list, kept apart from what the country requires.
+           Vertical, because this one genuinely is a list of chores. */
+        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 flex items-center gap-2 font-black"><CheckCircle2 size={18} className="text-violet-600" />出發前待辦</h2>
+          <div className="space-y-2">
+            {ownTasks.map(task => (
+              <div key={task.id} className="rounded-2xl border border-slate-100 bg-white">
+                <div className="flex min-h-12 items-center gap-3 px-3 py-3">
+                  <button type="button" onClick={() => onTogglePreparationItem(task.id)} aria-label={`${task.isPurchased ? '標記未完成' : '完成'}：${task.name}`} className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-violet-200">
+                    {task.isPurchased ? <CheckCircle2 size={20} className="text-emerald-500" /> : <Circle size={20} className="text-amber-500" />}
+                  </button>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block text-sm font-bold ${task.isPurchased ? 'text-slate-500 line-through' : 'text-slate-800'}`}>{task.name}</span>
+                    {task.description && <span className="mt-1 block text-xs leading-5 text-slate-500">{task.description}</span>}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {localTips.length > 0 && (
         /* Between the official checklist and the AI assistant on purpose: this
