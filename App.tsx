@@ -1818,6 +1818,29 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * The passport the entry-rules lookup should use.
+   *
+   * This trip's choice, else the profile default, else the only sensible
+   * candidate on file. Requiring an explicit per-trip選擇 meant the overview
+   * said 尚未選擇護照 to someone who had exactly one passport saved and had
+   * already marked it 預設.
+   */
+  const resolvedPassport = (
+    profilePassports.find(
+      (passport) => passport.id === selectedPassportId && passport.countryCode,
+    ) ||
+    profilePassports.find(
+      (passport) =>
+        passport.id === userProfile.defaultPassportId && passport.countryCode,
+    ) ||
+    profilePassports.find((passport) => passport.countryCode)
+  );
+  const resolvedPassportId = resolvedPassport?.id;
+  const resolvedPassportLabel = resolvedPassport
+    ? `${resolvedPassport.country}護照`
+    : undefined;
+
   const handleResearchTravelRules = async (selectedId?: string) => {
     const passport = profilePassports.find((item) => item.id === selectedId);
     if (!tripDestination.trim()) throw new Error("尚未設定本次旅程目的地。");
@@ -5251,6 +5274,13 @@ const App: React.FC = () => {
                   detectDestinationFromTripName(tripDestination)?.country
                 }
                 travelRules={travelRules}
+                hasPassport={Boolean(resolvedPassportId)}
+              passportLabel={resolvedPassportLabel}
+                passportLabel={resolvedPassportLabel}
+                onResearchEntryRules={() =>
+                  handleResearchTravelRules(resolvedPassportId)
+                }
+                onOpenIdentity={() => setIsTravelIdentityOpen(true)}
                 onTogglePreparationItem={handleTogglePreparationItem}
                 onAddPreparationItems={(items) =>
                   handleBatchAddShoppingItems(items, "draft")
@@ -5299,18 +5329,9 @@ const App: React.FC = () => {
                 detectDestinationFromTripName(tripDestination)?.country
               }
               travelRules={travelRules}
-              hasPassport={Boolean(
-                profilePassports.find(
-                  (passport) =>
-                    passport.id ===
-                      (selectedPassportId || userProfile.defaultPassportId) &&
-                    passport.countryCode,
-                ),
-              )}
+              hasPassport={Boolean(resolvedPassportId)}
               onResearchEntryRules={() =>
-                handleResearchTravelRules(
-                  selectedPassportId || userProfile.defaultPassportId,
-                )
+                handleResearchTravelRules(resolvedPassportId)
               }
               onOpenIdentity={() => setIsTravelIdentityOpen(true)}
               onTogglePreparationItem={handleTogglePreparationItem}

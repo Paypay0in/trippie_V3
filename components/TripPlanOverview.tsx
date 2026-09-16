@@ -27,6 +27,8 @@ interface Props {
   variant?: 'plan' | 'reference';
   /** Whether a passport with a country code is on file, so the lookup can run. */
   hasPassport: boolean;
+  /** The passport the lookup will use, named rather than assumed. */
+  passportLabel?: string;
   /** Runs the entry-rules lookup with the default passport. */
   onResearchEntryRules: () => Promise<void> | void;
   /** Opens the full identity sheet, for choosing a different passport. */
@@ -66,7 +68,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, onResearchEntryRules, onOpenIdentity, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -187,7 +189,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-[#11183d]">{destination || '尚未設定目的地'}</p>
-                <p className="mt-0.5 truncate text-xs text-slate-500">{destinationCountry || '請先設定目的地'}{hasPassport ? '・台灣護照' : '・尚未選擇護照'}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">{destinationCountry || '請先設定目的地'}{hasPassport ? `・${passportLabel || '已選護照'}` : '・尚未選擇護照'}</p>
               </div>
               <button type="button" onClick={onOpenIdentity} className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-bold text-violet-700 shadow-sm">更改</button>
             </div>
