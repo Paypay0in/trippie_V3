@@ -173,6 +173,11 @@ const useSyncBadge = (
     node.textContent = `雲端同步：${label}`;
 
     if (!node.isConnected) document.body.appendChild(node);
+
+    // Also in the tab title. A corner badge can be cropped out of a screenshot
+    // or hidden under a panel; the tab title cannot.
+    document.title = `[${label}] Trippie`;
+
     return () => node.remove();
   }, [state, tripId, signedIn]);
 };
