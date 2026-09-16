@@ -44,6 +44,7 @@ const renderAccount = (overrides: Partial<React.ComponentProps<typeof AccountScr
     onCreatePost: vi.fn(),
     onOpenPost: vi.fn(),
     saverCounts: { 'post-1': 3 },
+    onOpenCreatorCenter: vi.fn(),
     ...overrides,
   };
   render(<AccountScreen {...props} />);
@@ -82,6 +83,13 @@ describe('我的貼文', () => {
   it('says nothing rather than 0 when nobody has saved yet', () => {
     renderAccount({ saverCounts: {} });
     expect(screen.queryByText(/人收藏了靈感/)).toBeNull();
+  });
+
+  it('offers the creator centre beside signing out', async () => {
+    const props = renderAccount();
+    const user = userEvent.setup();
+    await user.click(screen.getByText('創作者中心'));
+    expect(props.onOpenCreatorCenter).toHaveBeenCalled();
   });
 
   it('opens the post when the card is tapped', async () => {

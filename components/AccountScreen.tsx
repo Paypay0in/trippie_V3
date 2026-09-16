@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogOut, Pencil } from 'lucide-react';
+import { LogOut, Pencil, Sparkles } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
 import MyPostsPanel from './MyPostsPanel';
 import { AuthProfile } from '../services/authService';
@@ -21,6 +21,7 @@ interface Props {
   onCreatePost: () => void;
   onOpenPost: (postId: string) => void;
   saverCounts: Record<string, number>;
+  onOpenCreatorCenter: () => void;
 }
 
 /**
@@ -46,6 +47,7 @@ const AccountScreen: React.FC<Props> = ({
   onCreatePost,
   onOpenPost,
   saverCounts,
+  onOpenCreatorCenter,
 }) => {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(profile?.displayName || '');
@@ -65,6 +67,15 @@ const AccountScreen: React.FC<Props> = ({
       <header className="mb-5 flex items-center justify-between">
         <h1 className="text-2xl font-black">我的</h1>
         {signedIn && (
+          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenCreatorCenter}
+            className="flex min-h-11 items-center gap-1.5 rounded-full bg-violet-600 px-4 text-sm font-black text-white shadow-sm"
+          >
+            <Sparkles size={15} />
+            創作者中心
+          </button>
           <button
             type="button"
             onClick={onSignOut}
@@ -73,6 +84,7 @@ const AccountScreen: React.FC<Props> = ({
             <LogOut size={15} />
             登出
           </button>
+          </div>
         )}
       </header>
 

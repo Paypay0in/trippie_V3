@@ -212,6 +212,7 @@ import CommunityPostDetail from "./components/CommunityPostDetail";
 import { fetchPlacePhoto } from "./services/placePhotoService";
 import SavedTravelDestinationDetail from "./components/SavedTravelDestinationDetail";
 import AccountScreen from "./components/AccountScreen";
+import CreatorCenterScreen from "./components/CreatorCenterScreen";
 import AuthScreen from "./components/AuthScreen";
 import AuthLandingScreen from "./components/AuthLandingScreen";
 import {
@@ -603,7 +604,7 @@ const App: React.FC = () => {
   } | null>(null);
   const [authProfile, setAuthProfile] = useState<AuthProfile | null>(null);
   const [accountView, setAccountView] = useState<
-    "account" | "auth" | "landing"
+    "account" | "auth" | "landing" | "creator"
   >("account");
   const [authEntryContext, setAuthEntryContext] = useState<
     "account" | "community"
@@ -4229,6 +4230,29 @@ const App: React.FC = () => {
             />
           </div>
         );
+      if (accountView === "creator")
+        return (
+          <div className="min-h-screen bg-[#f7f8fc]">
+            <CreatorCenterScreen
+              posts={myCommunityPosts}
+              comments={postComments}
+              savedInspirations={savedTravelInspirations}
+              onBack={() => setAccountView("account")}
+              onOpenPost={openSourceCommunityPost}
+              onCreatePost={openCommunityComposer}
+            />
+            <AppBottomNav
+              active="profile"
+              onChange={(section) => {
+                setAccountView("account");
+                setAppSection(section);
+                if (section === "community") setViewMode("community");
+                if (section === "trips") setViewMode("bookshelf");
+              }}
+              onPlus={() => setIsGlobalActionOpen(true)}
+            />
+          </div>
+        );
       if (accountView === "auth")
         return (
           <div className="min-h-screen bg-[#f7f8fc]">
@@ -4279,6 +4303,7 @@ const App: React.FC = () => {
               onCreatePost={openCommunityComposer}
               onOpenPost={openSourceCommunityPost}
               saverCounts={saverCountsByPost(savedTravelInspirations)}
+              onOpenCreatorCenter={() => setAccountView("creator")}
             />
             <AppBottomNav
               active="profile"
