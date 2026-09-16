@@ -63,12 +63,12 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   // arrival — it is a condition your own document has to meet before you
   // leave. It reads as a caution, so it belongs with the cautions.
   const isPassportRule = (task: ShoppingItem) => task.name.includes('護照');
-  // Three tiles, which is what fits across a phone without scrolling. Anything
-  // further down the list is still reachable through 查看詳情.
-  const entryRules = travelRuleTasks.filter(task => !isPassportRule(task)).slice(0, 3);
-  const advisoryTasks = travelRuleTasks.filter(
-    task => isPassportRule(task) || !entryRules.includes(task),
-  );
+  // Every formality the destination asks for stays here; three fit across a
+  // phone and the rest scroll. Capping the list and spilling the remainder
+  // into the cautions put 入境卡 — a requirement — under 注意事項, which reads
+  // as optional.
+  const entryRules = travelRuleTasks.filter(task => !isPassportRule(task));
+  const advisoryTasks = travelRuleTasks.filter(isPassportRule);
   const ownTasks = shoppingPreTasks.filter(task => task.sourceType !== 'travel_rules');
   // Advisories: the part of the entry research that is not a task. It has been
   // fetched all along and shown nowhere, so travellers never saw the customs
