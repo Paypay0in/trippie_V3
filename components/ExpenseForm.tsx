@@ -3,12 +3,16 @@ import { OVERLAY } from '../constants/layers';
 import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
+import { CustomCategories, categoriesForPhase } from '../services/customCategories';
 import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
 import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown } from 'lucide-react';
 
 interface Props {
   currentPhase: Phase;
+  customCategories: CustomCategories;
+  onAddCustomCategory: (phase: Phase, name: string) => void;
+  onRemoveCustomCategory: (phase: Phase, name: string) => void;
   existingExpenses: Expense[];
   companions: Companion[];
   onSubmit: (expense: Omit<Expense, 'id'>, linkedItemId?: string) => void;
@@ -49,7 +53,10 @@ const PHASE_LABELS: Record<Phase, string> = {
 };
 
 const ExpenseForm: React.FC<Props> = ({ 
-  currentPhase, 
+  currentPhase,
+  customCategories,
+  onAddCustomCategory,
+  onRemoveCustomCategory, 
   existingExpenses, 
   companions, 
   onSubmit, 
@@ -89,6 +96,10 @@ const ExpenseForm: React.FC<Props> = ({
   const [exchangeRate, setExchangeRate] = useState<string>(initialData?.exchangeRate.toString() || '1');
   const [handlingFee, setHandlingFee] = useState<string>(initialData?.handlingFee?.toString() || '0');
   const [category, setCategory] = useState<Category>(initialData?.category || initialCategory || CATEGORIES_BY_PHASE[currentPhase][0]);
+  const [managingCategories, setManagingCategories] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const phaseCategories = categoriesForPhase(currentPhase, customCategories);
+  const ownCategories = customCategories[currentPhase] ?? [];
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
   const [expenseSaveDebug, setExpenseSaveDebug] = useState({ submitClicked: false, formValid: false, validationError: '', expenseObjectCreated: false, onSubmitCalled: false });
@@ -748,10 +759,54 @@ const ExpenseForm: React.FC<Props> = ({
                 <div>
                    <div className="mb-2 flex items-center justify-between">
                      <label className="block text-sm font-bold text-[#11183d]">分類 <span className="text-red-500">*</span></label>
-                     <button type="button" className="text-xs font-bold text-violet-600">自訂分類管理 &gt;</button>
+                     <button type="button" onClick={() => setManagingCategories(current => !current)} className="text-xs font-bold text-violet-600">{managingCategories ? '完成' : '自訂分類管理 >'}</button>
                    </div>
+                   {managingCategories && (
+                     /* Adding and removing happen here rather than on the
+                        picker itself: a delete button on every category would
+                        sit under the thumb of someone who only meant to choose
+                        one. */
+                     <div className="mb-3 rounded-2xl bg-slate-50 p-3">
+                       <div className="flex gap-2">
+                         <input
+                           value={newCategoryName}
+                           onChange={event => setNewCategoryName(event.target.value)}
+                           onKeyDown={event => {
+                             if (event.key === 'Enter') {
+                               event.preventDefault();
+                               onAddCustomCategory(currentPhase, newCategoryName);
+                               setNewCategoryName('');
+                             }
+                           }}
+                           maxLength={12}
+                           placeholder="新增分類（例如：溫泉）"
+                           className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-violet-300"
+                         />
+                         <button
+                           type="button"
+                           onClick={() => { onAddCustomCategory(currentPhase, newCategoryName); setNewCategoryName(''); }}
+                           disabled={!newCategoryName.trim()}
+                           className="min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:opacity-40"
+                         >新增</button>
+                       </div>
+                       {ownCategories.length > 0 ? (
+                         <div className="mt-2.5 flex flex-wrap gap-2">
+                           {ownCategories.map(name => (
+                             <span key={name} className="flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
+                               {name}
+                               <button type="button" aria-label={`刪除分類：${name}`} onClick={() => onRemoveCustomCategory(currentPhase, name)} className="text-slate-400">
+                                 <X size={13} />
+                               </button>
+                             </span>
+                           ))}
+                         </div>
+                       ) : (
+                         <p className="mt-2.5 text-xs text-slate-400">這個階段還沒有自訂分類。刪除分類不會影響已經記錄的支出。</p>
+                       )}
+                     </div>
+                   )}
                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                     {CATEGORIES_BY_PHASE[currentPhase].map(cat => (
+                     {phaseCategories.map(cat => (
                        <button
                         key={cat}
                         type="button"

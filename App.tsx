@@ -46,6 +46,13 @@ import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
 import {
+  CustomCategories,
+  addCustomCategory,
+  loadCustomCategories,
+  removeCustomCategory,
+  saveCustomCategories,
+} from "./services/customCategories";
+import {
   destinationLabel,
   detectDestinationFromTripName,
 } from "./services/destinationFromTripName";
@@ -633,6 +640,9 @@ const App: React.FC = () => {
   const [workspaceSection, setWorkspaceSection] =
     useState<WorkspaceSection>("overview");
   const [walletPhase, setWalletPhase] = useState<WalletPhase>("pre");
+  const [customCategories, setCustomCategories] = useState<CustomCategories>(
+    () => loadCustomCategories(),
+  );
   const [expenseFormPhase, setExpenseFormPhase] = useState<Phase | undefined>(
     undefined,
   );
@@ -3970,6 +3980,31 @@ const App: React.FC = () => {
     return stage === "return" || stage === "summary" ? "post" : (stage as Phase);
   };
 
+  const handleAddCustomCategory = (phase: Phase, name: string) => {
+    setCustomCategories((current) => {
+      const next = addCustomCategory(current, phase, name);
+      if (next === current) {
+        showToast("這個分類已經有了", "error");
+        return current;
+      }
+      saveCustomCategories(next);
+      return next;
+    });
+  };
+
+  /**
+   * Removing a category never touches expenses already recorded under it.
+   * Deleting a label should not rewrite history, and the report still shows
+   * what that money was spent on.
+   */
+  const handleRemoveCustomCategory = (phase: Phase, name: string) => {
+    setCustomCategories((current) => {
+      const next = removeCustomCategory(current, phase, name);
+      saveCustomCategories(next);
+      return next;
+    });
+  };
+
   const handleQuickAdd = (category: Category) => {
     setExpenseFormPhase(phaseForNewExpense());
     setInitialFormCategory(category);
@@ -5079,6 +5114,9 @@ const App: React.FC = () => {
           {isFormOpen && (
             <ExpenseForm
               currentPhase={expenseFormPhase || currentPhase}
+              customCategories={customCategories}
+              onAddCustomCategory={handleAddCustomCategory}
+              onRemoveCustomCategory={handleRemoveCustomCategory}
               existingExpenses={expenses}
               companions={companions}
               ownerMemberId={activeOwnerMemberId}
@@ -5614,6 +5652,9 @@ const App: React.FC = () => {
             expenseFormPhase ||
             (currentPhase === "summary" ? "post" : currentPhase)
           }
+          customCategories={customCategories}
+          onAddCustomCategory={handleAddCustomCategory}
+          onRemoveCustomCategory={handleRemoveCustomCategory}
           existingExpenses={expenses}
           companions={companions}
           ownerMemberId={activeOwnerMemberId}
