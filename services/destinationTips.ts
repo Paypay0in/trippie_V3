@@ -31,7 +31,9 @@ const TIPS: Record<string, DestinationTip[]> = {
     {
       kind: 'transport',
       title: '準備一張 T-money 卡',
-      detail: '地鐵、公車、計程車都能刷，超商就能買和加值。',
+      detail:
+        '地鐵、公車、計程車都能刷，超商就能買和加值。iPhone 也可以先試 Wallet ＞ 加入 ＞ 交通卡：' +
+        'Apple 的支援地區清單包含南韓，卡片能不能加會依機型與地區顯示。不行就在超商買實體卡。',
     },
     {
       kind: 'app',
