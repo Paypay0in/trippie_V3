@@ -44,6 +44,7 @@ import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES } from "./constants";
 import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
+import { localToday, phaseForDate } from "./services/tripPhaseByDate";
 import {
   destinationLabel,
   detectDestinationFromTripName,
@@ -1555,11 +1556,18 @@ const App: React.FC = () => {
     setTravelRules(draft.travelRules);
     setSettlementBatches(draft.settlementBatches || []);
 
-    const hasPost = draft.expenses.some((expense) => expense.phase === "post");
-    const hasDuring = draft.expenses.some(
-      (expense) => expense.phase === "during",
-    );
-    setCurrentPhase(hasPost ? "post" : hasDuring ? "during" : "pre");
+    // The trip's own dates decide which part of it we are in. Only when a trip
+    // has no dates do we fall back to guessing from what has been recorded.
+    const byDate = phaseForDate(localToday(), draft.startDate, draft.endDate);
+    if (byDate) {
+      setCurrentPhase(byDate);
+    } else {
+      const hasPost = draft.expenses.some((expense) => expense.phase === "post");
+      const hasDuring = draft.expenses.some(
+        (expense) => expense.phase === "during",
+      );
+      setCurrentPhase(hasPost ? "post" : hasDuring ? "during" : "pre");
+    }
   };
 
   // Helper to determine active trip name
@@ -4976,7 +4984,6 @@ const App: React.FC = () => {
           onDestination={() => setIsTravelIdentityOpen(true)}
           onTravelers={() => setIsCompanionsOpen(true)}
           onShare={handleOpenShareModal}
-          onPhaseChange={handleWorkspacePhaseChange}
           onSectionChange={setWorkspaceSection}
           onQuickAdd={() => setIsGlobalActionOpen(true)}
         >

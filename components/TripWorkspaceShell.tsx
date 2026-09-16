@@ -12,7 +12,6 @@ import {
   Users,
 } from 'lucide-react';
 import { Phase } from '../types';
-import PhaseSelector from './PhaseSelector';
 import {
   DestinationImage,
   fetchDestinationImage,
@@ -33,7 +32,6 @@ interface Props {
   onDestination: () => void;
   onTravelers: () => void;
   onShare: () => void;
-  onPhaseChange: (phase: Phase) => void;
   onSectionChange: (section: WorkspaceSection) => void;
   onQuickAdd: () => void;
 }
@@ -51,7 +49,6 @@ const TripWorkspaceShell: React.FC<Props> = ({
   onDestination,
   onTravelers,
   onShare,
-  onPhaseChange,
   onSectionChange,
   onQuickAdd,
 }) => {
@@ -115,7 +112,10 @@ const TripWorkspaceShell: React.FC<Props> = ({
             </div>
           )}
         </div>
-        {currentSection !== 'records' && <PhaseSelector currentPhase={currentPhase} onChange={onPhaseChange} />}
+        {/* No phase tabs on the overview. The trip has dates, so asking the
+            traveller to pick 行前/旅行中/返程 is asking them to tell the app
+            something it already knows; the ledger keeps its own tabs because
+            there you really do go back and forth between stages. */}
       </header>
 
       <main className="mx-auto w-full max-w-2xl px-4 py-4">{children}</main>
