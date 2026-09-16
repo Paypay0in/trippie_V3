@@ -5063,7 +5063,14 @@ const App: React.FC = () => {
                   },
                 ) || tripDestination
               }
-              destinationCountry={tripDestinationDraft?.destinationCountry}
+              // Country falls back to the trip's own country: a destination
+              // read from the title has no place record behind it, and the
+              // entry rules are looked up by country, so it must not be blank.
+              destinationCountry={
+                tripDestinationDraft?.destinationCountry ||
+                travelCountry ||
+                detectDestinationFromTripName(tripDestination)?.country
+              }
               startDate={tripStartDate}
               endDate={tripEndDate}
               passports={profilePassports}
