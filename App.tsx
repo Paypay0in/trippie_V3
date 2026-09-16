@@ -1249,11 +1249,25 @@ const App: React.FC = () => {
   // minted locally, so a second browser signed into the same account starts
   // with a completely different set and would otherwise never find the shared
   // ledger at all. Listed as empty shells; opening one pulls its expenses.
+  const [cloudTripNote, setCloudTripNote] = useState<string>("");
   useEffect(() => {
-    if (!authUser?.id || !isSyncAvailable()) return;
+    if (!authUser?.id || !isSyncAvailable()) {
+      setCloudTripNote("");
+      return;
+    }
     let cancelled = false;
     void fetchMyTrips().then((result) => {
-      if (cancelled || result.status !== "ok") return;
+      if (cancelled) return;
+      // Reported on the banner: "the list is empty" and "the list was refused"
+      // look identical from the trip screen, and only one of them is a bug.
+      setCloudTripNote(
+        result.status === "ok"
+          ? `雲端旅程 ${result.data.length} 趟`
+          : result.status === "error"
+            ? `雲端旅程讀取失敗：${result.message}`
+            : "雲端旅程：未啟用",
+      );
+      if (result.status !== "ok") return;
       setDrafts((current) => {
         const known = new Set(current.map((draft) => draft.id));
         const missing = result.data
@@ -2435,6 +2449,7 @@ const App: React.FC = () => {
     currency: tripCurrency || undefined,
     members: settlementMembers,
     expenses,
+    note: cloudTripNote,
     onRemoteSnapshot: (snapshot) => {
       // The remote copy wins on open. Someone else may have added an expense
       // since this device last looked, and the local copy has no way to know.

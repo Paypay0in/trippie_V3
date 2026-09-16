@@ -35,6 +35,8 @@ interface Options {
   currency?: string;
   members: TripMember[];
   expenses: Expense[];
+  /** Extra text for the dev banner, e.g. how many cloud trips were found. */
+  note?: string;
   /** Called when the trip already exists remotely and the remote copy wins. */
   onRemoteSnapshot: (snapshot: TripSyncSnapshot) => void;
 }
@@ -51,6 +53,7 @@ export const useTripSync = ({
   currency,
   members,
   expenses,
+  note,
   onRemoteSnapshot,
 }: Options): TripSyncState => {
   const [state, setState] = useState<TripSyncState>('off');
@@ -140,7 +143,7 @@ export const useTripSync = ({
     return () => window.clearTimeout(timer);
   }, [enabled, tripId, payloadSignature]);
 
-  useSyncBadge(state, { tripId, signedIn: Boolean(authUserId), failure });
+  useSyncBadge(state, { tripId, signedIn: Boolean(authUserId), failure, note });
 
   return state;
 };
@@ -154,7 +157,12 @@ export const useTripSync = ({
  */
 const useSyncBadge = (
   state: TripSyncState,
-  { tripId, signedIn, failure }: { tripId: string | null; signedIn: boolean; failure: string },
+  {
+    tripId,
+    signedIn,
+    failure,
+    note,
+  }: { tripId: string | null; signedIn: boolean; failure: string; note?: string },
 ) => {
   useEffect(() => {
     if (!import.meta.env.DEV || typeof document === 'undefined') return;
@@ -178,7 +186,7 @@ const useSyncBadge = (
     const [background, color, label] = look[state];
     node.style.background = background;
     node.style.color = color;
-    node.textContent = `雲端同步：${label}`;
+    node.textContent = `雲端同步：${label}${note ? ` ｜ ${note}` : ''}`;
 
     if (!node.isConnected) document.body.appendChild(node);
 
@@ -187,5 +195,5 @@ const useSyncBadge = (
     document.title = `[${label}] Trippie`;
 
     return () => node.remove();
-  }, [state, tripId, signedIn, failure]);
+  }, [state, tripId, signedIn, failure, note]);
 };
