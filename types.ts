@@ -392,6 +392,8 @@ export interface CommunityPost {
   country: string;
   city: string;
   coverImage?: string;
+  /** Photos attached by the author, downscaled before storage. Max 10. */
+  photos?: string[];
   status: CommunityPostStatus;
   createdAt: string;
   updatedAt?: string;
