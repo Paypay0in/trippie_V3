@@ -73,9 +73,16 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   // Advisories: the part of the entry research that is not a task. It has been
   // fetched all along and shown nowhere, so travellers never saw the customs
   // limits and stay conditions behind the checklist items.
-  const entryNotes = [travelRules?.entry?.summary, travelRules?.entry?.guidance]
-    .map(note => (note || '').trim())
-    .filter(Boolean);
+  // Summary and guidance usually say the same thing in the same words, and the
+  // research is stored per lookup, so the same sentence was landing three times
+  // in one box. Identical text is shown once.
+  const entryNotes = Array.from(
+    new Set(
+      [travelRules?.entry?.summary, travelRules?.entry?.guidance]
+        .map(note => (note || '').trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 2);
   const entrySources = travelRules?.entry?.sources ?? [];
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
   const expandedLink = expandedTask ? findOfficialLink(destinationCountry || destination, expandedTask.name) : null;
