@@ -43,6 +43,7 @@ const renderAccount = (overrides: Partial<React.ComponentProps<typeof AccountScr
     onDeletePost: vi.fn(),
     onCreatePost: vi.fn(),
     onOpenPost: vi.fn(),
+    saverCounts: { 'post-1': 3 },
     ...overrides,
   };
   render(<AccountScreen {...props} />);
@@ -71,6 +72,16 @@ describe('我的貼文', () => {
     await user.click(screen.getByLabelText(`貼文選項：${post.title}`));
     await user.click(screen.getByLabelText(`刪除貼文：${post.title}`));
     expect(props.onDeletePost).toHaveBeenCalledWith(post);
+  });
+
+  it('tells the author how many people kept something from a post', () => {
+    renderAccount();
+    expect(screen.getByText('3 人收藏了靈感')).toBeTruthy();
+  });
+
+  it('says nothing rather than 0 when nobody has saved yet', () => {
+    renderAccount({ saverCounts: {} });
+    expect(screen.queryByText(/人收藏了靈感/)).toBeNull();
   });
 
   it('opens the post when the card is tapped', async () => {

@@ -20,6 +20,7 @@ interface Props {
   onDeletePost: (post: CommunityPost) => void;
   onCreatePost: () => void;
   onOpenPost: (postId: string) => void;
+  saverCounts: Record<string, number>;
 }
 
 /**
@@ -44,6 +45,7 @@ const AccountScreen: React.FC<Props> = ({
   onDeletePost,
   onCreatePost,
   onOpenPost,
+  saverCounts,
 }) => {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(profile?.displayName || '');
@@ -124,6 +126,7 @@ const AccountScreen: React.FC<Props> = ({
             onDelete={onDeletePost}
             onCreatePost={onCreatePost}
             onOpenPost={onOpenPost}
+            saverCounts={saverCounts}
           />
         </>
       ) : (

@@ -46,6 +46,7 @@ import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
+import { countSaversForPost, saverCountsByPost } from "./services/postSaveCounts";
 import {
   buildComment,
   commentsForPost,
@@ -4201,6 +4202,7 @@ const App: React.FC = () => {
               onDeletePost={handleDeleteCommunityPost}
               onCreatePost={openCommunityComposer}
               onOpenPost={openSourceCommunityPost}
+              saverCounts={saverCountsByPost(savedTravelInspirations)}
             />
             <AppBottomNav
               active="profile"
@@ -4260,6 +4262,7 @@ const App: React.FC = () => {
           comments={commentsForPost(postComments, selectedCommunityPost.id)}
           onAddComment={(content) => handleAddComment(selectedCommunityPost.id, content)}
           onDeleteComment={handleDeleteComment}
+          saverCount={countSaversForPost(savedTravelInspirations, selectedCommunityPost.id)}
           fallbackImage="https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=900&q=85"
           onSaveSlices={saveCommunitySlices}
           onBack={() => {

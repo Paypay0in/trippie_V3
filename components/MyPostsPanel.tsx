@@ -9,6 +9,8 @@ interface Props {
   onDelete: (post: CommunityPost) => void;
   onCreatePost: () => void;
   onOpenPost: (postId: string) => void;
+  /** People who kept something from each post, by post id. */
+  saverCounts: Record<string, number>;
 }
 
 /**
@@ -29,6 +31,7 @@ const MyPostsPanel: React.FC<Props> = ({
   onDelete,
   onCreatePost,
   onOpenPost,
+  saverCounts,
 }) => {
   const [tab, setTab] = useState<'posts' | 'saved'>('posts');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -105,6 +108,11 @@ const MyPostsPanel: React.FC<Props> = ({
                     <p className="mt-1 truncate text-[11px] text-slate-400">
                       {[post.country, post.city].filter(Boolean).join('・') || '未填地點'}
                     </p>
+                    {(saverCounts[post.id] ?? 0) > 0 && (
+                      <p className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-violet-600">
+                        <Bookmark size={11} />{saverCounts[post.id]} 人收藏了靈感
+                      </p>
+                    )}
                   </div>
 
                   {openMenuId === post.id && (
