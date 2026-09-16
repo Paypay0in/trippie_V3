@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ArrowRight, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
+import { ArrowRight, Lightbulb, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
 import { Expense, ItineraryItem, ShoppingItem } from '../types';
 import { fetchPreparationSuggestions, PreparationSuggestionRequestError } from '../services/preparationSuggestionService';
+import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 
 interface Props {
   expenses: Expense[];
@@ -13,11 +14,20 @@ interface Props {
   onEnterTripMode: () => void;
   onExploreInspiration: () => void;
   destination?: string;
+  destinationCountry?: string;
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, onTogglePreparationItem, onAddPreparationItems }) => {
+const TIP_LABELS: Record<DestinationTip['kind'], string> = {
+  app: 'APP',
+  payment: '支付',
+  transport: '交通',
+  connectivity: '網路',
+  custom: '當地習慣',
+};
+
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -31,6 +41,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const context = destination?.trim();
+  const localTips = getDestinationTips(destinationCountry || destination);
 
   const handleGenerate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -104,6 +115,27 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
           </div>
         )}
       </section>
+
+      {localTips.length > 0 && (
+        /* Between the official checklist and the AI assistant on purpose: this
+           is what other travellers tell you, which is neither a requirement nor
+           a guess. */
+        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-1 flex items-center gap-2 font-black"><Lightbulb size={18} className="text-amber-500" />當地實用建議</h2>
+          <p className="mb-3 text-xs leading-5 text-slate-500">{destinationCountry || destination} 的旅人通常會先準備這些。</p>
+          <div className="space-y-2">
+            {localTips.map(tip => (
+              <div key={tip.title} className="rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-lg bg-white px-2 py-0.5 text-[10px] font-black text-slate-500 ring-1 ring-slate-100">{TIP_LABELS[tip.kind]}</span>
+                  <span className="text-sm font-bold text-slate-800">{tip.title}</span>
+                </div>
+                <p className="mt-1.5 text-xs leading-5 text-slate-500">{tip.detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-3xl border border-violet-100 bg-gradient-to-br from-white to-violet-50 p-5 shadow-sm">
         <div className="mb-1 flex items-center gap-2 font-black"><Sparkles size={18} className="text-violet-600" />AI 旅程準備助手</div>

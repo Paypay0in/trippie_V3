@@ -4982,6 +4982,10 @@ const App: React.FC = () => {
                   setViewMode("community");
                 }}
                 destination={tripDestination}
+                destinationCountry={
+                  travelCountry ||
+                  detectDestinationFromTripName(tripDestination)?.country
+                }
                 onTogglePreparationItem={handleTogglePreparationItem}
                 onAddPreparationItems={(items) =>
                   handleBatchAddShoppingItems(items, "draft")
