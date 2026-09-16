@@ -30,6 +30,21 @@ const RULE_TONES = [
   { surface: 'bg-slate-100', title_color: 'text-[#11183d]', icon_color: 'text-slate-500', icon: Luggage },
 ];
 
+/* One short line per kind of formality. The research's own description is a
+   paragraph written to be read in full; cut to two lines on a card it stops
+   mid-clause and says nothing. What the card needs is what this item is about,
+   which the action type already tells us. */
+const RULE_SUMMARIES: Record<string, string> = {
+  visa_or_eta: '確認是否需要簽證、停留天數',
+  passport_validity: '確認護照效期是否足夠',
+  health_declaration: '出發前完成健康或檢疫申報',
+  customs_declaration: '確認可攜帶物品與申報規定',
+  arrival_form: '準備入境表格與所需文件',
+  required_documents: '準備護照、回程機票等文件',
+  onward_travel: '準備離境或轉機證明',
+  other: '查看這項規定的細節',
+};
+
 const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   app: 'APP',
   payment: '支付',
@@ -171,7 +186,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                     <span className="mt-0.5 block truncate text-[11px] text-slate-400">{task.timingText || '入境前'}</span>
                   </span>
                 </div>
-                {task.description && <p className="mt-2.5 line-clamp-2 text-[11px] leading-4 text-slate-400">{task.description}</p>}
+                <p className="mt-2.5 truncate text-[11px] leading-4 text-slate-400">{RULE_SUMMARIES[task.travelRuleActionType ?? 'other'] ?? RULE_SUMMARIES.other}</p>
               </button>;
             })}
           </div>
