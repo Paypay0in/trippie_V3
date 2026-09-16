@@ -42,7 +42,7 @@ describe('AuthScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: '登入' }));
 
     expect(await screen.findByText('登入')).toBeTruthy();
-    expect(screen.queryByText('Email 格式不正確')).toBeNull();
+    expect(screen.queryByText(/Email 格式不正確/)).toBeNull();
     expect(signIn).toHaveBeenCalledWith({
       email: 'washop0517@gmail.com',
       password: 'secret123',
@@ -57,7 +57,7 @@ describe('AuthScreen', () => {
     fireEvent.change(screen.getByLabelText(/Password/), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: '登入' }));
 
-    expect(screen.getByText('Email 格式不正確')).toBeTruthy();
+    expect(screen.getByText('Email 格式不正確：「washop0517」')).toBeTruthy();
     expect(signIn).not.toHaveBeenCalled();
   });
 });

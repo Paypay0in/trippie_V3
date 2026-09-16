@@ -40,7 +40,10 @@ const AuthScreen: React.FC<Props> = ({ onBack, onSuccess, unavailable }) => {
 
     const normalizedEmail = normalizeEmail(typedEmail);
     if (!normalizedEmail) { setError('請輸入 Email'); return; }
-    if (!isValidEmail(normalizedEmail)) { setError('Email 格式不正確'); return; }
+    // Quoting what was actually received. "格式不正確" on an address that looks
+    // perfect on screen is impossible to act on; seeing the string the form
+    // really holds says immediately whether it is truncated, doubled, or fine.
+    if (!isValidEmail(normalizedEmail)) { setError(`Email 格式不正確：「${normalizedEmail}」`); return; }
     setBusy(true);
     try {
       const result = mode === 'signUp'
