@@ -43,12 +43,6 @@ const RULES: LinkRule[] = [
     url: 'https://www.e-arrivalcard.go.kr',
   },
   {
-    country: '韓國',
-    keywords: ['海關', '關稅'],
-    label: '韓國關稅廳',
-    url: 'https://www.customs.go.kr',
-  },
-  {
     country: '日本',
     keywords: ['visit japan', '入境卡', '海關'],
     label: 'Visit Japan Web',
@@ -91,6 +85,14 @@ const RULES: LinkRule[] = [
     url: 'https://evisa.gov.vn',
   },
 ];
+
+/*
+ * 韓國關稅廳 used to be listed for customs declarations and has been removed.
+ * It is a government portal, not a form: someone arriving there has to go
+ * hunting, which is the situation a link is supposed to end. If the lookup
+ * returns a page where the declaration is actually filled in, that is used
+ * instead — and if nobody has one, no link is better than a front door.
+ */
 
 /** The traveller's own passport paperwork, wherever they are going. */
 const PASSPORT_RULE: LinkRule = {

@@ -14,7 +14,9 @@ describe('official travel links', () => {
     expect(findOfficialLink('南韓', 'Q-Code 檢疫預檢系統')?.url).toBe(
       'https://cov19ent.kdca.go.kr',
     );
-    expect(findOfficialLink('韓國', '海關申報')?.label).toBe('韓國關稅廳');
+    // 韓國關稅廳 is a portal, not a form, so customs now falls to whatever
+    // page the lookup itself cites — nothing from this table.
+    expect(findOfficialLink('韓國', '海關申報')).toBeNull();
   });
 
   it('answers passport questions wherever the trip goes', () => {
