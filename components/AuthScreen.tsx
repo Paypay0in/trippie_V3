@@ -27,12 +27,25 @@ const AuthScreen: React.FC<Props> = ({ onBack, onSuccess, unavailable }) => {
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(''); setNotice(''); setVerificationEmail('');
-    const normalizedEmail = normalizeEmail(email);
+
+    // Read what is actually in the fields, not what React last heard about.
+    // A password manager filling the form does not always fire a change event,
+    // so the visible email can be correct while state is empty or half-typed —
+    // which is why logging in appeared to need the address twice.
+    const form = new FormData(event.currentTarget);
+    const typedEmail = String(form.get('email') ?? '') || email;
+    const typedPassword = String(form.get('password') ?? '') || password;
+    if (typedEmail !== email) setEmail(typedEmail);
+    if (typedPassword !== password) setPassword(typedPassword);
+
+    const normalizedEmail = normalizeEmail(typedEmail);
     if (!normalizedEmail) { setError('請輸入 Email'); return; }
     if (!isValidEmail(normalizedEmail)) { setError('Email 格式不正確'); return; }
     setBusy(true);
     try {
-      const result = mode === 'signUp' ? await signUp({ email: normalizedEmail, password, displayName }) : await signIn({ email: normalizedEmail, password });
+      const result = mode === 'signUp'
+        ? await signUp({ email: normalizedEmail, password: typedPassword, displayName })
+        : await signIn({ email: normalizedEmail, password: typedPassword });
       if (mode === 'signUp' && !result.session) {
         setVerificationEmail(normalizedEmail);
         setNotice('請查看信箱完成驗證。\n如果你已經有 Trippie 帳號，請直接登入。');
