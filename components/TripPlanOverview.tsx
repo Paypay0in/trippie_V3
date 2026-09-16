@@ -431,11 +431,14 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         </section>
       )}
 
-      {planOnly && ownTasks.length > 0 && (
+      {ownTasks.length > 0 && (
         /* The traveller's own list, kept apart from what the country requires.
            Vertical, because this one genuinely is a list of chores. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 flex items-center gap-2 font-black"><CheckCircle2 size={18} className="text-violet-600" />出發前待辦</h2>
+          {/* Still here once the trip starts: 「查詢雪具租借」 is needed on
+              the day you land, and hiding the list at departure loses the one
+              thing on it that was never about departure. */}
+          <h2 className="mb-3 flex items-center gap-2 font-black"><CheckCircle2 size={18} className="text-violet-600" />{planOnly ? '出發前待辦' : '待辦'}</h2>
           <div className="space-y-2">
             {ownTasks.map(task => {
               const links = todoLinksFor({
