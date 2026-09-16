@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ArrowRight, Lightbulb, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
+import { ArrowRight, ExternalLink, Lightbulb, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
 import { Expense, ItineraryItem, ShoppingItem } from '../types';
 import { fetchPreparationSuggestions, PreparationSuggestionRequestError } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
+import { findOfficialLink } from '../services/officialTravelLinks';
 
 interface Props {
   expenses: Expense[];
@@ -96,7 +97,8 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
               const task = item;
               const taskId = item.id;
               const completedState = item.isPurchased;
-              const hasDetails = Boolean(task.description || task.timingText);
+              const officialLink = findOfficialLink(destinationCountry || destination, task.name);
+              const hasDetails = Boolean(task.description || task.timingText || officialLink);
               const isExpanded = expandedTaskId === taskId;
               return <div key={taskId} className="rounded-2xl border border-slate-100 bg-white">
                 <div className="flex min-h-12 items-center gap-3 px-3 py-3">
@@ -109,7 +111,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                   </button>
                   {hasDetails && <button type="button" aria-label={isExpanded ? '收合待辦詳情' : '查看待辦詳情'} aria-expanded={isExpanded} onClick={() => setExpandedTaskId(current => current === taskId ? null : taskId)} className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-violet-50 hover:text-violet-600">{isExpanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</button>}
                 </div>
-                {isExpanded && <div className="border-t border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">{task.description && <p className="leading-5">{task.description}</p>}{task.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong className="font-bold">{task.timingText}</strong><span className="mt-0.5 block text-[11px] text-slate-500">若官方有明確申請期限，以官方規定為準。</span></span></div>}</div>}
+                {isExpanded && <div className="border-t border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">{task.description && <p className="leading-5">{task.description}</p>}{task.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong className="font-bold">{task.timingText}</strong><span className="mt-0.5 block text-[11px] text-slate-500">若官方有明確申請期限，以官方規定為準。</span></span></div>}{officialLink && <a href={officialLink.url} target="_blank" rel="noreferrer noopener" className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{officialLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}</div>}
               </div>;
             })}
           </div>
