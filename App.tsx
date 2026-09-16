@@ -92,6 +92,7 @@ import PreTripChecklist from "./components/PreTripChecklist";
 import PostTripChecklist from "./components/PostTripChecklist";
 import ShoppingListPanel from "./components/ShoppingListPanel";
 import TripSummaryModal from "./components/TripSummaryModal";
+import MyPostsPanel from "./components/MyPostsPanel";
 import CompanionsModal from "./components/CompanionsModal";
 import CountrySettingsModal from "./components/CountrySettingsModal";
 import TravelIdentityModal from "./components/TravelIdentityModal";
@@ -3911,6 +3912,50 @@ const App: React.FC = () => {
     link.click();
   };
 
+  /** Posts written by whoever is signed in here, newest first. */
+  const myCommunityPosts = communityPosts
+    .filter((post) => post.creatorId === currentUserId)
+    .sort((a, b) =>
+      (b.publishedAt || b.createdAt).localeCompare(a.publishedAt || a.createdAt),
+    );
+
+  /**
+   * Public or not, using the state the feed already reads.
+   *
+   * The feed shows published posts only, so unpublishing is what 不公開 means;
+   * nothing new has to be kept in step with it.
+   */
+  const handleTogglePostVisibility = (postId: string) => {
+    let nowPublic = false;
+    setCommunityPosts((current) =>
+      current.map((post) => {
+        if (post.id !== postId) return post;
+        nowPublic = post.status !== "published";
+        return {
+          ...post,
+          status: nowPublic ? "published" : "draft",
+          publishedAt: nowPublic ? post.publishedAt || new Date().toISOString() : post.publishedAt,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    );
+    showToast(nowPublic ? "已公開這篇貼文" : "已改為不公開");
+  };
+
+  const handleDeleteCommunityPost = (post: CommunityPost) => {
+    setConfirmRequest({
+      title: "刪除這篇貼文？",
+      description: `「${post.title || "未命名貼文"}」將從你的貼文與社群中移除，此動作無法復原。`,
+      confirmLabel: "刪除",
+      tone: "danger",
+      icon: "trash",
+      onConfirm: () => {
+        setCommunityPosts((current) => current.filter((item) => item.id !== post.id));
+        showToast("已刪除貼文", "error");
+      },
+    });
+  };
+
   /**
    * Which stage a newly recorded expense belongs to.
    *
@@ -4067,6 +4112,11 @@ const App: React.FC = () => {
               }}
               onSignOut={handleAuthSignOut}
               onSaveProfile={handleProfileSave}
+            />
+            <MyPostsPanel
+              posts={myCommunityPosts}
+              onToggleVisibility={handleTogglePostVisibility}
+              onDelete={handleDeleteCommunityPost}
             />
             <AppBottomNav
               active="profile"
