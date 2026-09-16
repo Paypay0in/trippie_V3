@@ -3911,18 +3911,21 @@ const App: React.FC = () => {
     link.click();
   };
 
+  /**
+   * Which stage a newly recorded expense belongs to.
+   *
+   * One rule in one place. Five call sites had their own copy, and the ones
+   * behind the ＋ sheet read the overview's stage instead of the ledger's — so
+   * adding an expense from 記帳 ＞ 旅行中 offered 機票、簽證、保險, the 行前
+   * categories, because the trip has not departed yet.
+   */
+  const phaseForNewExpense = (): Phase => {
+    const stage = workspaceSection === "records" ? walletPhase : currentPhase;
+    return stage === "return" || stage === "summary" ? "post" : (stage as Phase);
+  };
+
   const handleQuickAdd = (category: Category) => {
-    if (workspaceSection === "records") {
-      setExpenseFormPhase(
-        walletPhase === "return"
-          ? "post"
-          : walletPhase === "summary"
-            ? "post"
-            : walletPhase,
-      );
-    } else {
-      setExpenseFormPhase(currentPhase === "summary" ? "post" : currentPhase);
-    }
+    setExpenseFormPhase(phaseForNewExpense());
     setInitialFormCategory(category);
     setIsFormOpen(true);
   };
@@ -3933,17 +3936,7 @@ const App: React.FC = () => {
   };
 
   const handleWorkspaceQuickAdd = (category?: Category) => {
-    if (workspaceSection === "records") {
-      setExpenseFormPhase(
-        walletPhase === "return"
-          ? "post"
-          : walletPhase === "summary"
-            ? "post"
-            : walletPhase,
-      );
-    } else {
-      setExpenseFormPhase(currentPhase === "summary" ? "post" : currentPhase);
-    }
+    setExpenseFormPhase(phaseForNewExpense());
     if (category) setInitialFormCategory(category);
     setIsFormOpen(true);
   };
@@ -4191,9 +4184,7 @@ const App: React.FC = () => {
               setIsGlobalActionOpen(false);
               setAppSection("trips");
               setViewMode("trip");
-              setExpenseFormPhase(
-                currentPhase === "summary" ? "post" : currentPhase,
-              );
+              setExpenseFormPhase(phaseForNewExpense());
               setIsFormOpen(true);
             }}
           />
@@ -4340,9 +4331,7 @@ const App: React.FC = () => {
             onAddExpense={() => {
               setIsGlobalActionOpen(false);
               setViewMode("trip");
-              setExpenseFormPhase(
-                currentPhase === "summary" ? "post" : currentPhase,
-              );
+              setExpenseFormPhase(phaseForNewExpense());
               setIsFormOpen(true);
             }}
           />
@@ -5555,9 +5544,7 @@ const App: React.FC = () => {
         <div className="fixed bottom-6 right-6 z-40 md:absolute md:right-6 md:bottom-6">
           <button
             onClick={() => {
-              setExpenseFormPhase(
-                currentPhase === "summary" ? "post" : currentPhase,
-              );
+              setExpenseFormPhase(phaseForNewExpense());
               setIsFormOpen(true);
             }}
             className="bg-brand-600 hover:bg-brand-700 text-white p-4 rounded-full shadow-lg shadow-brand-500/30 transition-transform hover:scale-105 active:scale-95 flex items-center justify-center"
