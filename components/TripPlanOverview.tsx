@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, ExternalLink, Lightbulb, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
 import { Expense, ItineraryItem, ShoppingItem } from '../types';
-import { fetchPreparationSuggestions, PreparationSuggestionRequestError } from '../services/preparationSuggestionService';
+import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { findOfficialLink } from '../services/officialTravelLinks';
 
@@ -41,6 +41,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [prompt, setPrompt] = useState('');
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [placeGroups, setPlaceGroups] = useState<SuggestedPlaceGroup[]>([]);
   const context = destination?.trim();
   const localTips = getDestinationTips(destinationCountry || destination);
 
@@ -60,9 +61,13 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
     ].filter(Boolean).join('\n');
 
     try {
-      const items = await fetchPreparationSuggestions(requestContext);
+      const { suggestions: items, placeQueries } = await fetchPreparationSuggestions(requestContext);
       setSuggestions(items.filter(item => typeof item?.item === 'string' && item.item.trim()).map(({ item, reason }) => ({ item: item.trim(), reason: typeof reason === 'string' ? reason : '' })));
       setSelectedSuggestions([]);
+      // Shops load after the advice and never block it: the advice stands on
+      // its own, and a slow or empty map lookup should not hold it back.
+      setPlaceGroups([]);
+      if (placeQueries.length) fetchSuggestedPlaces(placeQueries).then(setPlaceGroups);
     } catch (error) {
       setGenerationError(error instanceof PreparationSuggestionRequestError && error.status === 400
         ? '提供的旅行資訊太多，請縮短問題後再試一次。'
@@ -150,6 +155,25 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在整理準備建議…</p>}
         {!isGenerating && generationError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-slate-600">{generationError}</p>}
         {!isGenerating && !generationError && suggestions.length > 0 && <div className="mt-3 space-y-2"><div className="text-xs font-black text-[#11183d]">AI 建議</div>{suggestions.map((suggestion, index) => { const alreadyAdded = shoppingPreTasks.some(task => task.name.trim().toLowerCase() === suggestion.item.trim().toLowerCase()); const selected = selectedSuggestions.includes(suggestion.item); return <button type="button" key={`${suggestion.item}-${index}`} disabled={alreadyAdded} onClick={() => setSelectedSuggestions(current => selected ? current.filter(item => item !== suggestion.item) : [...current, suggestion.item])} className={`w-full rounded-xl border px-3 py-3 text-left transition ${alreadyAdded ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60' : selected ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white hover:border-violet-200'}`}><div className="flex items-start gap-3"><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${alreadyAdded || selected ? 'border-violet-500 bg-violet-600 text-white' : 'border-slate-300 bg-white'}`}>{(alreadyAdded || selected) && '✓'}</span><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-slate-700">{suggestion.item}</span><span className="mt-1 block text-[11px] text-slate-400">{suggestion.reason}</span></span>{alreadyAdded && <span className="shrink-0 text-[10px] font-black text-slate-400">已加入</span>}</div></button>; })}<button type="button" disabled={selectedSuggestions.length === 0} onClick={() => { onAddPreparationItems(selectedSuggestions); setSelectedSuggestions([]); }} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-40">加入待辦清單（{selectedSuggestions.length}）</button></div>}
+        {placeGroups.length > 0 && <div className="mt-4 space-y-3">
+          {/* Real shops, from the map service. The model only chose what to
+              search for: asked for shop names it invents plausible ones, and a
+              traveller who walks to an address that was never there has been
+              failed worse than by no recommendation at all. */}
+          <div className="text-xs font-black text-[#11183d]">當地店家</div>
+          {placeGroups.map(group => <div key={group.query} className="space-y-2">
+            <div className="text-[11px] font-bold text-slate-400">{group.query}</div>
+            {group.places.map(place => <a key={place.mapsUrl} href={place.mapsUrl} target="_blank" rel="noreferrer noopener" className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
+              <MapPinned size={16} className="mt-0.5 shrink-0 text-violet-600" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-bold text-slate-700">{place.name}{typeof place.rating === 'number' && <span className="ml-1.5 text-[11px] font-black text-amber-500">{place.rating.toFixed(1)}</span>}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{place.address}</span>
+              </span>
+              <ExternalLink size={14} className="mt-0.5 shrink-0 text-slate-400" />
+            </a>)}
+          </div>)}
+          <p className="text-[11px] leading-4 text-slate-400">店家資料來自 Google 地圖，營業時間與庫存請以店家公告為準。</p>
+        </div>}
       </section>
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">

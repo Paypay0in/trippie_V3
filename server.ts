@@ -304,6 +304,58 @@ async function startServer() {
     } catch { console.warn('Community post slicing failed', { postId }); res.status(502).json({ error: "AI 分析目前無法使用。" }); }
   });
 
+  /**
+   * Real shops for a search phrase.
+   *
+   * The model proposes what kind of place to look for; the names, addresses
+   * and links come from Google Places. A language model asked for shop names
+   * produces plausible ones, and a traveller who walks to an address that was
+   * never there has been failed worse than by no recommendation at all.
+   */
+  app.post("/api/places/suggest", async (req, res) => {
+    const queries: string[] = Array.isArray(req.body?.queries)
+      ? req.body.queries.filter((query: unknown) => typeof query === "string" && query.trim()).slice(0, 3)
+      : [];
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      res.status(503).json({ error: "Place lookup is not configured." });
+      return;
+    }
+    if (!queries.length) {
+      res.status(400).json({ error: "At least one query is required." });
+      return;
+    }
+
+    try {
+      const groups = await Promise.all(queries.map(async (query) => {
+        const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.googleMapsUri",
+          },
+          body: JSON.stringify({ textQuery: query.trim(), languageCode: "zh-TW", maxResultCount: 3 }),
+        });
+        if (!response.ok) return { query: query.trim(), places: [] };
+        const payload = await response.json() as { places?: Array<Record<string, any>> };
+        return {
+          query: query.trim(),
+          places: (payload.places ?? []).map((place) => ({
+            name: place.displayName?.text ?? "",
+            address: place.formattedAddress ?? "",
+            rating: typeof place.rating === "number" ? place.rating : undefined,
+            mapsUrl: place.googleMapsUri ?? "",
+          })).filter((place) => place.name && place.mapsUrl),
+        };
+      }));
+      res.json({ groups: groups.filter((group) => group.places.length) });
+    } catch (error) {
+      console.error("Place suggestion request failed:", error);
+      res.status(502).json({ error: "Place lookup is unavailable." });
+    }
+  });
+
   app.post("/api/preparation-suggestions", async (req, res) => {
     const context = typeof req.body?.context === "string" ? req.body.context.trim() : "";
     const apiKey = process.env.GEMINI_API_KEY;
@@ -327,7 +379,7 @@ async function startServer() {
           // category returned the same nine-item starter list whatever was
           // asked — someone who says 「非常怕冷」 got told to buy travel
           // insurance and apply for a visa, and stopped trusting the feature.
-          contents: `以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 使用繁體中文，每則是可加入 checklist 的簡短待辦。只回傳 JSON。`,
+          contents: `以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 使用繁體中文，每則是可加入 checklist 的簡短待辦。\n- 如果使用者的問題需要在當地買或租東西，另外給 placeQueries：0 到 3 句地圖搜尋用的字串，格式是「城市 店家類型」，例如「釜山 滑雪用品店」。不要在 placeQueries 裡寫店名——實際店家由地圖服務提供，不要自己想。\n\n只回傳 JSON。`,
           config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -343,6 +395,10 @@ async function startServer() {
                   },
                   required: ["item", "reason"],
                 },
+              },
+              placeQueries: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
               },
             },
             required: ["suggestions"],
@@ -362,7 +418,12 @@ async function startServer() {
         return;
       }
       const data = JSON.parse(raw.replace(/```json|```/g, "").trim());
-      res.json({ suggestions: Array.isArray(data.suggestions) ? data.suggestions : [] });
+      res.json({
+        suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+        placeQueries: Array.isArray(data.placeQueries)
+          ? data.placeQueries.filter((query: unknown) => typeof query === "string" && query.trim()).slice(0, 3)
+          : [],
+      });
     } catch (error) {
       console.error("Preparation suggestion request failed:", error);
       res.status(502).json({ error: "Preparation suggestion service is unavailable." });

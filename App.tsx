@@ -1702,7 +1702,7 @@ const App: React.FC = () => {
       "請提供實用的可能門檻、文件、流程與限制，並標示需要向官方機關或商店再次確認；不要宣稱最終退稅資格。",
     ].join("\n");
     try {
-      const suggestions = await fetchPreparationSuggestions(context);
+      const { suggestions } = await fetchPreparationSuggestions(context);
       const guidance = suggestions
         .map((item) => `${item.item}${item.reason ? `：${item.reason}` : ""}`)
         .join("\n");
