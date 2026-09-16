@@ -187,12 +187,28 @@ const TravelHome: React.FC<Props> = ({
         ? "即將出發"
         : "旅程";
   const today = new Date();
-  const otherDrafts = drafts.filter((draft) => {
-    if (draft.id === activeDraft?.id) return false;
-    if (!draft.startDate && !draft.endDate) return true;
-    const start = draft.startDate ? new Date(`${draft.startDate}T00:00:00`) : undefined;
-    return !start || today < start;
-  });
+  // Every other trip, not just the ones that have yet to start.
+  //
+  // Hiding trips whose departure has passed made a trip pulled down from the
+  // cloud invisible here — someone joining a journey already under way sees an
+  // empty home screen and concludes nothing synced. Upcoming trips still come
+  // first; the ones already begun or finished follow, most recent first.
+  const draftStartTime = (draft: TripDraft) =>
+    draft.startDate ? new Date(`${draft.startDate}T00:00:00`).getTime() : undefined;
+
+  const otherDrafts = drafts
+    .filter((draft) => draft.id !== activeDraft?.id)
+    .sort((a, b) => {
+      const startA = draftStartTime(a);
+      const startB = draftStartTime(b);
+      const upcomingA = startA === undefined || startA >= today.getTime();
+      const upcomingB = startB === undefined || startB >= today.getTime();
+      if (upcomingA !== upcomingB) return upcomingA ? -1 : 1;
+      if (startA === undefined) return 1;
+      if (startB === undefined) return -1;
+      // Soonest first among upcoming, most recent first among the rest.
+      return upcomingA ? startA - startB : startB - startA;
+    });
   const savedNotes = useMemo(() => {
     const groups = new Map<string, { country: string; city: string; count: number; id: string }>();
     savedTravelInspirations.forEach((item) => {
