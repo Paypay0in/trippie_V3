@@ -43,6 +43,7 @@ import { splitSharedPrefix } from '../services/sharedLabelPrefix';
 import { PASSPORT_OPTIONS } from '../services/passportOptions';
 import { isGuidanceOutdated } from '../services/entryRuleFreshness';
 import { communityHighlights } from '../services/communityHighlights';
+import { todoLinksFor } from '../services/todoLinks';
 
 interface Props {
   expenses: Expense[];
@@ -436,7 +437,13 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
           <h2 className="mb-3 flex items-center gap-2 font-black"><CheckCircle2 size={18} className="text-violet-600" />出發前待辦</h2>
           <div className="space-y-2">
-            {ownTasks.map(task => (
+            {ownTasks.map(task => {
+              const links = todoLinksFor({
+                taskName: task.name,
+                destination: destinationCountry || destination,
+                posts: communityPosts,
+              });
+              return (
               <div key={task.id} className="rounded-2xl border border-slate-100 bg-white">
                 <div className="flex min-h-12 items-center gap-3 px-3 py-3">
                   <button type="button" onClick={() => onTogglePreparationItem(task.id)} aria-label={`${task.isPurchased ? '標記未完成' : '完成'}：${task.name}`} className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-violet-200">
@@ -447,8 +454,26 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                     {task.description && <span className="mt-1 block text-xs leading-5 text-slate-500">{task.description}</span>}
                   </span>
                 </div>
+                {/* Somewhere to go from the task: the name is the answer to
+                    "where", and without this the reader retypes it into a
+                    search box. The map link is built from those same words, so
+                    it always resolves; a post is offered only when it clearly
+                    concerns the same thing. */}
+                {links && (
+                  <div className="flex flex-wrap gap-2 border-t border-slate-100 px-3 py-2.5">
+                    <a href={links.mapsUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-slate-50 px-2.5 text-[11px] font-black text-slate-600">
+                      <MapPinned size={12} />在地圖上查看
+                    </a>
+                    {links.relatedPost && (
+                      <button type="button" onClick={() => onOpenPost(links.relatedPost!.id)} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-violet-50 px-2.5 text-[11px] font-black text-violet-700">
+                        <Compass size={12} />旅人分享：{links.relatedPost.title.slice(0, 12)}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
