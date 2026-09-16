@@ -5053,7 +5053,16 @@ const App: React.FC = () => {
           {isTravelIdentityOpen && (
             <TravelIdentityModal
               tripId={activeDraftId || currentLoadedTripId}
-              destination={tripDestination}
+              // The stored destination is often the whole trip title, because
+              // creating a trip copies the name into it. 「釜山五日遊」 is a
+              // title, not a place; show the place it names.
+              destination={
+                destinationLabel(
+                  detectDestinationFromTripName(tripDestination) || {
+                    country: tripDestination,
+                  },
+                ) || tripDestination
+              }
               destinationCountry={tripDestinationDraft?.destinationCountry}
               startDate={tripStartDate}
               endDate={tripEndDate}
