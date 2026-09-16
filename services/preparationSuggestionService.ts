@@ -22,10 +22,19 @@ export class PreparationSuggestionRequestError extends Error {
   }
 }
 
+export interface PreparationSource {
+  title?: string;
+  url: string;
+}
+
 export interface PreparationResult {
   suggestions: PreparationSuggestion[];
   /** Map searches the model proposes; the shops themselves come from Places. */
   placeQueries: string[];
+  /** Pages the search step actually returned, never model-written links. */
+  sources: PreparationSource[];
+  /** False when the answer came from the model alone, and says so on screen. */
+  grounded: boolean;
 }
 
 export const fetchPreparationSuggestions = async (context: string): Promise<PreparationResult> => {
@@ -38,10 +47,17 @@ export const fetchPreparationSuggestions = async (context: string): Promise<Prep
     const errorPayload = await response.json().catch(() => null) as { error?: string } | null;
     throw new PreparationSuggestionRequestError(errorPayload?.error || 'Preparation suggestion request failed', response.status);
   }
-  const data = await response.json() as { suggestions?: PreparationSuggestion[]; placeQueries?: string[] };
+  const data = await response.json() as {
+    suggestions?: PreparationSuggestion[];
+    placeQueries?: string[];
+    sources?: PreparationSource[];
+    grounded?: boolean;
+  };
   return {
     suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
     placeQueries: Array.isArray(data.placeQueries) ? data.placeQueries : [],
+    sources: Array.isArray(data.sources) ? data.sources.filter(source => source?.url) : [],
+    grounded: data.grounded !== false,
   };
 };
 

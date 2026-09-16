@@ -405,16 +405,48 @@ async function startServer() {
           },
         },
       } as const;
+      // Search-grounded first, like the travel-rules lookup: advice about a
+      // place changes, and a model answering from memory cannot know that a
+      // shop closed or a pass was withdrawn. Ungrounded is the fallback, not
+      // the default, and the answer says which one it was.
+      const generatePreparation = (grounded: boolean, model: string) =>
+        ai.models.generateContent({
+          model,
+          ...generationConfig,
+          config: {
+            ...generationConfig.config,
+            ...(grounded ? { tools: [{ googleSearch: {} }] } : {}),
+          },
+        });
+
       let response;
+      let grounded = true;
       try {
-        response = await ai.models.generateContent({ model: "gemini-3-flash-preview", ...generationConfig });
-      } catch (primaryError) {
-        console.warn("Primary preparation model failed; using fallback model.", primaryError);
-        response = await ai.models.generateContent({ model: "gemini-3.6-flash", ...generationConfig });
+        response = await generatePreparation(true, "gemini-3-flash-preview");
+      } catch (groundedError) {
+        console.warn("Grounded preparation lookup failed; retrying without search.", groundedError);
+        grounded = false;
+        try {
+          response = await generatePreparation(false, "gemini-3-flash-preview");
+        } catch (primaryError) {
+          console.warn("Primary preparation model failed; using fallback model.", primaryError);
+          response = await generatePreparation(false, "gemini-3.6-flash");
+        }
       }
+
+      // Only URLs the search step actually returned. A model-written link is
+      // a plausible-looking guess, and a citation that 404s is worse than none.
+      const sources = (((response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || []) as any[])
+        .map((chunk) => ({
+          title: chunk.web?.title as string | undefined,
+          url: chunk.web?.uri as string | undefined,
+        }))
+        .filter((source) => typeof source.url === "string")
+        .slice(0, 5);
+
       const raw = response.text?.trim();
       if (!raw) {
-        res.json({ suggestions: [] });
+        res.json({ suggestions: [], placeQueries: [], sources, grounded });
         return;
       }
       const data = JSON.parse(raw.replace(/```json|```/g, "").trim());
@@ -423,6 +455,8 @@ async function startServer() {
         placeQueries: Array.isArray(data.placeQueries)
           ? data.placeQueries.filter((query: unknown) => typeof query === "string" && query.trim()).slice(0, 3)
           : [],
+        sources,
+        grounded,
       });
     } catch (error) {
       console.error("Preparation suggestion request failed:", error);

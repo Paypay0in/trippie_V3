@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { Expense, ItineraryItem, ShoppingItem, TravelRules } from '../types';
-import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
+import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSource, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { findOfficialLink } from '../services/officialTravelLinks';
 
@@ -127,6 +127,8 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [placeGroups, setPlaceGroups] = useState<SuggestedPlaceGroup[]>([]);
+  const [sources, setSources] = useState<PreparationSource[]>([]);
+  const [grounded, setGrounded] = useState(true);
   const [showAllRules, setShowAllRules] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState('');
@@ -180,7 +182,9 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
     ].filter(Boolean).join('\n');
 
     try {
-      const { suggestions: items, placeQueries } = await fetchPreparationSuggestions(requestContext);
+      const { suggestions: items, placeQueries, sources: citedSources, grounded: wasGrounded } = await fetchPreparationSuggestions(requestContext);
+      setSources(citedSources);
+      setGrounded(wasGrounded);
       setSuggestions(items.filter(item => typeof item?.item === 'string' && item.item.trim()).map(({ item, reason }) => ({ item: item.trim(), reason: typeof reason === 'string' ? reason : '' })));
       setSelectedSuggestions([]);
       // Shops load after the advice and never block it: the advice stands on
@@ -452,6 +456,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在整理準備建議…</p>}
         {!isGenerating && generationError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-slate-600">{generationError}</p>}
         {!isGenerating && !generationError && suggestions.length > 0 && <div className="mt-3 space-y-2"><div className="text-xs font-black text-[#11183d]">AI 建議</div>{suggestions.map((suggestion, index) => { const alreadyAdded = shoppingPreTasks.some(task => task.name.trim().toLowerCase() === suggestion.item.trim().toLowerCase()); const selected = selectedSuggestions.includes(suggestion.item); return <button type="button" key={`${suggestion.item}-${index}`} disabled={alreadyAdded} onClick={() => setSelectedSuggestions(current => selected ? current.filter(item => item !== suggestion.item) : [...current, suggestion.item])} className={`w-full rounded-xl border px-3 py-3 text-left transition ${alreadyAdded ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60' : selected ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white hover:border-violet-200'}`}><div className="flex items-start gap-3"><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${alreadyAdded || selected ? 'border-violet-500 bg-violet-600 text-white' : 'border-slate-300 bg-white'}`}>{(alreadyAdded || selected) && '✓'}</span><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-slate-700">{suggestion.item}</span><span className="mt-1 block text-[11px] text-slate-400">{suggestion.reason}</span></span>{alreadyAdded && <span className="shrink-0 text-[10px] font-black text-slate-400">已加入</span>}</div></button>; })}<button type="button" disabled={selectedSuggestions.length === 0} onClick={() => { onAddPreparationItems(selectedSuggestions); setSelectedSuggestions([]); }} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-40">加入待辦清單（{selectedSuggestions.length}）</button></div>}
+        {!grounded && suggestions.length > 0 && <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">這次沒有查到即時資料，以下是依一般情況整理的建議。</p>}
         {placeGroups.length > 0 && <div className="mt-4 space-y-3">
           {/* Real shops, from the map service. The model only chose what to
               search for: asked for shop names it invents plausible ones, and a
@@ -470,6 +475,17 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
             </a>)}
           </div>)}
           <p className="text-[11px] leading-4 text-slate-400">店家資料來自 Google 地圖，營業時間與庫存請以店家公告為準。</p>
+        </div>}
+        {sources.length > 0 && <div className="mt-4 space-y-2">
+          {/* Where the advice came from. Only URLs the search step returned —
+              a model-written link looks the same and 404s. */}
+          <div className="text-xs font-black text-[#11183d]">參考來源</div>
+          {sources.map(source => (
+            <a key={source.url} href={source.url} target="_blank" rel="noreferrer noopener" className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-bold text-violet-700">
+              <span className="min-w-0 truncate">{source.title || source.url}</span>
+              <ExternalLink size={13} className="shrink-0 text-slate-400" />
+            </a>
+          ))}
         </div>}
       </section>
 
