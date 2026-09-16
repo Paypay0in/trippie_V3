@@ -379,7 +379,7 @@ async function startServer() {
           // category returned the same nine-item starter list whatever was
           // asked — someone who says 「非常怕冷」 got told to buy travel
           // insurance and apply for a visa, and stopped trusting the feature.
-          contents: `以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 使用繁體中文，每則是可加入 checklist 的簡短待辦。\n- 如果使用者的問題需要在當地買或租東西，另外給 placeQueries：0 到 3 句地圖搜尋用的字串，格式是「城市 店家類型」，例如「釜山 滑雪用品店」。不要在 placeQueries 裡寫店名——實際店家由地圖服務提供，不要自己想。\n\n只回傳 JSON。`,
+          contents: `以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 使用繁體中文，每則是可加入 checklist 的簡短待辦。\n- 若旅人分享區塊有內容，可以引用其中與問題相關的經驗，並把用到的貼文編號放進 postRefs。旅人的經驗是個人見聞，不等於官方規定；與官方資訊衝突時以官方為準，也不要把單一貼文的說法寫成通則。\n- 如果使用者的問題需要在當地買或租東西，另外給 placeQueries：0 到 3 句地圖搜尋用的字串，格式是「城市 店家類型」，例如「釜山 滑雪用品店」。不要在 placeQueries 裡寫店名——實際店家由地圖服務提供，不要自己想。\n\n只回傳 JSON。`,
           config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -397,6 +397,10 @@ async function startServer() {
                 },
               },
               placeQueries: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              postRefs: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
               },
@@ -446,7 +450,7 @@ async function startServer() {
 
       const raw = response.text?.trim();
       if (!raw) {
-        res.json({ suggestions: [], placeQueries: [], sources, grounded });
+        res.json({ suggestions: [], placeQueries: [], postRefs: [], sources, grounded });
         return;
       }
       const data = JSON.parse(raw.replace(/```json|```/g, "").trim());
@@ -454,6 +458,9 @@ async function startServer() {
         suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
         placeQueries: Array.isArray(data.placeQueries)
           ? data.placeQueries.filter((query: unknown) => typeof query === "string" && query.trim()).slice(0, 3)
+          : [],
+        postRefs: Array.isArray(data.postRefs)
+          ? data.postRefs.filter((id: unknown) => typeof id === "string" && id.trim()).slice(0, 5)
           : [],
         sources,
         grounded,

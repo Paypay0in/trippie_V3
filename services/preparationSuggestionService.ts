@@ -31,6 +31,8 @@ export interface PreparationResult {
   suggestions: PreparationSuggestion[];
   /** Map searches the model proposes; the shops themselves come from Places. */
   placeQueries: string[];
+  /** Community posts the answer drew on, by post id. */
+  postRefs: string[];
   /** Pages the search step actually returned, never model-written links. */
   sources: PreparationSource[];
   /** False when the answer came from the model alone, and says so on screen. */
@@ -50,12 +52,14 @@ export const fetchPreparationSuggestions = async (context: string): Promise<Prep
   const data = await response.json() as {
     suggestions?: PreparationSuggestion[];
     placeQueries?: string[];
+    postRefs?: string[];
     sources?: PreparationSource[];
     grounded?: boolean;
   };
   return {
     suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
     placeQueries: Array.isArray(data.placeQueries) ? data.placeQueries : [],
+    postRefs: Array.isArray(data.postRefs) ? data.postRefs : [],
     sources: Array.isArray(data.sources) ? data.sources.filter(source => source?.url) : [],
     grounded: data.grounded !== false,
   };

@@ -78,6 +78,14 @@ interface Props {
   onChangeDestination: (value: string) => void;
   /** Departure date, used to spot guidance whose period has already passed. */
   tripStartDate?: string;
+  /**
+   * Published posts about this destination, offered to the assistant as
+   * first-hand experience. Travellers' accounts, not official rules — the
+   * prompt is told the difference and the answer links back to whichever it
+   * used, so a reader can judge the source themselves.
+   */
+  communityPosts: Array<{ id: string; title: string; content: string; country?: string; city?: string }>;
+  onOpenPost: (postId: string) => void;
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
@@ -113,7 +121,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -128,6 +136,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [placeGroups, setPlaceGroups] = useState<SuggestedPlaceGroup[]>([]);
   const [sources, setSources] = useState<PreparationSource[]>([]);
+  const [citedPosts, setCitedPosts] = useState<string[]>([]);
   const [grounded, setGrounded] = useState(true);
   const [showAllRules, setShowAllRules] = useState(false);
   const [researching, setResearching] = useState(false);
@@ -174,17 +183,33 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
     setIsGenerating(true);
     setGenerationError(null);
     setSuggestions([]);
+    // Posts about this destination, trimmed: the assistant needs enough of each
+    // to recognise relevance, not the whole essay.
+    const relevantPosts = communityPosts
+      .filter(post => {
+        const place = `${post.country || ''}${post.city || ''}`;
+        const target = `${destinationCountry || ''}${destination || ''}`;
+        return place && target && (place.includes(destinationCountry || '') || (destination && place.includes(destination)));
+      })
+      .slice(0, 5);
+
     const requestContext = [
       context ? `旅程目的地：${context}` : '',
       dateRange ? `旅行日期：${dateRange}` : '',
       itinerary.length > 0 ? `已有行程：${itinerary.map(item => `${item.date || ''} ${item.time} ${item.title}`).join('、')}` : '',
+      relevantPosts.length
+        ? `旅人分享（個人經驗，非官方規定）：\n${relevantPosts
+            .map(post => `- [${post.id}] ${post.title}：${post.content.slice(0, 200)}`)
+            .join('\n')}`
+        : '',
       `使用者問題：${question}`,
     ].filter(Boolean).join('\n');
 
     try {
-      const { suggestions: items, placeQueries, sources: citedSources, grounded: wasGrounded } = await fetchPreparationSuggestions(requestContext);
+      const { suggestions: items, placeQueries, postRefs, sources: citedSources, grounded: wasGrounded } = await fetchPreparationSuggestions(requestContext);
       setSources(citedSources);
       setGrounded(wasGrounded);
+      setCitedPosts(postRefs);
       setSuggestions(items.filter(item => typeof item?.item === 'string' && item.item.trim()).map(({ item, reason }) => ({ item: item.trim(), reason: typeof reason === 'string' ? reason : '' })));
       setSelectedSuggestions([]);
       // Shops load after the advice and never block it: the advice stands on
@@ -475,6 +500,21 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
             </a>)}
           </div>)}
           <p className="text-[11px] leading-4 text-slate-400">店家資料來自 Google 地圖，營業時間與庫存請以店家公告為準。</p>
+        </div>}
+        {citedPosts.length > 0 && <div className="mt-4 space-y-2">
+          {/* Named as what it is: another traveller's experience, linked so the
+              reader can see who said it and when. */}
+          <div className="text-xs font-black text-[#11183d]">參考了旅人的分享</div>
+          {citedPosts.map(postId => {
+            const post = communityPosts.find(item => item.id === postId);
+            if (!post) return null;
+            return (
+              <button key={postId} type="button" onClick={() => onOpenPost(postId)} className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-[11px] font-bold text-violet-700">
+                <span className="min-w-0 truncate">{post.title}</span>
+                <ChevronRight size={13} className="shrink-0 text-slate-400" />
+              </button>
+            );
+          })}
         </div>}
         {sources.length > 0 && <div className="mt-4 space-y-2">
           {/* Where the advice came from. Only URLs the search step returned —
