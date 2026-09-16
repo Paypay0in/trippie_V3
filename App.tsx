@@ -228,6 +228,15 @@ type SavePipelineDebug = {
   error: string;
 };
 
+// The on-screen diagnostics were built to chase a specific migration bug
+// and have sat at the top of four screens ever since. Kept, because that class
+// of bug is invisible without them, but off unless deliberately switched on:
+// run `localStorage.setItem('trippie:debug', '1')` in the console.
+const debugPanelsEnabled = () =>
+  import.meta.env.DEV &&
+  typeof window !== "undefined" &&
+  window.localStorage.getItem("trippie:debug") === "1";
+
 const OwnershipDebugPanel: React.FC<{
   authStatus: AuthStatus;
   authUserId?: string;
@@ -247,6 +256,7 @@ const OwnershipDebugPanel: React.FC<{
 }) => {
   const value = (item: string | number | undefined | null) =>
     item === undefined || item === null || item === "" ? "none" : String(item);
+  if (!debugPanelsEnabled()) return null;
   return (
     <>
       <section className="w-full border-b border-amber-300 bg-amber-50 px-3 py-2 font-mono text-[10px] leading-4 text-amber-950">
@@ -4801,7 +4811,7 @@ const App: React.FC = () => {
 
     return (
       <>
-        {import.meta.env.DEV && (
+        {debugPanelsEnabled() && (
           <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 font-mono text-[10px] text-slate-700">
             <div className="font-black">SETTLEMENT NAV DEBUG</div>
             <div>clickCount: {settlementNavDebug.clickCount}</div>
