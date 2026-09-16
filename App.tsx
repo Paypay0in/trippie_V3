@@ -5280,7 +5280,6 @@ const App: React.FC = () => {
                   handleResearchTravelRules(resolvedPassportId)
                 }
                 onOpenIdentity={() => setIsTravelIdentityOpen(true)}
-              onEditDestination={() => setViewMode("tripSetup")}
                 onEditDestination={() => setViewMode("tripSetup")}
                 onTogglePreparationItem={handleTogglePreparationItem}
                 onAddPreparationItems={(items) =>
@@ -5336,6 +5335,7 @@ const App: React.FC = () => {
                 handleResearchTravelRules(resolvedPassportId)
               }
               onOpenIdentity={() => setIsTravelIdentityOpen(true)}
+              onEditDestination={() => setViewMode("tripSetup")}
               onTogglePreparationItem={handleTogglePreparationItem}
               onAddPreparationItems={(items) =>
                 handleBatchAddShoppingItems(items, "draft")
