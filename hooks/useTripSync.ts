@@ -54,6 +54,9 @@ export const useTripSync = ({
   onRemoteSnapshot,
 }: Options): TripSyncState => {
   const [state, setState] = useState<TripSyncState>('off');
+  // The failure text, kept so the badge can show it. A red badge that will not
+  // say why costs another round trip with someone who cannot open a console.
+  const [failure, setFailure] = useState('');
   // The trip whose first read has completed. Pushes are refused for any other
   // trip, which covers both "not read yet" and "the user switched trips
   // mid-flight and the debounce is still holding the old list".
@@ -93,6 +96,7 @@ export const useTripSync = ({
         // Silent failure is the trap here: the local ledger keeps working, so
         // nothing looks wrong while nothing is being shared.
         if (import.meta.env.DEV) console.warn('[tripSync] read failed', remote.message);
+        setFailure(`讀取：${remote.message}`);
         setState('error');
         return;
       }
@@ -125,8 +129,9 @@ export const useTripSync = ({
       const { members: m, expenses: e } = payloadRef.current;
       void pushTripSnapshot({ members: m, expenses: e }, tripId).then(result => {
         if (readyTripIdRef.current !== tripId) return;
-        if (result.status === 'error' && import.meta.env.DEV) {
-          console.warn('[tripSync] write failed', result.message);
+        if (result.status === 'error') {
+          if (import.meta.env.DEV) console.warn('[tripSync] write failed', result.message);
+          setFailure(`寫入：${result.message}`);
         }
         setState(result.status === 'error' ? 'error' : 'synced');
       });
@@ -135,7 +140,7 @@ export const useTripSync = ({
     return () => window.clearTimeout(timer);
   }, [enabled, tripId, payloadSignature]);
 
-  useSyncBadge(state, { tripId, signedIn: Boolean(authUserId) });
+  useSyncBadge(state, { tripId, signedIn: Boolean(authUserId), failure });
 
   return state;
 };
@@ -149,7 +154,7 @@ export const useTripSync = ({
  */
 const useSyncBadge = (
   state: TripSyncState,
-  { tripId, signedIn }: { tripId: string | null; signedIn: boolean },
+  { tripId, signedIn, failure }: { tripId: string | null; signedIn: boolean; failure: string },
 ) => {
   useEffect(() => {
     if (!import.meta.env.DEV || typeof document === 'undefined') return;
@@ -159,12 +164,13 @@ const useSyncBadge = (
     node.id = id;
     node.style.cssText =
       'position:fixed;left:12px;bottom:112px;z-index:2000;padding:6px 12px;border-radius:999px;' +
-      'font:700 11px ui-monospace,monospace;box-shadow:0 4px 12px rgba(0,0,0,.15);pointer-events:none';
+      'font:700 11px ui-monospace,monospace;box-shadow:0 4px 12px rgba(0,0,0,.15);pointer-events:none;' +
+      'max-width:calc(100vw - 24px);white-space:pre-wrap';
 
     const look: Record<TripSyncState, [string, string, string]> = {
       synced: ['#d1fae5', '#047857', '已同步'],
       loading: ['#e0f2fe', '#0369a1', '讀取中'],
-      error: ['#ffe4e6', '#be123c', '失敗'],
+      error: ['#ffe4e6', '#be123c', `失敗 — ${failure || '原因不明'}`],
       off: ['#e2e8f0', '#475569', `關閉（${!signedIn ? '未登入' : !tripId ? '沒有旅程' : '未設定'}）`],
     };
     const [background, color, label] = look[state];
@@ -179,5 +185,5 @@ const useSyncBadge = (
     document.title = `[${label}] Trippie`;
 
     return () => node.remove();
-  }, [state, tripId, signedIn]);
+  }, [state, tripId, signedIn, failure]);
 };
