@@ -146,14 +146,16 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
               const tone = RULE_TONES[index % RULE_TONES.length];
               const Icon = tone.icon;
               const isExpanded = expandedTaskId === task.id;
-              return <button type="button" key={task.id} onClick={() => setExpandedTaskId(current => current === task.id ? null : task.id)} aria-expanded={isExpanded} className={`flex w-44 shrink-0 items-center gap-2.5 rounded-2xl px-3 py-3 text-left transition ${tone.surface} ${isExpanded ? 'ring-2 ring-violet-300' : 'ring-1 ring-transparent'}`}>
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 ${task.isPurchased ? 'text-emerald-600' : tone.icon_color}`}>{task.isPurchased ? <CheckCircle2 size={17} /> : <Icon size={17} />}</span>
+              return <button type="button" key={task.id} onClick={() => setExpandedTaskId(current => current === task.id ? null : task.id)} aria-expanded={isExpanded} className={`relative flex w-44 shrink-0 items-center gap-2.5 rounded-2xl px-3 py-3 text-left transition ${tone.surface} ${isExpanded ? 'ring-2 ring-violet-300' : 'ring-1 ring-transparent'}`}>
+                {/* Done is a mark added in the corner, not a change to the
+                    tile's own content: the icon and the name say which
+                    requirement this is, and they stay true after you deal with
+                    it. */}
+                {task.isPurchased && <span aria-label="已完成" className="absolute right-2 top-2 text-sm leading-none">✅</span>}
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 ${tone.icon_color}`}><Icon size={17} /></span>
                 <span className="min-w-0 flex-1">
-                  {/* Done is shown by the tick and the line beneath, not by
-                      striking the name out: the requirement still exists, and
-                      a struck-through 入境卡 reads as "no longer needed". */}
                   <span className={`block truncate text-sm font-black ${task.isPurchased ? 'text-slate-500' : tone.title_color}`}>{task.name}</span>
-                  <span className={`mt-0.5 block truncate text-[11px] ${task.isPurchased ? 'font-bold text-emerald-600' : 'text-slate-500'}`}>{task.isPurchased ? '已完成' : (task.timingText || task.description || '查看詳情')}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-slate-500">{task.timingText || task.description || '查看詳情'}</span>
                 </span>
               </button>;
             })}
