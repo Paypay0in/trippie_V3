@@ -168,15 +168,24 @@ export const pushMembers = async (
   }
 };
 
-/** First upload of a trip that has only ever existed on this device. */
+/**
+ * Push the whole ledger: upsert what is here, remove what is not.
+ *
+ * Deletion has to be part of the same operation. An upsert-only sync leaves a
+ * deleted expense sitting on the server, and the next member to open the trip
+ * silently gets it back — a resurrected charge is worse than a lost one,
+ * because nobody is looking for it.
+ */
 export const pushTripSnapshot = async (
   { members, expenses }: TripSyncSnapshot,
   tripId: string,
 ): Promise<SyncResult<null>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
-    const memberResult = await pushMembers(members, tripId);
-    if (memberResult.status === 'error') return memberResult;
+    // A member who is not the owner is refused by the roster policy. That must
+    // not stop their expenses from being written — losing someone's record of
+    // what they paid is a far worse failure than a stale roster.
+    await pushMembers(members, tripId);
 
     if (expenses.length) {
       const { error } = await supabase
@@ -184,6 +193,15 @@ export const pushTripSnapshot = async (
         .upsert(expenses.map(expense => toExpenseRow(expense, tripId)), { onConflict: 'id' });
       if (error) throw error;
     }
+
+    const keep = expenses.map(expense => expense.id);
+    const { error: pruneError } = await supabase
+      .from('expenses')
+      .delete()
+      .eq('trip_id', tripId)
+      .not('id', 'in', `(${keep.map(id => `"${id}"`).join(',') || '""'})`);
+    if (pruneError) throw pruneError;
+
     return { status: 'ok', data: null };
   } catch (error) {
     return failed(error);

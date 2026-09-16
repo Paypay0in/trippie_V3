@@ -43,6 +43,7 @@ import {
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES } from "./constants";
 import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
+import { useTripSync } from "./hooks/useTripSync";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
 import {
@@ -2373,6 +2374,41 @@ const App: React.FC = () => {
     settlementMembers,
     settlementBatches,
   );
+  // Shared storage for the open trip. Off entirely when Supabase is not
+  // configured or nobody is signed in, so the offline local ledger is unchanged.
+  const tripSyncState = useTripSync({
+    tripId: activeDraftId,
+    authUserId: authUser?.id,
+    tripName: draftName,
+    destination: tripDestination || undefined,
+    startDate: tripStartDate,
+    endDate: tripEndDate,
+    currency: tripCurrency || undefined,
+    members: settlementMembers,
+    expenses,
+    onRemoteSnapshot: (snapshot) => {
+      // The remote copy wins on open. Someone else may have added an expense
+      // since this device last looked, and the local copy has no way to know.
+      if (snapshot.expenses.length) {
+        isHydratingTripRef.current = false;
+        setExpenses(snapshot.expenses);
+      }
+      // The owner is derived locally from the account, not stored as a
+      // companion, so only the others come back into the companion list.
+      const remoteCompanions = snapshot.members
+        .filter((member) => member.type !== "owner")
+        .map((member) => ({ id: member.id, name: member.name }));
+      if (remoteCompanions.length) setCompanions(remoteCompanions);
+    },
+  });
+
+  useEffect(() => {
+    // No UI for sync state yet — deliberately. It either works or the local
+    // ledger carries on, and a badge that says "同步中" on every keystroke would
+    // be noise. Visible in dev while the behaviour is being verified.
+    if (import.meta.env.DEV) console.info("[tripSync]", activeDraftId, tripSyncState);
+  }, [activeDraftId, tripSyncState]);
+
   const handleOpenSettlement = () => {
     setSettlementNavDebug((current) => ({
       ...current,
