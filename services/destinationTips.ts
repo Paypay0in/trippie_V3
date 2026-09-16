@@ -64,11 +64,16 @@ const TIPS: Record<string, DestinationTip[]> = {
       kind: 'transport',
       title: 'Suica／PASMO 交通卡',
       detail: '可加入手機錢包，搭車和便利商店都能用。',
+      link: {
+        label: 'Apple：在 Wallet 加入交通卡',
+        url: 'https://support.apple.com/en-us/105079',
+      },
     },
     {
       kind: 'app',
       title: '轉乘查詢用 Yahoo!乘換案内 或 Google 地圖',
       detail: '日本鐵路轉乘複雜，班次與月台資訊以轉乘 App 最準。',
+      link: { label: 'Yahoo! 乗換案内（網頁版）', url: 'https://transit.yahoo.co.jp' },
     },
     {
       kind: 'payment',
@@ -81,6 +86,7 @@ const TIPS: Record<string, DestinationTip[]> = {
       kind: 'app',
       title: '叫車用 Grab',
       detail: '價格先講定，比路邊攔車少掉很多議價與繞路問題。',
+      link: { label: 'Grab 官方網站', url: 'https://www.grab.com' },
     },
     {
       kind: 'payment',
@@ -93,6 +99,7 @@ const TIPS: Record<string, DestinationTip[]> = {
       kind: 'app',
       title: '叫車用 Grab',
       detail: '機車與汽車都能叫，價格透明。',
+      link: { label: 'Grab 官方網站', url: 'https://www.grab.com' },
     },
     {
       kind: 'payment',
@@ -112,6 +119,7 @@ const TIPS: Record<string, DestinationTip[]> = {
       kind: 'transport',
       title: '八達通',
       detail: '交通與便利商店通用，機場與地鐵站都能買。',
+      link: { label: '八達通官方網站', url: 'https://www.octopus.com.hk' },
     },
   ],
   中國: [
