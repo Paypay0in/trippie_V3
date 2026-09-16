@@ -1951,6 +1951,15 @@ const App: React.FC = () => {
         });
         // Trigger Visa Check
         setTimeout(() => setIsVisaModalOpen(true), 1200);
+      } else {
+        // The scan found no country. The trip's own name often still says
+        // where it is going, and leaving the field blank here is what sent
+        // people to the entry-rules screen to find nothing.
+        const fromName = detectDestinationFromTripName(newTripName || "");
+        if (fromName) {
+          setTripDestination(destinationLabel(fromName));
+          setTravelCountry(fromName.country);
+        }
       }
 
       setViewMode("trip");
