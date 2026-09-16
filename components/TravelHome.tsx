@@ -433,7 +433,7 @@ const TravelHome: React.FC<Props> = ({
         </section>
         {otherDrafts.length > 0 && (
           <section>
-            <h2 className="mb-4 text-xl font-black">其他旅程</h2>
+            <h2 className="mb-4 text-xl font-black">編輯中的旅行</h2>
             <div className="flex gap-4 overflow-x-auto pb-2">
               {otherDrafts.map((draft) => (
                 <div
