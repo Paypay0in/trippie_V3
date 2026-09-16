@@ -19,6 +19,14 @@ export interface DestinationTip {
   kind: DestinationTipKind;
   title: string;
   detail: string;
+  /**
+   * An official page for this tip, when one exists.
+   *
+   * Apps like Wallet have no public link that opens a particular screen, so
+   * this points at the vendor's own instructions rather than pretending to
+   * deep-link somewhere the phone will not actually go.
+   */
+  link?: { label: string; url: string };
 }
 
 const TIPS: Record<string, DestinationTip[]> = {
@@ -27,6 +35,7 @@ const TIPS: Record<string, DestinationTip[]> = {
       kind: 'app',
       title: '下載 Naver Map 或 KakaoMap',
       detail: 'Google 地圖在韓國受法規限制，步行與部分路線導航不完整。當地人用的是這兩款。',
+      link: { label: 'App Store：Naver Map', url: 'https://apps.apple.com/app/id311867728' },
     },
     {
       kind: 'transport',
@@ -34,6 +43,10 @@ const TIPS: Record<string, DestinationTip[]> = {
       detail:
         '地鐵、公車、計程車都能刷，超商就能買和加值。iPhone 也可以先試 Wallet ＞ 加入 ＞ 交通卡：' +
         'Apple 的支援地區清單包含南韓，卡片能不能加會依機型與地區顯示。不行就在超商買實體卡。',
+      link: {
+        label: 'Apple：在 Wallet 加入交通卡',
+        url: 'https://support.apple.com/en-us/105079',
+      },
     },
     {
       kind: 'app',

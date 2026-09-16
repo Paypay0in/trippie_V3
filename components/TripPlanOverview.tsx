@@ -133,6 +133,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                   <span className="text-sm font-bold text-slate-800">{tip.title}</span>
                 </div>
                 <p className="mt-1.5 text-xs leading-5 text-slate-500">{tip.detail}</p>
+                {tip.link && <a href={tip.link.url} target="_blank" rel="noreferrer noopener" className="mt-2.5 inline-flex min-h-11 items-center gap-1.5 text-xs font-black text-violet-700">{tip.link.label}<ExternalLink size={14} /></a>}
               </div>
             ))}
           </div>
