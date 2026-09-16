@@ -58,7 +58,17 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   // from the travel-rules lookup and are what a country requires; everything
   // else is what this traveller decided to do. Calling the section 入境規定
   // made the mixing obvious — a ski-hire enquiry is not an entry rule.
-  const entryRules = shoppingPreTasks.filter(task => task.sourceType === 'travel_rules');
+  const travelRuleTasks = shoppingPreTasks.filter(task => task.sourceType === 'travel_rules');
+  // Passport validity is not something the destination asks you to do on
+  // arrival — it is a condition your own document has to meet before you
+  // leave. It reads as a caution, so it belongs with the cautions.
+  const isPassportRule = (task: ShoppingItem) => task.name.includes('護照');
+  // Three tiles, which is what fits across a phone without scrolling. Anything
+  // further down the list is still reachable through 查看詳情.
+  const entryRules = travelRuleTasks.filter(task => !isPassportRule(task)).slice(0, 3);
+  const advisoryTasks = travelRuleTasks.filter(
+    task => isPassportRule(task) || !entryRules.includes(task),
+  );
   const ownTasks = shoppingPreTasks.filter(task => task.sourceType !== 'travel_rules');
   // Advisories: the part of the entry research that is not a task. It has been
   // fetched all along and shown nowhere, so travellers never saw the customs
@@ -146,7 +156,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         )}
         {(expandedTask || showAllRules) && (
           <div className="mt-3 space-y-2">
-            {(showAllRules ? entryRules : expandedTask && entryRules.includes(expandedTask) ? [expandedTask] : []).map(ruleTask => {
+            {(showAllRules ? travelRuleTasks : expandedTask && entryRules.includes(expandedTask) ? [expandedTask] : []).map(ruleTask => {
               const ruleLink = findOfficialLink(destinationCountry || destination, ruleTask.name);
               return <div key={ruleTask.id} className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">
                 <div className="mb-1.5 flex items-start justify-between gap-3">
@@ -168,12 +178,26 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         )}
       </section>
 
-      {entryNotes.length > 0 && (
+      {(entryNotes.length > 0 || advisoryTasks.length > 0) && (
         /* Sits under the formalities it qualifies: these are the conditions and
            limits attached to them, not separate advice. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
           <h2 className="mb-3 flex items-center gap-2 font-black"><AlertTriangle size={18} className="text-amber-500" />注意事項</h2>
           <div className="space-y-2.5">
+            {advisoryTasks.map(task => {
+              const taskLink = findOfficialLink(destinationCountry || destination, task.name);
+              return <div key={task.id} className="rounded-2xl bg-amber-50/70 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-black text-[#11183d]">{task.name}</p>
+                  <button type="button" onClick={() => onTogglePreparationItem(task.id)} className="flex shrink-0 items-center gap-1 text-[11px] font-black text-slate-500">
+                    {task.isPurchased ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Circle size={16} className="text-amber-500" />}
+                    {task.isPurchased ? '已確認' : '標記確認'}
+                  </button>
+                </div>
+                {task.description && <p className="mt-1 text-xs leading-5 text-slate-600">{task.description}</p>}
+                {taskLink && <a href={taskLink.url} target="_blank" rel="noreferrer noopener" className="mt-2.5 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{taskLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}
+              </div>;
+            })}
             {entryNotes.map(note => (
               <p key={note} className="whitespace-pre-line rounded-2xl bg-amber-50/70 px-4 py-3 text-xs leading-5 text-slate-600">{note}</p>
             ))}
