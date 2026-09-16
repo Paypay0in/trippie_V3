@@ -4853,6 +4853,19 @@ const App: React.FC = () => {
             />
           </>
         )}
+        {walletPhase === "summary" && (
+          /* The trip's closing report belongs where the money is. It used to
+             live only behind the overview's RECAP tab, so the ledger's own
+             結算 tab stopped at the debts and never showed the trip's total. */
+          <TripSummaryModal
+            expenses={expenses}
+            onArchive={handleArchiveTrip}
+            taxRule={taxRule}
+            variant="embedded"
+            initialTripName={currentTripName}
+            allowArchive={!currentLoadedTripId}
+          />
+        )}
         {import.meta.env.DEV && (
           <DevViewerSwitcher
             roster={settlementMembers}
