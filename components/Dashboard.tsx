@@ -12,6 +12,14 @@ import { calculateOutstandingDebts } from '../services/settlementConsumption';
 import { buildViewerBalanceRows } from '../services/viewerBalances';
 
 interface Props {
+  /**
+   * Hide the money totals, leaving only who owes whom.
+   *
+   * On 結算 the trip's closing report states the same total, credit-card
+   * liability and category split directly below. Two cards with the same
+   * numbers under different headings makes a reader check which one to trust.
+   */
+  settlementOnly?: boolean;
   expenses: Expense[];
   companions: Companion[];
   members?: TripMember[];
@@ -35,7 +43,7 @@ interface Props {
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
 
-const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund, onOpenSettlement, viewerMemberId }) => {
+const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund, onOpenSettlement, viewerMemberId, settlementOnly }) => {
   const [isRefundListExpanded, setIsRefundListExpanded] = useState(false);
   
   // Wallet History State
@@ -540,7 +548,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
         )}
 
         {/* Credit Card Liability Card */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5 text-white shadow-lg">
+        {!settlementOnly && <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5 text-white shadow-lg">
             <div className="flex items-center gap-2 mb-4 border-b border-blue-500/30 pb-2">
                 <CreditCard size={18} className="text-blue-200" />
                 <h3 className="font-bold text-sm tracking-wide">信用卡累積消費</h3>
@@ -577,7 +585,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
                   <p>記帳時選擇「信用卡」即可在此累計</p>
               </div>
             )}
-        </div>
+        </div>}
 
         {/* Split Bill / Debt Card - Only visible if companions exist */}
         {companions.length > 0 && (
@@ -620,7 +628,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
       {/* End Grid Wrapper */}
 
       {/* Main Stats Card */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm mt-0">
+      {!settlementOnly && <div className="bg-white rounded-2xl p-6 shadow-sm mt-0">
         <div className="flex justify-between items-start mb-6">
             <div>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
@@ -690,7 +698,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
             )}
             </div>
         </div>
-      </div>
+      </div>}
 
       {/* ... Modals (Wallet) ... */}
       {false && (

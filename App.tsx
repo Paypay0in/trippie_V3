@@ -4840,6 +4840,10 @@ const App: React.FC = () => {
               onSettleRefund={() => handleOpenRefundSettlement()}
               onOpenSettlement={handleOpenSettlement}
               viewerMemberId={viewerMemberId}
+              // On 結算 the closing report below states the same total, card
+              // liability and category split. Two cards with the same numbers
+              // under different headings makes a reader check which to trust.
+              settlementOnly={walletPhase === "summary"}
               currentPhase={walletExpensePhase || "summary"}
               taxRule={taxRule}
               travelRules={travelRules}
