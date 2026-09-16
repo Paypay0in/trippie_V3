@@ -163,9 +163,11 @@ const useSyncBadge = (
     const node = document.getElementById(id) ?? document.createElement('div');
     node.id = id;
     node.style.cssText =
-      'position:fixed;left:12px;bottom:112px;z-index:2000;padding:6px 12px;border-radius:999px;' +
-      'font:700 11px ui-monospace,monospace;box-shadow:0 4px 12px rgba(0,0,0,.15);pointer-events:none;' +
-      'max-width:calc(100vw - 24px);white-space:pre-wrap';
+      // Across the top, full width. A corner pill kept being cropped out of
+      // screenshots or hidden behind a panel, which turned a one-line question
+      // into six messages.
+      'position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:10px 12px;text-align:center;' +
+      'font:800 15px ui-monospace,monospace;pointer-events:none;white-space:pre-wrap';
 
     const look: Record<TripSyncState, [string, string, string]> = {
       synced: ['#d1fae5', '#047857', '已同步'],
