@@ -44,6 +44,8 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [placeGroups, setPlaceGroups] = useState<SuggestedPlaceGroup[]>([]);
   const context = destination?.trim();
   const localTips = getDestinationTips(destinationCountry || destination);
+  const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
+  const expandedLink = expandedTask ? findOfficialLink(destinationCountry || destination, expandedTask.name) : null;
 
   const handleGenerate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -95,9 +97,13 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
       </section>
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-        <h2 className="mb-3 flex items-center gap-2 font-black"><Receipt size={18} className="text-violet-600" />出發前待辦</h2>
+        <h2 className="mb-3 flex items-center gap-2 font-black"><Receipt size={18} className="text-violet-600" />入境規定</h2>
         {preTasks.length === 0 ? <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">目前沒有明確待辦。這裡不會把沒有紀錄的項目假設為未完成。</p> : (
-          <div className="space-y-2">
+          /* Laid out across rather than down: these are a handful of named
+             formalities, and a row of tiles reads as "here is what this country
+             asks of you" where a vertical checklist read as chores. Tapping one
+             opens its detail underneath, so the tiles stay uniform. */
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
             {shoppingPreTasks.map(item => {
               const task = item;
               const taskId = item.id;
@@ -105,20 +111,25 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
               const officialLink = findOfficialLink(destinationCountry || destination, task.name);
               const hasDetails = Boolean(task.description || task.timingText || officialLink);
               const isExpanded = expandedTaskId === taskId;
-              return <div key={taskId} className="rounded-2xl border border-slate-100 bg-white">
-                <div className="flex min-h-12 items-center gap-3 px-3 py-3">
-                  <button type="button" onClick={() => onTogglePreparationItem(item.id)} aria-label={`${completedState ? '標記未完成' : '完成'}：${task.name}`} className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-violet-200">
-                    {completedState ? <CheckCircle2 size={20} className="text-emerald-500" /> : <Circle size={20} className="text-amber-500" />}
-                  </button>
-                  <button type="button" disabled={!hasDetails} onClick={() => hasDetails && setExpandedTaskId(current => current === taskId ? null : taskId)} aria-expanded={hasDetails ? isExpanded : undefined} className={`min-w-0 flex-1 text-left ${hasDetails ? 'cursor-pointer' : 'cursor-default'}`}>
-                    <span className={`block text-sm font-bold ${completedState ? 'text-slate-500 line-through' : 'text-slate-800'}`}>{task.name}</span>
-                    {task.timingText && <span className="mt-1 block text-xs text-violet-600">{task.timingText}</span>}
-                  </button>
-                  {hasDetails && <button type="button" aria-label={isExpanded ? '收合待辦詳情' : '查看待辦詳情'} aria-expanded={isExpanded} onClick={() => setExpandedTaskId(current => current === taskId ? null : taskId)} className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-violet-50 hover:text-violet-600">{isExpanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</button>}
-                </div>
-                {isExpanded && <div className="border-t border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">{task.description && <p className="leading-5">{task.description}</p>}{task.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong className="font-bold">{task.timingText}</strong><span className="mt-0.5 block text-[11px] text-slate-500">若官方有明確申請期限，以官方規定為準。</span></span></div>}{officialLink && <a href={officialLink.url} target="_blank" rel="noreferrer noopener" className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{officialLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}</div>}
-              </div>;
+              return <button type="button" key={taskId} onClick={() => setExpandedTaskId(current => current === taskId ? null : taskId)} aria-expanded={isExpanded} className={`min-h-24 w-32 shrink-0 rounded-2xl border px-3 py-3 text-left transition ${isExpanded ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'}`}>
+                <span className="flex items-start justify-between gap-1">
+                  <span className={`block text-xs font-black leading-4 ${completedState ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{task.name}</span>
+                  <span role="button" tabIndex={0} aria-label={`${completedState ? '標記未完成' : '完成'}：${task.name}`} onClick={event => { event.stopPropagation(); onTogglePreparationItem(item.id); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onTogglePreparationItem(item.id); } }} className="shrink-0">
+                    {completedState ? <CheckCircle2 size={17} className="text-emerald-500" /> : <Circle size={17} className="text-amber-500" />}
+                  </span>
+                </span>
+                {task.timingText && <span className="mt-1.5 block text-[11px] leading-4 text-violet-600">{task.timingText}</span>}
+                {hasDetails && <span className="mt-1.5 block text-[10px] font-bold text-slate-400">{isExpanded ? '收合' : '查看'}</span>}
+              </button>;
             })}
+          </div>
+        )}
+        {expandedTask && (
+          <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">
+            <p className="mb-1.5 text-sm font-black text-[#11183d]">{expandedTask.name}</p>
+            {expandedTask.description && <p className="leading-5">{expandedTask.description}</p>}
+            {expandedTask.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong className="font-bold">{expandedTask.timingText}</strong><span className="mt-0.5 block text-[11px] text-slate-500">若官方有明確申請期限，以官方規定為準。</span></span></div>}
+            {expandedLink && <a href={expandedLink.url} target="_blank" rel="noreferrer noopener" className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{expandedLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}
           </div>
         )}
       </section>
@@ -130,15 +141,20 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
           <h2 className="mb-1 flex items-center gap-2 font-black"><Lightbulb size={18} className="text-amber-500" />當地實用建議</h2>
           <p className="mb-3 text-xs leading-5 text-slate-500">{destinationCountry || destination} 的旅人通常會先準備這些。</p>
-          <div className="space-y-2">
+          {/* A table: the kind in a narrow left column, the advice on the right.
+              Scanning for "what do I need an app for" should not mean reading
+              every card. */}
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100">
             {localTips.map(tip => (
-              <div key={tip.title} className="rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-white px-2 py-0.5 text-[10px] font-black text-slate-500 ring-1 ring-slate-100">{TIP_LABELS[tip.kind]}</span>
-                  <span className="text-sm font-bold text-slate-800">{tip.title}</span>
+              <div key={tip.title} className="flex gap-3 bg-white px-3 py-3">
+                <div className="w-14 shrink-0 pt-0.5">
+                  <span className="text-[10px] font-black text-slate-400">{TIP_LABELS[tip.kind]}</span>
                 </div>
-                <p className="mt-1.5 text-xs leading-5 text-slate-500">{tip.detail}</p>
-                {tip.link && <a href={tip.link.url} target="_blank" rel="noreferrer noopener" className="mt-2.5 inline-flex min-h-11 items-center gap-1.5 text-xs font-black text-violet-700">{tip.link.label}<ExternalLink size={14} /></a>}
+                <div className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-slate-800">{tip.title}</span>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{tip.detail}</p>
+                  {tip.link && <a href={tip.link.url} target="_blank" rel="noreferrer noopener" className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-xs font-black text-violet-700">{tip.link.label}<ExternalLink size={14} /></a>}
+                </div>
               </div>
             ))}
           </div>
@@ -146,10 +162,10 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
       )}
 
       <section className="rounded-3xl border border-violet-100 bg-gradient-to-br from-white to-violet-50 p-5 shadow-sm">
-        <div className="mb-1 flex items-center gap-2 font-black"><Sparkles size={18} className="text-violet-600" />AI 旅程準備助手</div>
-        <p className="mb-3 text-xs leading-5 text-slate-500">告訴我你這趟旅行需要注意什麼，我會整理行前準備建議。</p>
+        <div className="mb-1 flex items-center gap-2 font-black"><Sparkles size={18} className="text-violet-600" />AI 幫助你做行前規劃</div>
+        <p className="mb-3 text-xs leading-5 text-slate-500">說一句你在意的事就好。想滑雪，會幫你找雪具店；怕冷，會告訴你該帶什麼。</p>
         <form onSubmit={handleGenerate} className="space-y-2">
-          <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：\n第一次去釜山、怕冷、想知道要帶什麼、需要注意簽證或交通..." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
+          <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：想滑雪、很怕冷、帶長輩同行、想找藥妝店.." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
           <button type="submit" disabled={!prompt.trim() || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在整理準備建議…' : 'AI 幫我整理'}<ArrowRight size={16} /></button>
         </form>
         {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在整理準備建議…</p>}
