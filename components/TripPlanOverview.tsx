@@ -33,6 +33,8 @@ interface Props {
   onResearchEntryRules: () => Promise<void> | void;
   /** Opens the full identity sheet, for choosing a different passport. */
   onOpenIdentity: () => void;
+  /** Opens trip setup, where the destination is edited. */
+  onEditDestination: () => void;
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
@@ -68,7 +70,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, onEditDestination, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -186,12 +188,21 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
              Telling someone "fill in a destination and a passport" while the
              app knows both is a instruction where a button belongs. */
           <div className="rounded-2xl bg-slate-50 px-4 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black text-[#11183d]">{destination || '尚未設定目的地'}</p>
-                <p className="mt-0.5 truncate text-xs text-slate-500">{destinationCountry || '請先設定目的地'}{hasPassport ? `・${passportLabel || '已選護照'}` : '・尚未選擇護照'}</p>
-              </div>
-              <button type="button" onClick={onOpenIdentity} className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-bold text-violet-700 shadow-sm">更改</button>
+            {/* Two fields, each opening the thing it names: where you are going
+                on the left, which passport you are carrying on the right. One
+                shared 更改 button meant guessing which of the two it would
+                edit. */}
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={onEditDestination} className="rounded-xl bg-white p-3 text-left shadow-sm">
+                <span className="block text-[10px] font-black text-slate-400">目的地</span>
+                <span className="mt-0.5 block truncate text-sm font-black text-[#11183d]">{destination || '尚未設定'}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{destinationCountry || '點此設定'}</span>
+              </button>
+              <button type="button" onClick={onOpenIdentity} className="rounded-xl bg-white p-3 text-left shadow-sm">
+                <span className="block text-[10px] font-black text-slate-400">護照</span>
+                <span className={`mt-0.5 block truncate text-sm font-black ${hasPassport ? 'text-[#11183d]' : 'text-slate-400'}`}>{hasPassport ? (passportLabel || '已選護照') : '尚未選擇'}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{hasPassport ? '點此更換' : '點此選擇'}</span>
+              </button>
             </div>
             <button
               type="button"
