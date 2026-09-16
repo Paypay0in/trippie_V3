@@ -137,9 +137,15 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
       </section>
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 font-black"><Receipt size={18} className="text-violet-600" />入境規定</h2>
-          {entryRules.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 text-xs font-black text-violet-600">{showAllRules ? '收合' : '查看詳情'}<ChevronRight size={14} /></button>}
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600"><Receipt size={18} /></span>
+            <div>
+              <h2 className="text-base font-black text-[#11183d]">入境規定</h2>
+              <p className="mt-0.5 text-xs text-slate-500">確認並完成以下入境相關事項，確保旅程順利。</p>
+            </div>
+          </div>
+          {entryRules.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-xs font-black text-violet-600">{showAllRules ? '收合' : '查看完整規定'}<ChevronRight size={14} /></button>}
         </div>
         {entryRules.length === 0 ? <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">還沒有這個目的地的入境資訊。填好目的地與護照後，這裡會列出簽證、入境卡與海關規定。</p> : (
           /* Laid out across rather than down: these are a handful of named
@@ -151,20 +157,21 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
               const tone = RULE_TONES[index % RULE_TONES.length];
               const Icon = tone.icon;
               const isExpanded = expandedTaskId === task.id;
-              return <button type="button" key={task.id} onClick={() => setExpandedTaskId(current => current === task.id ? null : task.id)} aria-expanded={isExpanded} className={`relative flex min-h-[4.5rem] w-48 shrink-0 items-center gap-2.5 rounded-2xl px-3 py-3 text-left transition ${tone.surface} ${isExpanded ? 'ring-2 ring-violet-300' : 'ring-1 ring-transparent'}`}>
-                {/* Done is a mark added in the corner, not a change to the
-                    tile's own content: the icon and the name say which
-                    requirement this is, and they stay true after you deal with
-                    it. */}
+              return <button type="button" key={task.id} onClick={() => setExpandedTaskId(current => current === task.id ? null : task.id)} aria-expanded={isExpanded} className={`relative w-52 shrink-0 rounded-2xl border bg-white p-3 text-left transition ${isExpanded ? 'border-violet-300 ring-2 ring-violet-100' : 'border-slate-100'}`}>
+                {/* Done is a mark added in the corner: the icon and the name say
+                    which requirement this is, and both stay true afterwards. */}
                 {task.isPurchased && <span aria-label="已完成" className="absolute right-2 top-2 text-sm leading-none">✅</span>}
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 ${tone.icon_color}`}><Icon size={17} /></span>
-                <span className="min-w-0 flex-1">
-                  {/* Two lines, not one: Japan's formalities are all called
-                      「Visit Japan Web…」 and truncating to one line made every
-                      tile read the same. The difference is in the tail. */}
-                  <span className={`line-clamp-2 block text-sm font-black leading-4 ${task.isPurchased ? 'text-slate-500' : tone.title_color}`}>{ruleLabels.parts[index] || task.name}</span>
-                  <span className="mt-1 block truncate text-[11px] text-slate-500">{task.timingText || task.description || '查看詳情'}</span>
-                </span>
+                <div className="flex items-start gap-2.5">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone.surface} ${tone.icon_color}`}><Icon size={18} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1">
+                      <span className="min-w-0 flex-1 truncate text-sm font-black text-[#11183d]">{ruleLabels.parts[index] || task.name}</span>
+                      {!task.isPurchased && <ChevronRight size={14} className="shrink-0 text-slate-300" />}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[11px] text-slate-400">{task.timingText || '入境前'}</span>
+                  </span>
+                </div>
+                {task.description && <p className="mt-2.5 line-clamp-2 text-[11px] leading-4 text-slate-400">{task.description}</p>}
               </button>;
             })}
           </div>
