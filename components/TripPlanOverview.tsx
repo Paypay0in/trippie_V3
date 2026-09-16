@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ExternalLink, Lightbulb, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
+import { ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
 import { Expense, ItineraryItem, ShoppingItem } from '../types';
 import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
@@ -19,6 +19,14 @@ interface Props {
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
+
+/* Tinted tiles, cycled. Colour here carries no meaning — it separates tiles
+   at a glance, which is what the Founder's mockup is doing. */
+const RULE_TONES = [
+  { surface: 'bg-[#f3f0ff]', title_color: 'text-[#4c1d95]', icon_color: 'text-violet-600', icon: FileText },
+  { surface: 'bg-[#eafaf1]', title_color: 'text-[#065f46]', icon_color: 'text-emerald-600', icon: BadgeCheck },
+  { surface: 'bg-slate-100', title_color: 'text-[#11183d]', icon_color: 'text-slate-500', icon: Luggage },
+];
 
 const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   app: 'APP',
@@ -42,6 +50,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [placeGroups, setPlaceGroups] = useState<SuggestedPlaceGroup[]>([]);
+  const [showAllRules, setShowAllRules] = useState(false);
   const context = destination?.trim();
   const localTips = getDestinationTips(destinationCountry || destination);
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
@@ -97,39 +106,50 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
       </section>
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-        <h2 className="mb-3 flex items-center gap-2 font-black"><Receipt size={18} className="text-violet-600" />入境規定</h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 font-black"><Receipt size={18} className="text-violet-600" />入境規定</h2>
+          {preTasks.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 text-xs font-black text-violet-600">{showAllRules ? '收合' : '查看詳情'}<ChevronRight size={14} /></button>}
+        </div>
         {preTasks.length === 0 ? <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">目前沒有明確待辦。這裡不會把沒有紀錄的項目假設為未完成。</p> : (
           /* Laid out across rather than down: these are a handful of named
              formalities, and a row of tiles reads as "here is what this country
              asks of you" where a vertical checklist read as chores. Tapping one
              opens its detail underneath, so the tiles stay uniform. */
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {shoppingPreTasks.map(item => {
-              const task = item;
-              const taskId = item.id;
-              const completedState = item.isPurchased;
-              const officialLink = findOfficialLink(destinationCountry || destination, task.name);
-              const hasDetails = Boolean(task.description || task.timingText || officialLink);
-              const isExpanded = expandedTaskId === taskId;
-              return <button type="button" key={taskId} onClick={() => setExpandedTaskId(current => current === taskId ? null : taskId)} aria-expanded={isExpanded} className={`min-h-24 w-32 shrink-0 rounded-2xl border px-3 py-3 text-left transition ${isExpanded ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white'}`}>
-                <span className="flex items-start justify-between gap-1">
-                  <span className={`block text-xs font-black leading-4 ${completedState ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{task.name}</span>
-                  <span role="button" tabIndex={0} aria-label={`${completedState ? '標記未完成' : '完成'}：${task.name}`} onClick={event => { event.stopPropagation(); onTogglePreparationItem(item.id); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onTogglePreparationItem(item.id); } }} className="shrink-0">
-                    {completedState ? <CheckCircle2 size={17} className="text-emerald-500" /> : <Circle size={17} className="text-amber-500" />}
-                  </span>
+          <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
+            {shoppingPreTasks.map((task, index) => {
+              const tone = RULE_TONES[index % RULE_TONES.length];
+              const Icon = tone.icon;
+              const isExpanded = expandedTaskId === task.id;
+              return <button type="button" key={task.id} onClick={() => setExpandedTaskId(current => current === task.id ? null : task.id)} aria-expanded={isExpanded} className={`flex w-44 shrink-0 items-center gap-2.5 rounded-2xl px-3 py-3 text-left transition ${tone.surface} ${isExpanded ? 'ring-2 ring-violet-300' : 'ring-1 ring-transparent'}`}>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/80 ${tone.icon_color}`}><Icon size={17} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className={`block truncate text-sm font-black ${task.isPurchased ? 'text-slate-400 line-through' : tone.title_color}`}>{task.name}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-slate-500">{task.timingText || task.description || '查看詳情'}</span>
                 </span>
-                {task.timingText && <span className="mt-1.5 block text-[11px] leading-4 text-violet-600">{task.timingText}</span>}
-                {hasDetails && <span className="mt-1.5 block text-[10px] font-bold text-slate-400">{isExpanded ? '收合' : '查看'}</span>}
               </button>;
             })}
           </div>
         )}
-        {expandedTask && (
-          <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">
-            <p className="mb-1.5 text-sm font-black text-[#11183d]">{expandedTask.name}</p>
-            {expandedTask.description && <p className="leading-5">{expandedTask.description}</p>}
-            {expandedTask.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong className="font-bold">{expandedTask.timingText}</strong><span className="mt-0.5 block text-[11px] text-slate-500">若官方有明確申請期限，以官方規定為準。</span></span></div>}
-            {expandedLink && <a href={expandedLink.url} target="_blank" rel="noreferrer noopener" className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{expandedLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}
+        {(expandedTask || showAllRules) && (
+          <div className="mt-3 space-y-2">
+            {(showAllRules ? shoppingPreTasks : expandedTask ? [expandedTask] : []).map(ruleTask => {
+              const ruleLink = findOfficialLink(destinationCountry || destination, ruleTask.name);
+              return <div key={ruleTask.id} className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">
+                <div className="mb-1.5 flex items-start justify-between gap-3">
+                  <p className="text-sm font-black text-[#11183d]">{ruleTask.name}</p>
+                  {/* Completion lives here rather than on the tile: the tiles
+                      are a statement of what the country requires, and a row of
+                      checkboxes turned that back into a chore list. */}
+                  <button type="button" onClick={() => onTogglePreparationItem(ruleTask.id)} className="flex shrink-0 items-center gap-1 text-[11px] font-black text-slate-500">
+                    {ruleTask.isPurchased ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Circle size={16} className="text-amber-500" />}
+                    {ruleTask.isPurchased ? '已完成' : '標記完成'}
+                  </button>
+                </div>
+                {ruleTask.description && <p className="leading-5">{ruleTask.description}</p>}
+                {ruleTask.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong className="font-bold">{ruleTask.timingText}</strong><span className="mt-0.5 block text-[11px] text-slate-500">若官方有明確申請期限，以官方規定為準。</span></span></div>}
+                {ruleLink && <a href={ruleLink.url} target="_blank" rel="noreferrer noopener" className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{ruleLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}
+              </div>;
+            })}
           </div>
         )}
       </section>
