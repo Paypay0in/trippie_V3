@@ -4986,6 +4986,7 @@ const App: React.FC = () => {
                   travelCountry ||
                   detectDestinationFromTripName(tripDestination)?.country
                 }
+                travelRules={travelRules}
                 onTogglePreparationItem={handleTogglePreparationItem}
                 onAddPreparationItems={(items) =>
                   handleBatchAddShoppingItems(items, "draft")

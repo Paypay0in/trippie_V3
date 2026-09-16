@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
-import { Expense, ItineraryItem, ShoppingItem } from '../types';
+import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
+import { Expense, ItineraryItem, ShoppingItem, TravelRules } from '../types';
 import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { findOfficialLink } from '../services/officialTravelLinks';
@@ -16,6 +16,7 @@ interface Props {
   onExploreInspiration: () => void;
   destination?: string;
   destinationCountry?: string;
+  travelRules?: TravelRules;
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
@@ -36,7 +37,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -59,6 +60,13 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   // made the mixing obvious — a ski-hire enquiry is not an entry rule.
   const entryRules = shoppingPreTasks.filter(task => task.sourceType === 'travel_rules');
   const ownTasks = shoppingPreTasks.filter(task => task.sourceType !== 'travel_rules');
+  // Advisories: the part of the entry research that is not a task. It has been
+  // fetched all along and shown nowhere, so travellers never saw the customs
+  // limits and stay conditions behind the checklist items.
+  const entryNotes = [travelRules?.entry?.summary, travelRules?.entry?.guidance]
+    .map(note => (note || '').trim())
+    .filter(Boolean);
+  const entrySources = travelRules?.entry?.sources ?? [];
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
   const expandedLink = expandedTask ? findOfficialLink(destinationCountry || destination, expandedTask.name) : null;
 
@@ -159,6 +167,30 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
           </div>
         )}
       </section>
+
+      {entryNotes.length > 0 && (
+        /* Sits under the formalities it qualifies: these are the conditions and
+           limits attached to them, not separate advice. */
+        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 flex items-center gap-2 font-black"><AlertTriangle size={18} className="text-amber-500" />注意事項</h2>
+          <div className="space-y-2.5">
+            {entryNotes.map(note => (
+              <p key={note} className="whitespace-pre-line rounded-2xl bg-amber-50/70 px-4 py-3 text-xs leading-5 text-slate-600">{note}</p>
+            ))}
+          </div>
+          {entrySources.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {entrySources.slice(0, 3).map(source => (
+                <a key={source.url} href={source.url} target="_blank" rel="noreferrer noopener" className="flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100">
+                  <span className="min-w-0 truncate">{source.publisher || source.title}</span>
+                  <ExternalLink size={15} className="shrink-0" />
+                </a>
+              ))}
+            </div>
+          )}
+          {travelRules?.disclaimer && <p className="mt-3 text-[11px] leading-4 text-slate-400">{travelRules.disclaimer}</p>}
+        </section>
+      )}
 
       {ownTasks.length > 0 && (
         /* The traveller's own list, kept apart from what the country requires.
