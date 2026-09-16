@@ -4,6 +4,26 @@ import { Expense, ItineraryItem, ShoppingItem, TravelRules } from '../types';
 import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { findOfficialLink } from '../services/officialTravelLinks';
+
+/**
+ * The official page for one formality.
+ *
+ * The research returns a source with each item, so that is what is shown: the
+ * page the guidance was actually read from, rather than a second answer from a
+ * table maintained here. The table stays as a fallback for items the lookup
+ * returned without one — an entry formality with nowhere to go is the gap that
+ * sends people to a search engine full of paid intermediaries.
+ */
+const officialLinkFor = (
+  task: ShoppingItem,
+  country?: string,
+): { label: string; url: string } | null => {
+  const source = task.source;
+  if (source?.url) {
+    return { label: source.publisher || source.title || '官方網站', url: source.url };
+  }
+  return findOfficialLink(country, task.name);
+};
 import { splitSharedPrefix } from '../services/sharedLabelPrefix';
 import { PASSPORT_OPTIONS } from '../services/passportOptions';
 import { isGuidanceOutdated } from '../services/entryRuleFreshness';
@@ -127,7 +147,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const entrySummary = (travelRules?.entry?.summary || travelRules?.entry?.guidance || '').trim();
   const entrySources = travelRules?.entry?.sources ?? [];
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
-  const expandedLink = expandedTask ? findOfficialLink(destinationCountry || destination, expandedTask.name) : null;
+  const expandedLink = expandedTask ? officialLinkFor(expandedTask, destinationCountry || destination) : null;
 
   const handleGenerate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -284,7 +304,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         {(expandedTask || showAllRules) && (
           <div className="mt-3 space-y-2">
             {(showAllRules ? travelRuleTasks : expandedTask && entryRules.includes(expandedTask) ? [expandedTask] : []).map(ruleTask => {
-              const ruleLink = findOfficialLink(destinationCountry || destination, ruleTask.name);
+              const ruleLink = officialLinkFor(ruleTask, destinationCountry || destination);
               return <div key={ruleTask.id} className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">
                 <div className="mb-1.5 flex items-start justify-between gap-3">
                   <p className="text-sm font-black text-[#11183d]">{ruleTask.name}</p>
@@ -321,7 +341,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
           <h2 className="mb-3 flex items-center gap-2 font-black"><AlertTriangle size={18} className="text-amber-500" />注意事項</h2>
           <div className="space-y-2.5">
             {advisoryTasks.map(task => {
-              const taskLink = findOfficialLink(destinationCountry || destination, task.name);
+              const taskLink = officialLinkFor(task, destinationCountry || destination);
               return <div key={task.id} className="rounded-2xl bg-amber-50/70 px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm font-black text-[#11183d]">{task.name}</p>
