@@ -323,7 +323,11 @@ async function startServer() {
     try {
       const ai = new GoogleGenAI({ apiKey });
       const generationConfig = {
-          contents: `根據這趟旅程的目的地或描述：「${context}」，提供 4 到 8 個實用的出發前準備待辦。\n\n涵蓋適用的類別：機票、住宿、SIM/eSIM、旅遊保險、入境或簽證文件、當地交通、換匯或支付方式，以及確實與目的地相關的其他準備。不要假設使用者已經預訂、購買或完成任何項目。每個建議必須是可加入 checklist 的簡短待辦，使用繁體中文。只回傳 JSON。`,
+          // The user's own question is the brief, not a hint. Sweeping every
+          // category returned the same nine-item starter list whatever was
+          // asked — someone who says 「非常怕冷」 got told to buy travel
+          // insurance and apply for a visa, and stopped trusting the feature.
+          contents: `以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 使用繁體中文，每則是可加入 checklist 的簡短待辦。只回傳 JSON。`,
           config: {
           responseMimeType: "application/json",
           responseSchema: {
