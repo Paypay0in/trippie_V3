@@ -25,6 +25,7 @@ import {
   TravelRules,
   EntryActionableItem,
   CommunityPost,
+  PostComment,
   PostSlice,
   SavedTravelInspiration,
   AuthStatus,
@@ -45,6 +46,12 @@ import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
+import {
+  buildComment,
+  commentsForPost,
+  loadPostComments,
+  savePostComments,
+} from "./services/postComments";
 import {
   CustomCategories,
   addCustomCategory,
@@ -640,6 +647,7 @@ const App: React.FC = () => {
   const [workspaceSection, setWorkspaceSection] =
     useState<WorkspaceSection>("overview");
   const [walletPhase, setWalletPhase] = useState<WalletPhase>("pre");
+  const [postComments, setPostComments] = useState<PostComment[]>(() => loadPostComments());
   const [customCategories, setCustomCategories] = useState<CustomCategories>(
     () => loadCustomCategories(),
   );
@@ -3953,6 +3961,44 @@ const App: React.FC = () => {
     showToast(nowPublic ? "已公開這篇貼文" : "已改為不公開");
   };
 
+  /**
+   * Comments live in their own store, so writing one never rewrites the post:
+   * two people typing at once would otherwise have one save a whole post
+   * object over the other's.
+   */
+  const handleAddComment = (postId: string, content: string) => {
+    const comment = buildComment({
+      postId,
+      authorId: currentUserId,
+      authorName: authProfile?.displayName || userProfile.name || "旅人",
+      authorAvatar: authProfile?.avatarUrl || userProfile.avatar,
+      content,
+    });
+    if (!comment) return;
+    setPostComments((current) => {
+      const next = [...current, comment];
+      savePostComments(next);
+      return next;
+    });
+  };
+
+  const handleDeleteComment = (comment: PostComment) => {
+    setConfirmRequest({
+      title: "刪除這則留言？",
+      description: "刪除後無法復原。",
+      confirmLabel: "刪除",
+      tone: "danger",
+      icon: "trash",
+      onConfirm: () => {
+        setPostComments((current) => {
+          const next = current.filter((item) => item.id !== comment.id);
+          savePostComments(next);
+          return next;
+        });
+      },
+    });
+  };
+
   const handleDeleteCommunityPost = (post: CommunityPost) => {
     setConfirmRequest({
       title: "刪除這篇貼文？",
@@ -4211,6 +4257,9 @@ const App: React.FC = () => {
           currentUserId={userId}
           savedTravelInspirations={savedTravelInspirations}
           onResetPersonalSaves={resetCommunityPersonalSaves}
+          comments={commentsForPost(postComments, selectedCommunityPost.id)}
+          onAddComment={(content) => handleAddComment(selectedCommunityPost.id, content)}
+          onDeleteComment={handleDeleteComment}
           fallbackImage="https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=900&q=85"
           onSaveSlices={saveCommunitySlices}
           onBack={() => {

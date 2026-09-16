@@ -339,6 +339,16 @@ export interface SavedInspiration {
 
 export type CommunityPostStatus = 'draft' | 'published';
 
+export interface PostComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar?: string;
+  content: string;
+  createdAt: string;
+}
+
 export type PostSliceType = 'place' | 'food' | 'hotel' | 'activity' | 'transport' | 'tip';
 export type ExperienceNoteType = 'recommendation' | 'warning' | 'timing' | 'queue' | 'packing' | 'facility' | 'price' | 'order' | 'transport' | 'practical' | 'other';
 
