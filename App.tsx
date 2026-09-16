@@ -48,6 +48,15 @@ import { useTripSync } from "./hooks/useTripSync";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
 import { countSaversForPost, saverCountsByPost } from "./services/postSaveCounts";
 import {
+  deleteComment as deleteRemoteComment,
+  deleteCommunityPost as deleteRemotePost,
+  fetchComments,
+  fetchCommunityPosts,
+  pushComment,
+  pushCommunityPost,
+} from "./services/communitySync";
+import { isPushablePost } from "./services/communitySyncMapping";
+import {
   buildComment,
   commentsForPost,
   loadPostComments,
@@ -1326,6 +1335,50 @@ const App: React.FC = () => {
       cancelled = true;
     };
   }, [authUser?.id]);
+
+  // Community posts this account can see: published posts by anyone, plus its
+  // own drafts. Remote wins for any post that exists in both, and posts that
+  // only exist here (written before signing in) are left alone.
+  useEffect(() => {
+    if (!authUser?.id || !isSyncAvailable()) return;
+    let cancelled = false;
+    void fetchCommunityPosts().then((result) => {
+      if (cancelled || result.status !== "ok") return;
+      setCommunityPosts((current) => {
+        const remoteIds = new Set(result.data.map((post) => post.id));
+        const localOnly = current.filter((post) => !remoteIds.has(post.id));
+        // Anything of this account's own that never made it up goes now, so a
+        // post written offline is not stranded on one device forever.
+        localOnly
+          .filter((post) => isPushablePost(post, authUser.id))
+          .forEach((post) => void pushCommunityPost(post));
+        return [...result.data, ...localOnly];
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.id]);
+
+  // Comments for the post being read. Fetched per post rather than all at
+  // once: a busy feed's comments are far larger than its posts, and nobody
+  // needs the conversation under something they have not opened.
+  useEffect(() => {
+    if (!selectedCommunityPostId || !authUser?.id || !isSyncAvailable()) return;
+    let cancelled = false;
+    void fetchComments(selectedCommunityPostId).then((result) => {
+      if (cancelled || result.status !== "ok") return;
+      setPostComments((current) => {
+        const others = current.filter((comment) => comment.postId !== selectedCommunityPostId);
+        const next = [...others, ...result.data];
+        savePostComments(next);
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCommunityPostId, authUser?.id]);
 
   useEffect(() => {
     writeDraftStore(drafts, activeDraftId);
@@ -2979,11 +3032,28 @@ const App: React.FC = () => {
     setAppSection("community");
     setViewMode("community");
   };
+  /**
+   * Send a post up when it belongs to this account.
+   *
+   * Posts written before signing in carry the device id as their author; the
+   * row's creator references a real account, so pushing those would fail on
+   * every save. They stay local until the ownership migration re-homes them.
+   */
+  const syncPostUp = (post: CommunityPost) => {
+    if (!isSyncAvailable() || !isPushablePost(post, authUser?.id)) return;
+    void pushCommunityPost(post).then((result) => {
+      if (result.status === "error" && import.meta.env.DEV) {
+        console.warn("[communitySync] push failed", result.message);
+      }
+    });
+  };
+
   const saveCommunityPost = (post: CommunityPost) => {
     setCommunityPosts((current) => [
       post,
       ...current.filter((item) => item.id !== post.id),
     ]);
+    syncPostUp(post);
     setCommunityView("home");
     showToast("草稿已儲存");
   };
@@ -2992,6 +3062,7 @@ const App: React.FC = () => {
       post,
       ...current.filter((item) => item.id !== post.id),
     ]);
+    syncPostUp(post);
     setCommunityView("home");
     showToast("旅行貼文已發布");
   };
@@ -3951,12 +4022,14 @@ const App: React.FC = () => {
       current.map((post) => {
         if (post.id !== postId) return post;
         nowPublic = post.status !== "published";
-        return {
+        const next = {
           ...post,
           status: nowPublic ? "published" : "draft",
           publishedAt: nowPublic ? post.publishedAt || new Date().toISOString() : post.publishedAt,
           updatedAt: new Date().toISOString(),
         };
+        syncPostUp(next);
+        return next;
       }),
     );
     showToast(nowPublic ? "已公開這篇貼文" : "已改為不公開");
@@ -3981,6 +4054,7 @@ const App: React.FC = () => {
       savePostComments(next);
       return next;
     });
+    if (isSyncAvailable() && authUser?.id) void pushComment(comment);
   };
 
   const handleDeleteComment = (comment: PostComment) => {
@@ -3996,6 +4070,7 @@ const App: React.FC = () => {
           savePostComments(next);
           return next;
         });
+        if (isSyncAvailable() && authUser?.id) void deleteRemoteComment(comment.id);
       },
     });
   };
@@ -4009,6 +4084,7 @@ const App: React.FC = () => {
       icon: "trash",
       onConfirm: () => {
         setCommunityPosts((current) => current.filter((item) => item.id !== post.id));
+        if (isSyncAvailable() && isPushablePost(post, authUser?.id)) void deleteRemotePost(post.id);
         showToast("已刪除貼文", "error");
       },
     });
