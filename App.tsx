@@ -5056,7 +5056,7 @@ const App: React.FC = () => {
         /* Sync state on screen rather than in the console. Reading it should
            not require knowing how to open developer tools. */
         <div
-          className={`${OVERLAY.devTools} fixed bottom-2 left-2 rounded-full px-3 py-1 font-mono text-[10px] font-black shadow-sm ${
+          className={`${OVERLAY.devTools} fixed bottom-28 left-3 rounded-full px-3 py-2 font-mono text-[10px] font-black shadow-sm ${
             tripSyncState === "synced"
               ? "bg-emerald-100 text-emerald-700"
               : tripSyncState === "error"
