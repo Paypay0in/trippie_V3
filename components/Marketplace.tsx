@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { OVERLAY } from '../constants/layers';
 import { MarketplaceService, InboxMessage } from '../types';
+import { HelpRequest, matchServices } from '../services/serviceMatching';
 import { Star, MessageCircle, ShieldCheck, Zap, Plus, X, Info, Inbox, ArrowLeft } from 'lucide-react';
 
 interface Props {
@@ -9,9 +10,26 @@ interface Props {
   onBook: (service: MarketplaceService) => void;
   onAddService: (service: Omit<MarketplaceService, 'id' | 'rating'>) => void;
   onMarkMessageRead?: (id: string) => void;
+  /** What the traveller pressed 需要真人協助 on, carried in from the trip. */
+  helpRequest?: HelpRequest | null;
+  /** Drops the request so the tab goes back to the whole list. */
+  onClearHelpRequest?: () => void;
 }
 
-const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, onAddService, onMarkMessageRead }) => {
+const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, onAddService, onMarkMessageRead, helpRequest, onClearHelpRequest }) => {
+  const matches = React.useMemo(
+    () => (helpRequest?.topic?.trim() ? matchServices({ request: helpRequest, services }) : []),
+    [helpRequest, services],
+  );
+  // Matches first, everything else still listed underneath — a request narrows
+  // the order, it never hides the rest of the tab.
+  const orderedServices = React.useMemo(() => {
+    if (matches.length === 0) return services;
+    const ranked = matches.map(match => match.service);
+    const rankedIds = new Set(ranked.map(service => service.id));
+    return [...ranked, ...services.filter(service => !rankedIds.has(service.id))];
+  }, [matches, services]);
+
   const [activeTab, setActiveTab] = useState<'explore' | 'inbox'>('explore');
   const [isAddingService, setIsAddingService] = useState(false);
   const [chattingWith, setChattingWith] = useState<MarketplaceService | null>(null);
@@ -98,9 +116,35 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
         )}
       </div>
 
+      {activeTab === 'explore' && helpRequest?.topic?.trim() && (
+        <div className="mb-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-bold text-brand-700">你正在尋找真人協助</div>
+              <div className="mt-1 text-sm font-black text-brand-900">{helpRequest.topic}</div>
+              {helpRequest.destination && (
+                <div className="mt-0.5 text-[11px] text-brand-600">{helpRequest.destination}</div>
+              )}
+            </div>
+            {onClearHelpRequest && (
+              <button onClick={onClearHelpRequest} className="text-brand-500 hover:text-brand-700 p-1">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          {matches.length === 0 && (
+            /* No padding with plausible-looking providers: an empty result is
+               the honest answer, and the traveller can post the need instead. */
+            <p className="mt-3 text-xs text-brand-700">
+              目前還沒有人提供這類服務。你可以把需求貼上來，讓當地人看到。
+            </p>
+          )}
+        </div>
+      )}
+
       {activeTab === 'explore' ? (
         <div className="grid grid-cols-1 gap-4">
-          {services.map(service => (
+          {orderedServices.map(service => (
             <div key={service.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex gap-4 hover:border-brand-200 transition-colors cursor-pointer" onClick={() => onBook(service)}>
               <div className="w-16 h-16 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden">
                 {service.providerAvatar ? (
@@ -126,6 +170,11 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                   </div>
                 </div>
                 
+                {matches.some(match => match.service.id === service.id) && (
+                  <div className="mb-1 inline-block rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                    符合你的需求
+                  </div>
+                )}
                 <h3 className="font-bold text-gray-900 text-sm mb-1">{service.title}</h3>
                 <p className="text-xs text-gray-500 line-clamp-2 mb-3">{service.description}</p>
                 

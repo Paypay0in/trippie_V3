@@ -127,6 +127,7 @@ import CommunityHome from "./components/CommunityHome";
 import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
 import Marketplace from "./components/Marketplace";
+import { HelpRequest } from "./services/serviceMatching";
 import ItineraryCalendar from "./components/ItineraryCalendar";
 import ItineraryItemForm from "./components/ItineraryItemForm";
 import FlightAnchorsForm from "./components/FlightAnchorsForm";
@@ -712,6 +713,9 @@ const App: React.FC = () => {
   });
   const profilePassports = userProfile.passports || [];
   const [travelBook, setTravelBook] = useState<TravelBook | null>(null);
+  // What the traveller pressed 需要真人協助 on, carried from the trip into the
+  // service tab so they never retype the thing they already wrote down.
+  const [helpRequest, setHelpRequest] = useState<HelpRequest | null>(null);
   const [marketplaceServices, setMarketplaceServices] = useState<
     MarketplaceService[]
   >([
@@ -3660,6 +3664,11 @@ const App: React.FC = () => {
     }
   };
 
+  const handleRequestHumanHelp = (request: HelpRequest) => {
+    setHelpRequest(request);
+    setViewMode("marketplace");
+  };
+
   const handleBookService = (service: MarketplaceService) => {
     if (userProfile.trippieCoins < service.price) {
       showToast("Trippie Coins 不足，請先賺取積分", "error");
@@ -4783,6 +4792,8 @@ const App: React.FC = () => {
             inboxMessages={inboxMessages}
             onBook={handleBookService}
             onAddService={handleAddMarketplaceService}
+            helpRequest={helpRequest}
+            onClearHelpRequest={() => setHelpRequest(null)}
             onMarkMessageRead={(id) => {
               setInboxMessages((prev) =>
                 prev.map((m) => (m.id === id ? { ...m, unread: false } : m)),
@@ -5308,6 +5319,7 @@ const App: React.FC = () => {
           {workspaceSection === "overview" && currentPhase === "pre" && (
             <>
               <TripPlanOverview
+                onRequestHumanHelp={handleRequestHumanHelp}
                 expenses={expenses}
                 shoppingList={shoppingList}
                 itinerary={itinerary}
@@ -5368,6 +5380,7 @@ const App: React.FC = () => {
                leaving them on the pre-trip screen alone would hide them exactly
                when they matter. */
             <TripPlanOverview
+              onRequestHumanHelp={handleRequestHumanHelp}
               variant="reference"
               expenses={expenses}
               shoppingList={shoppingList}
