@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Clock3 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { Expense, ItineraryItem, ShoppingItem, TravelRules } from '../types';
 import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
@@ -341,7 +341,9 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                     這段說明提到的期限早於你的出發日，可能已經失效。出發前請以官方網站為準。
                   </p>
                 )}
-                {ruleTask.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><strong className="font-bold">{ruleTask.timingText}</strong></div>}
+                {/* The tile above already carries the timing; a boxed copy of
+                    it under every card made five purple blocks that all say
+                    something the reader just read. */}
                 {ruleLink && <a href={ruleLink.url} target="_blank" rel="noreferrer noopener" className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{ruleLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}
               </div>;
             })}
