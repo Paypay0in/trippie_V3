@@ -4,6 +4,7 @@ import { Expense, ItineraryItem, ShoppingItem, TravelRules } from '../types';
 import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { findOfficialLink } from '../services/officialTravelLinks';
+import { splitSharedPrefix } from '../services/sharedLabelPrefix';
 
 interface Props {
   expenses: Expense[];
@@ -70,6 +71,10 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const entryRules = travelRuleTasks.filter(task => !isPassportRule(task));
   const advisoryTasks = travelRuleTasks.filter(isPassportRule);
   const ownTasks = shoppingPreTasks.filter(task => task.sourceType !== 'travel_rules');
+  // When every formality carries the same name, that name belongs to the
+  // group, not to any one tile — it is shown once in the header line and the
+  // tiles keep what actually tells them apart.
+  const ruleLabels = splitSharedPrefix(entryRules.map(task => task.name));
   // Advisories: the part of the entry research that is not a task. It has been
   // fetched all along and shown nowhere, so travellers never saw the customs
   // limits and stay conditions behind the checklist items.
@@ -157,7 +162,8 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                   {/* Two lines, not one: Japan's formalities are all called
                       「Visit Japan Web…」 and truncating to one line made every
                       tile read the same. The difference is in the tail. */}
-                  <span className={`line-clamp-2 block text-sm font-black leading-4 ${task.isPurchased ? 'text-slate-500' : tone.title_color}`}>{task.name}</span>
+                  {ruleLabels.shared && <span className="mb-0.5 block truncate text-[10px] font-bold text-slate-400">{ruleLabels.shared}</span>}
+                  <span className={`line-clamp-2 block text-sm font-black leading-4 ${task.isPurchased ? 'text-slate-500' : tone.title_color}`}>{ruleLabels.parts[index] || task.name}</span>
                   <span className="mt-1 block truncate text-[11px] text-slate-500">{task.timingText || task.description || '查看詳情'}</span>
                 </span>
               </button>;
