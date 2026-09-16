@@ -19,6 +19,7 @@ interface Props {
   onTogglePostVisibility: (postId: string) => void;
   onDeletePost: (post: CommunityPost) => void;
   onCreatePost: () => void;
+  onOpenPost: (postId: string) => void;
 }
 
 /**
@@ -42,6 +43,7 @@ const AccountScreen: React.FC<Props> = ({
   onTogglePostVisibility,
   onDeletePost,
   onCreatePost,
+  onOpenPost,
 }) => {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(profile?.displayName || '');
@@ -121,6 +123,7 @@ const AccountScreen: React.FC<Props> = ({
             onToggleVisibility={onTogglePostVisibility}
             onDelete={onDeletePost}
             onCreatePost={onCreatePost}
+            onOpenPost={onOpenPost}
           />
         </>
       ) : (

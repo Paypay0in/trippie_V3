@@ -8,6 +8,7 @@ interface Props {
   onToggleVisibility: (postId: string) => void;
   onDelete: (post: CommunityPost) => void;
   onCreatePost: () => void;
+  onOpenPost: (postId: string) => void;
 }
 
 /**
@@ -27,6 +28,7 @@ const MyPostsPanel: React.FC<Props> = ({
   onToggleVisibility,
   onDelete,
   onCreatePost,
+  onOpenPost,
 }) => {
   const [tab, setTab] = useState<'posts' | 'saved'>('posts');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -62,7 +64,16 @@ const MyPostsPanel: React.FC<Props> = ({
               const isPublic = post.status === 'published';
               return (
                 <div key={post.id} className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-                  <div className="relative">
+                  {/* The whole card opens the post; the chip and the ⋯ menu sit
+                      above it and stop the click, so neither can be hit by
+                      someone who only meant to read their own writing. */}
+                  <button
+                    type="button"
+                    onClick={() => onOpenPost(post.id)}
+                    aria-label={`開啟貼文：${post.title || '未命名貼文'}`}
+                    className="absolute inset-0 z-0"
+                  />
+                  <div className="pointer-events-none relative">
                     {post.coverImage ? (
                       <img src={post.coverImage} alt="" className="h-32 w-full object-cover" />
                     ) : (
@@ -84,12 +95,12 @@ const MyPostsPanel: React.FC<Props> = ({
                       type="button"
                       aria-label={`貼文選項：${post.title || '未命名貼文'}`}
                       onClick={() => setOpenMenuId(current => (current === post.id ? null : post.id))}
-                      className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm"
+                      className="pointer-events-auto absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm"
                     >
                       <MoreHorizontal size={16} />
                     </button>
                   </div>
-                  <div className="p-3.5">
+                  <div className="pointer-events-none relative p-3.5">
                     <p className="line-clamp-2 text-sm font-black leading-5 text-[#11183d]">{post.title || '未命名貼文'}</p>
                     <p className="mt-1 truncate text-[11px] text-slate-400">
                       {[post.country, post.city].filter(Boolean).join('・') || '未填地點'}
@@ -100,7 +111,7 @@ const MyPostsPanel: React.FC<Props> = ({
                     /* The reversible action sits above the irreversible one, so
                        someone reaching to take a post down does not meet delete
                        first. */
-                    <div className="absolute inset-x-2 top-12 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
+                    <div className="absolute inset-x-2 top-12 z-20 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
                       <button
                         type="button"
                         onClick={() => { onToggleVisibility(post.id); setOpenMenuId(null); }}

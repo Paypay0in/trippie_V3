@@ -4154,6 +4154,7 @@ const App: React.FC = () => {
               onTogglePostVisibility={handleTogglePostVisibility}
               onDeletePost={handleDeleteCommunityPost}
               onCreatePost={openCommunityComposer}
+              onOpenPost={openSourceCommunityPost}
             />
             <AppBottomNav
               active="profile"

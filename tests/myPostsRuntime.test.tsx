@@ -42,6 +42,7 @@ const renderAccount = (overrides: Partial<React.ComponentProps<typeof AccountScr
     onTogglePostVisibility: vi.fn(),
     onDeletePost: vi.fn(),
     onCreatePost: vi.fn(),
+    onOpenPost: vi.fn(),
     ...overrides,
   };
   render(<AccountScreen {...props} />);
@@ -70,6 +71,23 @@ describe('我的貼文', () => {
     await user.click(screen.getByLabelText(`貼文選項：${post.title}`));
     await user.click(screen.getByLabelText(`刪除貼文：${post.title}`));
     expect(props.onDeletePost).toHaveBeenCalledWith(post);
+  });
+
+  it('opens the post when the card is tapped', async () => {
+    const props = renderAccount();
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(`開啟貼文：${post.title}`));
+    expect(props.onOpenPost).toHaveBeenCalledWith('post-1');
+  });
+
+  it('does not open the post when the ⋯ menu is tapped', async () => {
+    // The menu sits on top of the card's own click target; catching the card
+    // instead would take someone to the post they were trying to unpublish.
+    const props = renderAccount();
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(`貼文選項：${post.title}`));
+    expect(props.onOpenPost).not.toHaveBeenCalled();
+    expect(screen.getByText('改為僅自己可見')).toBeTruthy();
   });
 
   it('always offers a way to write the next one', async () => {
