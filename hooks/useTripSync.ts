@@ -135,5 +135,44 @@ export const useTripSync = ({
     return () => window.clearTimeout(timer);
   }, [enabled, tripId, payloadSignature]);
 
+  useSyncBadge(state, { tripId, signedIn: Boolean(authUserId) });
+
   return state;
+};
+
+/**
+ * Dev-only badge, attached straight to the document.
+ *
+ * Rendering it as JSX put it on exactly one of App's fourteen return paths, so
+ * it was invisible on the very screen it was meant to report on. Living outside
+ * the component tree means it cannot be missed off a branch again.
+ */
+const useSyncBadge = (
+  state: TripSyncState,
+  { tripId, signedIn }: { tripId: string | null; signedIn: boolean },
+) => {
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof document === 'undefined') return;
+
+    const id = 'trippie-sync-badge';
+    const node = document.getElementById(id) ?? document.createElement('div');
+    node.id = id;
+    node.style.cssText =
+      'position:fixed;left:12px;bottom:112px;z-index:2000;padding:6px 12px;border-radius:999px;' +
+      'font:700 11px ui-monospace,monospace;box-shadow:0 4px 12px rgba(0,0,0,.15);pointer-events:none';
+
+    const look: Record<TripSyncState, [string, string, string]> = {
+      synced: ['#d1fae5', '#047857', '已同步'],
+      loading: ['#e0f2fe', '#0369a1', '讀取中'],
+      error: ['#ffe4e6', '#be123c', '失敗'],
+      off: ['#e2e8f0', '#475569', `關閉（${!signedIn ? '未登入' : !tripId ? '沒有旅程' : '未設定'}）`],
+    };
+    const [background, color, label] = look[state];
+    node.style.background = background;
+    node.style.color = color;
+    node.textContent = `雲端同步：${label}`;
+
+    if (!node.isConnected) document.body.appendChild(node);
+    return () => node.remove();
+  }, [state, tripId, signedIn]);
 };

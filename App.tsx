@@ -5053,30 +5053,6 @@ const App: React.FC = () => {
   return (
     <div className={containerClass}>
       {import.meta.env.DEV && (
-        /* Sync state on screen rather than in the console. Reading it should
-           not require knowing how to open developer tools. */
-        <div
-          className={`${OVERLAY.devTools} fixed bottom-28 left-3 rounded-full px-3 py-2 font-mono text-[10px] font-black shadow-sm ${
-            tripSyncState === "synced"
-              ? "bg-emerald-100 text-emerald-700"
-              : tripSyncState === "error"
-                ? "bg-rose-100 text-rose-700"
-                : tripSyncState === "loading"
-                  ? "bg-sky-100 text-sky-700"
-                  : "bg-slate-200 text-slate-600"
-          }`}
-        >
-          雲端同步：
-          {tripSyncState === "synced"
-            ? "已同步"
-            : tripSyncState === "loading"
-              ? "讀取中"
-              : tripSyncState === "error"
-                ? "失敗"
-                : `關閉（${!supabaseConfigured ? "未設定" : !authUser?.id ? "未登入" : "沒有旅程"}）`}
-        </div>
-      )}
-      {import.meta.env.DEV && (
         <DevViewerSwitcher
           roster={settlementMembers}
           viewerMemberId={viewerMemberId}
