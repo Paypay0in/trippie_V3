@@ -624,10 +624,13 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
         <div className="flex justify-between items-start mb-6">
             <div>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-                {currentPhase === 'pre' ? '旅行前支出總計' : currentPhase === 'during' ? '旅行中支出總計' : '回國機場消費總計'}
+                {/* 'summary' shows the whole ledger, so it must not borrow the
+                    返程 wording: the figure was the trip's total sitting under
+                    a heading that said it counted airport spending only. */}
+                {currentPhase === 'pre' ? '旅行前支出總計' : currentPhase === 'during' ? '旅行中支出總計' : currentPhase === 'summary' ? '旅程支出總計' : '回國機場消費總計'}
             </h2>
             <div className="text-xs text-gray-400 mt-0.5">
-                {currentPhase === 'pre' ? '(僅計算行前準備費用)' : currentPhase === 'during' ? '(僅計算旅途當下消費)' : '(僅計算回國機場消費)'}
+                {currentPhase === 'pre' ? '(僅計算行前準備費用)' : currentPhase === 'during' ? '(僅計算旅途當下消費)' : currentPhase === 'summary' ? '(涵蓋整趟旅程)' : '(僅計算回國機場消費)'}
             </div>
             <div className="text-4xl font-black text-brand-900 mt-1">
                 NT$ {Math.round(displayTotal).toLocaleString()}
