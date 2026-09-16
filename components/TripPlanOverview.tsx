@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
 import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSource, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
@@ -141,6 +141,8 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [placeGroups, setPlaceGroups] = useState<SuggestedPlaceGroup[]>([]);
   const [sources, setSources] = useState<PreparationSource[]>([]);
   const [citedPosts, setCitedPosts] = useState<string[]>([]);
+  /** Venue site per to-do name, resolved from the map service. */
+  const [taskVenues, setTaskVenues] = useState<Record<string, { name: string; websiteUrl?: string }>>({});
   const [grounded, setGrounded] = useState(true);
   const [showAllRules, setShowAllRules] = useState(false);
   const [researching, setResearching] = useState(false);
@@ -169,6 +171,31 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const entryRules = travelRuleTasks.filter(task => !isPassportRule(task));
   const advisoryTasks = travelRuleTasks.filter(isPassportRule);
   const ownTasks = shoppingPreTasks.filter(task => task.sourceType !== 'travel_rules');
+
+  const ownTaskNames = ownTasks.map(task => task.name).join('|');
+  useEffect(() => {
+    // A to-do that names a venue deserves the venue's own booking page, not
+    // just a pin. The site comes from the map service's record of the place —
+    // a URL nobody wrote for this purpose and nobody can invent.
+    const names = ownTaskNames ? ownTaskNames.split('|').filter(Boolean).slice(0, 6) : [];
+    const place = destinationCountry || destination;
+    if (!names.length || !place) return;
+    let cancelled = false;
+    void fetchSuggestedPlaces(names.map(name => `${name} ${place}`)).then(groups => {
+      if (cancelled) return;
+      const next: Record<string, { name: string; websiteUrl?: string }> = {};
+      groups.forEach(group => {
+        const taskName = names.find(name => group.query.startsWith(name));
+        const top = group.places[0];
+        if (taskName && top) next[taskName] = { name: top.name, websiteUrl: top.websiteUrl };
+      });
+      setTaskVenues(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ownTaskNames, destination, destinationCountry]);
+
   // When every formality carries the same name, the tile keeps only what tells
   // them apart. The full official name is still in the detail panel, which is
   // where someone checks what to search for.
@@ -467,6 +494,11 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                     <a href={links.mapsUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-slate-50 px-2.5 text-[11px] font-black text-slate-600">
                       <MapPinned size={12} />在地圖上查看
                     </a>
+                    {taskVenues[task.name]?.websiteUrl && (
+                      <a href={taskVenues[task.name]!.websiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-emerald-50 px-2.5 text-[11px] font-black text-emerald-700">
+                        <ExternalLink size={12} />官網預約
+                      </a>
+                    )}
                     {links.relatedPost && (
                       <button type="button" onClick={() => onOpenPost(links.relatedPost!.id)} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-violet-50 px-2.5 text-[11px] font-black text-violet-700">
                         <Compass size={12} />旅人分享：{links.relatedPost.title.slice(0, 12)}

@@ -314,7 +314,7 @@ async function startServer() {
    */
   app.post("/api/places/suggest", async (req, res) => {
     const queries: string[] = Array.isArray(req.body?.queries)
-      ? req.body.queries.filter((query: unknown) => typeof query === "string" && query.trim()).slice(0, 3)
+      ? req.body.queries.filter((query: unknown) => typeof query === "string" && query.trim()).slice(0, 6)
       : [];
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
@@ -333,7 +333,10 @@ async function startServer() {
           headers: {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": apiKey,
-            "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.googleMapsUri",
+            // websiteUri is what turns "預約橫濱 Snova" into a booking page rather than
+            // a pin: the venue's own site, as the map service holds it, never a URL
+            // a model wrote.
+            "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.googleMapsUri,places.websiteUri",
           },
           body: JSON.stringify({ textQuery: query.trim(), languageCode: "zh-TW", maxResultCount: 3 }),
         });
@@ -346,6 +349,7 @@ async function startServer() {
             address: place.formattedAddress ?? "",
             rating: typeof place.rating === "number" ? place.rating : undefined,
             mapsUrl: place.googleMapsUri ?? "",
+            websiteUrl: place.websiteUri ?? undefined,
           })).filter((place) => place.name && place.mapsUrl),
         };
       }));

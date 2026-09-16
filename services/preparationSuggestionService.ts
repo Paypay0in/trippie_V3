@@ -5,6 +5,8 @@ export interface SuggestedPlace {
   address: string;
   rating?: number;
   mapsUrl: string;
+  /** The venue's own site, when the map service has one. */
+  websiteUrl?: string;
 }
 
 export interface SuggestedPlaceGroup {
