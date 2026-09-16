@@ -44,6 +44,7 @@ import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES } from "./constants";
 import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
+import { fetchMyTrips, isSyncAvailable } from "./services/tripSync";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
 import {
@@ -1244,6 +1245,41 @@ const App: React.FC = () => {
       currentUserId,
     }));
   }, [authStatus, currentUserId]);
+  // Trips this account can see but this device has never held. Trip ids are
+  // minted locally, so a second browser signed into the same account starts
+  // with a completely different set and would otherwise never find the shared
+  // ledger at all. Listed as empty shells; opening one pulls its expenses.
+  useEffect(() => {
+    if (!authUser?.id || !isSyncAvailable()) return;
+    let cancelled = false;
+    void fetchMyTrips().then((result) => {
+      if (cancelled || result.status !== "ok") return;
+      setDrafts((current) => {
+        const known = new Set(current.map((draft) => draft.id));
+        const missing = result.data
+          .filter((trip) => !known.has(trip.id))
+          .map((trip) => ({
+            id: trip.id,
+            name: trip.name,
+            destination: trip.destination,
+            startDate: trip.startDate,
+            endDate: trip.endDate,
+            currency: trip.currency,
+            ownerId: authUser.id,
+            expenses: [],
+            companions: [],
+            shoppingList: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }));
+        return missing.length ? [...current, ...missing] : current;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.id]);
+
   useEffect(() => {
     writeDraftStore(drafts, activeDraftId);
   }, [drafts, activeDraftId]);

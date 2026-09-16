@@ -84,6 +84,45 @@ export const ensureTripRow = async ({
   }
 };
 
+export interface RemoteTripSummary {
+  id: string;
+  name: string;
+  destination?: string;
+  startDate: string;
+  endDate: string;
+  currency?: string;
+}
+
+/**
+ * Every trip this account can see.
+ *
+ * Without it, sync is invisible: trip ids are minted locally, so a second
+ * browser signed into the same account holds entirely different trips and has
+ * nothing to match against. Syncing a trip nobody can open proves nothing.
+ */
+export const fetchMyTrips = async (): Promise<SyncResult<RemoteTripSummary[]>> => {
+  if (!supabase) return { status: 'unavailable' };
+  try {
+    const { data, error } = await supabase
+      .from('trips')
+      .select('id,name,destination,start_date,end_date,currency');
+    if (error) throw error;
+    return {
+      status: 'ok',
+      data: (data ?? []).map(row => ({
+        id: row.id as string,
+        name: (row.name as string) || '未命名旅程',
+        destination: (row.destination as string) ?? undefined,
+        startDate: (row.start_date as string) ?? '',
+        endDate: (row.end_date as string) ?? '',
+        currency: (row.currency as string) ?? undefined,
+      })),
+    };
+  } catch (error) {
+    return failed(error);
+  }
+};
+
 /** Everything this trip holds remotely. Absent tables or no access read as an error, not as an empty trip. */
 export const fetchTripSnapshot = async (
   tripId: string,
