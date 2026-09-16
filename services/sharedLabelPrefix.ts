@@ -22,6 +22,14 @@ const MIN_SHARED_LENGTH = 4;
 const LEADING_NOISE = /^[\s:：（(【「·\-—]+/;
 const TRAILING_NOISE = /[\s（(【「·\-—：:）)】」]+$/;
 
+const commonPrefix = (first: string, second: string): string => {
+  let index = 0;
+  while (index < first.length && index < second.length && first[index] === second[index]) {
+    index += 1;
+  }
+  return first.slice(0, index);
+};
+
 const longestCommonPrefix = (values: string[]): string => {
   if (values.length < 2) return '';
   let prefix = values[0];
@@ -38,16 +46,29 @@ const longestCommonPrefix = (values: string[]): string => {
 
 export const splitSharedPrefix = (names: string[]): SharedLabelSplit => {
   const cleaned = names.map(name => (name || '').trim());
-  const prefix = longestCommonPrefix(cleaned).replace(TRAILING_NOISE, '').trim();
 
-  if (prefix.length < MIN_SHARED_LENGTH) return { shared: '', parts: cleaned };
+  // Per name, not across the whole set. A country's formalities are rarely all
+  // named alike: Japan's list is 簽證豁免 plus two 「Visit Japan Web 申報（…）」
+  // entries, and requiring a prefix common to every tile meant the two that did
+  // collide kept their identical titles.
+  const parts = cleaned.map((name, index) => {
+    let best = '';
+    cleaned.forEach((other, otherIndex) => {
+      if (otherIndex === index) return;
+      const shared = commonPrefix(name, other).replace(TRAILING_NOISE, '').trim();
+      if (shared.length > best.length) best = shared;
+    });
+    if (best.length < MIN_SHARED_LENGTH) return name;
+    const remainder = name
+      .slice(best.length)
+      .replace(LEADING_NOISE, '')
+      .replace(TRAILING_NOISE, '')
+      .trim();
+    // A name that is entirely the shared part would be left blank, which is
+    // worse than repeating it.
+    return remainder || name;
+  });
 
-  const parts = cleaned.map(name =>
-    name.slice(prefix.length).replace(LEADING_NOISE, '').replace(TRAILING_NOISE, '').trim(),
-  );
-  // A name that is entirely the shared prefix would be left blank, which is
-  // worse than showing the full names.
-  if (parts.some(part => !part)) return { shared: '', parts: cleaned };
-
-  return { shared: prefix, parts };
+  const shared = longestCommonPrefix(cleaned).replace(TRAILING_NOISE, '').trim();
+  return { shared: shared.length >= MIN_SHARED_LENGTH ? shared : '', parts };
 };
