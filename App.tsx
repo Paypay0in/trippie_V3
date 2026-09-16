@@ -5054,6 +5054,12 @@ const App: React.FC = () => {
               travelRules={travelRules}
               onResearchTravelRules={handleResearchTravelRules}
               onSave={handleSaveTravelIdentity}
+              onEditDestination={() => {
+                // Closing first: leaving the modal open behind the setup screen
+                // would put two destination fields on screen at once.
+                setIsTravelIdentityOpen(false);
+                setViewMode("tripSetup");
+              }}
               onClose={() => setIsTravelIdentityOpen(false)}
             />
           )}
