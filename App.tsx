@@ -46,6 +46,7 @@ import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
+import { PASSPORT_OPTIONS } from "./services/passportOptions";
 import { countSaversForPost, saverCountsByPost } from "./services/postSaveCounts";
 import {
   deleteComment as deleteRemoteComment,
@@ -1847,6 +1848,39 @@ const App: React.FC = () => {
    * The country follows from it when the table recognises the place, so the
    * entry-rules lookup has what it needs without a second field to fill.
    */
+  /**
+   * Choosing a passport from the overview.
+   *
+   * Picks the one already on file for that country, or creates it. Someone
+   * selecting 台灣護照 has told us everything the lookup needs; making them
+   * open a sheet to "add" it first would be asking the same question twice.
+   */
+  const handleSelectPassportCountry = (countryCode: string) => {
+    if (!countryCode) return;
+    const existing = profilePassports.find(
+      (passport) => passport.countryCode === countryCode,
+    );
+    if (existing) {
+      setSelectedPassportId(existing.id);
+      return;
+    }
+    const option = PASSPORT_OPTIONS.find(
+      (item) => item.countryCode === countryCode,
+    );
+    if (!option) return;
+    const created = {
+      id: `passport_${Date.now().toString(36)}`,
+      country: option.displayName,
+      countryCode: option.countryCode,
+    };
+    setUserProfile((profile) => ({
+      ...profile,
+      passports: [...(profile.passports || []), created],
+      defaultPassportId: profile.defaultPassportId || created.id,
+    }));
+    setSelectedPassportId(created.id);
+  };
+
   const handleDestinationFieldChange = (value: string) => {
     setTripDestination(value);
     const detected = detectDestinationFromTripName(value);
@@ -5292,9 +5326,8 @@ const App: React.FC = () => {
                   handleResearchTravelRules(resolvedPassportId)
                 }
                 onOpenIdentity={() => setIsTravelIdentityOpen(true)}
-                passports={profilePassports}
-                selectedPassportId={resolvedPassportId}
-                onSelectPassport={setSelectedPassportId}
+                passportCountryCode={resolvedPassport?.countryCode}
+                onSelectPassportCountry={handleSelectPassportCountry}
                 onChangeDestination={handleDestinationFieldChange}
                 onTogglePreparationItem={handleTogglePreparationItem}
                 onAddPreparationItems={(items) =>
@@ -5350,9 +5383,8 @@ const App: React.FC = () => {
                 handleResearchTravelRules(resolvedPassportId)
               }
               onOpenIdentity={() => setIsTravelIdentityOpen(true)}
-              passports={profilePassports}
-              selectedPassportId={resolvedPassportId}
-              onSelectPassport={setSelectedPassportId}
+              passportCountryCode={resolvedPassport?.countryCode}
+              onSelectPassportCountry={handleSelectPassportCountry}
               onChangeDestination={handleDestinationFieldChange}
               onTogglePreparationItem={handleTogglePreparationItem}
               onAddPreparationItems={(items) =>

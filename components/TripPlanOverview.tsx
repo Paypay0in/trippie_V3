@@ -5,6 +5,7 @@ import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSuggestio
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { findOfficialLink } from '../services/officialTravelLinks';
 import { splitSharedPrefix } from '../services/sharedLabelPrefix';
+import { PASSPORT_OPTIONS } from '../services/passportOptions';
 
 interface Props {
   expenses: Expense[];
@@ -34,9 +35,10 @@ interface Props {
   /** Opens the full identity sheet, for choosing a different passport. */
   onOpenIdentity: () => void;
   /** Passports on file, so the picker is filled in place. */
-  passports: Array<{ id: string; country: string; countryCode?: string }>;
-  selectedPassportId?: string;
-  onSelectPassport: (passportId: string) => void;
+  /** Country code of the passport the lookup will use, if any. */
+  passportCountryCode?: string;
+  /** Choosing a country creates or selects that passport. */
+  onSelectPassportCountry: (countryCode: string) => void;
   onChangeDestination: (value: string) => void;
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
@@ -73,7 +75,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passports, selectedPassportId, onSelectPassport, onChangeDestination, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -207,20 +209,20 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
               </label>
               <label className="rounded-xl bg-white p-3 shadow-sm">
                 <span className="block text-[10px] font-black text-slate-400">護照</span>
-                {passports.length > 0 ? (
-                  <select
-                    value={selectedPassportId || ''}
-                    onChange={event => onSelectPassport(event.target.value)}
-                    className="mt-0.5 w-full bg-transparent text-sm font-black text-[#11183d] outline-none"
-                  >
-                    {passports.map(passport => (
-                      <option key={passport.id} value={passport.id}>{passport.country}護照</option>
-                    ))}
-                  </select>
-                ) : (
-                  <button type="button" onClick={onOpenIdentity} className="mt-0.5 block w-full text-left text-sm font-black text-violet-600">新增護照</button>
-                )}
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{passports.length > 0 ? '查詢會用這本' : '尚未建立護照'}</span>
+                {/* Every passport the app can look up, not only the ones already
+                    saved: choosing one here is how a traveller gets their
+                    first, without being sent to a sheet to create it. */}
+                <select
+                  value={passportCountryCode || ''}
+                  onChange={event => onSelectPassportCountry(event.target.value)}
+                  className="mt-0.5 w-full bg-transparent text-sm font-black text-[#11183d] outline-none"
+                >
+                  <option value="">選擇護照</option>
+                  {PASSPORT_OPTIONS.map(option => (
+                    <option key={option.countryCode} value={option.countryCode}>{option.passportLabel}</option>
+                  ))}
+                </select>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{hasPassport ? '查詢會用這本' : '選一本才能查詢'}</span>
               </label>
             </div>
             <button
