@@ -2387,7 +2387,10 @@ const App: React.FC = () => {
   // Shared storage for the open trip. Off entirely when Supabase is not
   // configured or nobody is signed in, so the offline local ledger is unchanged.
   const tripSyncState = useTripSync({
-    tripId: activeDraftId,
+    // The same trip id the rest of the screen uses. A trip opened from history
+    // has no draft id, and keying sync on the draft alone left those trips
+    // silently local.
+    tripId: activeDraftId || currentLoadedTripId,
     authUserId: authUser?.id,
     tripName: draftName,
     destination: tripDestination || undefined,
@@ -2416,8 +2419,16 @@ const App: React.FC = () => {
     // No UI for sync state yet — deliberately. It either works or the local
     // ledger carries on, and a badge that says "同步中" on every keystroke would
     // be noise. Visible in dev while the behaviour is being verified.
-    if (import.meta.env.DEV) console.info("[tripSync]", activeDraftId, tripSyncState);
-  }, [activeDraftId, tripSyncState]);
+    if (!import.meta.env.DEV) return;
+    console.info("[tripSync]", {
+      state: tripSyncState,
+      tripId: activeDraftId || currentLoadedTripId,
+      // "off" has three quite different causes and they are indistinguishable
+      // from the state alone, which is exactly when time gets wasted.
+      supabaseConfigured,
+      signedIn: Boolean(authUser?.id),
+    });
+  }, [activeDraftId, currentLoadedTripId, tripSyncState, authUser?.id]);
 
   const handleOpenSettlement = () => {
     setSettlementNavDebug((current) => ({

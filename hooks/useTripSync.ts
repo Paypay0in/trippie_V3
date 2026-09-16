@@ -90,6 +90,9 @@ export const useTripSync = ({
       if (cancelled) return;
 
       if (remote.status === 'error') {
+        // Silent failure is the trap here: the local ledger keeps working, so
+        // nothing looks wrong while nothing is being shared.
+        if (import.meta.env.DEV) console.warn('[tripSync] read failed', remote.message);
         setState('error');
         return;
       }
@@ -122,6 +125,9 @@ export const useTripSync = ({
       const { members: m, expenses: e } = payloadRef.current;
       void pushTripSnapshot({ members: m, expenses: e }, tripId).then(result => {
         if (readyTripIdRef.current !== tripId) return;
+        if (result.status === 'error' && import.meta.env.DEV) {
+          console.warn('[tripSync] write failed', result.message);
+        }
         setState(result.status === 'error' ? 'error' : 'synced');
       });
     }, PUSH_DEBOUNCE_MS);
