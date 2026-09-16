@@ -25,6 +25,12 @@ interface Props {
    * instead of hiding them behind a phase it has passed.
    */
   variant?: 'plan' | 'reference';
+  /** Whether a passport with a country code is on file, so the lookup can run. */
+  hasPassport: boolean;
+  /** Runs the entry-rules lookup with the default passport. */
+  onResearchEntryRules: () => Promise<void> | void;
+  /** Opens the full identity sheet, for choosing a different passport. */
+  onOpenIdentity: () => void;
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
@@ -60,7 +66,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, onResearchEntryRules, onOpenIdentity, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -75,6 +81,8 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [placeGroups, setPlaceGroups] = useState<SuggestedPlaceGroup[]>([]);
   const [showAllRules, setShowAllRules] = useState(false);
+  const [researching, setResearching] = useState(false);
+  const [researchError, setResearchError] = useState('');
   const context = destination?.trim();
   const localTips = getDestinationTips(destinationCountry || destination);
   // Two different things had been sharing one list. Entry formalities come
@@ -171,7 +179,40 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
           </div>
           {entryRules.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-xs font-black text-violet-600">{showAllRules ? '收合' : '查看完整規定'}<ChevronRight size={14} /></button>}
         </div>
-        {entryRules.length === 0 ? <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">還沒有這個目的地的入境資訊。填好目的地與護照後，這裡會列出簽證、入境卡與海關規定。</p> : (
+        {entryRules.length === 0 ? (
+          /* The lookup itself, here rather than behind a sheet somewhere else.
+             Telling someone "fill in a destination and a passport" while the
+             app knows both is a instruction where a button belongs. */
+          <div className="rounded-2xl bg-slate-50 px-4 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-[#11183d]">{destination || '尚未設定目的地'}</p>
+                <p className="mt-0.5 truncate text-xs text-slate-500">{destinationCountry || '請先設定目的地'}{hasPassport ? '・台灣護照' : '・尚未選擇護照'}</p>
+              </div>
+              <button type="button" onClick={onOpenIdentity} className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-bold text-violet-700 shadow-sm">更改</button>
+            </div>
+            <button
+              type="button"
+              disabled={!destinationCountry || !hasPassport || researching}
+              onClick={async () => {
+                setResearching(true);
+                setResearchError('');
+                try {
+                  await onResearchEntryRules();
+                } catch (error) {
+                  setResearchError(error instanceof Error ? error.message : '查詢失敗，稍後再試');
+                } finally {
+                  setResearching(false);
+                }
+              }}
+              className="mt-3 flex min-h-11 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 text-sm font-black text-white disabled:opacity-40"
+            >
+              {researching ? '查詢中…' : '查詢入境規定'}
+            </button>
+            {researchError && <p className="mt-2 text-xs font-bold text-rose-600">{researchError}</p>}
+            {!hasPassport && <p className="mt-2 text-xs text-slate-500">先在「更改」裡選擇護照，才能查這本護照的入境規定。</p>}
+          </div>
+        ) : (
           /* Laid out across rather than down: these are a handful of named
              formalities, and a row of tiles reads as "here is what this country
              asks of you" where a vertical checklist read as chores. Tapping one

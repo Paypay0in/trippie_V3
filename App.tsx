@@ -5299,6 +5299,34 @@ const App: React.FC = () => {
                 detectDestinationFromTripName(tripDestination)?.country
               }
               travelRules={travelRules}
+              hasPassport={Boolean(
+                profilePassports.find(
+                  (passport) =>
+                    passport.id ===
+                      (selectedPassportId || userProfile.defaultPassportId) &&
+                    passport.countryCode,
+                ),
+              )}
+              onResearchEntryRules={() =>
+                handleResearchTravelRules(
+                  selectedPassportId || userProfile.defaultPassportId,
+                )
+              }
+              onOpenIdentity={() => setIsTravelIdentityOpen(true)}
+              hasPassport={Boolean(
+                profilePassports.find(
+                  (passport) =>
+                    passport.id ===
+                      (selectedPassportId || userProfile.defaultPassportId) &&
+                    passport.countryCode,
+                ),
+              )}
+              onResearchEntryRules={() =>
+                handleResearchTravelRules(
+                  selectedPassportId || userProfile.defaultPassportId,
+                )
+              }
+              onOpenIdentity={() => setIsTravelIdentityOpen(true)}
               onTogglePreparationItem={handleTogglePreparationItem}
               onAddPreparationItems={(items) =>
                 handleBatchAddShoppingItems(items, "draft")
