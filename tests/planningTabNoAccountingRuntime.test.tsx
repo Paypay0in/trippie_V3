@@ -63,8 +63,10 @@ describe('規劃 tab carries no accounting actions', () => {
     await openPlanning(user);
     expect(screen.getByLabelText('行程時間軸')).toBeTruthy();
     expect(screen.getByText('航班資訊')).toBeTruthy();
-    // The shopping list itself stays — only its expense button is gone.
-    expect(screen.getByText('換韓幣')).toBeTruthy();
+    // The shopping list has since left this tab entirely: it shares storage
+    // with the entry formalities, so it listed 簽證豁免 beside 伴手禮, and the
+    // overview already presents those properly. Buying belongs to 記帳.
+    expect(screen.queryByText('換韓幣')).toBeNull();
   });
 
   it('has no 購買 / 記錄為支出 shortcut on the shopping list', async () => {

@@ -4756,17 +4756,12 @@ const App: React.FC = () => {
           form), so it belongs in the 記帳 flow and is not mounted here. The
           component and its other call site are untouched.
 
-          The shopping list stays, but without onPurchaseItem — that button is
-          「記錄為支出」, an accounting entry point.
+          The shopping list has now gone the same way. It shared its storage
+          with the entry formalities, so this panel listed 簽證豁免 and
+          Visit Japan Web beside 伴手禮 — and the overview already shows those
+          as 入境規定 and 出發前待辦. The panel remains mounted in the 記帳
+          flow, where buying something is the point.
         */}
-        <ShoppingListPanel
-          title={shoppingPanelTitle}
-          shoppingList={shoppingList.filter(
-            (item) => item.phase === currentPhase,
-          )}
-          onAddItem={handleAddShoppingItem}
-          onRemoveItem={handleRemoveShoppingItem}
-        />
       </div>
     );
 
