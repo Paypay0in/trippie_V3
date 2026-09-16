@@ -1608,7 +1608,14 @@ const App: React.FC = () => {
     setCurrentLoadedTripId(null);
     setActiveDraftId(draft.id);
     setDraftName(draft.name);
-    setTripDestination(draft.destination || "");
+    // A trip named 韓國釜山之旅 already says where it is going. Reading it on
+    // open, not only while the name is being typed, is what makes an existing
+    // trip fill itself in — otherwise every trip created before this existed
+    // stays blank until someone retypes its name.
+    const namedPlace = draft.destination
+      ? null
+      : detectDestinationFromTripName(draft.name || "");
+    setTripDestination(draft.destination || (namedPlace ? destinationLabel(namedPlace) : ""));
     setTripStartDate(draft.startDate);
     setTripEndDate(draft.endDate);
     setTripCurrency(draft.currency || "TWD");
@@ -1623,7 +1630,9 @@ const App: React.FC = () => {
     setSelectedPassportId(draft.selectedPassportId);
     setTravelBook(null);
     setIsTravelBookOpen(false);
-    setTravelCountry(draft.travelCountry || draft.taxRule?.country || "");
+    setTravelCountry(
+      draft.travelCountry || draft.taxRule?.country || namedPlace?.country || "",
+    );
     setTaxRule(draft.taxRule || null);
     setVisaInfo(draft.visaInfo || null);
     setTravelRules(draft.travelRules);
