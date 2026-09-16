@@ -318,7 +318,10 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         )}
         {(expandedTask || showAllRules) && (
           <div className="mt-3 space-y-2">
-            {(showAllRules ? travelRuleTasks : expandedTask && entryRules.includes(expandedTask) ? [expandedTask] : []).map(ruleTask => {
+            {/* entryRules, not every travel-rule task: 護照效期 lives in 注意事項
+                and 查看完整規定 was pulling it back in, so it appeared twice on
+                the same screen. */}
+            {(showAllRules ? entryRules : expandedTask && entryRules.includes(expandedTask) ? [expandedTask] : []).map(ruleTask => {
               const ruleLink = officialLinkFor(ruleTask, destinationCountry || destination);
               return <div key={ruleTask.id} className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">
                 <div className="mb-1.5 flex items-start justify-between gap-3">
