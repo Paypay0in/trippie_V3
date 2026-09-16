@@ -5337,6 +5337,7 @@ const App: React.FC = () => {
                 tripStartDate={tripStartDate}
                 communityPosts={communityPosts.filter((post) => post.status === "published")}
                 onOpenPost={openSourceCommunityPost}
+                savedInspirations={savedTravelInspirations}
                 onTogglePreparationItem={handleTogglePreparationItem}
                 onAddPreparationItems={(items) =>
                   handleBatchAddShoppingItems(items, "draft")
@@ -5397,6 +5398,7 @@ const App: React.FC = () => {
               tripStartDate={tripStartDate}
               communityPosts={communityPosts.filter((post) => post.status === "published")}
               onOpenPost={openSourceCommunityPost}
+              savedInspirations={savedTravelInspirations}
               onTogglePreparationItem={handleTogglePreparationItem}
               onAddPreparationItems={(items) =>
                 handleBatchAddShoppingItems(items, "draft")

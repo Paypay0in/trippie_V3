@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp } from 'lucide-react';
-import { Expense, ItineraryItem, ShoppingItem, TravelRules } from '../types';
+import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
 import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSource, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { findOfficialLink } from '../services/officialTravelLinks';
@@ -42,6 +42,7 @@ const officialLinkFor = (
 import { splitSharedPrefix } from '../services/sharedLabelPrefix';
 import { PASSPORT_OPTIONS } from '../services/passportOptions';
 import { isGuidanceOutdated } from '../services/entryRuleFreshness';
+import { communityHighlights } from '../services/communityHighlights';
 
 interface Props {
   expenses: Expense[];
@@ -84,8 +85,10 @@ interface Props {
    * prompt is told the difference and the answer links back to whichever it
    * used, so a reader can judge the source themselves.
    */
-  communityPosts: Array<{ id: string; title: string; content: string; country?: string; city?: string }>;
+  communityPosts: CommunityPost[];
   onOpenPost: (postId: string) => void;
+  /** Saves across all posts, used to rank what travellers recommend here. */
+  savedInspirations: SavedTravelInspiration[];
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
@@ -121,7 +124,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -143,6 +146,12 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [researchError, setResearchError] = useState('');
   const context = destination?.trim();
   const localTips = getDestinationTips(destinationCountry || destination);
+  const highlights = communityHighlights({
+    posts: communityPosts,
+    saved: savedInspirations,
+    country: destinationCountry,
+    destination,
+  });
   // Two different things had been sharing one list. Entry formalities come
   // from the travel-rules lookup and are what a country requires; everything
   // else is what this traveller decided to do. Calling the section 入境規定
@@ -466,6 +475,31 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                   {tip.link && <a href={tip.link.url} target="_blank" rel="noreferrer noopener" className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-xs font-black text-violet-700">{tip.link.label}<ExternalLink size={14} /></a>}
                 </div>
               </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {highlights.length > 0 && (
+        /* Counted, not generated: these are posts people actually kept
+           something from, so the list can be shown before anyone asks and
+           without an AI call that might be wrong about what exists. */
+        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-1 flex items-center gap-2 font-black"><Compass size={18} className="text-violet-600" />旅人最近推薦</h2>
+          <p className="mb-3 text-xs text-slate-500">去過 {destinationCountry || destination} 的人寫下的經驗。</p>
+          <div className="space-y-2">
+            {highlights.map(({ post, savers }) => (
+              <button key={post.id} type="button" onClick={() => onOpenPost(post.id)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left">
+                {post.coverImage && <img src={post.coverImage} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-black text-[#11183d]">{post.title}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-slate-400">
+                    {[post.country, post.city].filter(Boolean).join('・')}
+                    {savers > 0 ? `・${savers} 人收藏` : ''}
+                  </span>
+                </span>
+                <ChevronRight size={15} className="shrink-0 text-slate-300" />
+              </button>
             ))}
           </div>
         </section>
