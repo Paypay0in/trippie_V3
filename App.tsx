@@ -5334,6 +5334,7 @@ const App: React.FC = () => {
                 passportCountryCode={resolvedPassport?.countryCode}
                 onSelectPassportCountry={handleSelectPassportCountry}
                 onChangeDestination={handleDestinationFieldChange}
+                tripStartDate={tripStartDate}
                 onTogglePreparationItem={handleTogglePreparationItem}
                 onAddPreparationItems={(items) =>
                   handleBatchAddShoppingItems(items, "draft")
@@ -5391,6 +5392,7 @@ const App: React.FC = () => {
               passportCountryCode={resolvedPassport?.countryCode}
               onSelectPassportCountry={handleSelectPassportCountry}
               onChangeDestination={handleDestinationFieldChange}
+              tripStartDate={tripStartDate}
               onTogglePreparationItem={handleTogglePreparationItem}
               onAddPreparationItems={(items) =>
                 handleBatchAddShoppingItems(items, "draft")

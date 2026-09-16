@@ -6,6 +6,7 @@ import { DestinationTip, getDestinationTips } from '../services/destinationTips'
 import { findOfficialLink } from '../services/officialTravelLinks';
 import { splitSharedPrefix } from '../services/sharedLabelPrefix';
 import { PASSPORT_OPTIONS } from '../services/passportOptions';
+import { isGuidanceOutdated } from '../services/entryRuleFreshness';
 
 interface Props {
   expenses: Expense[];
@@ -40,6 +41,8 @@ interface Props {
   /** Choosing a country creates or selects that passport. */
   onSelectPassportCountry: (countryCode: string) => void;
   onChangeDestination: (value: string) => void;
+  /** Departure date, used to spot guidance whose period has already passed. */
+  tripStartDate?: string;
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
@@ -75,7 +78,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -294,6 +297,15 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                   </button>
                 </div>
                 {ruleTask.description && <p className="leading-5">{ruleTask.description}</p>}
+                {ruleTask.description && isGuidanceOutdated(ruleTask.description, tripStartDate) && (
+                  /* The text is not wrong, it is out of date — which reads the
+                     same until you check the year. Say so and point at the
+                     official page; claiming what the rule is now would be
+                     inventing an answer nobody has checked. */
+                  <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-4 text-amber-700">
+                    這段說明提到的期限早於你的出發日，可能已經失效。出發前請以官方網站為準。
+                  </p>
+                )}
                 {ruleTask.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span><strong className="font-bold">{ruleTask.timingText}</strong><span className="mt-0.5 block text-[11px] text-slate-500">若官方有明確申請期限，以官方規定為準。</span></span></div>}
                 {ruleLink && <a href={ruleLink.url} target="_blank" rel="noreferrer noopener" className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{ruleLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}
               </div>;
