@@ -1250,6 +1250,12 @@ const App: React.FC = () => {
   // with a completely different set and would otherwise never find the shared
   // ledger at all. Listed as empty shells; opening one pulls its expenses.
   const [cloudTripNote, setCloudTripNote] = useState<string>("");
+  // Latest drafts for the merge below. Comparing inside a setDrafts updater
+  // would mean deriving the banner text from inside a function React may run
+  // twice or discard — the merge looked broken when only the report was.
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+
   useEffect(() => {
     if (!authUser?.id || !isSyncAvailable()) {
       setCloudTripNote("");
@@ -1258,41 +1264,39 @@ const App: React.FC = () => {
     let cancelled = false;
     void fetchMyTrips().then((result) => {
       if (cancelled) return;
-      // Reported on the banner: "the list is empty" and "the list was refused"
-      // look identical from the trip screen, and only one of them is a bug.
-      setCloudTripNote(
-        result.status === "ok"
-          ? `雲端旅程 ${result.data.length} 趟`
-          : result.status === "error"
+      if (result.status !== "ok") {
+        setCloudTripNote(
+          result.status === "error"
             ? `雲端旅程讀取失敗：${result.message}`
             : "雲端旅程：未啟用",
-      );
-      if (result.status !== "ok") return;
-      setDrafts((current) => {
-        const known = new Set(current.map((draft) => draft.id));
-        const missing = result.data
-          .filter((trip) => !known.has(trip.id))
-          .map((trip) => ({
-            id: trip.id,
-            name: trip.name,
-            destination: trip.destination,
-            startDate: trip.startDate,
-            endDate: trip.endDate,
-            currency: trip.currency,
-            ownerId: authUser.id,
-            expenses: [],
-            companions: [],
-            shoppingList: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }));
-        // Reported too: "the cloud has two trips" and "this device gained one"
-        // are different facts, and only the second one means the merge worked.
-        setCloudTripNote(
-          `雲端旅程 ${result.data.length} 趟（本機新增 ${missing.length}，共 ${current.length + missing.length}）`,
         );
-        return missing.length ? [...current, ...missing] : current;
-      });
+        return;
+      }
+
+      const known = new Set(draftsRef.current.map((draft) => draft.id));
+      const missing = result.data
+        .filter((trip) => !known.has(trip.id))
+        .map((trip) => ({
+          id: trip.id,
+          name: trip.name,
+          destination: trip.destination,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          currency: trip.currency,
+          ownerId: authUser.id,
+          expenses: [],
+          companions: [],
+          shoppingList: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }));
+
+      // "The cloud has two trips" and "this device gained one" are different
+      // facts, and only the second one means the merge worked.
+      setCloudTripNote(
+        `雲端旅程 ${result.data.length} 趟（本機新增 ${missing.length}，共 ${draftsRef.current.length + missing.length}）`,
+      );
+      if (missing.length) setDrafts((current) => [...current, ...missing]);
     });
     return () => {
       cancelled = true;
