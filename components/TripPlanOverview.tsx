@@ -199,13 +199,16 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
             <div className="grid grid-cols-2 gap-2">
               <label className="rounded-xl bg-white p-3 shadow-sm">
                 <span className="block text-[10px] font-black text-slate-400">目的地</span>
+                {/* One value, and it is the country: the sub-line repeating a
+                    country under a city was two answers to a question with
+                    one. Typing a city still resolves to its country. */}
                 <input
-                  value={destination}
+                  value={destinationCountry || destination}
                   onChange={event => onChangeDestination(event.target.value)}
-                  placeholder="例如：釜山"
+                  placeholder="例如：韓國"
                   className="mt-0.5 w-full bg-transparent text-sm font-black text-[#11183d] outline-none placeholder:font-bold placeholder:text-slate-300"
                 />
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{destinationCountry || '輸入城市或國家'}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{destinationCountry ? '查詢會用這個國家' : '輸入國家或城市'}</span>
               </label>
               <label className="rounded-xl bg-white p-3 shadow-sm">
                 <span className="block text-[10px] font-black text-slate-400">護照</span>

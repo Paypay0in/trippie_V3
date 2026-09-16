@@ -1613,10 +1613,15 @@ const App: React.FC = () => {
     // open, not only while the name is being typed, is what makes an existing
     // trip fill itself in — otherwise every trip created before this existed
     // stays blank until someone retypes its name.
-    const namedPlace = draft.destination
-      ? null
-      : detectDestinationFromTripName(draft.name || "");
-    setTripDestination(draft.destination || (namedPlace ? destinationLabel(namedPlace) : ""));
+    // The destination field holds a country. An existing 釜山 is read back to
+    // 韓國 rather than left as a city, because everything downstream — entry
+    // rules, tax refunds, visas — asks a country-level question.
+    const namedPlace =
+      detectDestinationFromTripName(draft.destination || "") ||
+      detectDestinationFromTripName(draft.name || "");
+    setTripDestination(
+      namedPlace ? destinationLabel(namedPlace) : draft.destination || "",
+    );
     setTripStartDate(draft.startDate);
     setTripEndDate(draft.endDate);
     setTripCurrency(draft.currency || "TWD");
