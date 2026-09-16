@@ -157,43 +157,38 @@ export const useTripSync = ({
  */
 const useSyncBadge = (
   state: TripSyncState,
-  {
-    tripId,
-    signedIn,
-    failure,
-    note,
-  }: { tripId: string | null; signedIn: boolean; failure: string; note?: string },
+  { tripId, signedIn, failure, note }: { tripId: string | null; signedIn: boolean; failure: string; note?: string },
 ) => {
   useEffect(() => {
     if (!import.meta.env.DEV || typeof document === 'undefined') return;
 
+    // Only while something is wrong. The banner existed to find a sync bug that
+    // is now fixed, and a permanent green bar across every screen is a cost the
+    // reader pays on every page for information they need on almost none.
     const id = 'trippie-sync-badge';
-    const node = document.getElementById(id) ?? document.createElement('div');
+    const existing = document.getElementById(id);
+    const quiet = state === 'synced' || state === 'loading';
+    if (quiet) {
+      existing?.remove();
+      return;
+    }
+
+    const node = existing ?? document.createElement('div');
     node.id = id;
     node.style.cssText =
-      // Across the top, full width. A corner pill kept being cropped out of
-      // screenshots or hidden behind a panel, which turned a one-line question
-      // into six messages.
       'position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:10px 12px;text-align:center;' +
       'font:800 15px ui-monospace,monospace;pointer-events:none;white-space:pre-wrap';
 
-    const look: Record<TripSyncState, [string, string, string]> = {
-      synced: ['#d1fae5', '#047857', '已同步'],
-      loading: ['#e0f2fe', '#0369a1', '讀取中'],
+    const look: Partial<Record<TripSyncState, [string, string, string]>> = {
       error: ['#ffe4e6', '#be123c', `失敗 — ${failure || '原因不明'}`],
       off: ['#e2e8f0', '#475569', `關閉（${!signedIn ? '未登入' : !tripId ? '沒有旅程' : '未設定'}）`],
     };
-    const [background, color, label] = look[state];
+    const [background, color, label] = look[state] ?? ['#e2e8f0', '#475569', state];
     node.style.background = background;
     node.style.color = color;
     node.textContent = `雲端同步：${label}${note ? ` ｜ ${note}` : ''}`;
 
     if (!node.isConnected) document.body.appendChild(node);
-
-    // Also in the tab title. A corner badge can be cropped out of a screenshot
-    // or hidden under a panel; the tab title cannot.
-    document.title = `[${label}] Trippie`;
-
     return () => node.remove();
   }, [state, tripId, signedIn, failure, note]);
 };
