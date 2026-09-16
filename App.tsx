@@ -92,7 +92,6 @@ import PreTripChecklist from "./components/PreTripChecklist";
 import PostTripChecklist from "./components/PostTripChecklist";
 import ShoppingListPanel from "./components/ShoppingListPanel";
 import TripSummaryModal from "./components/TripSummaryModal";
-import MyPostsPanel from "./components/MyPostsPanel";
 import CompanionsModal from "./components/CompanionsModal";
 import CountrySettingsModal from "./components/CountrySettingsModal";
 import TravelIdentityModal from "./components/TravelIdentityModal";
@@ -4114,11 +4113,9 @@ const App: React.FC = () => {
               }}
               onSignOut={handleAuthSignOut}
               onSaveProfile={handleProfileSave}
-            />
-            <MyPostsPanel
-              posts={myCommunityPosts}
-              onToggleVisibility={handleTogglePostVisibility}
-              onDelete={handleDeleteCommunityPost}
+              myPosts={myCommunityPosts}
+              onTogglePostVisibility={handleTogglePostVisibility}
+              onDeletePost={handleDeleteCommunityPost}
             />
             <AppBottomNav
               active="profile"
