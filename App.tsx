@@ -2369,6 +2369,8 @@ const App: React.FC = () => {
     if (item.estimatedCurrency) setInitialFormCurrency(item.estimatedCurrency);
 
     setFormLinkedItemId(item.id);
+    // A shopping item carries its own stage; the expense belongs with it.
+    setExpenseFormPhase(item.phase === "summary" ? "post" : item.phase);
     setIsFormOpen(true);
   };
 
@@ -5201,6 +5203,10 @@ const App: React.FC = () => {
               onAddExpense={() => {
                 setIsGlobalActionOpen(false);
                 setViewMode("trip");
+                // This one set no stage at all, so the form fell back to the
+                // overview's — which is how 記帳 ＞ 旅行中 kept opening with
+                // 行前 categories after the other five were unified.
+                setExpenseFormPhase(phaseForNewExpense());
                 setIsFormOpen(true);
               }}
             />
