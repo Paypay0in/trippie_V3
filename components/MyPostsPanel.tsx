@@ -57,16 +57,16 @@ const MyPostsPanel: React.FC<Props> = ({
           {/* No heading here: the tab above already says 我的貼文, and saying it
               twice on one screen is the reader's cue that they missed something
               between the two. */}
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             {posts.map(post => {
               const isPublic = post.status === 'published';
               return (
                 <div key={post.id} className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
                   <div className="relative">
                     {post.coverImage ? (
-                      <img src={post.coverImage} alt="" className="h-40 w-full object-cover" />
+                      <img src={post.coverImage} alt="" className="h-32 w-full object-cover" />
                     ) : (
-                      <div className="flex h-40 w-full items-center justify-center bg-slate-100 text-slate-300">
+                      <div className="flex h-32 w-full items-center justify-center bg-slate-100 text-slate-300">
                         <MapPin size={22} />
                       </div>
                     )}
@@ -100,7 +100,7 @@ const MyPostsPanel: React.FC<Props> = ({
                     /* The reversible action sits above the irreversible one, so
                        someone reaching to take a post down does not meet delete
                        first. */
-                    <div className="absolute right-3 top-12 w-44 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
+                    <div className="absolute inset-x-2 top-12 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
                       <button
                         type="button"
                         onClick={() => { onToggleVisibility(post.id); setOpenMenuId(null); }}
@@ -127,7 +127,7 @@ const MyPostsPanel: React.FC<Props> = ({
             <button
               type="button"
               onClick={onCreatePost}
-              className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 text-center"
+              className="flex min-h-[11rem] w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 text-center"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-50 text-violet-600"><Plus size={20} /></span>
               <span className="text-sm font-black text-[#11183d]">新增貼文</span>
