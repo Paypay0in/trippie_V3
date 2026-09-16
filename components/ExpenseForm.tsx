@@ -41,6 +41,13 @@ interface Props {
   onFetchTaxRule?: (currency: string) => void; 
 }
 
+const PHASE_LABELS: Record<Phase, string> = {
+  pre: '旅行前',
+  during: '旅行中',
+  post: '返程',
+  summary: '結算',
+};
+
 const ExpenseForm: React.FC<Props> = ({ 
   currentPhase, 
   existingExpenses, 
@@ -604,14 +611,24 @@ const ExpenseForm: React.FC<Props> = ({
           <button onClick={onClose} aria-label="關閉" className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500">
             <X size={20} />
           </button>
-          <h2 className="text-xl font-black text-[#11183d]">
-             {proposalMode
-                ? '提出修正建議'
-                : isEditing
-                  ? '編輯支出'
-                  : isExchange ? '新增換匯紀錄' : '新增支出'
-             }
-          </h2>
+          <div>
+            <h2 className="text-xl font-black text-[#11183d]">
+               {proposalMode
+                  ? '提出修正建議'
+                  : isEditing
+                    ? '編輯支出'
+                    : isExchange ? '新增換匯紀錄' : '新增支出'
+               }
+            </h2>
+            {/* Which part of the ledger this will land in. The categories on
+                offer come from it, so when it is wrong — and it has been — the
+                form looks broken for no visible reason. */}
+            {!proposalMode && !isEditing && (
+              <p className="mt-0.5 text-[11px] font-bold text-slate-400">
+                記入{PHASE_LABELS[currentPhase]}
+              </p>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
