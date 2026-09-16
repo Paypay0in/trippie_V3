@@ -42,8 +42,10 @@ describe('destination from a trip name', () => {
     expect(detectDestinationFromTripName('   ')).toBeNull();
   });
 
-  it('labels with the city when there is one, otherwise the country', () => {
-    expect(destinationLabel({ country: '韓國', city: '釜山' })).toBe('釜山');
+  it('labels with the country, even when a city was recognised', () => {
+    // Entry rules, tax rules and visas are country questions; a destination
+    // reading 釜山 invites a lookup for a place that issues no visas.
+    expect(destinationLabel({ country: '韓國', city: '釜山' })).toBe('韓國');
     expect(destinationLabel({ country: '韓國' })).toBe('韓國');
   });
 });

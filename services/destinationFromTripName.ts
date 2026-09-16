@@ -94,6 +94,12 @@ export const detectDestinationFromTripName = (
   return null;
 };
 
-/** What the destination field should read: the city when known, else the country. */
+/**
+ * What the destination field should read: the country.
+ *
+ * The city is still detected and still decides the country, but the field that
+ * drives entry rules, tax rules and visa lookups is a country question — and a
+ * field reading 釜山 invites a lookup for a place that issues no visas.
+ */
 export const destinationLabel = (detected: DetectedDestination): string =>
-  detected.city ?? detected.country;
+  detected.country;
