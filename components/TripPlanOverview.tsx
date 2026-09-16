@@ -73,16 +73,11 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   // Advisories: the part of the entry research that is not a task. It has been
   // fetched all along and shown nowhere, so travellers never saw the customs
   // limits and stay conditions behind the checklist items.
-  // Summary and guidance usually say the same thing in the same words, and the
-  // research is stored per lookup, so the same sentence was landing three times
-  // in one box. Identical text is shown once.
-  const entryNotes = Array.from(
-    new Set(
-      [travelRules?.entry?.summary, travelRules?.entry?.guidance]
-        .map(note => (note || '').trim())
-        .filter(Boolean),
-    ),
-  ).slice(0, 2);
+  // The narrative summary restates whatever the tiles already say — the same
+  // visa rule in different words — so it is shown only when there are no tiles
+  // to carry it. Deciding this by wording was tried and does not work: two
+  // phrasings of one rule share barely more text than two unrelated rules.
+  const entrySummary = (travelRules?.entry?.summary || travelRules?.entry?.guidance || '').trim();
   const entrySources = travelRules?.entry?.sources ?? [];
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
   const expandedLink = expandedTask ? findOfficialLink(destinationCountry || destination, expandedTask.name) : null;
@@ -185,7 +180,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         )}
       </section>
 
-      {(entryNotes.length > 0 || advisoryTasks.length > 0) && (
+      {(advisoryTasks.length > 0 || (entrySummary && entryRules.length === 0)) && (
         /* Sits under the formalities it qualifies: these are the conditions and
            limits attached to them, not separate advice. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -205,9 +200,9 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                 {taskLink && <a href={taskLink.url} target="_blank" rel="noreferrer noopener" className="mt-2.5 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-black text-violet-700 ring-1 ring-violet-100"><span className="min-w-0 truncate">{taskLink.label}</span><ExternalLink size={15} className="shrink-0" /></a>}
               </div>;
             })}
-            {entryNotes.map(note => (
-              <p key={note} className="whitespace-pre-line rounded-2xl bg-amber-50/70 px-4 py-3 text-xs leading-5 text-slate-600">{note}</p>
-            ))}
+            {entrySummary && entryRules.length === 0 && (
+              <p className="whitespace-pre-line rounded-2xl bg-amber-50/70 px-4 py-3 text-xs leading-5 text-slate-600">{entrySummary}</p>
+            )}
           </div>
           {entrySources.length > 0 && (
             <div className="mt-3 space-y-1.5">
