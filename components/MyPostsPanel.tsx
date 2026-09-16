@@ -54,53 +54,53 @@ const MyPostsPanel: React.FC<Props> = ({
 
       {tab === 'posts' ? (
         <>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-lg font-black text-[#11183d]">我的貼文</h2>
-            <span className="text-xs font-bold text-slate-400">{posts.length} 篇</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          {/* No heading here: the tab above already says 我的貼文, and saying it
+              twice on one screen is the reader's cue that they missed something
+              between the two. */}
+          <div className="space-y-3">
             {posts.map(post => {
               const isPublic = post.status === 'published';
               return (
                 <div key={post.id} className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-                  {post.coverImage ? (
-                    <img src={post.coverImage} alt="" className="h-32 w-full object-cover" />
-                  ) : (
-                    <div className="flex h-32 w-full items-center justify-center bg-slate-100 text-slate-300">
-                      <MapPin size={22} />
-                    </div>
-                  )}
-                  <div className="p-3">
+                  <div className="relative">
+                    {post.coverImage ? (
+                      <img src={post.coverImage} alt="" className="h-40 w-full object-cover" />
+                    ) : (
+                      <div className="flex h-40 w-full items-center justify-center bg-slate-100 text-slate-300">
+                        <MapPin size={22} />
+                      </div>
+                    )}
+                    {/* Status and actions live on the cover, so the text below is
+                        just the post: title, place, nothing competing. */}
+                    <span
+                      className={`absolute left-3 top-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black backdrop-blur ${
+                        isPublic ? 'bg-emerald-500/90 text-white' : 'bg-slate-900/70 text-white'
+                      }`}
+                    >
+                      {isPublic ? null : <Lock size={10} />}
+                      {isPublic ? '公開' : '僅自己可見'}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`貼文選項：${post.title || '未命名貼文'}`}
+                      onClick={() => setOpenMenuId(current => (current === post.id ? null : post.id))}
+                      className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
+                  </div>
+                  <div className="p-3.5">
                     <p className="line-clamp-2 text-sm font-black leading-5 text-[#11183d]">{post.title || '未命名貼文'}</p>
                     <p className="mt-1 truncate text-[11px] text-slate-400">
                       {[post.country, post.city].filter(Boolean).join('・') || '未填地點'}
                     </p>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black ${
-                          isPublic ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        {isPublic ? null : <Lock size={10} />}
-                        {isPublic ? '公開' : '僅自己可見'}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`貼文選項：${post.title || '未命名貼文'}`}
-                        onClick={() => setOpenMenuId(current => (current === post.id ? null : post.id))}
-                        className="rounded-lg p-1 text-slate-400"
-                      >
-                        <MoreHorizontal size={16} />
-                      </button>
-                    </div>
                   </div>
 
                   {openMenuId === post.id && (
                     /* The reversible action sits above the irreversible one, so
                        someone reaching to take a post down does not meet delete
                        first. */
-                    <div className="absolute inset-x-2 bottom-2 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
+                    <div className="absolute right-3 top-12 w-44 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-slate-200">
                       <button
                         type="button"
                         onClick={() => { onToggleVisibility(post.id); setOpenMenuId(null); }}
@@ -127,7 +127,7 @@ const MyPostsPanel: React.FC<Props> = ({
             <button
               type="button"
               onClick={onCreatePost}
-              className="flex min-h-[11rem] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 text-center"
+              className="flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 text-center"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-50 text-violet-600"><Plus size={20} /></span>
               <span className="text-sm font-black text-[#11183d]">新增貼文</span>
@@ -137,10 +137,6 @@ const MyPostsPanel: React.FC<Props> = ({
         </>
       ) : (
         <>
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="text-lg font-black text-[#11183d]">我的收藏</h2>
-            <span className="text-xs font-bold text-slate-400">{savedInspirations.length} 個</span>
-          </div>
           {savedInspirations.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
               還沒有收藏任何旅行靈感

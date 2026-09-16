@@ -52,9 +52,9 @@ describe('我的貼文', () => {
   it('sits inside the account page, with the post listed', () => {
     renderAccount();
     const main = screen.getByRole('main');
-    // Both the tab and the heading say 我的貼文; the heading is what proves the
-    // panel rendered inside the page rather than a screen below it.
-    expect(within(main).getByRole('heading', { name: '我的貼文' })).toBeTruthy();
+    // The tab is the only place the section is named now; the post itself is
+    // what proves the panel rendered inside the page rather than below it.
+    expect(within(main).getByRole('button', { name: /我的貼文/ })).toBeTruthy();
     expect(within(main).getByText(post.title)).toBeTruthy();
     expect(within(main).getByText('公開')).toBeTruthy();
   });
