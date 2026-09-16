@@ -1286,6 +1286,11 @@ const App: React.FC = () => {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }));
+        // Reported too: "the cloud has two trips" and "this device gained one"
+        // are different facts, and only the second one means the merge worked.
+        setCloudTripNote(
+          `雲端旅程 ${result.data.length} 趟（本機新增 ${missing.length}，共 ${current.length + missing.length}）`,
+        );
         return missing.length ? [...current, ...missing] : current;
       });
     });
