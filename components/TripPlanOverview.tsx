@@ -6,18 +6,33 @@ import { DestinationTip, getDestinationTips } from '../services/destinationTips'
 import { findOfficialLink } from '../services/officialTravelLinks';
 
 /**
- * The official page for one formality.
+ * Formalities you complete by filling something in. Only these carry a link.
+ *
+ * A link under 護照效期 pointed at the passport agency, which has nothing for
+ * someone who only needs to check an expiry date — and a button that leads
+ * somewhere useless teaches people to stop pressing the ones that are not.
+ */
+const FILLABLE_ACTIONS = new Set([
+  'visa_or_eta',
+  'health_declaration',
+  'customs_declaration',
+  'arrival_form',
+]);
+
+/**
+ * The official page for one formality, when there is something to fill in.
  *
  * The research returns a source with each item, so that is what is shown: the
  * page the guidance was actually read from, rather than a second answer from a
  * table maintained here. The table stays as a fallback for items the lookup
- * returned without one — an entry formality with nowhere to go is the gap that
+ * returns without one — an application with nowhere to go is the gap that
  * sends people to a search engine full of paid intermediaries.
  */
 const officialLinkFor = (
   task: ShoppingItem,
   country?: string,
 ): { label: string; url: string } | null => {
+  if (!FILLABLE_ACTIONS.has(task.travelRuleActionType ?? '')) return null;
   const source = task.source;
   if (source?.url) {
     return { label: source.publisher || source.title || '官方網站', url: source.url };
