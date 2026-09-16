@@ -44,6 +44,10 @@ import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES } from "./constants";
 import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
+import {
+  destinationLabel,
+  detectDestinationFromTripName,
+} from "./services/destinationFromTripName";
 import { fetchMyTrips, isSyncAvailable } from "./services/tripSync";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
@@ -1566,7 +1570,24 @@ const App: React.FC = () => {
       : draftName;
 
   // --- Handlers ---
+  /**
+   * Fill the destination from the trip's name when it is still blank.
+   *
+   * Naming a trip 「韓國釜山之旅」 and then finding the entry-rules screen
+   * saying 「尚未設定目的地」 is the app failing to read something the user
+   * already told it. Only ever fills an empty field: a destination someone
+   * chose outranks anything inferred from a title.
+   */
+  const applyDestinationFromName = (newName: string) => {
+    if (tripDestination.trim() && travelCountry.trim()) return;
+    const detected = detectDestinationFromTripName(newName);
+    if (!detected) return;
+    if (!tripDestination.trim()) setTripDestination(destinationLabel(detected));
+    if (!travelCountry.trim()) setTravelCountry(detected.country);
+  };
+
   const handleNameChange = (newName: string) => {
+    applyDestinationFromName(newName);
     if (activeDraftId) {
       setDraftName(newName);
     } else if (currentLoadedTripId) {
@@ -1596,8 +1617,12 @@ const App: React.FC = () => {
             : draft,
         ),
       );
-      if (activeDraftId === id) setDraftName(newName);
+      if (activeDraftId === id) {
+        applyDestinationFromName(newName);
+        setDraftName(newName);
+      }
     } else if (id === null && activeDraftId) {
+      applyDestinationFromName(newName);
       setDraftName(newName);
     } else {
       // It's a historical trip
