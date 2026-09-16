@@ -5240,6 +5240,37 @@ const App: React.FC = () => {
               onOpenRecords={() => setWorkspaceSection("records")}
             />
           )}
+          {workspaceSection === "overview" && currentPhase === "during" && (
+            /* The entry rules, cautions and local know-how do not stop being
+               useful on the day you land — the arrival card is needed then more
+               than ever. Now that the overview picks its stage from the dates,
+               leaving them on the pre-trip screen alone would hide them exactly
+               when they matter. */
+            <TripPlanOverview
+              variant="reference"
+              expenses={expenses}
+              shoppingList={shoppingList}
+              itinerary={itinerary}
+              companionCount={companions.length}
+              dateRange={tripDateRangeDisplay}
+              onContinuePlanning={() => setWorkspaceSection("planning")}
+              onEnterTripMode={() => handleWorkspacePhaseChange("during")}
+              onExploreInspiration={() => {
+                setAppSection("community");
+                setViewMode("community");
+              }}
+              destination={tripDestination}
+              destinationCountry={
+                travelCountry ||
+                detectDestinationFromTripName(tripDestination)?.country
+              }
+              travelRules={travelRules}
+              onTogglePreparationItem={handleTogglePreparationItem}
+              onAddPreparationItems={(items) =>
+                handleBatchAddShoppingItems(items, "draft")
+              }
+            />
+          )}
           {workspaceSection === "planning" && planningContent}
           {workspaceSection === "records" && recordsContent}
 

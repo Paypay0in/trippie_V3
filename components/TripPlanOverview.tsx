@@ -18,6 +18,13 @@ interface Props {
   destination?: string;
   destinationCountry?: string;
   travelRules?: TravelRules;
+  /**
+   * 'plan' is the whole pre-trip screen. 'reference' keeps only what stays
+   * useful once the trip has started — the entry rules, the cautions, the
+   * local know-how and the assistant — so a trip already under way shows them
+   * instead of hiding them behind a phase it has passed.
+   */
+  variant?: 'plan' | 'reference';
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
 }
@@ -53,7 +60,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -134,9 +141,11 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
     }
   };
 
+  const planOnly = variant === 'plan';
+
   return (
     <div className="space-y-3 pb-4">
-      <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+      {planOnly && <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="mb-2 text-xs font-black uppercase tracking-[.18em] text-violet-600">旅程準備度</div>
@@ -149,7 +158,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><Plane size={27} /></div>
         </div>
         {preTasks.length > 0 && <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600" style={{ width: `${(completed.length / preTasks.length) * 100}%` }} /></div>}
-      </section>
+      </section>}
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-start justify-between gap-3">
@@ -253,7 +262,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         </section>
       )}
 
-      {ownTasks.length > 0 && (
+      {planOnly && ownTasks.length > 0 && (
         /* The traveller's own list, kept apart from what the country requires.
            Vertical, because this one genuinely is a list of chores. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -334,6 +343,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         </div>}
       </section>
 
+      {planOnly && <>
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 font-black"><Compass size={18} className="text-violet-600" />你儲存的旅遊靈感</h2>
@@ -353,6 +363,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         <div><div className="font-black">即將開啟你的旅程</div><div className="mt-1 text-xs text-slate-500">出發後可切換到即時旅行首頁。</div></div>
         <button onClick={onEnterTripMode} className="flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-sm font-black text-white shadow-lg shadow-violet-500/20">進入旅行模式<ArrowRight size={17} /></button>
       </section>
+      </>}
     </div>
   );
 };
