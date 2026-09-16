@@ -22,9 +22,16 @@ describe('official travel links', () => {
     expect(findOfficialLink('泰國', '護照有效期限')?.url).toBe('https://www.boca.gov.tw');
   });
 
+  it('sends the Korean arrival card to the electronic one', () => {
+    // Korea does have an online arrival card; an earlier version of this table
+    // claimed it did not and left the item with no link at all.
+    expect(findOfficialLink('韓國', '入境登記卡 (Arrival Card)')?.url).toBe(
+      'https://www.e-arrivalcard.go.kr',
+    );
+  });
+
   it('gives no link rather than a guessed one', () => {
     // The checklist lends a link authority, so a wrong one is worse than none.
-    expect(findOfficialLink('韓國', '入境卡 (Arrival Card)')).toBeNull();
     expect(findOfficialLink('冰島', '入境許可')).toBeNull();
     expect(findOfficialLink(undefined, '')).toBeNull();
   });

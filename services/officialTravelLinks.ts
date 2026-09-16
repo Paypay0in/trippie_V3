@@ -38,6 +38,12 @@ const RULES: LinkRule[] = [
   },
   {
     country: '韓國',
+    keywords: ['入境卡', '入境登記', 'arrival card', '입국신고'],
+    label: '韓國電子入境申報 (e-Arrival Card)',
+    url: 'https://www.e-arrivalcard.go.kr',
+  },
+  {
+    country: '韓國',
     keywords: ['海關', '關稅'],
     label: '韓國關稅廳',
     url: 'https://www.customs.go.kr',
