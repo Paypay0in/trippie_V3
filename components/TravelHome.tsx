@@ -227,8 +227,16 @@ const TravelHome: React.FC<Props> = ({
   const [pendingDeleteDraft, setPendingDeleteDraft] = useState<TripDraft | null>(null);
   const [deleteError, setDeleteError] = useState("");
 
+  /**
+   * The name the traveller gave the trip, not the place it is going.
+   *
+   * Destination is now filled in automatically from the title, so preferring it
+   * replaced 「韓國釜山之旅」 with 「釜山」 — the app overwriting someone's own
+   * words with its own inference of them. The destination still drives the
+   * cover image, where it is a search term rather than a label.
+   */
   const draftLabel = (draft: TripDraft) =>
-    draft.destination || draft.name || "未命名旅程";
+    draft.name?.trim() || draft.destination || "未命名旅程";
 
   /**
    * The overflow menu for one trip card. Rendered only when a delete handler
@@ -319,7 +327,7 @@ const TravelHome: React.FC<Props> = ({
               {renderTripMenu(activeDraft)}
               <div className="absolute bottom-5 left-5 right-[150px] text-white">
                 <h2 className="mb-2 text-[27px] font-black leading-none tracking-tight drop-shadow-sm">
-                  {activeDraft.destination || activeDraft.name || "未命名旅程"}
+                  {activeDraft.name?.trim() || activeDraft.destination || "未命名旅程"}
                 </h2>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-semibold text-white/95">
                   <span className="inline-flex items-center gap-1.5">
