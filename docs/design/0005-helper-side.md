@@ -130,7 +130,13 @@ create table public.service_offers (
 
 ### 3.5 `service_completions`
 
-一筆指派對應一列。完成回報與雙邊確認都記在這裡。
+一筆指派對應一列。
+
+**金額不在這裡重問。** 被接受的報價就是雙方議定的金額——完成時再問一次，
+是在問一個已經有答案的問題。這張表只回答「做完了嗎」。
+
+唯一的例外：v1 不押款，錢在平台外面付，實付金額可能與議定不同（範圍縮水、
+少做一項、給了小費）。那是**選填的修正**，不是必填欄位。
 
 ```sql
 create table public.service_completions (
@@ -144,28 +150,23 @@ create table public.service_completions (
   evidence_note text not null,
   evidence_reference text,          -- 訂位編號、單據號、交付連結
 
-  -- 雙方各自填的最終金額（同一組五欄，前綴 helper_ / traveller_）
-  helper_final_amount_minor bigint not null,
-  helper_final_currency text not null,
-  helper_final_fx_rate numeric not null,
-  helper_final_fx_rate_at timestamptz not null,
-  helper_final_amount_usd_cents bigint not null,
-
   traveller_confirmed_at timestamptz,
-  traveller_final_amount_minor bigint,
-  traveller_final_currency text,
-  traveller_final_fx_rate numeric,
-  traveller_final_fx_rate_at timestamptz,
-  traveller_final_amount_usd_cents bigint,
-
   -- 逾時自動確認的時間點；主動確認時為 null
   auto_confirmed_at timestamptz,
 
+  -- 選填：實付與議定不同時才有值。null 表示「照議定金額」，
+  -- 不是「不知道」——議定金額一直都在 service_offers 裡。
+  actual_amount_minor bigint,
+  actual_currency text,
+  actual_fx_rate numeric,
+  actual_fx_rate_at timestamptz,
+  actual_amount_usd_cents bigint,
+  actual_amount_note text,          -- 為什麼不一樣
+
   outcome text not null default 'awaiting_traveller' check (outcome in (
     'awaiting_traveller',   -- 幫手已回報，三天內等旅客
-    'confirmed',            -- 旅客主動確認，金額一致
+    'confirmed',            -- 旅客主動確認
     'auto_confirmed',       -- 逾時視為完成
-    'amount_disputed',      -- 兩邊金額不一致
     'disputed'              -- 旅客明確提出異議
   )),
   created_at timestamptz not null default now()
@@ -174,6 +175,9 @@ create table public.service_completions (
 
 **為什麼 `auto_confirmed` 與 `confirmed` 分開**：正典要求價格標籤反映資料可信度。
 逾時預設不等於旅客看過並同意，統計時要能分辨。
+
+`amount_disputed` 這個狀態已移除。它是「雙邊各自填金額」那版設計的殘留——
+出價機制存在之後，金額就只有一個來源。
 
 ### 3.6 `service_reports`
 
@@ -242,8 +246,7 @@ assigned ──────────────► cancelled（任一方在�
    ▼
 awaiting_confirmation
    │
-   ├── 旅客確認，金額一致 ──────────► completed（confirmed）
-   ├── 旅客確認，金額不一致 ────────► completed（amount_disputed）
+   ├── 旅客確認 ───────────────────► completed（confirmed）
    ├── 旅客提出異議 ───────────────► disputed
    └── 3 天無回應 ─────────────────► completed（auto_confirmed）
 ```
@@ -273,14 +276,19 @@ awaiting_confirmation
 
 正典的可信度階層轉成一張 view：
 
+可信度是**三層**，不是兩層。這是出價機制帶來的：
+
 | 來源 | 可稱為 | 是否進統計 |
 |---|---|---|
-| `service_requests.asking_*` | 開價 | 是，標記為 asking |
-| `outcome = 'confirmed'` 且兩邊金額一致 | 成交價 | 是，標記為 settled |
-| `outcome = 'auto_confirmed'` | 不可稱成交價 | 是，降權 |
-| `outcome = 'amount_disputed'` | — | 否 |
+| `service_requests.asking_*` | 開價 | 是，標記 asking |
+| 被接受的 `service_offers.offer_*` | **議定價** | 是，標記 agreed |
+| `completions.actual_*`（有值時） | 實付價 | 是，標記 actual，優先於議定 |
+| `outcome = 'auto_confirmed'` | 不可稱實付價 | 是，降權 |
 | `outcome = 'disputed'` | — | 否 |
 | 涉及任何 `service_reports` | — | 否 |
+
+**議定價是 v1 的主力資料。** 它比開價可信得多，而且**每一筆成交都有**，
+不需要任何人多按一個鍵。實付價更準但只有例外情況才有值，樣本會少很多。
 
 分組：**類別 × 時長級距 × 城市**。樣本 < 5 不顯示，且明說沒有，不塞估計值。
 顯示區間優先於單一平均。
@@ -317,7 +325,8 @@ requester-only，一旦幫手要能看到需求才能出價，就必須開放。
 
 ## 7. 尚待 Founder 決定
 
-1. **金額不一致的處理** — 本文件採「標記 `amount_disputed`、排除出統計」（我的提案）
+1. ~~金額不一致的處理~~ — **已解消。** 出價機制讓金額只有一個來源，
+   完成時不再重問。實付不同是選填的修正，不是爭議狀態。
 2. **評價是否綁在確認之後** — 本文件尚未納入評價表，等這題決定
 3. **需求對幫手可見的欄位子集**（第 6 節）
 4. **零小數幣別的最小單位對照**（第 3.1 節）
