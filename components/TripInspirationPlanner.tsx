@@ -158,7 +158,27 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
 
   // The proposal is a snapshot of one destination/date/selection combination. If
   // any of those move underneath it, drop it rather than leave stale figures up.
-  useEffect(() => { discardPendingProposal(); }, [trip, groups]);
+  //
+  // Compared by content, never by object identity. `trip` and `groups` are
+  // rebuilt whenever the app learns something about the trip — coordinates and
+  // a place id resolve asynchronously — and depending on the objects meant a
+  // lookup landing a moment after a proposal rendered threw that proposal away
+  // with the accept button already under the traveller's finger. Learning where
+  // 東京 is is not choosing somewhere else.
+  //
+  // Coordinates and the resolved place id are deliberately absent below: they
+  // describe the same destination in more detail, so they must not invalidate
+  // anything. The destination, the dates and which places were chosen are what
+  // the figures on screen were actually computed from.
+  const proposalContextFingerprint = [
+    trip.destination || '',
+    trip.destinationCountry || '',
+    trip.travelCountry || '',
+    trip.startDate || '',
+    trip.endDate || '',
+    groups.map(group => group.id).join(','),
+  ].join('|');
+  useEffect(() => { discardPendingProposal(); }, [proposalContextFingerprint]);
 
   // A diff is written against specific itinerary item ids and their current times.
   // If the itinerary changes underneath it — a hand edit, or the apply that just
