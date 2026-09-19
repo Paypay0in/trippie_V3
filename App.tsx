@@ -129,6 +129,7 @@ import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
 import Marketplace from "./components/Marketplace";
 import { HelpRequest } from "./services/serviceMatching";
+import { spendingProfile, spendingProfileBrief } from "./services/spendingProfile";
 import {
   deleteServiceRequest,
   fetchMyServiceRequests,
@@ -3682,6 +3683,28 @@ const App: React.FC = () => {
       if (result.status === "ok") setServiceRequests(result.data);
     });
   }, [authUser?.id]);
+
+  /**
+   * What this traveller actually spends per day, counted from their own past
+   * trips. Given to the planner as context so a plan is sized to them, worded
+   * as an observation rather than a budget they stated.
+   */
+  const budgetBrief = useMemo(() => {
+    const days = (start?: string, end?: string) => {
+      if (!start || !end) return 0;
+      const from = new Date(`${start}T00:00:00`).getTime();
+      const to = new Date(`${end}T00:00:00`).getTime();
+      if (Number.isNaN(from) || Number.isNaN(to) || to < from) return 0;
+      return Math.round((to - from) / 86400000) + 1;
+    };
+    return spendingProfileBrief(
+      spendingProfile(
+        drafts
+          .filter((draft) => draft.id !== activeDraftId)
+          .map((draft) => ({ expenses: draft.expenses || [], days: days(draft.startDate, draft.endDate) })),
+      ),
+    );
+  }, [drafts, activeDraftId]);
 
   const handlePublishServiceRequest = (
     draft: Omit<ServiceRequest, "id" | "tripId" | "requestedByUserId" | "createdAt" | "status">,
