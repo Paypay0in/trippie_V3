@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FALLBACK_LANGUAGE, resolveLanguage } from './config';
+import { FALLBACK_LANGUAGE, languageFromUrl, resolveLanguage } from './config';
 
 describe('resolveLanguage', () => {
   it('reads every shape a browser reports Traditional Chinese in', () => {
@@ -41,5 +41,25 @@ describe('resolveLanguage', () => {
     // Every untranslated string resolves through this, so it has to be the
     // language the source strings are already in.
     expect(FALLBACK_LANGUAGE).toBe('zh-Hant');
+  });
+});
+
+describe('languageFromUrl', () => {
+  it('reads a language out of the query string', () => {
+    expect(languageFromUrl('?lang=en')).toBe('en');
+    expect(languageFromUrl('?lang=zh-TW')).toBe('zh-Hant');
+  });
+
+  it('normalises whatever was typed, rather than trusting it', () => {
+    // The value is a URL, so anyone can put anything in it.
+    expect(languageFromUrl('?lang=EN-gb')).toBe('en');
+    expect(languageFromUrl('?lang=klingon')).toBe('en');
+  });
+
+  it('stays out of the way when no language was asked for', () => {
+    // Undefined, not the fallback: the caller must fall through to the device
+    // rather than have the URL quietly pin everyone to one language.
+    expect(languageFromUrl('')).toBeUndefined();
+    expect(languageFromUrl('?other=1')).toBeUndefined();
   });
 });

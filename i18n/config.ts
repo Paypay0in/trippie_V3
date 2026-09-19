@@ -51,6 +51,24 @@ export const resolveLanguage = (requested?: string | null): SupportedLanguage =>
   return 'en';
 };
 
+/**
+ * `?lang=en` — a way to look at a language that is not the device's.
+ *
+ * There is no language setting in the product and there should not be: the
+ * device already knows. But reviewing translation work by changing the whole
+ * browser's language and restarting it, once per screen, is slow enough that
+ * screens do not get reviewed. This makes that a URL.
+ *
+ * It is a preview, not a preference: nothing is stored, so closing the tab
+ * puts the reader back on their own language.
+ */
+export const languageFromUrl = (search?: string): SupportedLanguage | undefined => {
+  const source = search ?? (typeof window === 'undefined' ? '' : window.location.search);
+  const requested = new URLSearchParams(source).get('lang');
+  if (!requested) return undefined;
+  return resolveLanguage(requested);
+};
+
 export const initI18n = (options: { language?: string } = {}): I18nInstance => {
   if (i18next.isInitialized) return i18next;
 

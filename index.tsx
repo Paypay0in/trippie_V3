@@ -2,11 +2,13 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
-import { initI18n } from './i18n/config';
+import { initI18n, languageFromUrl } from './i18n/config';
 
 // Before the first render: a screen that paints in one language and swaps to
 // another a tick later is worse than a slightly later first paint.
-initI18n();
+// `?lang=` overrides the device so a screen can be reviewed in another
+// language without changing the whole browser's settings.
+initI18n({ language: languageFromUrl() });
 
 // Polyfill process for libraries that might expect it in the browser
 if (typeof window !== 'undefined' && !window.process) {
