@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Expense, TripMember } from '../types';
+import { Expense, ItineraryItem, TripMember } from '../types';
 import {
   TripSyncSnapshot,
   ensureTripRow,
@@ -35,6 +35,12 @@ interface Options {
   currency?: string;
   members: TripMember[];
   expenses: Expense[];
+  /**
+   * The itinerary. Pushed on the same debounce as the ledger so one trip is
+   * one write, and so the rule that nothing is written before the first read
+   * completes covers the plan as well as the money.
+   */
+  itinerary: ItineraryItem[];
   /** Extra text for the dev banner, e.g. how many cloud trips were found. */
   note?: string;
   /** Called when the trip already exists remotely and the remote copy wins. */
@@ -53,6 +59,7 @@ export const useTripSync = ({
   currency,
   members,
   expenses,
+  itinerary,
   note,
   onRemoteSnapshot,
 }: Options): TripSyncState => {
@@ -103,7 +110,8 @@ export const useTripSync = ({
         setState('error');
         return;
       }
-      if (remote.status === 'ok' && (remote.data.expenses.length || remote.data.members.length)) {
+      if (remote.status === 'ok'
+        && (remote.data.expenses.length || remote.data.members.length || remote.data.itinerary.length)) {
         onRemoteSnapshotRef.current(remote.data);
       }
 
@@ -121,16 +129,16 @@ export const useTripSync = ({
   // The roster and the expense list are rebuilt on every render, so depending
   // on the arrays themselves would restart the debounce forever and never
   // write. Comparing content also means an idle re-render costs no request.
-  const payloadSignature = JSON.stringify({ members, expenses });
-  const payloadRef = useRef({ members, expenses });
-  payloadRef.current = { members, expenses };
+  const payloadSignature = JSON.stringify({ members, expenses, itinerary });
+  const payloadRef = useRef({ members, expenses, itinerary });
+  payloadRef.current = { members, expenses, itinerary };
 
   useEffect(() => {
     if (!enabled || !tripId || readyTripIdRef.current !== tripId) return;
 
     const timer = window.setTimeout(() => {
-      const { members: m, expenses: e } = payloadRef.current;
-      void pushTripSnapshot({ members: m, expenses: e }, tripId).then(result => {
+      const { members: m, expenses: e, itinerary: i } = payloadRef.current;
+      void pushTripSnapshot({ members: m, expenses: e, itinerary: i }, tripId).then(result => {
         if (readyTripIdRef.current !== tripId) return;
         if (result.status === 'error') {
           if (import.meta.env.DEV) console.warn('[tripSync] write failed', result.message);

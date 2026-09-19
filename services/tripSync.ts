@@ -1,11 +1,14 @@
-import { Expense, TripMember } from '../types';
+import { Expense, ItineraryItem, TripMember } from '../types';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import {
   ExpenseRow,
+  ItineraryItemRow,
   TripMemberRow,
   fromExpenseRow,
+  fromItineraryRow,
   fromMemberRow,
   toExpenseRow,
+  toItineraryRow,
   toMemberRow,
 } from './tripSyncMapping';
 
@@ -25,6 +28,16 @@ import {
 export interface TripSyncSnapshot {
   members: TripMember[];
   expenses: Expense[];
+  /**
+   * The itinerary, shared like everything else on the trip.
+   *
+   * Carried in the same snapshot rather than a parallel channel on purpose.
+   * The read-before-write ordering that stops a freshly opened device from
+   * erasing the remote ledger is enforced once, around this object; a second
+   * path would need its own copy of that rule, and would eventually be missing
+   * it.
+   */
+  itinerary: ItineraryItem[];
 }
 
 export type SyncResult<T> =
@@ -129,18 +142,21 @@ export const fetchTripSnapshot = async (
 ): Promise<SyncResult<TripSyncSnapshot>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
-    const [members, expenses] = await Promise.all([
+    const [members, expenses, itinerary] = await Promise.all([
       supabase.from('trip_members').select('*').eq('trip_id', tripId),
       supabase.from('expenses').select('*').eq('trip_id', tripId),
+      supabase.from('itinerary_items').select('*').eq('trip_id', tripId),
     ]);
     if (members.error) throw members.error;
     if (expenses.error) throw expenses.error;
+    if (itinerary.error) throw itinerary.error;
 
     return {
       status: 'ok',
       data: {
         members: (members.data as TripMemberRow[]).map(fromMemberRow),
         expenses: (expenses.data as ExpenseRow[]).map(fromExpenseRow),
+        itinerary: (itinerary.data as ItineraryItemRow[]).map(fromItineraryRow),
       },
     };
   } catch (error) {
@@ -216,7 +232,7 @@ export const pushMembers = async (
  * because nobody is looking for it.
  */
 export const pushTripSnapshot = async (
-  { members, expenses }: TripSyncSnapshot,
+  { members, expenses, itinerary }: TripSyncSnapshot,
   tripId: string,
 ): Promise<SyncResult<null>> => {
   if (!supabase) return { status: 'unavailable' };
@@ -240,6 +256,25 @@ export const pushTripSnapshot = async (
       .eq('trip_id', tripId)
       .not('id', 'in', `(${keep.map(id => `"${id}"`).join(',') || '""'})`);
     if (pruneError) throw pruneError;
+
+    // Same shape as the expense write above: upsert what is here, then remove
+    // what is not. Deleting a day's plan has to reach the other phone too, or
+    // the two people are following different itineraries and only one of them
+    // knows it.
+    if (itinerary.length) {
+      const { error } = await supabase
+        .from('itinerary_items')
+        .upsert(itinerary.map(item => toItineraryRow(item, tripId)), { onConflict: 'id' });
+      if (error) throw error;
+    }
+
+    const keepItems = itinerary.map(item => item.id);
+    const { error: itineraryPruneError } = await supabase
+      .from('itinerary_items')
+      .delete()
+      .eq('trip_id', tripId)
+      .not('id', 'in', `(${keepItems.map(id => `"${id}"`).join(',') || '""'})`);
+    if (itineraryPruneError) throw itineraryPruneError;
 
     return { status: 'ok', data: null };
   } catch (error) {

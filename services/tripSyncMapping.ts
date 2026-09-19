@@ -1,4 +1,4 @@
-import { Category, Expense, PaymentMethod, SplitMethod, TripMember } from '../types';
+import { Category, Expense, ItineraryItem, PaymentMethod, SplitMethod, TripMember } from '../types';
 
 /**
  * Translation between the app's objects and the shared tables.
@@ -109,4 +109,99 @@ export const fromMemberRow = (row: TripMemberRow): TripMember => ({
   name: row.name,
   userId: row.user_id ?? undefined,
   type: row.type,
+});
+
+/**
+ * The itinerary row.
+ *
+ * Flat columns for what decides behaviour — which day, what order, whether the
+ * AI may touch it. JSONB for provenance and the copied notes, which are the
+ * client's own shapes and are only ever read back whole.
+ */
+export interface ItineraryItemRow {
+  id: string;
+  trip_id: string;
+  date: string | null;
+  time: string;
+  title: string;
+  location: string;
+  notes: string;
+  type: string;
+  place_id: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  duration_minutes: number | null;
+  is_completed: boolean;
+  sort_order: number | null;
+  is_pinned: boolean;
+  schedule_flexibility: string | null;
+  fixed_event_kind: string | null;
+  origin: string | null;
+  linked_expense_id: string | null;
+  derived_from_flight_anchor_id: string | null;
+  source_inspiration_ids: unknown;
+  saved_travel_notes: unknown;
+}
+
+const ITEM_TYPES = ['FLIGHT', 'HOTEL', 'ACTIVITY', 'FOOD', 'TRANSPORT'] as const;
+
+export const toItineraryRow = (item: ItineraryItem, tripId: string): ItineraryItemRow => ({
+  id: item.id,
+  trip_id: tripId,
+  // Empty is stored as null, not ''. An item with no day is unscheduled, and
+  // the difference has to survive the round trip.
+  date: item.date || null,
+  time: item.time ?? '',
+  title: item.title ?? '',
+  location: item.location ?? '',
+  notes: item.notes ?? '',
+  type: item.type,
+  place_id: item.placeId ?? null,
+  address: item.address ?? null,
+  latitude: item.latitude ?? null,
+  longitude: item.longitude ?? null,
+  duration_minutes: item.durationMinutes ?? null,
+  is_completed: item.isCompleted === true,
+  // Null, not 0. Absent means "fall back to chronological"; zero means "first".
+  sort_order: typeof item.sortOrder === 'number' ? item.sortOrder : null,
+  is_pinned: item.isPinned === true,
+  schedule_flexibility: item.scheduleFlexibility ?? null,
+  fixed_event_kind: item.fixedEventKind ?? null,
+  origin: item.origin ?? null,
+  linked_expense_id: item.linkedExpenseId ?? null,
+  derived_from_flight_anchor_id: item.derivedFromFlightAnchorId ?? null,
+  source_inspiration_ids: item.sourceInspirationIds ?? [],
+  saved_travel_notes: item.savedTravelNotes ?? [],
+});
+
+export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
+  id: row.id,
+  time: row.time ?? '',
+  title: row.title ?? '',
+  location: row.location ?? '',
+  notes: row.notes ?? '',
+  type: (ITEM_TYPES as readonly string[]).includes(row.type)
+    ? (row.type as ItineraryItem['type'])
+    : 'ACTIVITY',
+  date: row.date ?? undefined,
+  placeId: row.place_id ?? undefined,
+  address: row.address ?? undefined,
+  latitude: row.latitude ?? undefined,
+  longitude: row.longitude ?? undefined,
+  durationMinutes: row.duration_minutes ?? undefined,
+  isCompleted: row.is_completed === true,
+  sortOrder: typeof row.sort_order === 'number' ? row.sort_order : undefined,
+  isPinned: row.is_pinned === true,
+  scheduleFlexibility: (row.schedule_flexibility as ItineraryItem['scheduleFlexibility']) ?? undefined,
+  fixedEventKind: (row.fixed_event_kind as ItineraryItem['fixedEventKind']) ?? undefined,
+  origin: (row.origin as ItineraryItem['origin']) ?? undefined,
+  linkedExpenseId: row.linked_expense_id ?? undefined,
+  derivedFromFlightAnchorId: row.derived_from_flight_anchor_id ?? undefined,
+  sourceInspirationIds: Array.isArray(row.source_inspiration_ids)
+    ? (row.source_inspiration_ids as string[])
+    : undefined,
+  savedTravelNotes: Array.isArray(row.saved_travel_notes)
+    ? (row.saved_travel_notes as ItineraryItem['savedTravelNotes'])
+    : undefined,
 });

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { Category, Expense, PaymentMethod, TripMember } from '../types';
+import { Category, Expense, ItineraryItem, PaymentMethod, TripMember } from '../types';
 import {
   ExpenseRow,
   fromExpenseRow,
+  fromItineraryRow,
   fromMemberRow,
+  toItineraryRow,
   toExpenseRow,
   toMemberRow,
 } from './tripSyncMapping';
@@ -150,5 +152,64 @@ describe('member mapping', () => {
   it('stores a guest with a null user rather than a placeholder', () => {
     const row = toMemberRow({ id: 'member-bob', name: 'Bob', type: 'guest' }, TRIP);
     expect(row.user_id).toBeNull();
+  });
+});
+
+describe('itinerary rows', () => {
+  const item: ItineraryItem = {
+    id: 'it-1',
+    time: '09:00',
+    title: '甘川文化村',
+    location: '甘川文化村',
+    notes: '早上人少',
+    type: 'ACTIVITY',
+    date: '2026-10-03',
+    placeId: 'place-gamcheon',
+    latitude: 35.0975,
+    longitude: 129.0107,
+    durationMinutes: 90,
+    isPinned: true,
+    scheduleFlexibility: 'fixed',
+    sortOrder: 0,
+    sourceInspirationIds: ['insp-1'],
+  };
+
+  it('survives the round trip with everything that decides behaviour', () => {
+    const back = fromItineraryRow(toItineraryRow(item, 'trip-1'));
+
+    // Pinned is the one that matters most: it is a promise that the other
+    // person's AI planner will not move this, so it has to travel.
+    expect(back.isPinned).toBe(true);
+    expect(back.scheduleFlexibility).toBe('fixed');
+    expect(back.sortOrder).toBe(0);
+    expect(back.date).toBe('2026-10-03');
+    expect(back.placeId).toBe('place-gamcheon');
+    expect(back.sourceInspirationIds).toEqual(['insp-1']);
+  });
+
+  it('keeps an unscheduled item unscheduled', () => {
+    // '' and null both mean no day, and the difference must not turn into a
+    // day of its own on the way back.
+    const undated = fromItineraryRow(toItineraryRow({ ...item, date: undefined }, 'trip-1'));
+    expect(undated.date).toBeUndefined();
+  });
+
+  it('tells "first in the day" apart from "no order set"', () => {
+    // sortOrder 0 is a real position. Storing it as null would silently move
+    // the item someone dragged to the top back into clock order.
+    expect(toItineraryRow({ ...item, sortOrder: 0 }, 'trip-1').sort_order).toBe(0);
+    expect(toItineraryRow({ ...item, sortOrder: undefined }, 'trip-1').sort_order).toBeNull();
+    expect(fromItineraryRow(toItineraryRow({ ...item, sortOrder: 0 }, 'trip-1')).sortOrder).toBe(0);
+  });
+
+  it('falls back rather than trusting an unknown type from an older client', () => {
+    const row = { ...toItineraryRow(item, 'trip-1'), type: 'SOMETHING_NEW' };
+    expect(fromItineraryRow(row).type).toBe('ACTIVITY');
+  });
+
+  it('reads a row written before the JSONB columns had anything in them', () => {
+    const row = { ...toItineraryRow(item, 'trip-1'), source_inspiration_ids: null, saved_travel_notes: null };
+    expect(fromItineraryRow(row).sourceInspirationIds).toBeUndefined();
+    expect(fromItineraryRow(row).savedTravelNotes).toBeUndefined();
   });
 });

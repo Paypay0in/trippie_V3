@@ -2673,6 +2673,7 @@ const App: React.FC = () => {
     currency: tripCurrency || undefined,
     members: settlementMembers,
     expenses,
+    itinerary,
     note: cloudTripNote,
     onRemoteSnapshot: (snapshot) => {
       // The remote copy wins on open. Someone else may have added an expense
@@ -2680,6 +2681,12 @@ const App: React.FC = () => {
       if (snapshot.expenses.length) {
         isHydratingTripRef.current = false;
         setExpenses(snapshot.expenses);
+      }
+      // Same rule as the ledger: whoever else is on this trip may have moved
+      // a day since this device last looked, and the local copy cannot tell.
+      if (snapshot.itinerary.length) {
+        isHydratingTripRef.current = false;
+        setItinerary(snapshot.itinerary);
       }
       // The owner is derived locally from the account, not stored as a
       // companion, so only the others come back into the companion list.
