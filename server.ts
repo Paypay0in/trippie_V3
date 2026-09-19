@@ -6,6 +6,7 @@ import { createServer as createViteServer, loadEnv } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
+import { withRequiredPreparation } from "./services/planPreparationCoverage";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -481,7 +482,7 @@ async function startServer() {
     try {
       const ai = new GoogleGenAI({ apiKey });
       const generationConfig = {
-        contents: `一位旅人正在規劃${destination ? `${destination}的` : ""}旅程，他說：「${intent}」。\n${daysBrief}\n${budgetBrief}\n\n請先查資料，判斷從${destination || "他的目的地"}出發做這件事實際上是什麼樣子，然後提出 **2 到 3 個彼此明顯不同的方案**，幫他做決定。\n\n方案之間要有意義的差異（最省事／最適合這趟／完整體驗／較省錢／舒適便利／過夜），不要三張幾乎一樣的卡。**資料只支持一到兩個好方案時，就只給一到兩個**，不要湊數。\n\n每個方案：\n- title：看得出差異的名稱\n- whyItFits：為什麼這個方案適合「這一趟」，兩句話\n- tradeoff：這個方案的代價是什麼（時間、金錢、體力、彈性），一句話\n- durationDays：**這個方案本身**需要幾天（不是整趟旅程的天數）\n- characteristics：從 easiest / best_fit / fuller / lower_budget / premium / overnight 選 1 到 2 個\n- mainPlaceName：這個方案最主要的場所名稱，要真實存在、你在搜尋結果中看到的\n- budget：**只有查到實際價格時才填** min / max / currency，查不到就整個省略。不要用印象中的數字。\n- preparation：這個方案需要先準備的事，2 到 4 項，每項有 name 與 canBeHumanAssisted（是否適合請當地人代勞，例如打電話預約、現場陪同）\n- items：逐時段行程，每項 time（HH:MM）、title、placeName、type（ACTIVITY/FOOD/TRANSPORT/HOTEL）、dayOffset（從 0 開始）、durationMinutes、notes\n\n另外給 intro：一句話說明你怎麼看這個需求，例如「從釜山安排滑雪，建議至少留 1 天」。\n\n嚴格規則：\n- 地點必須真實存在。不要編場館名稱。\n- **不要輸出任何網址**，連結由地圖服務提供。\n- **不要自己估交通時間**，交通由路線服務計算。\n- 不要宣稱有空位、可預約、已開放，除非查到的資料明確寫了。\n- 不確定的事寫進 notes 說需再確認，不要寫成事實。\n- **不要評論或形容這位旅人本身**（他的消費習慣、個性、經濟狀況）。預算數字只用來挑選合適的方案，不要寫成對他的描述。\n- 使用繁體中文。\n\n只回傳 JSON。`,
+        contents: `一位旅人正在規劃${destination ? `${destination}的` : ""}旅程，他說：「${intent}」。\n${daysBrief}\n${budgetBrief}\n\n請先查資料，判斷從${destination || "他的目的地"}出發做這件事實際上是什麼樣子，然後提出 **2 到 3 個彼此明顯不同的方案**，幫他做決定。\n\n方案之間要有意義的差異（最省事／最適合這趟／完整體驗／較省錢／舒適便利／過夜），不要三張幾乎一樣的卡。**資料只支持一到兩個好方案時，就只給一到兩個**，不要湊數。\n\n每個方案：\n- title：看得出差異的名稱\n- whyItFits：為什麼這個方案適合「這一趟」，兩句話\n- tradeoff：這個方案的代價是什麼（時間、金錢、體力、彈性），一句話\n- durationDays：**這個方案本身**需要幾天（不是整趟旅程的天數）\n- characteristics：從 easiest / best_fit / fuller / lower_budget / premium / overnight 選 1 到 2 個\n- mainPlaceName：這個方案最主要的場所名稱，要真實存在、你在搜尋結果中看到的\n- budget：**只有查到實際價格時才填** min / max / currency，查不到就整個省略。不要用印象中的數字。\n- preparation：這個方案需要先準備的事，2 到 4 項，每項有 name 與 canBeHumanAssisted（是否適合請當地人代勞，例如打電話預約、現場陪同）。**行程裡出現的每一項需要事先安排的東西都必須在這裡**——行程寫了租車就要有預約租車，寫了渡輪就要有訂船票。行程做得到、但準備清單沒寫的事，使用者到現場才會發現。\n- items：逐時段行程，每項 time（HH:MM）、title、placeName、type（ACTIVITY/FOOD/TRANSPORT/HOTEL）、dayOffset（從 0 開始）、durationMinutes、notes\n\n另外給 intro：一句話說明你怎麼看這個需求，例如「從釜山安排滑雪，建議至少留 1 天」。\n\n嚴格規則：\n- 地點必須真實存在。不要編場館名稱。\n- **不要輸出任何網址**，連結由地圖服務提供。\n- **不要自己估交通時間**，交通由路線服務計算。\n- 不要宣稱有空位、可預約、已開放，除非查到的資料明確寫了。\n- 不確定的事寫進 notes 說需再確認，不要寫成事實。\n- **不要評論或形容這位旅人本身**（他的消費習慣、個性、經濟狀況）。預算數字只用來挑選合適的方案，不要寫成對他的描述。\n- 使用繁體中文。\n\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -684,13 +685,19 @@ async function startServer() {
           },
           budget: hasBudget ? { min: Math.round(budget.min), max: Math.round(budget.max), currency: budget.currency.trim() } : undefined,
           budgetConfidence: hasBudget ? "verified" : "unverified",
-          preparation: (Array.isArray(option?.preparation) ? option.preparation : [])
-            .map((task: any) => ({
-              name: typeof task?.name === "string" ? task.name.trim() : "",
-              canBeHumanAssisted: task?.canBeHumanAssisted === true,
-            }))
-            .filter((task: any) => task.name)
-            .slice(0, 4),
+          // Cross-checked against the schedule rather than trusted as written.
+          // The model fills these two fields separately, so a plan could open
+          // by collecting a rental car and never mention booking one — the
+          // same failure as durationDays, in a field a traveller acts on.
+          preparation: withRequiredPreparation(
+            items,
+            (Array.isArray(option?.preparation) ? option.preparation : [])
+              .map((task: any) => ({
+                name: typeof task?.name === "string" ? task.name.trim() : "",
+                canBeHumanAssisted: task?.canBeHumanAssisted === true,
+              }))
+              .filter((task: any) => task.name),
+          ),
           items,
           mapsUrl: resolved?.mapsUrl,
           websiteUrl: resolved?.websiteUrl,
