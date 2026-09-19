@@ -10,7 +10,7 @@ import ServiceRequestSheet from './ServiceRequestSheet';
 import { ServiceRequest } from '../types';
 import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake } from 'lucide-react';
 import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
-import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSource, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
+import { fetchSuggestedPlaces } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { findOfficialLink } from '../services/officialTravelLinks';
 
@@ -171,15 +171,9 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const pending = preTasks.filter(item => !('completed' in item ? item.completed : item.isPurchased));
   const preExpenses = expenses.filter(expense => expense.phase === 'pre');
   const total = preExpenses.reduce((sum, expense) => sum + expense.twdAmount, 0);
-  const [suggestions, setSuggestions] = useState<Array<{ item: string; reason: string }>>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
-  const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const [placeGroups, setPlaceGroups] = useState<SuggestedPlaceGroup[]>([]);
-  const [sources, setSources] = useState<PreparationSource[]>([]);
-  const [citedPosts, setCitedPosts] = useState<string[]>([]);
   /** Venue site per to-do name, resolved from the map service. */
   const [taskVenues, setTaskVenues] = useState<Record<string, { name: string; websiteUrl?: string }>>({});
   /** To-dos picked out to hand to a person; nothing is published until confirmed. */
@@ -192,7 +186,6 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [planSources, setPlanSources] = useState<Array<{ title?: string; url?: string }>>([]);
   const [planError, setPlanError] = useState('');
   const [planGrounded, setPlanGrounded] = useState(true);
-  const [grounded, setGrounded] = useState(true);
   const [showAllRules, setShowAllRules] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState('');
@@ -322,71 +315,40 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
     if (!question || isGenerating) return;
 
     setIsGenerating(true);
-    setGenerationError(null);
-    setSuggestions([]);
     setAskedTopic(question);
     setPlanOptions([]);
     setPlanError('');
     setPlanIntro('');
     setPlanSources([]);
-    // Plans first. 「我想滑雪」 is a decision problem before it is a packing
-    // problem, and the preparation list only makes sense once one is chosen.
-    fetchActivityPlans({
-      intent: question,
-      destination: destinationCountry || destination,
-      originLatitude,
-      originLongitude,
-      startDate: tripStartDate,
-      endDate: tripEndDate,
-      daysBrief: tripDaysBrief(planDays),
-      budgetBrief,
-    })
-      .then(result => {
-        setPlanOptions(result.options);
-        setPlanIntro(result.intro || '');
-        setPlanRequestId(result.requestId);
-        setPlanSources(result.sources);
-        setPlanGrounded(result.grounded);
-        onPlanOptionsShown?.(result.requestId, result.options);
-      })
-      .catch(error => setPlanError(error instanceof Error ? error.message : '現在查不到資料，稍後再試一次。'));
-    // Posts about this destination, trimmed: the assistant needs enough of each
-    // to recognise relevance, not the whole essay.
-    const relevantPosts = communityPosts
-      .filter(post => {
-        const place = `${post.country || ''}${post.city || ''}`;
-        const target = `${destinationCountry || ''}${destination || ''}`;
-        return place && target && (place.includes(destinationCountry || '') || (destination && place.includes(destination)));
-      })
-      .slice(0, 5);
 
-    const requestContext = [
-      context ? `旅程目的地：${context}` : '',
-      dateRange ? `旅行日期：${dateRange}` : '',
-      itinerary.length > 0 ? `已有行程：${itinerary.map(item => `${item.date || ''} ${item.time} ${item.title}`).join('、')}` : '',
-      relevantPosts.length
-        ? `旅人分享（個人經驗，非官方規定）：\n${relevantPosts
-            .map(post => `- [${post.id}] ${post.title}：${post.content.slice(0, 200)}`)
-            .join('\n')}`
-        : '',
-      `使用者問題：${question}`,
-    ].filter(Boolean).join('\n');
-
+    // One question, one answer. 「我想滑雪」 is a decision before it is a packing
+    // list, so the only thing this asks for is plans — the preparation list
+    // belongs to whichever plan gets chosen, and arrives with it.
+    //
+    // This used to call the older preparation endpoint alongside the planner.
+    // Both answered the same question at their own speed, so the screen grew a
+    // checklist, then shoved it down when the plans landed: two jumps for one
+    // question, and a list of things to prepare for a trip nobody had decided
+    // on yet.
     try {
-      const { suggestions: items, placeQueries, postRefs, sources: citedSources, grounded: wasGrounded } = await fetchPreparationSuggestions(requestContext);
-      setSources(citedSources);
-      setGrounded(wasGrounded);
-      setCitedPosts(postRefs);
-      setSuggestions(items.filter(item => typeof item?.item === 'string' && item.item.trim()).map(({ item, reason }) => ({ item: item.trim(), reason: typeof reason === 'string' ? reason : '' })));
-      setSelectedSuggestions([]);
-      // Shops load after the advice and never block it: the advice stands on
-      // its own, and a slow or empty map lookup should not hold it back.
-      setPlaceGroups([]);
-      if (placeQueries.length) fetchSuggestedPlaces(placeQueries).then(setPlaceGroups);
+      const result = await fetchActivityPlans({
+        intent: question,
+        destination: destinationCountry || destination,
+        originLatitude,
+        originLongitude,
+        startDate: tripStartDate,
+        endDate: tripEndDate,
+        daysBrief: tripDaysBrief(planDays),
+        budgetBrief,
+      });
+      setPlanOptions(result.options);
+      setPlanIntro(result.intro || '');
+      setPlanRequestId(result.requestId);
+      setPlanSources(result.sources);
+      setPlanGrounded(result.grounded);
+      onPlanOptionsShown?.(result.requestId, result.options);
     } catch (error) {
-      setGenerationError(error instanceof PreparationSuggestionRequestError && error.status === 400
-        ? '提供的旅行資訊太多，請縮短問題後再試一次。'
-        : 'AI 旅程準備目前暫時無法使用，你仍可以手動建立待辦。');
+      setPlanError(error instanceof Error ? error.message : '現在查不到資料，稍後再試一次。');
     } finally {
       setIsGenerating(false);
     }
@@ -706,11 +668,11 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
       )}
 
       <section className="rounded-3xl border border-violet-100 bg-gradient-to-br from-white to-violet-50 p-5 shadow-sm">
-        <div className="mb-1 flex items-center gap-2 font-black"><Sparkles size={18} className="text-violet-600" />AI 幫助你做行前規劃</div>
-        <p className="mb-3 text-xs leading-5 text-slate-500">說一句你在意的事就好。想滑雪，會幫你找雪具店；怕冷，會告訴你該帶什麼。</p>
+        <div className="mb-1 flex items-center gap-2 font-black"><Sparkles size={18} className="text-violet-600" />AI 幫你決定要怎麼玩</div>
+        <p className="mb-3 text-xs leading-5 text-slate-500">說一句你想做的事就好，會給你兩三個不同的方案。選定之後才談要準備什麼。</p>
         <form onSubmit={handleGenerate} className="space-y-2">
-          <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：想滑雪、很怕冷、帶長輩同行、想找藥妝店.." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
-          <button type="submit" disabled={!prompt.trim() || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在整理準備建議…' : 'AI 幫我整理'}<ArrowRight size={16} /></button>
+          <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：我想滑雪、想泡溫泉、想帶長輩看海.." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
+          <button type="submit" disabled={!prompt.trim() || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>
         </form>
         {onRequestHumanHelp && (
           <button type="button" onClick={() => onRequestHumanHelp({ topic: prompt.trim() || '行前準備', destination: destinationCountry || destination })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700">
@@ -737,54 +699,6 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         />
         {planError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-xs text-slate-600">{planError}</p>}
         {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在查資料並規劃方案…</p>}
-        {!isGenerating && generationError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-slate-600">{generationError}</p>}
-        {!isGenerating && !generationError && suggestions.length > 0 && <div className="mt-3 space-y-2"><div className="text-xs font-black text-[#11183d]">AI 建議</div>{suggestions.map((suggestion, index) => { const alreadyAdded = shoppingPreTasks.some(task => task.name.trim().toLowerCase() === suggestion.item.trim().toLowerCase()); const selected = selectedSuggestions.includes(suggestion.item); return <button type="button" key={`${suggestion.item}-${index}`} disabled={alreadyAdded} onClick={() => setSelectedSuggestions(current => selected ? current.filter(item => item !== suggestion.item) : [...current, suggestion.item])} className={`w-full rounded-xl border px-3 py-3 text-left transition ${alreadyAdded ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60' : selected ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white hover:border-violet-200'}`}><div className="flex items-start gap-3"><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${alreadyAdded || selected ? 'border-violet-500 bg-violet-600 text-white' : 'border-slate-300 bg-white'}`}>{(alreadyAdded || selected) && '✓'}</span><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-slate-700">{suggestion.item}</span><span className="mt-1 block text-[11px] text-slate-400">{suggestion.reason}</span></span>{alreadyAdded && <span className="shrink-0 text-[10px] font-black text-slate-400">已加入</span>}</div></button>; })}<button type="button" disabled={selectedSuggestions.length === 0} onClick={() => { onAddPreparationItems(selectedSuggestions); setSelectedSuggestions([]); }} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-40">加入待辦清單（{selectedSuggestions.length}）</button></div>}
-        {!grounded && suggestions.length > 0 && <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">這次沒有查到即時資料，以下是依一般情況整理的建議。</p>}
-        {placeGroups.length > 0 && <div className="mt-4 space-y-3">
-          {/* Real shops, from the map service. The model only chose what to
-              search for: asked for shop names it invents plausible ones, and a
-              traveller who walks to an address that was never there has been
-              failed worse than by no recommendation at all. */}
-          <div className="text-xs font-black text-[#11183d]">當地店家</div>
-          {placeGroups.map(group => <div key={group.query} className="space-y-2">
-            <div className="text-[11px] font-bold text-slate-400">{group.query}</div>
-            {group.places.map(place => <a key={place.mapsUrl} href={place.mapsUrl} target="_blank" rel="noreferrer noopener" className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
-              <MapPinned size={16} className="mt-0.5 shrink-0 text-violet-600" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-bold text-slate-700">{place.name}{typeof place.rating === 'number' && <span className="ml-1.5 text-[11px] font-black text-amber-500">{place.rating.toFixed(1)}</span>}</span>
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{place.address}</span>
-              </span>
-              <ExternalLink size={14} className="mt-0.5 shrink-0 text-slate-400" />
-            </a>)}
-          </div>)}
-          <p className="text-[11px] leading-4 text-slate-400">店家資料來自 Google 地圖，營業時間與庫存請以店家公告為準。</p>
-        </div>}
-        {citedPosts.length > 0 && <div className="mt-4 space-y-2">
-          {/* Named as what it is: another traveller's experience, linked so the
-              reader can see who said it and when. */}
-          <div className="text-xs font-black text-[#11183d]">參考了旅人的分享</div>
-          {citedPosts.map(postId => {
-            const post = communityPosts.find(item => item.id === postId);
-            if (!post) return null;
-            return (
-              <button key={postId} type="button" onClick={() => onOpenPost(postId)} className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-[11px] font-bold text-violet-700">
-                <span className="min-w-0 truncate">{post.title}</span>
-                <ChevronRight size={13} className="shrink-0 text-slate-400" />
-              </button>
-            );
-          })}
-        </div>}
-        {sources.length > 0 && <div className="mt-4 space-y-2">
-          {/* Where the advice came from. Only URLs the search step returned —
-              a model-written link looks the same and 404s. */}
-          <div className="text-xs font-black text-[#11183d]">參考來源</div>
-          {sources.map(source => (
-            <a key={source.url} href={source.url} target="_blank" rel="noreferrer noopener" className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-bold text-violet-700">
-              <span className="min-w-0 truncate">{source.title || source.url}</span>
-              <ExternalLink size={13} className="shrink-0 text-slate-400" />
-            </a>
-          ))}
-        </div>}
       </section>
 
       {planOnly && <>
