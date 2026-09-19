@@ -251,11 +251,18 @@ describe('itinerary list runtime', () => {
 
     try {
       drag('SPA LAND Centum City', { clientX: 120, clientY: 10 - STEP * 2 });
-      await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+      // Wait for the write to actually be attempted, with the spy still in
+      // place. Waiting a fixed 20ms here meant the assertions below could run
+      // before the drag reached the store at all — in which case "nothing
+      // moved" was true because nothing had happened yet, not because the
+      // failed write was handled.
+      await waitFor(() => expect(setItem).toHaveBeenCalled());
     } finally {
       setItem.mockRestore();
     }
 
+    // `commitItinerary` persists before it moves the visible state, so a write
+    // that threw leaves both the screen and the store untouched.
     expect(renderedTimes()).toEqual(before);
     expect(persisted().find(entry => entry.id === 'it-a')?.time).toBe('11:00');
     log('ROLLBACK', renderedTimes());
