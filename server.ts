@@ -312,6 +312,85 @@ async function startServer() {
    * produces plausible ones, and a traveller who walks to an address that was
    * never there has been failed worse than by no recommendation at all.
    */
+  /**
+   * Which eligible to-dos are one job for one person.
+   *
+   * The model groups, titles and explains — nothing else. It is never asked
+   * whether a task needs a human, because misreading a free lookup as paid
+   * errand work is invisible to the reader. The client checks every id against
+   * the real checklist and falls back to its own arithmetic when this route is
+   * unavailable, which on a spent quota it routinely is.
+   */
+  app.post("/api/service-bundles", async (req, res) => {
+    const tasks: Array<{ id: string; name: string }> = Array.isArray(req.body?.tasks)
+      ? req.body.tasks
+          .filter((task: any) => typeof task?.id === "string" && typeof task?.name === "string" && task.name.trim())
+          .slice(0, 20)
+      : [];
+    const destination = typeof req.body?.destination === "string" ? req.body.destination.trim() : "";
+    if (tasks.length < 2) {
+      res.json({ bundles: [] });
+      return;
+    }
+    const apiKey = process.env.GEMINI_API_KEY;
+    // The client groups the tasks itself, so no key simply means no nicer title.
+    if (!apiKey) {
+      res.json({ bundles: [] });
+      return;
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `以下是一位旅人的待辦事項，他想把可以交給同一個人處理的項目合併成一份協助需求。請判斷哪些項目屬於同一件事（同一個場所、同一個活動主題、同一種需要的能力、或有先後關係），並給每一組一個簡短標題與一句理由。\n只因為屬於同一趟旅行就合併是錯的（例如「東京餐廳預約」和「大阪遺失行李處理」不該合併）。合不起來就不要輸出那一組。\n只能使用下列 id，不可以發明新的 id、不可以修改項目文字、不可以回傳網址、價格、預約狀態或完成狀態。\n目的地：${destination || "未指定"}\n待辦：${JSON.stringify(tasks)}\n只回傳 JSON。`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              bundles: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    suggestedTitle: { type: Type.STRING },
+                    taskIds: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    reason: { type: Type.STRING },
+                  },
+                  required: ["suggestedTitle", "taskIds"],
+                },
+              },
+            },
+            required: ["bundles"],
+          },
+        },
+      });
+      const parsed = JSON.parse(response.text?.trim() || '{"bundles":[]}');
+      const known = new Set(tasks.map((task) => task.id));
+      const bundles = (Array.isArray(parsed.bundles) ? parsed.bundles : [])
+        .map((bundle: any, index: number) => ({
+          id: `ai-${index + 1}`,
+          suggestedTitle: typeof bundle?.suggestedTitle === "string" ? bundle.suggestedTitle.trim() : "",
+          // Checked here as well as on the client: an invented id would become
+          // a blank line in a request a person is meant to act on.
+          taskIds: Array.isArray(bundle?.taskIds)
+            ? bundle.taskIds.filter((id: unknown) => typeof id === "string" && known.has(id))
+            : [],
+          reason: typeof bundle?.reason === "string" ? bundle.reason.trim() || undefined : undefined,
+        }))
+        .filter((bundle: any) => bundle.suggestedTitle && bundle.taskIds.length > 1);
+      res.json({ bundles });
+    } catch (error: any) {
+      const status = error?.status ?? error?.response?.status;
+      const exhausted = error?.code === "RESOURCE_EXHAUSTED" || error?.message?.includes("RESOURCE_EXHAUSTED");
+      console.warn("Service bundle suggestion failed", { exhausted: Boolean(exhausted || status === 429) });
+      // The client groups the tasks itself when this fails, so an error here
+      // costs a nicer title, not the feature.
+      res.status(502).json({ error: "Bundle suggestion is unavailable." });
+    }
+  });
+
   app.post("/api/places/suggest", async (req, res) => {
     const queries: string[] = Array.isArray(req.body?.queries)
       ? req.body.queries.filter((query: unknown) => typeof query === "string" && query.trim()).slice(0, 6)

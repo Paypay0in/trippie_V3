@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { HelpRequest } from '../services/serviceMatching';
+import { classifyTask } from '../services/taskAssistance';
+import { TaskBundleProposal } from '../services/taskBundling';
+import { suggestTaskBundles } from '../services/serviceBundleSuggestion';
+import ServiceRequestSheet from './ServiceRequestSheet';
+import { ServiceRequest } from '../types';
 import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake } from 'lucide-react';
 import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
 import { fetchPreparationSuggestions, fetchSuggestedPlaces, PreparationSource, PreparationSuggestionRequestError, SuggestedPlaceGroup } from '../services/preparationSuggestionService';
@@ -67,6 +72,13 @@ interface Props {
   variant?: 'plan' | 'reference';
   /** Hands a question or a to-do to the service tab, worded as the traveller wrote it. */
   onRequestHumanHelp?: (request: HelpRequest) => void;
+  /**
+   * Publishes one request covering the tasks the traveller selected. Publishing
+   * is not completing: the checklist ticks stay theirs.
+   */
+  onPublishServiceRequest?: (
+    draft: Omit<ServiceRequest, 'id' | 'tripId' | 'requestedByUserId' | 'createdAt' | 'status'>,
+  ) => void;
   /** Whether a passport with a country code is on file, so the lookup can run. */
   hasPassport: boolean;
   /** The passport the lookup will use, named rather than assumed. */
@@ -128,7 +140,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -146,6 +158,10 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [citedPosts, setCitedPosts] = useState<string[]>([]);
   /** Venue site per to-do name, resolved from the map service. */
   const [taskVenues, setTaskVenues] = useState<Record<string, { name: string; websiteUrl?: string }>>({});
+  /** To-dos picked out to hand to a person; nothing is published until confirmed. */
+  const [selectedHelpTaskIds, setSelectedHelpTaskIds] = useState<string[]>([]);
+  const [isPublishingHelp, setIsPublishingHelp] = useState(false);
+  const [bundleProposal, setBundleProposal] = useState<TaskBundleProposal | null>(null);
   const [grounded, setGrounded] = useState(true);
   const [showAllRules, setShowAllRules] = useState(false);
   const [researching, setResearching] = useState(false);
@@ -174,6 +190,53 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const entryRules = travelRuleTasks.filter(task => !isPassportRule(task));
   const advisoryTasks = travelRuleTasks.filter(isPassportRule);
   const ownTasks = shoppingPreTasks.filter(task => task.sourceType !== 'travel_rules');
+
+  /**
+   * Which to-dos may be handed to a person, decided by rule rather than by a
+   * model: misreading a free lookup as errand work turns it into a request
+   * someone pays for, and misreading errand work as a lookup silently removes
+   * the only option that would have helped.
+   */
+  const helpEligibleIds = new Set(
+    ownTasks
+      .filter(
+        task =>
+          !task.isPurchased &&
+          classifyTask(task, { hasResolvedVenue: Boolean(taskVenues[task.name]) }) === 'human',
+      )
+      .map(task => task.id),
+  );
+  const helpEligibleTasks = ownTasks.filter(task => helpEligibleIds.has(task.id));
+  const selectedHelpTasks = ownTasks.filter(task => selectedHelpTaskIds.includes(task.id));
+  const toggleHelpTask = (taskId: string) =>
+    setSelectedHelpTaskIds(current =>
+      current.includes(taskId) ? current.filter(id => id !== taskId) : [...current, taskId],
+    );
+
+  const helpEligibleKey = helpEligibleTasks.map(task => task.id).join('|');
+  useEffect(() => {
+    // Asked for once the traveller opens the sheet, never before: a grouping
+    // suggestion nobody asked to see is a model call on every render.
+    if (!isPublishingHelp) return;
+    let cancelled = false;
+    suggestTaskBundles(helpEligibleTasks, destinationCountry || destination).then(proposals => {
+      if (cancelled) return;
+      // The one that covers most of what is already selected, so the suggestion
+      // answers the selection rather than replacing it.
+      const best = proposals
+        .slice()
+        .sort(
+          (a, b) =>
+            b.taskIds.filter(id => selectedHelpTaskIds.includes(id)).length -
+            a.taskIds.filter(id => selectedHelpTaskIds.includes(id)).length,
+        )[0];
+      setBundleProposal(best ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPublishingHelp, helpEligibleKey, destinationCountry, destination]);
 
   const ownTaskNames = ownTasks.map(task => task.name).join('|');
   useEffect(() => {
@@ -502,12 +565,14 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                         <ExternalLink size={12} />官網預約
                       </a>
                     )}
-                    {onRequestHumanHelp && (
+                    {onPublishServiceRequest && helpEligibleIds.has(task.id) && (
                       /* Some to-dos end at a Japanese-only booking form or a
-                         phone number. This hands the task, in the traveller's
-                         own words, to the people offering to do it. */
-                      <button type="button" onClick={() => onRequestHumanHelp({ topic: task.name, destination: destinationCountry || destination })} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-blue-50 px-2.5 text-[11px] font-black text-blue-700">
-                        <Handshake size={12} />需要真人協助
+                         phone number. Selecting rather than publishing: three
+                         related chores are one errand for one person, and
+                         sending them separately asks three people to learn the
+                         same context. */
+                      <button type="button" onClick={() => toggleHelpTask(task.id)} className={`inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 text-[11px] font-black ${selectedHelpTaskIds.includes(task.id) ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700'}`}>
+                        <Handshake size={12} />{selectedHelpTaskIds.includes(task.id) ? '已加入協助任務' : '＋ 加入協助任務'}
                       </button>
                     )}
                     {links.relatedPost && (
@@ -660,6 +725,46 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         <button onClick={onEnterTripMode} className="flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-sm font-black text-white shadow-lg shadow-violet-500/20">進入旅行模式<ArrowRight size={17} /></button>
       </section>
       </>}
+
+      {onPublishServiceRequest && selectedHelpTaskIds.length > 0 && (
+        /* A standing selection, not an action: the traveller keeps browsing the
+           list and publishes once, when the set is right. */
+        <div className="fixed bottom-24 left-1/2 z-40 w-[calc(100%-2rem)] -translate-x-1/2 md:max-w-xl">
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#11183d] px-4 py-3 shadow-xl">
+            <div className="min-w-0">
+              <div className="text-xs font-black text-white">已選 {selectedHelpTaskIds.length} 項</div>
+              <button type="button" onClick={() => setSelectedHelpTaskIds([])} className="text-[11px] font-bold text-slate-300">
+                清除
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPublishingHelp(true)}
+              className="shrink-0 rounded-xl bg-blue-500 px-4 py-2.5 text-xs font-black text-white"
+            >
+              整理成協助需求
+            </button>
+          </div>
+        </div>
+      )}
+
+      {onPublishServiceRequest && isPublishingHelp && (
+        <ServiceRequestSheet
+          tasks={helpEligibleTasks}
+          selectedTaskIds={selectedHelpTaskIds}
+          onToggleTask={toggleHelpTask}
+          proposal={bundleProposal}
+          onAcceptProposal={proposal => setSelectedHelpTaskIds(proposal.taskIds)}
+          destinationCountry={destinationCountry || destination}
+          tripStartDate={tripStartDate}
+          onClose={() => setIsPublishingHelp(false)}
+          onPublish={draft => {
+            onPublishServiceRequest(draft);
+            setIsPublishingHelp(false);
+            setSelectedHelpTaskIds([]);
+          }}
+        />
+      )}
     </div>
   );
 };

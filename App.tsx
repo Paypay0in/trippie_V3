@@ -17,6 +17,7 @@ import {
   TravelBook,
   ItineraryItem,
   MarketplaceService,
+  ServiceRequest,
   InboxMessage,
   FlightAnchor,
   TripFlightMode,
@@ -128,6 +129,11 @@ import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
 import Marketplace from "./components/Marketplace";
 import { HelpRequest } from "./services/serviceMatching";
+import {
+  deleteServiceRequest,
+  fetchMyServiceRequests,
+  publishServiceRequest,
+} from "./services/serviceRequests";
 import ItineraryCalendar from "./components/ItineraryCalendar";
 import ItineraryItemForm from "./components/ItineraryItemForm";
 import FlightAnchorsForm from "./components/FlightAnchorsForm";
@@ -716,6 +722,8 @@ const App: React.FC = () => {
   // What the traveller pressed 需要真人協助 on, carried from the trip into the
   // service tab so they never retype the thing they already wrote down.
   const [helpRequest, setHelpRequest] = useState<HelpRequest | null>(null);
+  /** Help requests this account has published. v1 shows nobody else's. */
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [marketplaceServices, setMarketplaceServices] = useState<
     MarketplaceService[]
   >([
@@ -3664,6 +3672,49 @@ const App: React.FC = () => {
     }
   };
 
+  // Pulled once signed in, so a request published on another device is here.
+  useEffect(() => {
+    if (!authUser?.id) {
+      setServiceRequests([]);
+      return;
+    }
+    fetchMyServiceRequests().then((result) => {
+      if (result.status === "ok") setServiceRequests(result.data);
+    });
+  }, [authUser?.id]);
+
+  const handlePublishServiceRequest = (
+    draft: Omit<ServiceRequest, "id" | "tripId" | "requestedByUserId" | "createdAt" | "status">,
+  ) => {
+    if (!authUser?.id) {
+      showToast("請先登入才能發佈協助需求", "error");
+      return;
+    }
+    const request: ServiceRequest = {
+      ...draft,
+      id: generateId(),
+      tripId: activeDraftId || currentLoadedTripId || "",
+      requestedByUserId: authUser.id,
+      status: "requested",
+      createdAt: new Date().toISOString(),
+    };
+    // Shown immediately, pushed after: a network that is down must not lose the
+    // request someone just wrote out. Publishing never touches the checklist —
+    // the to-dos it names stay unticked until the traveller ticks them.
+    setServiceRequests((prev) => [request, ...prev]);
+    setViewMode("marketplace");
+    publishServiceRequest(request).then((result) => {
+      if (result.status === "error") {
+        showToast("需求已建立，但尚未同步到雲端", "error");
+      }
+    });
+  };
+
+  const handleDeleteServiceRequest = (requestId: string) => {
+    setServiceRequests((prev) => prev.filter((request) => request.id !== requestId));
+    deleteServiceRequest(requestId);
+  };
+
   const handleRequestHumanHelp = (request: HelpRequest) => {
     setHelpRequest(request);
     setViewMode("marketplace");
@@ -4794,6 +4845,11 @@ const App: React.FC = () => {
             onAddService={handleAddMarketplaceService}
             helpRequest={helpRequest}
             onClearHelpRequest={() => setHelpRequest(null)}
+            onPublishServiceRequest={handlePublishServiceRequest}
+            destinationCountry={tripDestination}
+            tripStartDate={tripStartDate}
+            serviceRequests={serviceRequests}
+            onDeleteServiceRequest={handleDeleteServiceRequest}
             onMarkMessageRead={(id) => {
               setInboxMessages((prev) =>
                 prev.map((m) => (m.id === id ? { ...m, unread: false } : m)),
@@ -5320,6 +5376,7 @@ const App: React.FC = () => {
             <>
               <TripPlanOverview
                 onRequestHumanHelp={handleRequestHumanHelp}
+                onPublishServiceRequest={handlePublishServiceRequest}
                 expenses={expenses}
                 shoppingList={shoppingList}
                 itinerary={itinerary}
@@ -5381,6 +5438,7 @@ const App: React.FC = () => {
                when they matter. */
             <TripPlanOverview
               onRequestHumanHelp={handleRequestHumanHelp}
+              onPublishServiceRequest={handlePublishServiceRequest}
               variant="reference"
               expenses={expenses}
               shoppingList={shoppingList}

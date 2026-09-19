@@ -631,6 +631,63 @@ export interface MarketplaceService {
   rating: number;
 }
 
+/** What kind of help is being asked for. */
+export type ServiceRequestType = 'task_bundle' | 'consultation' | 'accompaniment';
+
+/**
+ * A fixed list, not free text: a category someone typed their own way cannot be
+ * matched against what helpers offer.
+ */
+export type ServiceCategory = 'booking' | 'translation' | 'consultation' | 'on_site' | 'other';
+
+/** The human capability being asked for — what matching will compare on. */
+export type AssistanceNeed = 'phone_call' | 'on_site' | 'translation' | 'multi_contact' | 'other';
+
+export type ServiceRequestStatus = 'requested' | 'in_progress' | 'completed' | 'cancelled';
+
+/**
+ * One checklist task inside a request.
+ *
+ * `sourceTaskId` is the canonical to-do; `taskName` is a snapshot taken when
+ * the request was published. The snapshot exists because checklist tasks are
+ * not cloud-synced yet, so an id alone would be a blank line to anyone reading
+ * the request anywhere else. The to-do remains the source of truth — nothing
+ * here is ever written back to it.
+ */
+export interface ServiceRequestTask {
+  sourceTaskId: string;
+  taskName: string;
+  position: number;
+}
+
+/**
+ * One coherent job handed to a person.
+ *
+ * Its status is its own. Publishing a request is not completing a to-do, and
+ * this status never touches `ShoppingItem.isPurchased`: ticking the checklist
+ * stays the traveller's to do.
+ */
+export interface ServiceRequest {
+  id: string;
+  tripId: string;
+  requestedByUserId: string;
+  type: ServiceRequestType;
+  title: string;
+  /** The traveller's own sentence about what they want, optional. */
+  goal?: string;
+  serviceCategory: ServiceCategory;
+  /** Country, plus a city or venue when the traveller adds one. */
+  location: string;
+  /** Left empty unless the traveller says so — a guessed date is worse than none. */
+  requestedDate?: string;
+  requestedTime?: string;
+  languageNeeds: string[];
+  assistanceNeeds: AssistanceNeed[];
+  status: ServiceRequestStatus;
+  createdAt: string;
+  tasks: ServiceRequestTask[];
+}
+
 export interface InboxMessage {
   id: string;
   serviceTitle: string;
