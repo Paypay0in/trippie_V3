@@ -8,7 +8,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 
 const DAY_5 = '2026-10-05';
@@ -60,7 +60,10 @@ const openPlanning = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByText('旅行'));
   await user.click(screen.getByText(/繼續旅程/));
   await user.click(screen.getByText('規劃'));
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
+  // Wait for the timeline itself, not for a fixed number of milliseconds: every
+  // assertion below reads through `list()`, so a slow machine used to fail the
+  // whole file here rather than where the behaviour actually is.
+  await waitFor(() => expect(screen.getByLabelText('行程時間軸')).toBeTruthy());
 };
 
 const list = () => screen.getByLabelText('行程時間軸');
@@ -142,9 +145,7 @@ describe('itinerary list runtime', () => {
 
     // 11:00 → 10:00 is two 30-minute steps upward.
     drag('SPA LAND Centum City', { clientX: 120, clientY: 10 - STEP * 2 });
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-
-    expect(renderedTimes()).toEqual(['10:00', '13:30', '16:00']);
+    await waitFor(() => expect(renderedTimes()).toEqual(['10:00', '13:30', '16:00']));
     log('DRAG_EARLIER', renderedTimes());
     // Card order is still chronological and nothing was duplicated.
     expect(renderedOrder()).toEqual(['SPA LAND Centum City', '新世界百貨 Centum City', 'Place C']);
@@ -170,9 +171,7 @@ describe('itinerary list runtime', () => {
     await user.click(screen.getByText('Day 2'));
 
     drag('SPA LAND Centum City', { clientX: 120, clientY: 10 + STEP * 2 });
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-
-    expect(renderedTimes()).toEqual(['12:00', '15:30', '18:00']);
+    await waitFor(() => expect(renderedTimes()).toEqual(['12:00', '15:30', '18:00']));
     log('DRAG_LATER', renderedTimes());
     expect(screen.queryByText('行程順序已更新，請確認時間安排。')).toBeNull();
   });
@@ -185,8 +184,7 @@ describe('itinerary list runtime', () => {
     await user.click(screen.getByText('Day 2'));
 
     drag('新世界百貨 Centum City', { clientX: 120, clientY: 10 + STEP });
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-
+    await waitFor(() => expect(renderedTimes()[1]).toBe('15:00'));
     log('DRAG_MIDDLE', renderedTimes());
     // SPA LAND is before it, so it does not move.
     expect(persisted().find(entry => entry.id === 'it-a')?.time).toBe('11:00');
@@ -213,8 +211,7 @@ describe('itinerary list runtime', () => {
     expect(persisted().find(entry => entry.id === 'it-a')?.time).toBe('11:00');
 
     fireEvent.pointerUp(list(), { pointerId: 1, clientX: 120, clientY: 10 - STEP });
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-    expect(persisted().find(entry => entry.id === 'it-a')?.time).toBe('10:30');
+    await waitFor(() => expect(persisted().find(entry => entry.id === 'it-a')?.time).toBe('10:30'));
   });
 
   it('moves an item to another day without duplicating it', async () => {
@@ -225,7 +222,7 @@ describe('itinerary list runtime', () => {
     await user.click(screen.getByText('Day 2'));
 
     drag('新世界百貨 Centum City', { clientX: 40, clientY: -40 });
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+    await waitFor(() => expect(persisted().find(entry => entry.id === 'it-b')?.date).toBe(DAY_5));
 
     const all = persisted();
     log('CROSS_DAY', all.map(entry => `${entry.date} ${entry.title}`));
@@ -366,7 +363,7 @@ describe('fixed events runtime', () => {
     const user = await openDay6();
     await user.click(screen.getByRole('button', { name: '查看調整' }));
     await user.click(screen.getByRole('button', { name: '套用調整' }));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+    await waitFor(() => expect(persisted().find(entry => entry.id === 'it-a')?.time).toBe('10:00'));
 
     const after = persisted();
     log('FIXED_APPLIED', after.map(entry => `${entry.date} ${entry.time} ${entry.title}`));

@@ -8,7 +8,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ItineraryItem, ShoppingItem } from '../types';
 
 const DAY_5 = '2026-10-05';
@@ -48,13 +48,14 @@ const openTrip = async () => {
   render(<App />);
   await user.click(screen.getByText('旅行'));
   await user.click(screen.getByText(/繼續旅程/));
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
+  // The tab the caller is about to click, not a fixed delay.
+  await waitFor(() => expect(screen.getByText('規劃')).toBeTruthy());
   return user;
 };
 
 const openPlanning = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByText('規劃'));
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
+  await waitFor(() => expect(screen.getByLabelText('行程時間軸')).toBeTruthy());
 };
 
 describe('規劃 tab carries no accounting actions', () => {
@@ -95,7 +96,7 @@ describe('記帳 tab keeps its accounting actions', () => {
   it('still offers expense entry after the planning tab was stripped', async () => {
     const user = await openTrip();
     await user.click(screen.getByText('記帳'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
+    await waitFor(() => expect(screen.queryByLabelText('行程時間軸')).toBeNull());
 
     // The accounting surface is present and distinct from the planning tab.
     const body = document.body.textContent || '';

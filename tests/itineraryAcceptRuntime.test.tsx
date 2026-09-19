@@ -145,7 +145,7 @@ describe('LANE L runtime: accepted proposal persists and renders', () => {
     await waitFor(() => expect(screen.getByText('接受這份行程')).toBeTruthy());
 
     await user.click(screen.getByText('接受這份行程'));
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    await waitFor(() => expect(readPersistedDraft()?.itinerary || []).toHaveLength(2));
 
     // AFTER ACCEPT — canonical persisted draft actually mutated
     const accepted = readPersistedDraft();

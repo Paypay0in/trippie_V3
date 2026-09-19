@@ -117,7 +117,7 @@ describe('AI itinerary time distribution runtime', () => {
     log('PREVIEW_TIMES', previewTimes);
 
     await user.click(screen.getByText('接受這份行程'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
+    await waitFor(() => expect(persistedItinerary()).toHaveLength(3));
 
     const persisted = persistedItinerary();
     log('PERSISTED', persisted.map(entry => `${entry.time} ${entry.title}`));
@@ -168,7 +168,7 @@ describe('AI itinerary time distribution runtime', () => {
 
     await acceptWithPreference(user);
     await user.click(screen.getByText('接受這份行程'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
+    await waitFor(() => expect(persistedItinerary().map(entry => entry.time)[0]).toBe('09:00'));
 
     const times = persistedItinerary().map(entry => entry.time);
     log('NO_PREFERENCE', times);
@@ -196,7 +196,7 @@ describe('AI itinerary time distribution runtime', () => {
     await openPlanning(user);
     await acceptWithPreference(user);
     await user.click(screen.getByText('接受這份行程'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
+    await waitFor(() => expect(persistedItinerary().map(entry => entry.time)).toEqual(['11:00', '14:00', '16:30']));
 
     const times = persistedItinerary().map(entry => entry.time);
     log('MODEL_TIMES_KEPT', times);

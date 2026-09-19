@@ -9,7 +9,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 const DRAFT_ID = 'draft-stage';
 // Far enough ahead that the overview is unambiguously 行前.
@@ -35,9 +35,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const settle = async () => {
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
-};
 
 it('records from 記帳 ＞ 旅行中 into 旅行中', async () => {
   const { default: App } = await import('../App');
@@ -45,20 +42,20 @@ it('records from 記帳 ＞ 旅行中 into 旅行中', async () => {
   render(<App />);
   await user.click(screen.getByText('旅行'));
   await user.click(screen.getByText(/繼續旅程/));
-  await settle();
+  await waitFor(() => expect(screen.getByText('記帳')).toBeTruthy());
 
   await user.click(screen.getByText('記帳'));
-  await settle();
+  await waitFor(() => expect(screen.getByText('旅行中')).toBeTruthy());
   await user.click(screen.getByText('旅行中'));
-  await settle();
+  await waitFor(() => expect(screen.getByLabelText('新增記錄')).toBeTruthy());
 
   await user.click(screen.getByLabelText('新增記錄'));
-  await settle();
+  await waitFor(() => expect(screen.queryByText('新增支出') || screen.queryByText('記入旅行中')).toBeTruthy());
 
   const expenseEntry = screen.queryByText('新增支出');
   if (expenseEntry) {
     await user.click(expenseEntry);
-    await settle();
+      await waitFor(() => expect(screen.getByText('記入旅行中')).toBeTruthy());
   }
 
   expect(screen.getByText('記入旅行中')).toBeTruthy();

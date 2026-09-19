@@ -11,7 +11,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 const DRAFT_ID = 'draft-service';
 const START = '2099-12-20';
@@ -48,9 +48,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const settle = async () => {
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
-};
 
 const persistedTasks = () => {
   const drafts = JSON.parse(localStorage.getItem('trippie_drafts_v1') || '[]');
@@ -64,14 +61,14 @@ describe('service request runtime', () => {
     render(<App />);
     await user.click(screen.getByText('旅行'));
     await user.click(screen.getByText(/繼續旅程/));
-    await settle();
+    await waitFor(() => expect(screen.queryAllByText('＋ 加入協助任務').length).toBeGreaterThan(0));
 
     const addButtons = screen.queryAllByText('＋ 加入協助任務');
     // Both to-dos are bookings, which is work a person can take on.
     expect(addButtons.length).toBeGreaterThan(0);
 
     await user.click(addButtons[0]);
-    await settle();
+    await waitFor(() => expect(screen.getByText(/已選 1 項/)).toBeTruthy());
 
     expect(screen.getByText(/已選 1 項/)).toBeTruthy();
     // Selecting is not completing, and neither is publishing.
@@ -84,13 +81,13 @@ describe('service request runtime', () => {
     render(<App />);
     await user.click(screen.getByText('旅行'));
     await user.click(screen.getByText(/繼續旅程/));
-    await settle();
+    await waitFor(() => expect(screen.queryAllByText('＋ 加入協助任務').length).toBeGreaterThan(0));
 
     const addButtons = screen.queryAllByText('＋ 加入協助任務');
     await user.click(addButtons[0]);
-    await settle();
+    await waitFor(() => expect(screen.getByText('整理成協助需求')).toBeTruthy());
     await user.click(screen.getByText('整理成協助需求'));
-    await settle();
+    await waitFor(() => expect(screen.getAllByText('發佈協助需求').length).toBeGreaterThan(0));
 
     // One form for the whole job, with every eligible task listed so the
     // traveller can add the related ones rather than filing them separately.

@@ -144,7 +144,7 @@ describe('itinerary card enrichment runtime', () => {
     await user.click(screen.getByText(/AI 幫我排行程/));
     await waitFor(() => expect(screen.getByText('接受這份行程')).toBeTruthy());
     await user.click(screen.getByText('接受這份行程'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
+    await waitFor(() => expect(persistedItinerary()).toHaveLength(2));
 
     const persisted = persistedItinerary();
     log('PERSISTED', persisted.map(entry => `${entry.time} ${entry.title} origin=${entry.origin} placeId=${entry.placeId || '-'} notes=${entry.savedTravelNotes?.length ?? 0}`));
@@ -177,9 +177,7 @@ describe('itinerary card enrichment runtime', () => {
 
     // The normal itinerary card shows it all.
     await user.click(screen.getByText('規劃'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
-
-    expect(card().getByText('旅行筆記')).toBeTruthy();
+    await waitFor(() => expect(card().getByText('旅行筆記')).toBeTruthy());
     expect(card().getByText('下午拍照光線很好')).toBeTruthy();
     expect(card().getByText('建議預留兩小時')).toBeTruthy();
     expect(card().getByText('週末人很多')).toBeTruthy();
@@ -205,7 +203,7 @@ describe('itinerary card enrichment runtime', () => {
     render(<App />);
     const user2 = userEvent.setup();
     await openPlanning(user2);
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    await waitFor(() => expect(persistedItinerary().find(entry => entry.title === '甘川文化村')?.savedTravelNotes).toHaveLength(4));
 
     const hydrated = persistedItinerary();
     log('AFTER_RELOAD', hydrated.map(entry => `${entry.time} ${entry.title} placeId=${entry.placeId || '-'} notes=${entry.savedTravelNotes?.length ?? 0}`));

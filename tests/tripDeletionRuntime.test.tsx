@@ -8,7 +8,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 
 const DRAFTS_KEY = 'trippie_drafts_v1';
 const ACTIVE_KEY = 'trippie_active_trip_id';
@@ -60,7 +60,10 @@ const mountApp = async () => {
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByText('旅行'));
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
+  // The trip list the callers act on, not a fixed delay. Any trip will do —
+  // §9 remounts after deleting A, so naming a specific one would be wrong
+  // exactly when the list is the thing under test.
+  await waitFor(() => expect(screen.getAllByTestId(/^trip-menu-button-/).length).toBeGreaterThan(0));
   return user;
 };
 

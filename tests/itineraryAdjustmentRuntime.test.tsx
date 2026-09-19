@@ -215,7 +215,7 @@ describe('AI 行程調整模式 runtime', () => {
 
     expect(document.body.textContent).not.toContain('－ 移除');
     await user.click(screen.getByText('套用這些調整'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    await waitFor(() => expect(persistedItinerary().find(entry => entry.id === 'it-gamcheon')?.time).toBe('11:30'));
 
     const applied = persistedItinerary();
     log('REORDER_persisted', describeItinerary(applied));
@@ -263,7 +263,7 @@ describe('AI 行程調整模式 runtime', () => {
     expect(document.body.textContent).toContain('只會新增');
 
     await user.click(screen.getByText('套用這些調整'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    await waitFor(() => expect(persistedItinerary()).toHaveLength(5));
 
     const applied = persistedItinerary();
     log('ADD_persisted', describeItinerary(applied));
@@ -314,7 +314,7 @@ describe('AI 行程調整模式 runtime', () => {
     expect(persistedItinerary()).toHaveLength(3);
 
     await user.click(screen.getByText('套用這些調整'));
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    await waitFor(() => expect(persistedItinerary().find(entry => entry.id === 'it-gukje')).toBeUndefined());
 
     const applied = persistedItinerary();
     log('REPLAN_persisted', describeItinerary(applied));

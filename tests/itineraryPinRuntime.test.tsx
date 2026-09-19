@@ -7,7 +7,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 
 const DAY_5 = '2026-10-05';
@@ -53,7 +53,7 @@ const openPlanning = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByText('旅行'));
   await user.click(screen.getByText(/繼續旅程/));
   await user.click(screen.getByText('規劃'));
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
+  await waitFor(() => expect(screen.getByLabelText('行程時間軸')).toBeTruthy());
 };
 
 const mountApp = async () => {

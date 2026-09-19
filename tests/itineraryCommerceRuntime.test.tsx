@@ -106,7 +106,7 @@ const openPlanning = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByText('旅行'));
   await user.click(screen.getByText(/繼續旅程/));
   await user.click(screen.getByText('規劃'));
-  await act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+  await waitFor(() => expect(screen.getByLabelText('行程時間軸')).toBeTruthy());
 };
 
 const timeline = () => within(screen.getByLabelText('行程時間軸'));
