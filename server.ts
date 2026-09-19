@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
+import { stripPriceClaims } from "./services/priceClaims";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -482,7 +483,8 @@ async function startServer() {
     try {
       const ai = new GoogleGenAI({ apiKey });
       const generationConfig = {
-        contents: `一位旅人正在規劃${destination ? `${destination}的` : ""}旅程，他說：「${intent}」。\n${daysBrief}\n${budgetBrief}\n\n請先查資料，判斷從${destination || "他的目的地"}出發做這件事實際上是什麼樣子，然後提出 **2 到 3 個彼此明顯不同的方案**，幫他做決定。\n\n方案之間要有意義的差異（最省事／最適合這趟／完整體驗／較省錢／舒適便利／過夜），不要三張幾乎一樣的卡。**資料只支持一到兩個好方案時，就只給一到兩個**，不要湊數。\n\n每個方案：\n- title：看得出差異的名稱\n- whyItFits：為什麼這個方案適合「這一趟」，兩句話\n- tradeoff：這個方案的代價是什麼（時間、金錢、體力、彈性），一句話\n- durationDays：**這個方案本身**需要幾天（不是整趟旅程的天數）\n- characteristics：從 easiest / best_fit / fuller / lower_budget / premium / overnight 選 1 到 2 個\n- mainPlaceName：這個方案最主要的場所名稱，要真實存在、你在搜尋結果中看到的\n- budget：**只有查到實際價格時才填** min / max / currency，查不到就整個省略。不要用印象中的數字。\n- preparation：這個方案需要先準備的事，2 到 4 項，每項有 name 與 canBeHumanAssisted（是否適合請當地人代勞，例如打電話預約、現場陪同）。**行程裡出現的每一項需要事先安排的東西都必須在這裡**——行程寫了租車就要有預約租車，寫了渡輪就要有訂船票。行程做得到、但準備清單沒寫的事，使用者到現場才會發現。\n- items：逐時段行程，每項 time（HH:MM）、title、placeName、type（ACTIVITY/FOOD/TRANSPORT/HOTEL）、dayOffset（從 0 開始）、durationMinutes、notes\n\n另外給 intro：一句話說明你怎麼看這個需求，例如「從釜山安排滑雪，建議至少留 1 天」。\n\n嚴格規則：\n- 地點必須真實存在。不要編場館名稱。\n- **不要輸出任何網址**，連結由地圖服務提供。\n- **不要自己估交通時間**，交通由路線服務計算。\n- 不要宣稱有空位、可預約、已開放，除非查到的資料明確寫了。\n- 不確定的事寫進 notes 說需再確認，不要寫成事實。\n- **不要評論或形容這位旅人本身**（他的消費習慣、個性、經濟狀況）。預算數字只用來挑選合適的方案，不要寫成對他的描述。\n- 使用繁體中文。\n\n只回傳 JSON。`,
+        contents: `一位旅人正在規劃${destination ? `${destination}的` : ""}旅程，他說：「${intent}」。\n${daysBrief}\n${budgetBrief}\n\n請先查資料，判斷從${destination || "他的目的地"}出發做這件事實際上是什麼樣子，然後提出 **2 到 3 個彼此明顯不同的方案**，幫他做決定。\n\n方案之間要有意義的差異（最省事／最適合這趟／完整體驗／較省錢／舒適便利／過夜），不要三張幾乎一樣的卡。**資料只支持一到兩個好方案時，就只給一到兩個**，不要湊數。\n\n每個方案：\n- title：看得出差異的名稱\n- whyItFits：為什麼這個方案適合「這一趟」，兩句話\n- tradeoff：這個方案的代價是什麼（時間、金錢、體力、彈性），一句話\n- durationDays：**這個方案本身**需要幾天（不是整趟旅程的天數）\n- characteristics：從 easiest / best_fit / fuller / lower_budget / premium / overnight 選 1 到 2 個\n- mainPlaceName：這個方案最主要的場所名稱，要真實存在、你在搜尋結果中看到的\n- budget：**只有查到實際價格時才填** min / max / currency，查不到就整個省略。不要用印象中的數字。\n- preparation：這個方案需要先準備的事，2 到 4 項，每項有 name 與 canBeHumanAssisted（是否適合請當地人代勞，例如打電話預約、現場陪同）。**行程裡出現的每一項需要事先安排的東西都必須在這裡**——行程寫了租車就要有預約租車，寫了渡輪就要有訂船票。行程做得到、但準備清單沒寫的事，使用者到現場才會發現。\n- items：逐時段行程，每項 time（HH:MM）、title、placeName、type（ACTIVITY/FOOD/TRANSPORT/HOTEL）、dayOffset（從 0 開始）、durationMinutes、notes\n\n另外給 intro：一句話說明你怎麼看這個需求，例如「從釜山安排滑雪，建議至少留 1 天」。\n\n嚴格規則：\n- 地點必須真實存在。不要編場館名稱。\n- **不要輸出任何網址**，連結由地圖服務提供。\n- **不要自己估交通時間**，交通由路線服務計算。\n- 不要宣稱有空位、可預約、已開放，除非查到的資料明確寫了。\n- 不確定的事寫進 notes 說需再確認，不要寫成事實。
+- **沒有查到價格時，任何文字裡都不准出現金額**——intro、whyItFits、tradeoff 都一樣。不要寫「建議預算提高到 X 元」「門票約 X」。使用者不會分辨數字在欄位裡還是在句子裡，他會照著編預算。\n- **不要評論或形容這位旅人本身**（他的消費習慣、個性、經濟狀況）。預算數字只用來挑選合適的方案，不要寫成對他的描述。\n- 使用繁體中文。\n\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -671,8 +673,15 @@ async function startServer() {
         return {
           id: `${requestId}-opt-${index + 1}`,
           title: typeof option?.title === "string" ? option.title.trim() : "",
-          whyItFits: typeof option?.whyItFits === "string" ? option.whyItFits.trim() : "",
-          tradeoff: typeof option?.tradeoff === "string" ? option.tradeoff.trim() || undefined : undefined,
+          // Prose is held to the same rule as the budget field. A card that
+          // says 價格需確認 and a sentence beside it quoting 4,500 台幣 are
+          // the same screen, and the traveller budgets against the sentence.
+          whyItFits: (hasBudget
+            ? (typeof option?.whyItFits === "string" ? option.whyItFits.trim() : "")
+            : stripPriceClaims(typeof option?.whyItFits === "string" ? option.whyItFits.trim() : "")) || "",
+          tradeoff: hasBudget
+            ? (typeof option?.tradeoff === "string" ? option.tradeoff.trim() || undefined : undefined)
+            : stripPriceClaims(typeof option?.tradeoff === "string" ? option.tradeoff.trim() || undefined : undefined),
           durationDays,
           characteristics: Array.isArray(option?.characteristics)
             ? option.characteristics.filter((value: unknown) =>
@@ -719,9 +728,14 @@ async function startServer() {
         .filter((source) => source.url)
         .slice(0, 5);
 
+      // The intro frames the whole set, so it may keep a figure only if some
+      // plan in that set actually has a verified one behind it.
+      const anyVerified = options.some((option: any) => option.budgetConfidence === "verified");
+      const introText = typeof parsed.intro === "string" ? parsed.intro.trim() : undefined;
+
       res.json({
         requestId,
-        intro: typeof parsed.intro === "string" ? parsed.intro.trim() : undefined,
+        intro: anyVerified ? introText : stripPriceClaims(introText),
         options: options.filter((option: any) => option.title && option.items.length > 0),
         grounded,
         sources,
