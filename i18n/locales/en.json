@@ -1,0 +1,9 @@
+{
+  "nav": {
+    "community": "Community",
+    "trips": "Trips",
+    "services": "Services",
+    "profile": "You",
+    "addAriaLabel": "Add a trip or a record"
+  }
+}
