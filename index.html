@@ -2,8 +2,25 @@
 <html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Trippie 旅費管家</title>
+    <!--
+      viewport-fit=cover is not decoration. The bottom navigation already pads
+      itself with env(safe-area-inset-bottom), and on iOS those insets read as
+      zero without it — so the tab bar sat under the home indicator on the
+      exact device this trip will be run from.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Trippie 旅行管家</title>
+
+    <!-- Installed to a home screen, opened without browser chrome. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#11183d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Trippie" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
     <link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-gray-50 text-gray-900 font-sans antialiased selection:bg-brand-100">

@@ -25,7 +25,11 @@ async function startServer() {
     },
   });
 
-  const PORT = 3000;
+  // Hosts assign the port and expect the process to bind the one they give.
+  // Hardcoding it means the platform's health check never answers and the
+  // deploy is marked failed, with the app running perfectly on a port nobody
+  // is listening to.
+  const PORT = Number(process.env.PORT) || 3000;
 
   // In-memory store for shared trips
   // In a real app, this would be a database
@@ -1303,7 +1307,15 @@ ${MODE_RULES[mode]}
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
+    // The single-page fallback, as a final middleware rather than app.get("*").
+    // Express 5 rejects a bare "*" outright — the process exited on boot, so
+    // this branch had never actually run.
+    //
+    // API paths are excluded on purpose: answering an unknown /api/ route with
+    // index.html turns a 404 into a JSON parse error at the other end, which
+    // is a much harder thing to read from a phone in another country.
+    app.use((req, res, next) => {
+      if (req.method !== "GET" || req.path.startsWith("/api/")) { next(); return; }
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
