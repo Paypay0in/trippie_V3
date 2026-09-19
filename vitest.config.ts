@@ -10,6 +10,6 @@ export default defineConfig({
     // without this the runtime tests would silently start asserting against a
     // language nobody chose, and would change meaning as strings move into
     // translation files.
-    setupFiles: ['./tests/setup/language.ts'],
+    setupFiles: ['./tests/setup/language.ts', './tests/setup/socket.ts'],
   },
 });
