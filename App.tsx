@@ -47,6 +47,7 @@ import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
 import { createInviteLink, inviteLinkFor } from "./services/tripInvites";
+import { applicableBroadcastFields, cloudOwnsSharedState } from "./services/sharedStateOwnership";
 import JoinTripSheet from "./components/JoinTripSheet";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
 import { PASSPORT_OPTIONS } from "./services/passportOptions";
@@ -851,6 +852,10 @@ const App: React.FC = () => {
   const activeDraftIdRef = useRef<string | null>(
     initialDraftStore.activeDraftId,
   );
+  // Read inside the socket listener, which is registered once and would
+  // otherwise close over the signed-out value for the rest of the session —
+  // the same reason the draft id above is held in a ref.
+  const authUserIdRef = useRef<string | undefined>(undefined);
 
   // Country & Tax Rules
   const [travelCountry, setTravelCountry] = useState<string>(() => {
@@ -1021,14 +1026,30 @@ const App: React.FC = () => {
         return;
       }
 
-      if (newState.expenses) setExpenses(newState.expenses);
-      if (newState.companions) setCompanions(newState.companions);
-      if (newState.shoppingList) setShoppingList(newState.shoppingList);
-      if (newState.startDate) setTripStartDate(newState.startDate);
-      if (newState.endDate) setTripEndDate(newState.endDate);
-      if (newState.name) setDraftName(newState.name);
-      if (typeof newState.destination === "string")
-        setTripDestination(newState.destination);
+      // Whatever the shared tables own, the broadcast may not write. A
+      // broadcast cannot know about the expense the other phone added a
+      // second ago, and the push that follows deletes whatever its list is
+      // missing — so applying one here loses money from both devices and the
+      // server at once, silently.
+      //
+      // The checklist and the trip's own details have no table, so the
+      // broadcast is still the only sharing they have and still applies.
+      const shared = applicableBroadcastFields(
+        newState as Record<string, unknown>,
+        cloudOwnsSharedState({
+          signedIn: Boolean(authUserIdRef.current),
+          syncAvailable: isSyncAvailable(),
+        }),
+      ) as typeof newState;
+
+      if (shared.expenses) setExpenses(shared.expenses);
+      if (shared.companions) setCompanions(shared.companions);
+      if (shared.shoppingList) setShoppingList(shared.shoppingList);
+      if (shared.startDate) setTripStartDate(shared.startDate);
+      if (shared.endDate) setTripEndDate(shared.endDate);
+      if (shared.name) setDraftName(shared.name);
+      if (typeof shared.destination === "string")
+        setTripDestination(shared.destination);
     });
 
     return () => {
@@ -1039,6 +1060,10 @@ const App: React.FC = () => {
   useEffect(() => {
     activeDraftIdRef.current = activeDraftId;
   }, [activeDraftId]);
+
+  useEffect(() => {
+    authUserIdRef.current = authUser?.id;
+  }, [authUser?.id]);
 
   // Sync state to server when it changes and we are in a shared trip
   useEffect(() => {
