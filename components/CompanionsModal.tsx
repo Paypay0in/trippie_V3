@@ -2,7 +2,7 @@
 import { OVERLAY } from '../constants/layers';
 import React, { useState } from 'react';
 import { Companion } from '../types';
-import { X, UserPlus, Trash2, Users } from 'lucide-react';
+import { Link2, Trash2, UserPlus, Users, X } from 'lucide-react';
 
 interface Props {
   companions: Companion[];
@@ -13,6 +13,19 @@ interface Props {
   onClose: () => void;
   /** Display name for the owner row. Optional; callers without it show 我. */
   ownerName?: string;
+  /**
+   * Hands this companion a way in.
+   *
+   * A companion is a name the owner typed; the person it names has no account
+   * attached and therefore sees nothing. This is what connects the two, and
+   * it claims the existing row rather than adding a second — the roster keeps
+   * the shape the owner gave it.
+   *
+   * Absent when the trip is not shareable yet (offline, or not signed in).
+   */
+  onInvite?: (companion: Companion) => void;
+  /** The companion an invite is currently being prepared for. */
+  invitingId?: string | null;
 }
 
 /** Member chip: same vocabulary as the trip roster (owner / member / guest). */
@@ -45,7 +58,7 @@ const Avatar: React.FC<{ name: string; tone: 'owner' | 'member' | 'guest' }> = (
   );
 };
 
-const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFriendToTrip, onRemove, onClose, ownerName }) => {
+const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFriendToTrip, onRemove, onClose, ownerName, onInvite, invitingId }) => {
   const [newName, setNewName] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -114,10 +127,20 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                   <RoleChip tone={isLinked ? 'member' : 'guest'}>
                     {isLinked ? '已連結好友' : '訪客'}
                   </RoleChip>
+                  {onInvite && (
+                    <button
+                      onClick={() => onInvite(c)}
+                      disabled={invitingId === c.id}
+                      aria-label={`邀請${c.name}加入這趟旅程`}
+                      className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl bg-[#f3f0ff] px-2.5 text-xs font-black text-[#5b3df5] disabled:opacity-50"
+                    >
+                      <Link2 size={14} />{invitingId === c.id ? '產生中…' : '邀請'}
+                    </button>
+                  )}
                   <button
                     onClick={() => onRemove(c.id)}
                     aria-label={`移除${c.name}`}
-                    className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                    className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
                   >
                     <Trash2 size={18} />
                   </button>

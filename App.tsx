@@ -46,6 +46,8 @@ import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES } from "./constants";
 import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
+import { createInviteLink, inviteLinkFor } from "./services/tripInvites";
+import JoinTripSheet from "./components/JoinTripSheet";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
 import { PASSPORT_OPTIONS } from "./services/passportOptions";
 import { countSaversForPost, saverCountsByPost } from "./services/postSaveCounts";
@@ -3722,6 +3724,59 @@ const App: React.FC = () => {
    * error because an analytics write failed. No label is derived here — one
    * evening's choice is not who somebody is.
    */
+  // Invites. `invitingId` is the companion whose link is being minted, so the
+  // row can say so rather than looking inert while the network works.
+  const [invitingId, setInvitingId] = useState<string | null>(null);
+
+  /**
+   * Hands one companion a way into this trip.
+   *
+   * Uses the share sheet where there is one — the link is going to LINE or a
+   * message, and making someone copy then switch apps then paste loses people.
+   * Clipboard is the fallback, and the link is shown either way so it can
+   * still be moved by hand when both fail.
+   */
+  const handleInviteCompanion = async (companion: Companion) => {
+    const tripId = activeDraftId || currentLoadedTripId;
+    if (!tripId) {
+      showToast("先儲存這趟旅程，才能邀請同行者", "error");
+      return;
+    }
+    if (!authUser?.id) {
+      showToast("請先登入才能邀請同行者", "error");
+      return;
+    }
+
+    setInvitingId(companion.id);
+    try {
+      const result = await createInviteLink(tripId, companion.id);
+      if (result.status !== "ok") {
+        showToast(result.status === "unavailable" ? "雲端尚未設定，無法邀請" : "產生邀請連結失敗", "error");
+        return;
+      }
+      const link = inviteLinkFor(result.data, window.location.origin);
+      const shared = await (async () => {
+        if (typeof navigator !== "undefined" && navigator.share) {
+          try {
+            await navigator.share({ title: `${draftName || "旅程"}`, text: `一起用 Trippie 規劃這趟旅程`, url: link });
+            return true;
+          } catch {
+            // Cancelling the share sheet is not a failure; fall through to copy.
+          }
+        }
+        try {
+          await navigator.clipboard?.writeText(link);
+          return false;
+        } catch {
+          return false;
+        }
+      })();
+      showToast(shared ? "邀請連結已送出" : `邀請連結已複製：${link}`, "success");
+    } finally {
+      setInvitingId(null);
+    }
+  };
+
   const recordPlanBehaviour = (
     type: PlanEventType,
     requestId: string,
@@ -5597,6 +5652,8 @@ const App: React.FC = () => {
               onAddFriendToTrip={handleAddFriendToTrip}
               onRemove={handleRemoveCompanion}
               onClose={() => setIsCompanionsOpen(false)}
+              onInvite={handleInviteCompanion}
+              invitingId={invitingId}
             />
           )}
           {isCountryModalOpen && (

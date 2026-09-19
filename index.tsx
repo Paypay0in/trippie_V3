@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import JoinTripSheet from './components/JoinTripSheet';
 import './index.css';
 import { initI18n, languageFromUrl } from './i18n/config';
 
@@ -24,5 +25,9 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <App />
+    {/* Beside App, not inside it. An invite link can land on any of App's
+        many return paths — signed out most of all — and a sheet mounted on
+        one branch is missing from the rest. */}
+    <JoinTripSheet />
   </React.StrictMode>
 );
