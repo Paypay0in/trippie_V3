@@ -65,3 +65,36 @@ describe('plan learning events', () => {
     expect(event.optionId).toBeUndefined();
   });
 });
+
+describe('a revision request as an event', () => {
+  it('keeps the traveller’s words exactly as written', () => {
+    // Raw, not summarised. A dismissal records that an option was rejected;
+    // this records what to offer instead, and only the original wording
+    // carries that.
+    const event = buildPlanEvent({
+      type: 'revision_requested',
+      userId: 'user-1',
+      tripId: 'trip-1',
+      requestId: 'req-1',
+      feedbackText: '  想在城之島多留一點時間，不想開車  ',
+      generateId: () => 'event-1',
+      now: () => '2026-09-19T09:00:00.000Z',
+    });
+
+    expect(event.type).toBe('revision_requested');
+    expect(event.feedbackText).toBe('想在城之島多留一點時間，不想開車');
+  });
+
+  it('leaves the field out when nothing was written', () => {
+    const event = buildPlanEvent({
+      type: 'option_dismissed',
+      userId: 'user-1',
+      tripId: 'trip-1',
+      requestId: 'req-1',
+      generateId: () => 'event-2',
+      now: () => '2026-09-19T09:00:00.000Z',
+    });
+
+    expect(event.feedbackText).toBeUndefined();
+  });
+});

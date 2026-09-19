@@ -22,6 +22,7 @@ export type PlanEventType =
   | 'option_selected'
   | 'option_dismissed'
   | 'added_to_itinerary'
+  | 'revision_requested'
   | 'item_edited'
   | 'item_deleted';
 
@@ -41,6 +42,15 @@ export interface PlanLearningEvent {
   currency?: string;
   /** Items the itinerary ended up with, so later edits can be traced back. */
   resultingItineraryItemIds: string[];
+  /**
+   * What the traveller asked to have changed, in their own words.
+   *
+   * The richest signal this product can collect: a dismissal says no, and a
+   * sentence written against a specific plan says why. Stored raw and never
+   * summarised into a label — the distinction the personalisation section
+   * draws between an event and a conclusion.
+   */
+  feedbackText?: string;
   createdAt: string;
 }
 
@@ -57,6 +67,7 @@ export const buildPlanEvent = ({
   option,
   shownOptions = [],
   resultingItineraryItemIds = [],
+  feedbackText,
   generateId,
   now = () => new Date().toISOString(),
 }: {
@@ -67,6 +78,7 @@ export const buildPlanEvent = ({
   option?: ActivityPlanProposal;
   shownOptions?: ActivityPlanProposal[];
   resultingItineraryItemIds?: string[];
+  feedbackText?: string;
   generateId: () => string;
   now?: () => string;
 }): PlanLearningEvent => ({
@@ -84,6 +96,7 @@ export const buildPlanEvent = ({
   budgetMax: option?.budgetConfidence === 'verified' ? option.budget?.max : undefined,
   currency: option?.budgetConfidence === 'verified' ? option.budget?.currency : undefined,
   resultingItineraryItemIds,
+  feedbackText: feedbackText?.trim() || undefined,
   createdAt: now(),
 });
 
@@ -103,6 +116,7 @@ export const recordPlanEvent = async (event: PlanLearningEvent): Promise<SyncRes
       budget_max: event.budgetMax ?? null,
       currency: event.currency ?? null,
       resulting_itinerary_item_ids: event.resultingItineraryItemIds,
+      feedback_text: event.feedbackText ?? null,
       created_at: event.createdAt,
     });
     if (error) throw error;

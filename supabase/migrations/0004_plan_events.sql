@@ -19,7 +19,8 @@ create table if not exists public.plan_events (
   request_id text not null,
   type text not null check (
     type in ('options_shown', 'option_selected', 'option_dismissed',
-             'added_to_itinerary', 'item_edited', 'item_deleted')
+             'added_to_itinerary', 'revision_requested',
+             'item_edited', 'item_deleted')
   ),
   option_id text,
   alternative_option_ids text[] not null default '{}',
@@ -30,6 +31,13 @@ create table if not exists public.plan_events (
   budget_max numeric,
   currency text,
   resulting_itinerary_item_ids text[] not null default '{}',
+  -- What the traveller asked to have changed, in their own words.
+  --
+  -- A dismissal says no; a sentence written against a specific plan says why,
+  -- which is the difference between knowing an option was rejected and knowing
+  -- what to offer instead. Stored raw and never summarised into a label — the
+  -- same line this table already draws between an event and a conclusion.
+  feedback_text text,
   created_at timestamptz not null default now()
 );
 

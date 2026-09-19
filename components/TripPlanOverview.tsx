@@ -118,6 +118,8 @@ interface Props {
   tripEndDate?: string;
   /** Behavioural events. Being shown an option is not evidence of preference. */
   onPlanOptionsShown?: (requestId: string, options: ActivityPlanProposal[]) => void;
+  /** What the traveller asked to have changed, in their own words. */
+  onPlanRevisionRequested?: (requestId: string, plan: ActivityPlanProposal, feedback: string) => void;
   onPlanOptionSelected?: (requestId: string, option: ActivityPlanProposal, shown: ActivityPlanProposal[]) => void;
   onPlanOptionDismissed?: (requestId: string, option: ActivityPlanProposal, shown: ActivityPlanProposal[]) => void;
   onPlanAddedToItinerary?: (
@@ -164,7 +166,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -186,6 +188,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [planSources, setPlanSources] = useState<Array<{ title?: string; url?: string }>>([]);
   const [planError, setPlanError] = useState('');
   const [planGrounded, setPlanGrounded] = useState(true);
+  const [isRevisingPlan, setIsRevisingPlan] = useState(false);
   const [showAllRules, setShowAllRules] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState('');
@@ -308,6 +311,46 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const entrySources = travelRules?.entry?.sources ?? [];
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
   const expandedLink = expandedTask ? officialLinkFor(expandedTask, destinationCountry || destination) : null;
+
+  /**
+   * A revised version of one plan, asked for in the traveller's own words.
+   *
+   * Goes through the same endpoint as the first request, so the revision is
+   * held to the same rules — the derived duration, the preparation
+   * cross-check, the price hierarchy. The revised plan keeps the original's
+   * id so the card the traveller is reading stays open underneath them.
+   */
+  const handleRevisePlan = async (plan: ActivityPlanProposal, feedback: string) => {
+    if (isRevisingPlan) return;
+    setIsRevisingPlan(true);
+    setPlanError('');
+    try {
+      const result = await fetchActivityPlans({
+        intent: askedTopic || plan.title,
+        destination: destinationCountry || destination,
+        originLatitude,
+        originLongitude,
+        startDate: tripStartDate,
+        endDate: tripEndDate,
+        daysBrief: tripDaysBrief(planDays),
+        budgetBrief,
+        revising: { plan, feedback },
+      });
+      const revised = result.options[0];
+      if (!revised) {
+        setPlanError('這次沒能改出可用的版本，原本那版還在。');
+        return;
+      }
+      onPlanRevisionRequested?.(planRequestId, plan, feedback);
+      setPlanOptions(current => current.map(option => (
+        option.id === plan.id ? { ...revised, id: plan.id } : option
+      )));
+    } catch (error) {
+      setPlanError(error instanceof Error ? error.message : '現在改不了，稍後再試一次。');
+    } finally {
+      setIsRevisingPlan(false);
+    }
+  };
 
   const handleGenerate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -697,6 +740,11 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
           onRequestHelp={taskName => onRequestHumanHelp?.({ topic: taskName, destination: destinationCountry || destination })}
           onAddPreparation={onAddPreparationItems}
           tripStartDate={tripStartDate}
+          onRevise={handleRevisePlan}
+          isRevising={isRevisingPlan}
+          onRestoreOriginal={original => setPlanOptions(current => current.map(option => (
+            option.id === original.id ? original : option
+          )))}
         />
         {planError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-xs text-slate-600">{planError}</p>}
         {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在查資料並規劃方案…</p>}

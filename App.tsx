@@ -3721,6 +3721,7 @@ const App: React.FC = () => {
     shown: ActivityPlanProposal[],
     option?: ActivityPlanProposal,
     itemIds: string[] = [],
+    feedbackText?: string,
   ) => {
     if (!authUser?.id || !requestId) return;
     recordPlanEvent(
@@ -3732,6 +3733,7 @@ const App: React.FC = () => {
         option,
         shownOptions: shown,
         resultingItineraryItemIds: itemIds,
+        feedbackText,
         generateId,
       }),
     );
@@ -5435,6 +5437,7 @@ const App: React.FC = () => {
                 originLongitude={tripDestinationCoordinates?.longitude}
                 tripEndDate={tripEndDate}
                 onPlanOptionsShown={(requestId, options) => recordPlanBehaviour("options_shown", requestId, options)}
+                onPlanRevisionRequested={(requestId, plan, feedback) => recordPlanBehaviour("revision_requested", requestId, [], plan, [], feedback)}
                 onPlanOptionSelected={(requestId, option, shown) => recordPlanBehaviour("option_selected", requestId, shown, option)}
                 onPlanOptionDismissed={(requestId, option, shown) => recordPlanBehaviour("option_dismissed", requestId, shown, option)}
                 onPlanAddedToItinerary={(requestId, option, shown, itemIds) => recordPlanBehaviour("added_to_itinerary", requestId, shown, option, itemIds)}
@@ -5506,6 +5509,7 @@ const App: React.FC = () => {
               originLongitude={tripDestinationCoordinates?.longitude}
               tripEndDate={tripEndDate}
               onPlanOptionsShown={(requestId, options) => recordPlanBehaviour("options_shown", requestId, options)}
+                onPlanRevisionRequested={(requestId, plan, feedback) => recordPlanBehaviour("revision_requested", requestId, [], plan, [], feedback)}
               onPlanOptionSelected={(requestId, option, shown) => recordPlanBehaviour("option_selected", requestId, shown, option)}
               onPlanOptionDismissed={(requestId, option, shown) => recordPlanBehaviour("option_dismissed", requestId, shown, option)}
               onPlanAddedToItinerary={(requestId, option, shown, itemIds) => recordPlanBehaviour("added_to_itinerary", requestId, shown, option, itemIds)}

@@ -47,6 +47,15 @@ interface Props {
    * traveller is standing.
    */
   tripStartDate?: string;
+  /**
+   * Asks for a revised version of one plan, in the traveller's own words.
+   * Absent means the screen offers no revision at all.
+   */
+  onRevise?: (plan: ActivityPlanProposal, feedback: string) => void;
+  /** True while a revision is in flight. */
+  isRevising?: boolean;
+  /** Puts an earlier version back on screen. */
+  onRestoreOriginal?: (plan: ActivityPlanProposal) => void;
 }
 
 const generateItemId = () => `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -111,9 +120,14 @@ const ActivityPlanCards: React.FC<Props> = ({
   onRequestHelp,
   onAddPreparation,
   tripStartDate,
+  onRevise,
+  isRevising,
+  onRestoreOriginal,
 }) => {
   const [openPlanId, setOpenPlanId] = useState<string | null>(null);
   const [chosenDate, setChosenDate] = useState('');
+  const [revisionNote, setRevisionNote] = useState('');
+  const [originalPlan, setOriginalPlan] = useState<ActivityPlanProposal | null>(null);
   const upcomingDates = React.useMemo(() => nextDates(30), []);
 
   const openPlan = options.find(plan => plan.id === openPlanId) || null;
@@ -201,6 +215,53 @@ const ActivityPlanCards: React.FC<Props> = ({
                 全部加入待辦清單
               </button>
             )}
+          </div>
+        )}
+
+        {onRevise && (
+          /* The gap between "almost" and "no". Without this the only answers
+             to a plan that is nearly right are to take it whole or throw it
+             away and ask again, losing the parts that were fine. */
+          <div className="mt-4 rounded-xl border border-violet-100 bg-violet-50/50 p-3">
+            <div className="text-[11px] font-black text-[#11183d]">想改哪裡？</div>
+            <textarea
+              value={revisionNote}
+              onChange={event => setRevisionNote(event.target.value)}
+              rows={2}
+              placeholder="例如：想在城之島多留一點時間、不想開車、第一天早一點出發"
+              className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] leading-5 text-slate-700 outline-none focus:border-violet-300"
+            />
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                disabled={!revisionNote.trim() || isRevising}
+                onClick={() => {
+                  const note = revisionNote.trim();
+                  if (!note) return;
+                  // Kept so the traveller can go back. A second version being
+                  // worse than the first is ordinary, and losing the first
+                  // would make asking for a change a gamble.
+                  if (!originalPlan) setOriginalPlan(openPlan);
+                  onRevise(openPlan, note);
+                  setRevisionNote('');
+                }}
+                className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-[11px] font-black text-white disabled:opacity-40"
+              >
+                <Sparkles size={12} />{isRevising ? '修改中…' : '請 AI 改一版'}
+              </button>
+              {originalPlan && onRestoreOriginal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onRestoreOriginal(originalPlan);
+                    setOriginalPlan(null);
+                  }}
+                  className="min-h-9 text-[11px] font-bold text-slate-500 underline underline-offset-2"
+                >
+                  回到原本那版
+                </button>
+              )}
+            </div>
           </div>
         )}
 

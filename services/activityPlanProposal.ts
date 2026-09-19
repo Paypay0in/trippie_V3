@@ -121,6 +121,13 @@ export const fetchActivityPlans = async (request: {
   endDate?: string;
   daysBrief?: string;
   budgetBrief?: string;
+  /**
+   * A plan the traveller is looking at, plus what they want changed, in their
+   * own words. Goes to the same endpoint as a first request so the revision
+   * passes through the identical checks — a second route would quietly lose
+   * the derived duration, the preparation cross-check and the price rules.
+   */
+  revising?: { plan: ActivityPlanProposal; feedback: string };
 }): Promise<ActivityPlansResult> => {
   const response = await fetch('/api/activity-plans', {
     method: 'POST',
