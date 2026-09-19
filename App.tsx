@@ -130,6 +130,8 @@ import AppBottomNav, { AppSection } from "./components/AppBottomNav";
 import Marketplace from "./components/Marketplace";
 import { HelpRequest } from "./services/serviceMatching";
 import { spendingProfile, spendingProfileBrief } from "./services/spendingProfile";
+import { ActivityPlanProposal } from "./services/activityPlanProposal";
+import { PlanEventType, buildPlanEvent, recordPlanEvent } from "./services/planLearningEvents";
 import {
   deleteServiceRequest,
   fetchMyServiceRequests,
@@ -3706,6 +3708,35 @@ const App: React.FC = () => {
     );
   }, [drafts, activeDraftId]);
 
+  /**
+   * What the traveller did with the plans they were shown.
+   *
+   * Recorded raw and fails soft: nobody choosing a ski plan should ever see an
+   * error because an analytics write failed. No label is derived here — one
+   * evening's choice is not who somebody is.
+   */
+  const recordPlanBehaviour = (
+    type: PlanEventType,
+    requestId: string,
+    shown: ActivityPlanProposal[],
+    option?: ActivityPlanProposal,
+    itemIds: string[] = [],
+  ) => {
+    if (!authUser?.id || !requestId) return;
+    recordPlanEvent(
+      buildPlanEvent({
+        type,
+        userId: authUser.id,
+        tripId: activeDraftId || currentLoadedTripId || "",
+        requestId,
+        option,
+        shownOptions: shown,
+        resultingItineraryItemIds: itemIds,
+        generateId,
+      }),
+    );
+  };
+
   const handlePublishServiceRequest = (
     draft: Omit<ServiceRequest, "id" | "tripId" | "requestedByUserId" | "createdAt" | "status">,
   ) => {
@@ -5399,6 +5430,15 @@ const App: React.FC = () => {
             <>
               <TripPlanOverview
                 onRequestHumanHelp={handleRequestHumanHelp}
+                onApplyPlanOption={handleApplyItineraryProposal}
+                originLatitude={tripDestinationCoordinates?.latitude}
+                originLongitude={tripDestinationCoordinates?.longitude}
+                tripEndDate={tripEndDate}
+                onPlanOptionsShown={(requestId, options) => recordPlanBehaviour("options_shown", requestId, options)}
+                onPlanOptionSelected={(requestId, option, shown) => recordPlanBehaviour("option_selected", requestId, shown, option)}
+                onPlanOptionDismissed={(requestId, option, shown) => recordPlanBehaviour("option_dismissed", requestId, shown, option)}
+                onPlanAddedToItinerary={(requestId, option, shown, itemIds) => recordPlanBehaviour("added_to_itinerary", requestId, shown, option, itemIds)}
+                budgetBrief={budgetBrief}
                 onPublishServiceRequest={handlePublishServiceRequest}
                 expenses={expenses}
                 shoppingList={shoppingList}
@@ -5461,6 +5501,15 @@ const App: React.FC = () => {
                when they matter. */
             <TripPlanOverview
               onRequestHumanHelp={handleRequestHumanHelp}
+              onApplyPlanOption={handleApplyItineraryProposal}
+              originLatitude={tripDestinationCoordinates?.latitude}
+              originLongitude={tripDestinationCoordinates?.longitude}
+              tripEndDate={tripEndDate}
+              onPlanOptionsShown={(requestId, options) => recordPlanBehaviour("options_shown", requestId, options)}
+              onPlanOptionSelected={(requestId, option, shown) => recordPlanBehaviour("option_selected", requestId, shown, option)}
+              onPlanOptionDismissed={(requestId, option, shown) => recordPlanBehaviour("option_dismissed", requestId, shown, option)}
+              onPlanAddedToItinerary={(requestId, option, shown, itemIds) => recordPlanBehaviour("added_to_itinerary", requestId, shown, option, itemIds)}
+              budgetBrief={budgetBrief}
               onPublishServiceRequest={handlePublishServiceRequest}
               variant="reference"
               expenses={expenses}

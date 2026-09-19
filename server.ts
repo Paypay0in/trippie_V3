@@ -439,6 +439,296 @@ async function startServer() {
     }
   });
 
+  /**
+   * Plans, not places.
+   *
+   * 「想滑雪」 asked from inside a Busan trip is a decision problem: which
+   * option fits this trip, is it realistic from here, one day or two, what will
+   * it cost. The older suggestion route answers with things to pack, which is
+   * why this is a separate endpoint rather than another field on that one.
+   *
+   * Each layer owns what it can prove:
+   *   - the map service owns the venue's identity, address and coordinates
+   *   - the routing service owns travel time, so 交通負擔 is measured
+   *   - grounded search owns opening periods, prices and booking requirements
+   *   - the model owns synthesis alone: why this suits, what it costs the
+   *     traveller, how the day is shaped, how the options differ
+   *
+   * A price the model merely remembers is not a price. Without a grounded
+   * search the budget is dropped and the client shows 價格需確認, because a
+   * remembered figure and a looked-up one look identical on screen.
+   */
+  app.post("/api/activity-plans", async (req, res) => {
+    const intent = typeof req.body?.intent === "string" ? req.body.intent.trim() : "";
+    const destination = typeof req.body?.destination === "string" ? req.body.destination.trim() : "";
+    const daysBrief = typeof req.body?.daysBrief === "string" ? req.body.daysBrief.trim().slice(0, 800) : "";
+    const budgetBrief = typeof req.body?.budgetBrief === "string" ? req.body.budgetBrief.trim().slice(0, 300) : "";
+    const originLatitude = Number(req.body?.originLatitude);
+    const originLongitude = Number(req.body?.originLongitude);
+    const hasOrigin =
+      Number.isFinite(originLatitude) && Number.isFinite(originLongitude) &&
+      Math.abs(originLatitude) <= 90 && Math.abs(originLongitude) <= 180;
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    const mapsKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "行程規劃服務尚未設定。" }); return; }
+    if (!intent || intent.length > 500) { res.status(400).json({ error: "請描述你想做的事。" }); return; }
+
+    // Stable from this first response onward, so every later event about this
+    // set of options points at something that still exists.
+    const requestId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const generationConfig = {
+        contents: `一位旅人正在規劃${destination ? `${destination}的` : ""}旅程，他說：「${intent}」。\n${daysBrief}\n${budgetBrief}\n\n請先查資料，判斷從${destination || "他的目的地"}出發做這件事實際上是什麼樣子，然後提出 **2 到 3 個彼此明顯不同的方案**，幫他做決定。\n\n方案之間要有意義的差異（最省事／最適合這趟／完整體驗／較省錢／舒適便利／過夜），不要三張幾乎一樣的卡。**資料只支持一到兩個好方案時，就只給一到兩個**，不要湊數。\n\n每個方案：\n- title：看得出差異的名稱\n- whyItFits：為什麼這個方案適合「這一趟」，兩句話\n- tradeoff：這個方案的代價是什麼（時間、金錢、體力、彈性），一句話\n- durationDays：**這個方案本身**需要幾天（不是整趟旅程的天數）\n- characteristics：從 easiest / best_fit / fuller / lower_budget / premium / overnight 選 1 到 2 個\n- mainPlaceName：這個方案最主要的場所名稱，要真實存在、你在搜尋結果中看到的\n- budget：**只有查到實際價格時才填** min / max / currency，查不到就整個省略。不要用印象中的數字。\n- preparation：這個方案需要先準備的事，2 到 4 項，每項有 name 與 canBeHumanAssisted（是否適合請當地人代勞，例如打電話預約、現場陪同）\n- items：逐時段行程，每項 time（HH:MM）、title、placeName、type（ACTIVITY/FOOD/TRANSPORT/HOTEL）、dayOffset（從 0 開始）、durationMinutes、notes\n\n另外給 intro：一句話說明你怎麼看這個需求，例如「從釜山安排滑雪，建議至少留 1 天」。\n\n嚴格規則：\n- 地點必須真實存在。不要編場館名稱。\n- **不要輸出任何網址**，連結由地圖服務提供。\n- **不要自己估交通時間**，交通由路線服務計算。\n- 不要宣稱有空位、可預約、已開放，除非查到的資料明確寫了。\n- 不確定的事寫進 notes 說需再確認，不要寫成事實。\n- **不要評論或形容這位旅人本身**（他的消費習慣、個性、經濟狀況）。預算數字只用來挑選合適的方案，不要寫成對他的描述。\n- 使用繁體中文。\n\n只回傳 JSON。`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              intro: { type: Type.STRING },
+              options: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    whyItFits: { type: Type.STRING },
+                    tradeoff: { type: Type.STRING },
+                    durationDays: { type: Type.NUMBER },
+                    characteristics: { type: Type.ARRAY, items: { type: Type.STRING, enum: ["easiest", "best_fit", "fuller", "lower_budget", "premium", "overnight"] } },
+                    mainPlaceName: { type: Type.STRING },
+                    budget: {
+                      type: Type.OBJECT,
+                      properties: { min: { type: Type.NUMBER }, max: { type: Type.NUMBER }, currency: { type: Type.STRING } },
+                    },
+                    preparation: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: { name: { type: Type.STRING }, canBeHumanAssisted: { type: Type.BOOLEAN } },
+                        required: ["name"],
+                      },
+                    },
+                    items: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          time: { type: Type.STRING },
+                          title: { type: Type.STRING },
+                          placeName: { type: Type.STRING },
+                          type: { type: Type.STRING, enum: ["ACTIVITY", "FOOD", "TRANSPORT", "HOTEL"] },
+                          dayOffset: { type: Type.NUMBER },
+                          durationMinutes: { type: Type.NUMBER },
+                          notes: { type: Type.STRING },
+                        },
+                        required: ["time", "title", "type"],
+                      },
+                    },
+                  },
+                  required: ["title", "whyItFits", "durationDays", "items"],
+                },
+              },
+            },
+            required: ["options"],
+          },
+        },
+      } as const;
+
+      const generate = (useSearch: boolean) =>
+        ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          ...generationConfig,
+          config: { ...generationConfig.config, ...(useSearch ? { tools: [{ googleSearch: {} }] } : {}) },
+        });
+
+      let response;
+      let grounded = true;
+      try {
+        response = await generate(true);
+      } catch (groundedError: any) {
+        const exhausted = groundedError?.status === 429 || groundedError?.message?.includes("RESOURCE_EXHAUSTED");
+        console.warn("Grounded activity-plan lookup failed; retrying without search.", { exhausted: Boolean(exhausted) });
+        grounded = false;
+        response = await generate(false);
+      }
+
+      const parsed = JSON.parse(response.text?.trim() || '{"options":[]}');
+      const rawOptions = (Array.isArray(parsed.options) ? parsed.options : []).slice(0, 3);
+
+      /** The venue as the map service knows it, never as the model spelled it. */
+      const resolvePlace = async (name: string) => {
+        if (!mapsKey || !name) return null;
+        try {
+          const lookup = await fetch("https://places.googleapis.com/v1/places:searchText", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Goog-Api-Key": mapsKey,
+              "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri,places.websiteUri,places.priceLevel,places.priceRange",
+            },
+            body: JSON.stringify({ textQuery: `${name} ${destination}`.trim(), languageCode: "zh-TW", maxResultCount: 1 }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!lookup.ok) return null;
+          const payload = await lookup.json() as { places?: Array<Record<string, any>> };
+          const place = payload.places?.[0];
+          if (!place?.location) return null;
+          return {
+            placeId: place.id as string | undefined,
+            name: (place.displayName?.text as string | undefined) || name,
+            address: place.formattedAddress as string | undefined,
+            latitude: place.location.latitude as number,
+            longitude: place.location.longitude as number,
+            mapsUrl: place.googleMapsUri as string | undefined,
+            websiteUrl: place.websiteUri as string | undefined,
+            // The venue's own price band, as the map service holds it. Not the
+            // plan's total — but it is a real figure from a real source, which
+            // beats showing nothing every time the search quota is spent.
+            priceLevel: place.priceLevel as string | undefined,
+            priceRange: place.priceRange
+              ? {
+                  currency: place.priceRange.startPrice?.currencyCode || place.priceRange.endPrice?.currencyCode,
+                  start: place.priceRange.startPrice?.units ? Number(place.priceRange.startPrice.units) : undefined,
+                  end: place.priceRange.endPrice?.units ? Number(place.priceRange.endPrice.units) : undefined,
+                }
+              : undefined,
+          };
+        } catch { return null; }
+      };
+
+      /** Measured, never estimated. Absent when routing cannot answer. */
+      const travelMinutes = async (lat: number, lng: number): Promise<number | undefined> => {
+        if (!mapsKey || !hasOrigin) return undefined;
+        try {
+          const route = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Goog-Api-Key": mapsKey, "X-Goog-FieldMask": "routes.duration" },
+            body: JSON.stringify({
+              origin: { location: { latLng: { latitude: originLatitude, longitude: originLongitude } } },
+              destination: { location: { latLng: { latitude: lat, longitude: lng } } },
+              travelMode: "DRIVE",
+            }),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!route.ok) return undefined;
+          const data = await route.json() as { routes?: Array<{ duration?: string }> };
+          const seconds = data.routes?.[0]?.duration ? Number(data.routes[0].duration.replace(/s$/, "")) : NaN;
+          return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds / 60) : undefined;
+        } catch { return undefined; }
+      };
+
+      const options = await Promise.all(rawOptions.map(async (option: any, index: number) => {
+        const resolved = await resolvePlace(typeof option?.mainPlaceName === "string" ? option.mainPlaceName.trim() : "");
+        const minutes = resolved ? await travelMinutes(resolved.latitude, resolved.longitude) : undefined;
+        const resolvedName = resolved?.name || "";
+
+        const items = (Array.isArray(option?.items) ? option.items : [])
+          .map((item: any) => {
+            const named = typeof item?.placeName === "string" ? item.placeName.trim() : "";
+            // Identity attaches only where the map service confirmed this exact
+            // venue. A name that merely looks similar earns no placeId.
+            const isMainVenue = Boolean(
+              resolved && named && (named === resolvedName || named.includes(resolvedName) || resolvedName.includes(named)),
+            );
+            return {
+              time: typeof item?.time === "string" ? item.time.trim() : "",
+              title: typeof item?.title === "string" ? item.title.trim() : "",
+              placeName: isMainVenue ? resolvedName : named || undefined,
+              type: ["ACTIVITY", "FOOD", "TRANSPORT", "HOTEL"].includes(item?.type) ? item.type : "ACTIVITY",
+              dayOffset: Number.isFinite(item?.dayOffset) ? Math.max(0, Math.round(item.dayOffset)) : 0,
+              durationMinutes: Number.isFinite(item?.durationMinutes) ? Math.round(item.durationMinutes) : undefined,
+              notes: typeof item?.notes === "string" ? item.notes.trim() || undefined : undefined,
+              ...(isMainVenue
+                ? {
+                    placeId: resolved!.placeId,
+                    address: resolved!.address,
+                    latitude: resolved!.latitude,
+                    longitude: resolved!.longitude,
+                  }
+                : {}),
+            };
+          })
+          .filter((item: any) => item.title && /^\d{1,2}:\d{2}$/.test(item.time));
+
+        // Derived from the schedule, not taken from the model. Asked inside a
+        // ten-day trip it answered "10 天" for a plan whose items all sat on one
+        // day — which is the trip's length, not the plan's, and it turned the
+        // one column that distinguishes the options into noise. The items are
+        // what actually gets inserted, so they decide.
+        const durationDays = items.length > 0
+          ? Math.max(...items.map((item: any) => item.dayOffset)) + 1
+          : 1;
+
+        const budget = option?.budget;
+        const hasBudget = Boolean(
+          grounded && budget && Number.isFinite(budget.min) && Number.isFinite(budget.max) && typeof budget.currency === "string",
+        );
+
+        return {
+          id: `${requestId}-opt-${index + 1}`,
+          title: typeof option?.title === "string" ? option.title.trim() : "",
+          whyItFits: typeof option?.whyItFits === "string" ? option.whyItFits.trim() : "",
+          tradeoff: typeof option?.tradeoff === "string" ? option.tradeoff.trim() || undefined : undefined,
+          durationDays,
+          characteristics: Array.isArray(option?.characteristics)
+            ? option.characteristics.filter((value: unknown) =>
+                ["easiest", "best_fit", "fuller", "lower_budget", "premium", "overnight"].includes(value as string))
+            : [],
+          logistics: {
+            originLabel: destination || undefined,
+            travelMinutesEachWay: minutes,
+            burden: minutes === undefined ? undefined : minutes <= 60 ? "low" : minutes <= 150 ? "medium" : "high",
+          },
+          budget: hasBudget ? { min: Math.round(budget.min), max: Math.round(budget.max), currency: budget.currency.trim() } : undefined,
+          budgetConfidence: hasBudget ? "verified" : "unverified",
+          preparation: (Array.isArray(option?.preparation) ? option.preparation : [])
+            .map((task: any) => ({
+              name: typeof task?.name === "string" ? task.name.trim() : "",
+              canBeHumanAssisted: task?.canBeHumanAssisted === true,
+            }))
+            .filter((task: any) => task.name)
+            .slice(0, 4),
+          items,
+          mapsUrl: resolved?.mapsUrl,
+          websiteUrl: resolved?.websiteUrl,
+          venuePrice:
+            resolved?.priceRange?.currency && (resolved.priceRange.start || resolved.priceRange.end)
+              ? {
+                  venueName: resolved.name,
+                  currency: resolved.priceRange.currency,
+                  start: resolved.priceRange.start,
+                  end: resolved.priceRange.end,
+                }
+              : undefined,
+        };
+      }));
+
+      // Only pages the search step actually returned.
+      const sources = (((response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || []) as any[])
+        .map((chunk) => ({ title: chunk.web?.title as string | undefined, url: chunk.web?.uri as string | undefined }))
+        .filter((source) => source.url)
+        .slice(0, 5);
+
+      res.json({
+        requestId,
+        intro: typeof parsed.intro === "string" ? parsed.intro.trim() : undefined,
+        options: options.filter((option: any) => option.title && option.items.length > 0),
+        grounded,
+        sources,
+      });
+    } catch (error: any) {
+      const status = error?.status ?? error?.response?.status;
+      const exhausted = error?.code === "RESOURCE_EXHAUSTED" || error?.message?.includes("RESOURCE_EXHAUSTED");
+      console.warn("Activity plan generation failed", { exhausted: Boolean(exhausted || status === 429) });
+      // Nobody can name a beginner-friendly resort without looking it up, so
+      // there is no honest offline fallback to fall back to here.
+      res.status(502).json({ error: "現在查不到資料，稍後再試一次。" });
+    }
+  });
+
   app.post("/api/preparation-suggestions", async (req, res) => {
     const context = typeof req.body?.context === "string" ? req.body.context.trim() : "";
     const apiKey = process.env.GEMINI_API_KEY;

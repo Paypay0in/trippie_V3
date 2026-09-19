@@ -3,6 +3,9 @@ import { HelpRequest } from '../services/serviceMatching';
 import { classifyTask } from '../services/taskAssistance';
 import { TaskBundleProposal } from '../services/taskBundling';
 import { suggestTaskBundles } from '../services/serviceBundleSuggestion';
+import { ActivityPlanProposal, fetchActivityPlans } from '../services/activityPlanProposal';
+import ActivityPlanCards from './ActivityPlanCards';
+import { tripDays, tripDaysBrief } from '../services/tripFreeDays';
 import ServiceRequestSheet from './ServiceRequestSheet';
 import { ServiceRequest } from '../types';
 import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake } from 'lucide-react';
@@ -107,6 +110,27 @@ interface Props {
   savedInspirations: SavedTravelInspiration[];
   onTogglePreparationItem: (id: string) => void;
   onAddPreparationItems: (items: string[]) => void;
+  /** Applies a confirmed plan through the existing itinerary acceptance path. */
+  onApplyPlanOption?: (items: ItineraryItem[]) => void;
+  /** Trip origin, so travel time can be measured rather than guessed. */
+  originLatitude?: number;
+  originLongitude?: number;
+  tripEndDate?: string;
+  /** Behavioural events. Being shown an option is not evidence of preference. */
+  onPlanOptionsShown?: (requestId: string, options: ActivityPlanProposal[]) => void;
+  onPlanOptionSelected?: (requestId: string, option: ActivityPlanProposal, shown: ActivityPlanProposal[]) => void;
+  onPlanOptionDismissed?: (requestId: string, option: ActivityPlanProposal, shown: ActivityPlanProposal[]) => void;
+  onPlanAddedToItinerary?: (
+    requestId: string,
+    option: ActivityPlanProposal,
+    shown: ActivityPlanProposal[],
+    itemIds: string[],
+  ) => void;
+  /**
+   * What this traveller has actually spent per day on past trips, phrased as an
+   * observation. Given to the planner as context, never as a stated budget.
+   */
+  budgetBrief?: string;
 }
 
 /* Tinted tiles, cycled. Colour here carries no meaning — it separates tiles
@@ -140,7 +164,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -162,17 +186,31 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   const [selectedHelpTaskIds, setSelectedHelpTaskIds] = useState<string[]>([]);
   const [isPublishingHelp, setIsPublishingHelp] = useState(false);
   const [bundleProposal, setBundleProposal] = useState<TaskBundleProposal | null>(null);
+  const [planOptions, setPlanOptions] = useState<ActivityPlanProposal[]>([]);
+  const [planIntro, setPlanIntro] = useState('');
+  const [planRequestId, setPlanRequestId] = useState('');
+  const [planSources, setPlanSources] = useState<Array<{ title?: string; url?: string }>>([]);
+  const [planError, setPlanError] = useState('');
+  const [planGrounded, setPlanGrounded] = useState(true);
   const [grounded, setGrounded] = useState(true);
   const [showAllRules, setShowAllRules] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState('');
   const context = destination?.trim();
   const localTips = getDestinationTips(destinationCountry || destination);
+  // What the traveller last asked about, so the recommendations answer the
+  // question rather than the country. Kept separate from the live textarea: the
+  // list should not churn on every keystroke.
+  const [askedTopic, setAskedTopic] = useState('');
+  // Which days are free and which hold something pinned. Counted from the
+  // itinerary, never asked of the model.
+  const planDays = tripDays({ startDate: tripStartDate, endDate: tripEndDate, itinerary });
   const highlights = communityHighlights({
     posts: communityPosts,
     saved: savedInspirations,
     country: destinationCountry,
     destination,
+    topic: askedTopic,
   });
   // Two different things had been sharing one list. Entry formalities come
   // from the travel-rules lookup and are what a country requires; everything
@@ -286,6 +324,32 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
     setIsGenerating(true);
     setGenerationError(null);
     setSuggestions([]);
+    setAskedTopic(question);
+    setPlanOptions([]);
+    setPlanError('');
+    setPlanIntro('');
+    setPlanSources([]);
+    // Plans first. 「我想滑雪」 is a decision problem before it is a packing
+    // problem, and the preparation list only makes sense once one is chosen.
+    fetchActivityPlans({
+      intent: question,
+      destination: destinationCountry || destination,
+      originLatitude,
+      originLongitude,
+      startDate: tripStartDate,
+      endDate: tripEndDate,
+      daysBrief: tripDaysBrief(planDays),
+      budgetBrief,
+    })
+      .then(result => {
+        setPlanOptions(result.options);
+        setPlanIntro(result.intro || '');
+        setPlanRequestId(result.requestId);
+        setPlanSources(result.sources);
+        setPlanGrounded(result.grounded);
+        onPlanOptionsShown?.(result.requestId, result.options);
+      })
+      .catch(error => setPlanError(error instanceof Error ? error.message : '現在查不到資料，稍後再試一次。'));
     // Posts about this destination, trimmed: the assistant needs enough of each
     // to recognise relevance, not the whole essay.
     const relevantPosts = communityPosts
@@ -622,7 +686,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
            without an AI call that might be wrong about what exists. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
           <h2 className="mb-1 flex items-center gap-2 font-black"><Compass size={18} className="text-violet-600" />旅人最近推薦</h2>
-          <p className="mb-3 text-xs text-slate-500">去過 {destinationCountry || destination} 的人寫下的經驗。</p>
+          <p className="mb-3 text-xs text-slate-500">{askedTopic ? `社群裡跟「${askedTopic.slice(0, 12)}」有關的經驗。` : `去過 ${destinationCountry || destination} 的人寫下的經驗。`}</p>
           <div className="space-y-2">
             {highlights.map(({ post, savers }) => (
               <button key={post.id} type="button" onClick={() => onOpenPost(post.id)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left">
@@ -653,7 +717,26 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
             <Handshake size={16} />需要真人協助
           </button>
         )}
-        {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在整理準備建議…</p>}
+        <ActivityPlanCards
+          intro={planIntro}
+          options={planOptions}
+          grounded={planGrounded}
+          sources={planSources}
+          days={planDays}
+          onSelect={plan => onPlanOptionSelected?.(planRequestId, plan, planOptions)}
+          onDismiss={plan => {
+            onPlanOptionDismissed?.(planRequestId, plan, planOptions);
+            setPlanOptions(current => current.filter(option => option.id !== plan.id));
+          }}
+          onAddToItinerary={(plan, items) => {
+            onApplyPlanOption?.(items);
+            onPlanAddedToItinerary?.(planRequestId, plan, planOptions, items.map(item => item.id));
+          }}
+          onRequestHelp={taskName => onRequestHumanHelp?.({ topic: taskName, destination: destinationCountry || destination })}
+          onAddPreparation={onAddPreparationItems}
+        />
+        {planError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-xs text-slate-600">{planError}</p>}
+        {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在查資料並規劃方案…</p>}
         {!isGenerating && generationError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-sm text-slate-600">{generationError}</p>}
         {!isGenerating && !generationError && suggestions.length > 0 && <div className="mt-3 space-y-2"><div className="text-xs font-black text-[#11183d]">AI 建議</div>{suggestions.map((suggestion, index) => { const alreadyAdded = shoppingPreTasks.some(task => task.name.trim().toLowerCase() === suggestion.item.trim().toLowerCase()); const selected = selectedSuggestions.includes(suggestion.item); return <button type="button" key={`${suggestion.item}-${index}`} disabled={alreadyAdded} onClick={() => setSelectedSuggestions(current => selected ? current.filter(item => item !== suggestion.item) : [...current, suggestion.item])} className={`w-full rounded-xl border px-3 py-3 text-left transition ${alreadyAdded ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-60' : selected ? 'border-violet-300 bg-violet-50' : 'border-slate-200 bg-white hover:border-violet-200'}`}><div className="flex items-start gap-3"><span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${alreadyAdded || selected ? 'border-violet-500 bg-violet-600 text-white' : 'border-slate-300 bg-white'}`}>{(alreadyAdded || selected) && '✓'}</span><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-slate-700">{suggestion.item}</span><span className="mt-1 block text-[11px] text-slate-400">{suggestion.reason}</span></span>{alreadyAdded && <span className="shrink-0 text-[10px] font-black text-slate-400">已加入</span>}</div></button>; })}<button type="button" disabled={selectedSuggestions.length === 0} onClick={() => { onAddPreparationItems(selectedSuggestions); setSelectedSuggestions([]); }} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-40">加入待辦清單（{selectedSuggestions.length}）</button></div>}
         {!grounded && suggestions.length > 0 && <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">這次沒有查到即時資料，以下是依一般情況整理的建議。</p>}
