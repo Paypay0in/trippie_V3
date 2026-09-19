@@ -92,6 +92,26 @@ create policy service_request_tasks_insert on public.service_request_tasks
     )
   );
 
+-- Republishing a request upserts its tasks, and an upsert that hits an
+-- existing (request_id, source_task_id) takes the UPDATE path. Without this
+-- policy the first publish would succeed and every later one would be refused
+-- by row-level security.
+drop policy if exists service_request_tasks_update on public.service_request_tasks;
+create policy service_request_tasks_update on public.service_request_tasks
+  for update to authenticated
+  using (
+    exists (
+      select 1 from public.service_requests r
+      where r.id = request_id and r.requested_by_user_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.service_requests r
+      where r.id = request_id and r.requested_by_user_id = auth.uid()
+    )
+  );
+
 drop policy if exists service_request_tasks_delete on public.service_request_tasks;
 create policy service_request_tasks_delete on public.service_request_tasks
   for delete to authenticated
