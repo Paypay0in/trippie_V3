@@ -7,6 +7,7 @@ import {
   PlanCharacteristic,
   planToItineraryItems,
 } from '../services/activityPlanProposal';
+import { tripHasStarted } from '../services/planPreparationCoverage';
 import { BURDEN_LABELS, dayTripIsRealistic, travelTimeLabel } from '../services/planLogistics';
 import { TripDay, pinnedConflictDates } from '../services/tripFreeDays';
 
@@ -39,6 +40,13 @@ interface Props {
   onRequestHelp?: (taskName: string) => void;
   /** Adds a preparation task to the pre-trip checklist. */
   onAddPreparation?: (taskNames: string[]) => void;
+  /**
+   * The trip's first day, compared against this device's date to tell whether
+   * preparation that can only happen at home is still possible. Judged here
+   * rather than on the server: the question is what day it is where the
+   * traveller is standing.
+   */
+  tripStartDate?: string;
 }
 
 const generateItemId = () => `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -102,12 +110,19 @@ const ActivityPlanCards: React.FC<Props> = ({
   onAddToItinerary,
   onRequestHelp,
   onAddPreparation,
+  tripStartDate,
 }) => {
   const [openPlanId, setOpenPlanId] = useState<string | null>(null);
   const [chosenDate, setChosenDate] = useState('');
   const upcomingDates = React.useMemo(() => nextDates(30), []);
 
   const openPlan = options.find(plan => plan.id === openPlanId) || null;
+  // Read from this device, not the server: the server's clock is in a data
+  // centre, and what matters is the date where the traveller is standing.
+  const tooLateForDepartureTasks = Boolean(
+    openPlan?.preparation.some(task => task.beforeDeparture)
+    && tripHasStarted(new Date().toLocaleDateString('sv-SE'), tripStartDate),
+  );
   const conflicts = openPlan && chosenDate ? pinnedConflictDates(days, chosenDate, openPlan.durationDays) : [];
 
   if (options.length === 0) return null;
@@ -148,10 +163,23 @@ const ActivityPlanCards: React.FC<Props> = ({
              traveller has chosen what to do are noise they scroll past. */
           <div className="mt-4 rounded-xl bg-slate-50 p-3">
             <div className="text-[11px] font-black text-[#11183d]">這個方案需要準備</div>
+            {tooLateForDepartureTasks && (
+              /* Said once, about the plan, before the list — by the time
+                 someone reads down to the item itself they have already
+                 started picturing the day. */
+              <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-800">
+                這個方案有需要出發前在國內辦好的手續，旅程已經開始了，可能來不及。
+              </p>
+            )}
             <div className="mt-2 space-y-2">
               {openPlan.preparation.map(task => (
                 <div key={task.name} className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 flex-1 text-[11px] text-slate-700">□ {task.name}</span>
+                  <span className="min-w-0 flex-1 text-[11px] text-slate-700">
+                    □ {task.name}
+                    {task.beforeDeparture && (
+                      <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[9px] font-black text-slate-600">出發前</span>
+                    )}
+                  </span>
                   {task.canBeHumanAssisted && onRequestHelp && (
                     <button
                       type="button"

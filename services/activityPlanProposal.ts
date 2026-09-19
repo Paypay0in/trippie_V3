@@ -61,6 +61,13 @@ export interface PlanPreparationTask {
   name: string;
   /** Whether a person could take it on, for the service bundling flow. */
   canBeHumanAssisted: boolean;
+  /**
+   * Only obtainable at home before leaving — a driving permit, a visa. The
+   * screen compares this against the device's own date, because a plan that
+   * needs one is not merely inconvenient once the trip has started, it is
+   * impossible.
+   */
+  beforeDeparture?: boolean;
 }
 
 export interface ActivityPlanProposal {

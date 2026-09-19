@@ -21,6 +21,13 @@
 export interface PreparationTask {
   name: string;
   canBeHumanAssisted: boolean;
+  /**
+   * Only doable before leaving home — a permit issued by your own country's
+   * authority, a visa collected in person. Set here rather than asked of the
+   * model, and read by the screen, which is the only place that knows what
+   * day it is where the traveller is standing.
+   */
+  beforeDeparture?: boolean;
 }
 
 export interface ScheduleItem {
@@ -103,4 +110,58 @@ export const withRequiredPreparation = (
   const additions = missingPreparation(items, preparation);
   if (additions.length === 0) return preparation.slice(0, limit);
   return [...additions, ...preparation].slice(0, limit);
+};
+
+/**
+ * Preparation that can only happen in the traveller's own country, before
+ * they leave.
+ *
+ * A plan offering a self-drive day needs an international permit, and that is
+ * issued at home by appointment — someone already in Osaka cannot get one, so
+ * the plan is not merely inconvenient for them, it is impossible. On screen it
+ * looked like any other unticked box.
+ *
+ * Narrow on purpose, and only documents: things issued by an authority in the
+ * traveller's own country, where there is no equivalent to be arranged on
+ * arrival. Booking a restaurant from abroad is fine; a driving permit is not.
+ */
+const BEFORE_DEPARTURE_WORDS = [
+  '國際駕照',
+  '駕照譯本',
+  '駕照日文譯本',
+  '簽證',
+  'visa',
+  '國際駕駛',
+  '旅平險',
+  '旅遊保險',
+];
+
+export const isBeforeDepartureOnly = (taskName: string): boolean => {
+  const name = taskName.toLowerCase();
+  return BEFORE_DEPARTURE_WORDS.some(word => name.includes(word.toLowerCase()));
+};
+
+/** The same list, with anything only doable at home marked as such. */
+export const markDepartureTiming = (preparation: PreparationTask[]): PreparationTask[] =>
+  preparation.map(task => (
+    isBeforeDepartureOnly(task.name) ? { ...task, beforeDeparture: true } : task
+  ));
+
+/**
+ * Whether the trip is already under way, judged on the device's own date.
+ *
+ * Deliberately compared where the traveller is: the server's clock is in a
+ * data centre, and the question is what day it is for the person holding the
+ * phone. Both values are plain dates, so this is a day-level comparison and
+ * needs no timezone maths.
+ *
+ * Known limit, recorded rather than guessed at: this catches "too late", not
+ * "cutting it fine". A permit is equally out of reach the day before departure,
+ * but choosing how many days of notice each document needs would mean inventing
+ * numbers, which is worse than saying nothing.
+ */
+export const tripHasStarted = (today: string, tripStartDate?: string): boolean => {
+  if (!tripStartDate || !/^\d{4}-\d{2}-\d{2}$/.test(tripStartDate)) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) return false;
+  return today >= tripStartDate;
 };

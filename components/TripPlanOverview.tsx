@@ -696,6 +696,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
           }}
           onRequestHelp={taskName => onRequestHumanHelp?.({ topic: taskName, destination: destinationCountry || destination })}
           onAddPreparation={onAddPreparationItems}
+          tripStartDate={tripStartDate}
         />
         {planError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-xs text-slate-600">{planError}</p>}
         {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在查資料並規劃方案…</p>}

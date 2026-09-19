@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { missingPreparation, withRequiredPreparation } from './planPreparationCoverage';
+import { markDepartureTiming, missingPreparation, tripHasStarted, withRequiredPreparation } from './planPreparationCoverage';
 
 const drivingPlan = [
   { title: '東京都心租車出發', notes: '建議選擇配備 ETC 讀卡機的車型以節省收費站時間。' },
@@ -80,5 +80,43 @@ describe('withRequiredPreparation', () => {
     expect(merged).toHaveLength(5);
     // The one the plan cannot happen without survives the trim.
     expect(merged[0].name).toBe('預約租車');
+  });
+});
+
+describe('preparation that can only happen before leaving home', () => {
+  it('marks the documents an authority at home has to issue', () => {
+    const marked = markDepartureTiming([
+      { name: '辦理台灣駕照日文譯本或國際駕照', canBeHumanAssisted: false },
+      { name: '預約三崎港熱門海鮮餐廳', canBeHumanAssisted: true },
+    ]);
+
+    expect(marked[0].beforeDeparture).toBe(true);
+    // Booking a restaurant from abroad is ordinary. Only the impossible is
+    // marked, or the mark stops meaning anything.
+    expect(marked[1].beforeDeparture).toBeUndefined();
+  });
+
+  it('leaves an ordinary list untouched', () => {
+    const preparation = [{ name: '查詢纜車時刻', canBeHumanAssisted: true }];
+    expect(markDepartureTiming(preparation)).toEqual(preparation);
+  });
+});
+
+describe('tripHasStarted', () => {
+  it('is true from the first day of the trip onwards', () => {
+    expect(tripHasStarted('2026-10-20', '2026-10-20')).toBe(true);
+    expect(tripHasStarted('2026-10-23', '2026-10-20')).toBe(true);
+  });
+
+  it('is false while the trip is still ahead', () => {
+    expect(tripHasStarted('2026-10-19', '2026-10-20')).toBe(false);
+  });
+
+  it('says nothing when it has nothing to compare', () => {
+    // A trip without dates must not be reported as under way: that would
+    // warn about preparation nobody has run out of time for.
+    expect(tripHasStarted('2026-10-20', undefined)).toBe(false);
+    expect(tripHasStarted('2026-10-20', '')).toBe(false);
+    expect(tripHasStarted('not-a-date', '2026-10-20')).toBe(false);
   });
 });

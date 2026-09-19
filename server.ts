@@ -6,7 +6,7 @@ import { createServer as createViteServer, loadEnv } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
-import { withRequiredPreparation } from "./services/planPreparationCoverage";
+import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -689,7 +689,7 @@ async function startServer() {
           // The model fills these two fields separately, so a plan could open
           // by collecting a rental car and never mention booking one — the
           // same failure as durationDays, in a field a traveller acts on.
-          preparation: withRequiredPreparation(
+          preparation: markDepartureTiming(withRequiredPreparation(
             items,
             (Array.isArray(option?.preparation) ? option.preparation : [])
               .map((task: any) => ({
@@ -697,7 +697,7 @@ async function startServer() {
                 canBeHumanAssisted: task?.canBeHumanAssisted === true,
               }))
               .filter((task: any) => task.name),
-          ),
+          )),
           items,
           mapsUrl: resolved?.mapsUrl,
           websiteUrl: resolved?.websiteUrl,
