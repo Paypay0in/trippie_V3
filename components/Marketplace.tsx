@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { OVERLAY } from '../constants/layers';
-import { MarketplaceService, InboxMessage } from '../types';
+import { MarketplaceService, InboxMessage, ServiceRequest } from '../types';
 import { HelpRequest, matchServices } from '../services/serviceMatching';
+import ServiceRequestSheet from './ServiceRequestSheet';
 import { Star, MessageCircle, ShieldCheck, Zap, Plus, X, Info, Inbox, ArrowLeft } from 'lucide-react';
 
 interface Props {
@@ -14,9 +15,32 @@ interface Props {
   helpRequest?: HelpRequest | null;
   /** Drops the request so the tab goes back to the whole list. */
   onClearHelpRequest?: () => void;
+  /** Help requests this account published. v1 shows nobody else's. */
+  serviceRequests?: ServiceRequest[];
+  onDeleteServiceRequest?: (requestId: string) => void;
+  /**
+   * Publishes a request raised here rather than from a to-do. 行前諮詢 and
+   * 現場陪同 answer to no checklist item — 「想找人陪我去看診」 is not a chore
+   * anyone wrote down — so without this entry point those two kinds could never
+   * be created at all.
+   */
+  onPublishServiceRequest?: (
+    draft: Omit<ServiceRequest, 'id' | 'tripId' | 'requestedByUserId' | 'createdAt' | 'status'>,
+  ) => void;
+  /** The trip's country, used to pre-fill the location of a request raised here. */
+  destinationCountry?: string;
+  tripStartDate?: string;
 }
 
-const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, onAddService, onMarkMessageRead, helpRequest, onClearHelpRequest }) => {
+const NEED_LABELS: Record<string, string> = {
+  phone_call: '代打電話',
+  on_site: '現場陪同',
+  translation: '文件翻譯',
+  multi_contact: '多方聯絡',
+  other: '其他',
+};
+
+const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, onAddService, onMarkMessageRead, helpRequest, onClearHelpRequest, serviceRequests = [], onDeleteServiceRequest, onPublishServiceRequest, destinationCountry, tripStartDate }) => {
   const matches = React.useMemo(
     () => (helpRequest?.topic?.trim() ? matchServices({ request: helpRequest, services }) : []),
     [helpRequest, services],
@@ -31,6 +55,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
   }, [matches, services]);
 
   const [activeTab, setActiveTab] = useState<'explore' | 'inbox'>('explore');
+  const [isRaisingRequest, setIsRaisingRequest] = useState(false);
   const [isAddingService, setIsAddingService] = useState(false);
   const [chattingWith, setChattingWith] = useState<MarketplaceService | null>(null);
   const [chatMessage, setChatMessage] = useState('');
@@ -107,14 +132,97 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
         </div>
         
         {activeTab === 'explore' && (
+          <div className="flex items-center gap-2">
+          {onPublishServiceRequest && (
+            <button
+              onClick={() => setIsRaisingRequest(true)}
+              className="text-xs font-bold text-white bg-blue-600 px-3 py-1.5 rounded-lg flex items-center gap-1"
+            >
+              <Plus size={14} /> 發起協助需求
+            </button>
+          )}
           <button 
             onClick={() => setIsAddingService(true)}
             className="text-xs font-bold text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-50 flex items-center gap-1"
           >
             <Plus size={14} /> 我也要提供服務
           </button>
+          </div>
         )}
       </div>
+
+      {onPublishServiceRequest && isRaisingRequest && (
+        <ServiceRequestSheet
+          tasks={[]}
+          selectedTaskIds={[]}
+          onToggleTask={() => {}}
+          destinationCountry={destinationCountry}
+          tripStartDate={tripStartDate}
+          onClose={() => setIsRaisingRequest(false)}
+          onPublish={draft => {
+            onPublishServiceRequest(draft);
+            setIsRaisingRequest(false);
+          }}
+        />
+      )}
+
+      {activeTab === 'explore' && serviceRequests.length > 0 && (
+        /* One request, several sub-tasks — the way a helper would need to read
+           it. Nobody else can see these yet, and the card says so rather than
+           implying someone is working on it. */
+        <div className="mb-4 space-y-3">
+          <div className="text-xs font-black text-gray-900">我的協助需求</div>
+          {serviceRequests.map(request => (
+            <div key={request.id} className="rounded-2xl border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-black text-gray-900">
+                    {request.title}{request.location && <span className="text-gray-400">｜{request.location}</span>}
+                  </div>
+                  {request.goal && <p className="mt-1 text-xs text-gray-500">{request.goal}</p>}
+                </div>
+                {onDeleteServiceRequest && (
+                  <button onClick={() => onDeleteServiceRequest(request.id)} className="p-1 text-gray-300 hover:text-gray-500">
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              {request.tasks.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[11px] font-bold text-gray-400">需要協助：</div>
+                  <ul className="mt-1 space-y-1">
+                    {request.tasks.map(task => (
+                      <li key={task.sourceTaskId} className="flex items-start gap-2 text-xs text-gray-700">
+                        <span className="mt-0.5 text-gray-300">☐</span>
+                        <span className="min-w-0">{task.taskName}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {(request.assistanceNeeds.length > 0 || request.languageNeeds.length > 0 || request.requestedDate) && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {request.requestedDate && (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">
+                      {request.requestedDate}{request.requestedTime ? ` ${request.requestedTime}` : ''}
+                    </span>
+                  )}
+                  {request.languageNeeds.map(language => (
+                    <span key={language} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">{language}</span>
+                  ))}
+                  {request.assistanceNeeds.map(need => (
+                    <span key={need} className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">{NEED_LABELS[need] ?? need}</span>
+                  ))}
+                </div>
+              )}
+
+              <p className="mt-3 text-[11px] text-gray-400">目前只有你看得到這份需求，尚未開放給服務提供者。</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {activeTab === 'explore' && helpRequest?.topic?.trim() && (
         <div className="mb-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">

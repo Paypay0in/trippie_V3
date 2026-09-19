@@ -51,6 +51,30 @@ describe('community highlights', () => {
     expect(ids).not.toContain('korea-3');
   });
 
+  it('answers a topic with posts about that topic', () => {
+    const topical = [
+      { ...post('ski', '韓國', '平昌', '2026-09-01T00:00:00.000Z'), title: '平昌滑雪場初體驗', content: '雪具租借很方便' },
+      { ...post('food', '韓國', '首爾', '2026-09-08T00:00:00.000Z'), title: '廣藏市場吃什麼', content: '麻藥飯捲必吃' },
+    ];
+    const result = communityHighlights({ posts: topical, saved: [], country: '韓國', topic: '滑雪' });
+    expect(result.map(entry => entry.post.id)).toEqual(['ski']);
+  });
+
+  it('matches a shorter word inside a longer one', () => {
+    const topical = [{ ...post('ski', '日本', '橫濱', '2026-09-01T00:00:00.000Z'), title: '橫濱室內滑雪場', content: '' }];
+    expect(communityHighlights({ posts: topical, saved: [], country: '日本', topic: '滑雪' })).toHaveLength(1);
+  });
+
+  it('shows nothing rather than the wrong thing', () => {
+    // Three popular posts about hotpot under a heading that says they are
+    // recommendations for skiing would be worse than an empty section.
+    expect(communityHighlights({ posts, saved: [], country: '韓國', topic: '滑雪' })).toEqual([]);
+  });
+
+  it('keeps the unprompted list when no topic is given', () => {
+    expect(communityHighlights({ posts, saved: [], country: '韓國' })).toHaveLength(2);
+  });
+
   it('shows nothing when the trip has no destination yet', () => {
     expect(communityHighlights({ posts, saved: [] })).toEqual([]);
   });
