@@ -2,7 +2,7 @@
 import { OVERLAY } from '../constants/layers';
 import React, { useState } from 'react';
 import { Companion } from '../types';
-import { Link2, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { Copy, Link2, Share2, Trash2, UserPlus, Users, X } from 'lucide-react';
 
 interface Props {
   companions: Companion[];
@@ -26,6 +26,9 @@ interface Props {
   onInvite?: (companion: Companion) => void;
   /** The companion an invite is currently being prepared for. */
   invitingId?: string | null;
+  /** A freshly minted link, shown until it is sent or dismissed. */
+  inviteLink?: { companionName: string; url: string } | null;
+  onDismissInviteLink?: () => void;
 }
 
 /** Member chip: same vocabulary as the trip roster (owner / member / guest). */
@@ -58,7 +61,7 @@ const Avatar: React.FC<{ name: string; tone: 'owner' | 'member' | 'guest' }> = (
   );
 };
 
-const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFriendToTrip, onRemove, onClose, ownerName, onInvite, invitingId }) => {
+const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFriendToTrip, onRemove, onClose, ownerName, onInvite, invitingId, inviteLink, onDismissInviteLink }) => {
   const [newName, setNewName] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -114,6 +117,54 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
               <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#11183d]">{ownerLabel}</span>
               <RoleChip tone="owner">擁有者</RoleChip>
             </div>
+
+            {inviteLink && (
+              /* On screen, not slipped into the clipboard. Safari drops the
+                 user gesture across the await that mints the token, so a
+                 silent copy fails on exactly the phones this is for — and a
+                 message saying "copied" over an empty clipboard is worse than
+                 showing the link. Each button below is its own fresh tap. */
+              <div className="rounded-2xl border border-violet-200 bg-[#f7f5ff] p-3.5">
+                <div className="text-xs font-black text-[#11183d]">
+                  {inviteLink.companionName} 的邀請連結
+                </div>
+                <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                  用訊息傳給她。知道這個連結的人就能加入這趟旅程，所以別公開貼出來。
+                </p>
+                <div className="mt-2 break-all rounded-xl bg-white px-3 py-2 text-[11px] text-slate-600 ring-1 ring-slate-200">
+                  {inviteLink.url}
+                </div>
+                <div className="mt-2 flex gap-2">
+                  {typeof navigator !== 'undefined' && navigator.share && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.share({ url: inviteLink.url, text: '一起用 Trippie 規劃這趟旅程' }).catch(() => undefined);
+                      }}
+                      className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-xs font-black text-white"
+                    >
+                      <Share2 size={14} />分享
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(inviteLink.url).catch(() => undefined);
+                    }}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-white text-xs font-black text-[#5b3df5] ring-1 ring-violet-200"
+                  >
+                    <Copy size={14} />複製
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onDismissInviteLink}
+                    className="min-h-11 shrink-0 px-3 text-xs font-bold text-slate-500"
+                  >
+                    收起
+                  </button>
+                </div>
+              </div>
+            )}
 
             {companions.map(c => {
               const isLinked = friends.some(f => f.id === c.id);

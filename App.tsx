@@ -3752,14 +3752,20 @@ const App: React.FC = () => {
   // Invites. `invitingId` is the companion whose link is being minted, so the
   // row can say so rather than looking inert while the network works.
   const [invitingId, setInvitingId] = useState<string | null>(null);
+  // The link, once minted, held so the modal can show it. Cleared when the
+  // roster closes so an old invite is never sitting there next to a new one.
+  const [inviteLink, setInviteLink] = useState<{ companionName: string; url: string } | null>(null);
 
   /**
    * Hands one companion a way into this trip.
    *
-   * Uses the share sheet where there is one — the link is going to LINE or a
-   * message, and making someone copy then switch apps then paste loses people.
-   * Clipboard is the fallback, and the link is shown either way so it can
-   * still be moved by hand when both fail.
+   * The link is put on screen rather than copied behind the traveller's back.
+   * Safari drops the user-gesture the moment an await resolves, so a copy
+   * fired after the round trip that mints the token silently fails on the
+   * phones this trip runs on — and a toast claiming "copied" over an empty
+   * clipboard is worse than no copy at all. The panel that appears has its
+   * own share and copy buttons, each a fresh tap, and shows the URL so it can
+   * always be moved by hand.
    */
   const handleInviteCompanion = async (companion: Companion) => {
     const tripId = activeDraftId || currentLoadedTripId;
@@ -3779,24 +3785,10 @@ const App: React.FC = () => {
         showToast(result.status === "unavailable" ? "雲端尚未設定，無法邀請" : "產生邀請連結失敗", "error");
         return;
       }
-      const link = inviteLinkFor(result.data, window.location.origin);
-      const shared = await (async () => {
-        if (typeof navigator !== "undefined" && navigator.share) {
-          try {
-            await navigator.share({ title: `${draftName || "旅程"}`, text: `一起用 Trippie 規劃這趟旅程`, url: link });
-            return true;
-          } catch {
-            // Cancelling the share sheet is not a failure; fall through to copy.
-          }
-        }
-        try {
-          await navigator.clipboard?.writeText(link);
-          return false;
-        } catch {
-          return false;
-        }
-      })();
-      showToast(shared ? "邀請連結已送出" : `邀請連結已複製：${link}`, "success");
+      setInviteLink({
+        companionName: companion.name,
+        url: inviteLinkFor(result.data, window.location.origin),
+      });
     } finally {
       setInvitingId(null);
     }
@@ -5676,9 +5668,11 @@ const App: React.FC = () => {
               onAdd={handleAddCompanion}
               onAddFriendToTrip={handleAddFriendToTrip}
               onRemove={handleRemoveCompanion}
-              onClose={() => setIsCompanionsOpen(false)}
+              onClose={() => { setInviteLink(null); setIsCompanionsOpen(false); }}
               onInvite={handleInviteCompanion}
               invitingId={invitingId}
+              inviteLink={inviteLink}
+              onDismissInviteLink={() => setInviteLink(null)}
             />
           )}
           {isCountryModalOpen && (
