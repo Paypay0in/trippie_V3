@@ -79,8 +79,18 @@ serverless，是另一次重寫，而且會在 13 天內製造一批新的未知
 
 ## Supabase 設定
 
-1. **套用 migration**：`0001`～`0005`。腳本 `~/Desktop/trippie_apply_0003_0004.sql`
-   只涵蓋 0003+0004，**`0005_itinerary_items.sql` 要另外貼**。
+### ⚠️ 已確認：資料庫是空的（Founder 確認，2026-09-19）
+
+`0001` 從來沒有套用過。**這代表費用共享從來沒有真的運作過**——`useTripSync`
+一直在靜默失敗，只有開發模式的紅色橫幅會說，正式環境沒有人看得到。
+
+先前盤點把費用、爭議、結算標為 🟡（「取決於 0001 是否套用」），現在答案揭曉：
+**那三項全部是 🔴**。專案存在、publishable key 正確，但一張表都沒有。
+
+1. **套用全部結構**：`~/Desktop/trippie_apply_ALL.sql`
+   涵蓋 `0001`～`0006`，依相依順序，包在單一 transaction，可重複執行。
+   執行後應有 10 張表與 5 個函式。
+   （舊的 `trippie_apply_0003_0004.sql` 已作廢，不要用——它假設 0001 已存在。）
 2. **Auth → URL Configuration**：把部署網址加進 Site URL 與 Redirect URLs，
    否則註冊確認信裡的連結會導回 localhost。
 3. **Email confirmation**：目前 `authService.ts` 有 `resendSignupConfirmation`，
