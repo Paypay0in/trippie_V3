@@ -13,6 +13,8 @@ import {
   isFixedItem,
   isFlexibleItem,
   nextFixedBoundaryAfter,
+  describeUnresolvedConflicts,
+  FixedEventConflict,
 } from './itineraryFixedEvents';
 import { rescheduleFromItem, timeToMinutes } from './itineraryTimeline';
 
@@ -400,5 +402,40 @@ describe('a flight anchor pair is one journey, not a conflict', () => {
     // Ends 11:00, past the 10:30 arrival step: a real conflict, reported once.
     const conflicts = detectFixedEventConflicts([sightseeing, arriveAtAirport, departure]);
     expect(conflicts.some(entry => entry.itemId === 'it-morning')).toBe(true);
+  });
+});
+
+describe('describeUnresolvedConflicts', () => {
+  const items = [
+    { id: 'stay', title: '入住 廣安里凱星頓特酒店' },
+    { id: 'flight', title: '航班起飛' },
+    { id: 'dinner', title: '晚餐' },
+  ];
+  const conflict = (itemId: string, fixedItemId: string): FixedEventConflict =>
+    ({ kind: 'fixed-vs-fixed', itemId, fixedItemId, boundaryMinutes: 0 });
+
+  it('names the two items, which is the only thing the traveller needs', () => {
+    // The banner said 「目前有兩個固定行程發生衝突」 as its heading and again as
+    // its body. Twice, and neither time saying which two of six cards.
+    expect(describeUnresolvedConflicts([conflict('stay', 'flight')], items))
+      .toBe('「入住 廣安里凱星頓特酒店」和「航班起飛」的時間互相衝突。');
+  });
+
+  it('says each pair once, however many boundaries they collide on', () => {
+    const twice = [conflict('stay', 'flight'), conflict('stay', 'flight')];
+    expect(describeUnresolvedConflicts(twice, items))
+      .toBe('「入住 廣安里凱星頓特酒店」和「航班起飛」的時間互相衝突。');
+  });
+
+  it('lists several distinct pairs', () => {
+    const many = [conflict('stay', 'flight'), conflict('dinner', 'flight')];
+    const described = describeUnresolvedConflicts(many, items);
+    expect(described).toContain('入住 廣安里凱星頓特酒店');
+    expect(described).toContain('晚餐');
+  });
+
+  it('says nothing rather than naming a card that is gone', () => {
+    expect(describeUnresolvedConflicts([conflict('stay', 'deleted')], items)).toBe('');
+    expect(describeUnresolvedConflicts([], items)).toBe('');
   });
 });

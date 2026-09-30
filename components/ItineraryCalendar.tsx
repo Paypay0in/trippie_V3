@@ -21,6 +21,7 @@ import { GripVertical, Lock, AlertTriangle, Pin, PinOff } from 'lucide-react';
 import {
   applyFixedEventAdjustment,
   buildFixedEventAdjustment,
+  describeUnresolvedConflicts,
   FixedEventAdjustment,
   fixedKindOf,
   isFixedItem,
@@ -614,7 +615,19 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               <div className="text-xs font-black text-amber-800">
                 {adjustment.unresolved.length > 0 ? '目前有兩個固定行程發生衝突' : '新增航班後，當日行程需要調整'}
               </div>
-              <div className="mt-0.5 text-[11px] leading-5 text-amber-700">{adjustment.summary}</div>
+              {/*
+                The heading already says there is a conflict. Repeating the
+                same sentence underneath it — which is what `summary` held —
+                said nothing twice while leaving the traveller to work out
+                which two of six cards were fighting.
+              */}
+              {adjustment.unresolved.length > 0 ? (
+                <div className="mt-0.5 text-[11px] leading-5 text-amber-700">
+                  {describeUnresolvedConflicts(adjustment.unresolved, items)}
+                </div>
+              ) : (
+                <div className="mt-0.5 text-[11px] leading-5 text-amber-700">{adjustment.summary}</div>
+              )}
               {adjustment.warnings.map(warning => (
                 <div key={warning} className="mt-1 text-[11px] font-bold leading-5 text-amber-700">⚠ {warning}</div>
               ))}

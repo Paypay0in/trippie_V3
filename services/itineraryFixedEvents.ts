@@ -399,3 +399,30 @@ export const nextFixedBoundaryAfter = (
 };
 
 export { SNAP_MINUTES };
+
+/**
+ * Which two items are actually in conflict, by name.
+ *
+ * The banner printed 「目前有兩個固定行程發生衝突」 as its heading and then again
+ * as its body — the same sentence twice, saying nothing either time. A
+ * traveller looking at a day with six cards still has to work out which two,
+ * and that is the only thing they need.
+ */
+export const describeUnresolvedConflicts = (
+  unresolved: FixedEventConflict[],
+  items: Array<{ id: string; title: string }>,
+): string => {
+  const titleOf = (id: string) => items.find(item => item.id === id)?.title;
+
+  const pairs = unresolved
+    .map(conflict => [titleOf(conflict.itemId), titleOf(conflict.fixedItemId)])
+    .filter((pair): pair is [string, string] => Boolean(pair[0] && pair[1]))
+    // The same two items can collide on more than one boundary; saying so
+    // twice is the problem this function exists to fix.
+    .filter((pair, index, all) =>
+      all.findIndex(other => other[0] === pair[0] && other[1] === pair[1]) === index);
+
+  if (pairs.length === 0) return '';
+  if (pairs.length === 1) return `「${pairs[0][0]}」和「${pairs[0][1]}」的時間互相衝突。`;
+  return pairs.map(pair => `「${pair[0]}」和「${pair[1]}」`).join('、') + ' 的時間互相衝突。';
+};

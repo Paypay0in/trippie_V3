@@ -110,7 +110,17 @@ const normalizeItinerary = (value: unknown): ItineraryItem[] | undefined => {
     sortOrder: typeof item.sortOrder === 'number' && Number.isInteger(item.sortOrder) && item.sortOrder >= 0 ? item.sortOrder : undefined,
     // A hard time constraint. Anything unrecognised reads as flexible, which is
     // the safe default: the schedule stays adjustable rather than frozen.
-    scheduleFlexibility: item.scheduleFlexibility === 'fixed' ? 'fixed' : undefined,
+    //
+    // Accommodation is never fixed, whatever an older record says. Stays were
+    // marked fixed when they were first built, which put a lock on the one
+    // card whose hour is genuinely negotiable — the traveller could not move
+    // a check-in, and it was reported as conflicting with the flight that
+    // brought them there. Clearing it on read means an itinerary saved before
+    // that changed stops being wrong the next time it is opened, rather than
+    // only for stays added afterwards.
+    scheduleFlexibility: item.scheduleFlexibility === 'fixed' && item.fixedEventKind !== 'accommodation'
+      ? 'fixed'
+      : undefined,
     isPinned: item.isPinned === true ? true : undefined,
     fixedEventKind: ['flight', 'train', 'reservation', 'ticketed_event', 'accommodation'].includes(String(item.fixedEventKind))
       ? item.fixedEventKind as ItineraryItem['fixedEventKind']
