@@ -170,6 +170,46 @@ export const rateFromFxResponse = (payload: unknown, target: string): number | n
 export const isCurrencyCode = (value: unknown): value is string =>
   typeof value === 'string' && /^[A-Za-z]{3}$/.test(value.trim());
 
-/** Base64 payloads the receipt camera produces; anything else is refused. */
+const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+
+/**
+ * What the file actually is, read from its own first bytes.
+ *
+ * The browser's `file.type` is not trustworthy enough to gate on. iOS hands
+ * back an empty string often enough, and a type can legitimately arrive with
+ * parameters ("image/jpeg; charset=utf-8"). Both were refused with 「需要一張
+ * 截圖」 while holding a perfectly good photo.
+ */
+export const sniffImageMime = (base64Data: string): string | null => {
+  const head = base64Data.slice(0, 32);
+  if (head.startsWith('iVBORw0KGgo')) return 'image/png';
+  if (head.startsWith('/9j/')) return 'image/jpeg';
+  if (head.startsWith('UklGR')) return 'image/webp';
+  // HEIC/HEIF carry an ftyp box a few bytes in; the brand lands in the same
+  // base64 region regardless of the leading box length.
+  if (/^[A-Za-z0-9+/]{4,8}(ZnR5cA|GZ0eXA|Zn0eXB)/.test(head)) return 'image/heic';
+  return null;
+};
+
+/**
+ * The type to send the provider, preferring what the bytes say over what the
+ * browser claimed. Returns null only when neither is usable.
+ */
+export const resolveImageMime = (declared: unknown, base64Data: string): string | null => {
+  const sniffed = sniffImageMime(base64Data);
+  if (sniffed) return sniffed;
+  if (typeof declared !== 'string') return null;
+  // Drop any parameters and match on the type alone.
+  const type = declared.split(';')[0].trim().toLowerCase();
+  const normalized = type === 'image/jpg' ? 'image/jpeg' : type;
+  return SUPPORTED_IMAGE_TYPES.includes(normalized) ? normalized : null;
+};
+
+/** Kept for the guard tests; prefer resolveImageMime, which also reads bytes. */
 export const isSupportedImageMime = (value: unknown): value is string =>
-  typeof value === 'string' && /^image\/(jpeg|jpg|png|webp|heic|heif)$/i.test(value.trim());
+  typeof value === 'string' &&
+  SUPPORTED_IMAGE_TYPES.includes(
+    (value.split(';')[0].trim().toLowerCase() === 'image/jpg'
+      ? 'image/jpeg'
+      : value.split(';')[0].trim().toLowerCase()),
+  );

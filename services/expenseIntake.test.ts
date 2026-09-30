@@ -6,6 +6,7 @@ import {
   isSupportedImageMime,
   normalizeParsedExpense,
   rateFromFxResponse,
+  resolveImageMime,
 } from './expenseIntake';
 
 describe('normalizeParsedExpense', () => {
@@ -129,5 +130,42 @@ describe('rateFromFxResponse', () => {
   it('refuses a rate that is not a usable positive number', () => {
     expect(rateFromFxResponse({ result: 'success', rates: { TWD: 0 } }, 'TWD')).toBeNull();
     expect(rateFromFxResponse({ result: 'success', rates: { TWD: '0.02' } }, 'TWD')).toBeNull();
+  });
+});
+
+describe('resolveImageMime — what an actual phone sends', () => {
+  // Real leading bytes, base64-encoded.
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
+  const JPEG = '/9j/4AAQSkZJRgABAQAAAQABAAD';
+  const WEBP = 'UklGRiIAAABXRUJQVlA4';
+
+  it('trusts the bytes over whatever the browser claimed', () => {
+    expect(resolveImageMime('image/png', PNG)).toBe('image/png');
+    expect(resolveImageMime('image/jpeg', JPEG)).toBe('image/jpeg');
+    expect(resolveImageMime('image/webp', WEBP)).toBe('image/webp');
+    // A browser that mislabels a PNG as JPEG must not make us mislabel it too.
+    expect(resolveImageMime('image/jpeg', PNG)).toBe('image/png');
+  });
+
+  it('accepts an empty type, which iOS sends often enough to matter', () => {
+    // This was refused with 「需要一張截圖」 while holding a perfectly good photo.
+    expect(resolveImageMime('', PNG)).toBe('image/png');
+    expect(resolveImageMime(undefined, JPEG)).toBe('image/jpeg');
+  });
+
+  it('accepts a type carrying parameters', () => {
+    expect(resolveImageMime('image/jpeg; charset=utf-8', 'unknownbytes')).toBe('image/jpeg');
+    expect(resolveImageMime('IMAGE/PNG', 'unknownbytes')).toBe('image/png');
+  });
+
+  it('treats image/jpg as the jpeg it means', () => {
+    expect(resolveImageMime('image/jpg', 'unknownbytes')).toBe('image/jpeg');
+  });
+
+  it('still refuses what is genuinely not an image', () => {
+    expect(resolveImageMime('application/pdf', 'JVBERi0xLjQK')).toBeNull();
+    expect(resolveImageMime('text/html', 'PGh0bWw+')).toBeNull();
+    expect(resolveImageMime('', 'not-an-image-at-all')).toBeNull();
+    expect(resolveImageMime(42, 'unknownbytes')).toBeNull();
   });
 });

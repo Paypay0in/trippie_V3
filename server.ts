@@ -18,6 +18,7 @@ import {
   isSupportedImageMime,
   normalizeParsedExpense,
   rateFromFxResponse,
+  resolveImageMime,
   textExpensePrompt,
 } from "./services/expenseIntake";
 import { STAY_MODEL, normalizeParsedStay, stayPrompt } from "./services/stayIntake";
@@ -87,23 +88,73 @@ async function startServer() {
   /** Models wrap JSON in a markdown fence often enough to be worth stripping. */
   const cleanModelJson = (raw: string) => raw.replace(/```json|```/g, "").trim() || "null";
 
+  /**
+   * Whether another attempt could plausibly succeed.
+   *
+   * Deliberately broad: a rate limit reaches us as 429, as RESOURCE_EXHAUSTED,
+   * as a 5xx, and sometimes only as prose in the message. Retrying a permanent
+   * error costs two seconds; refusing to retry a transient one costs the
+   * feature.
+   */
+  const isRetryable = (error: unknown): boolean => {
+    if (quotaStatusOf(error) === 429) return true;
+    if (!error || typeof error !== "object") return false;
+    const candidate = error as { status?: unknown; code?: unknown; message?: unknown };
+    for (const value of [candidate.status, candidate.code]) {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric >= 500 && numeric < 600) return true;
+      if (typeof value === "string" && /UNAVAILABLE|INTERNAL|DEADLINE_EXCEEDED/i.test(value)) return true;
+    }
+    const message = typeof candidate.message === "string" ? candidate.message : "";
+    return /\b(500|502|503|504)\b|unavailable|internal error|overloaded|timed? ?out|try again/i.test(message);
+  };
+
+  /**
+   * Retries a provider call through the transient failures the free tier
+   * produces constantly.
+   *
+   * Measured against the live deployment: the same screenshot posted five times
+   * gave 200, 200, 502, 429, 429. Without a retry the traveller sees 「請手動
+   * 輸入」 on the third attempt and stops trusting the feature — which is worse
+   * than a slow answer, because the point of the upload is not retyping a
+   * boarding pass.
+   *
+   * The browser version this replaced already retried; that was lost in the
+   * move to the server, which is the same "second path drops the first path's
+   * guards" shape that keeps costing this project.
+   */
+  const withRetry = async <T>(call: () => Promise<T>, attempts = 3): Promise<T> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        return await call();
+      } catch (error) {
+        lastError = error;
+        // A malformed request fails identically however many times it is sent.
+        if (!isRetryable(error) || attempt === attempts - 1) throw error;
+        // 1s, then 2s. Long enough for a per-minute bucket to refill a little,
+        // short enough that someone holding a phone has not given up.
+        await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt));
+      }
+    }
+    throw lastError;
+  };
+
   // A receipt photo is base64, so it arrives far larger than any other body
   // this server accepts. Its parser is mounted *before* the global 16kb one
   // because the global parser would reject the request first — express.json
   // skips a body it has already parsed, so the order is what makes this work.
   app.post("/api/expenses/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
     const { base64Data, mimeType } = req.body ?? {};
-    if (typeof base64Data !== "string" || !base64Data || !isSupportedImageMime(mimeType)) {
-      res.status(400).json({ error: "需要一張收據照片。" });
-      return;
-    }
+    const imageMime = typeof base64Data === "string" && base64Data ? resolveImageMime(mimeType, base64Data) : null;
+    if (!imageMime) { res.status(400).json({ error: "需要一張收據照片。" }); return; }
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) { res.status(503).json({ error: "現在無法辨識收據，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
+      const response = await withRetry(() => ai.models.generateContent({
         model: EXPENSE_MODEL,
-        contents: { parts: [{ inlineData: { mimeType: mimeType.trim(), data: base64Data } }, { text: imageExpensePrompt() }] },
+        contents: { parts: [{ inlineData: { mimeType: imageMime, data: base64Data } }, { text: imageExpensePrompt() }] },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -123,7 +174,7 @@ async function startServer() {
             required: ["amount", "currency"],
           },
         },
-      });
+      }));
       const parsed = normalizeParsedExpense(JSON.parse(cleanModelJson(response.text ?? "")));
       if (!parsed) { res.status(422).json({ error: "這張照片看不出金額，請手動輸入。" }); return; }
       res.json(parsed);
@@ -137,17 +188,15 @@ async function startServer() {
   // so it needs its own parser ahead of the global limit.
   app.post("/api/stays/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
     const { base64Data, mimeType } = req.body ?? {};
-    if (typeof base64Data !== "string" || !base64Data || !isSupportedImageMime(mimeType)) {
-      res.status(400).json({ error: "需要一張訂房截圖。" });
-      return;
-    }
+    const imageMime = typeof base64Data === "string" && base64Data ? resolveImageMime(mimeType, base64Data) : null;
+    if (!imageMime) { res.status(400).json({ error: "需要一張訂房截圖。" }); return; }
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) { res.status(503).json({ error: "現在無法辨識訂房截圖，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
+      const response = await withRetry(() => ai.models.generateContent({
         model: STAY_MODEL,
-        contents: { parts: [{ inlineData: { mimeType: mimeType.trim(), data: base64Data } }, { text: stayPrompt() }] },
+        contents: { parts: [{ inlineData: { mimeType: imageMime, data: base64Data } }, { text: stayPrompt() }] },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -168,7 +217,7 @@ async function startServer() {
             required: ["hotelName"],
           },
         },
-      });
+      }));
       const stay = normalizeParsedStay(JSON.parse(cleanModelJson(response.text ?? "")));
       if (!stay) { res.status(422).json({ error: "這張截圖看不出住宿名稱，請手動輸入。" }); return; }
       res.json(stay);
@@ -181,19 +230,17 @@ async function startServer() {
   // A boarding pass is a photo too; same parser placement as the two above.
   app.post("/api/flights/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
     const { base64Data, mimeType, tripStartDate, tripEndDate } = req.body ?? {};
-    if (typeof base64Data !== "string" || !base64Data || !isSupportedImageMime(mimeType)) {
-      res.status(400).json({ error: "需要一張機票或登機證截圖。" });
-      return;
-    }
+    const imageMime = typeof base64Data === "string" && base64Data ? resolveImageMime(mimeType, base64Data) : null;
+    if (!imageMime) { res.status(400).json({ error: "需要一張機票或登機證截圖。" }); return; }
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) { res.status(503).json({ error: "現在無法辨識機票，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
+      const response = await withRetry(() => ai.models.generateContent({
         model: FLIGHT_MODEL,
         contents: {
           parts: [
-            { inlineData: { mimeType: mimeType.trim(), data: base64Data } },
+            { inlineData: { mimeType: imageMime, data: base64Data } },
             { text: flightPrompt(typeof tripStartDate === "string" ? tripStartDate : undefined, typeof tripEndDate === "string" ? tripEndDate : undefined) },
           ],
         },
@@ -217,7 +264,7 @@ async function startServer() {
             required: ["departureDate", "departureTime"],
           },
         },
-      });
+      }));
       const flight = normalizeParsedFlight(JSON.parse(cleanModelJson(response.text ?? "")));
       if (!flight) { res.status(422).json({ error: "這張截圖看不出起飛日期與時間，請手動輸入。" }); return; }
       res.json(flight);
@@ -236,7 +283,7 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "現在無法自動辨識，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
+      const response = await withRetry(() => ai.models.generateContent({
         model: EXPENSE_MODEL,
         contents: textExpensePrompt(text),
         config: {
@@ -253,7 +300,7 @@ async function startServer() {
             required: ["amount"],
           },
         },
-      });
+      }));
       const parsed = normalizeParsedExpense(JSON.parse(cleanModelJson(response.text ?? "")));
       if (!parsed) { res.status(422).json({ error: "這句話看不出金額，請手動輸入。" }); return; }
       res.json(parsed);
@@ -287,11 +334,11 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "查不到即時匯率。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
+      const response = await withRetry(() => ai.models.generateContent({
         model: EXPENSE_MODEL,
         contents: exchangeRatePrompt(source, target),
         config: { tools: [{ googleSearch: {} }] },
-      });
+      }));
       const rate = extractExchangeRate(response.text);
       if (rate === null) { res.status(422).json({ error: "查不到即時匯率。" }); return; }
       res.json({ rate });
