@@ -540,9 +540,34 @@ describe('tonight’s stay banner', () => {
     expect(within(banner).getByText('住宿')).toBeTruthy();
   });
 
-  it('shows nothing on the morning they check out', async () => {
+  it('offers to add one on the morning they check out, with no room that night', async () => {
     // Day 2 is 2026-10-06 — the key goes back, so there is no room tonight.
     await openDay('Day 2');
     expect(screen.queryByTestId('stay-banner')).toBeNull();
+    expect(within(screen.getByTestId('stay-banner-empty')).getByText('新增住宿資訊')).toBeTruthy();
+  });
+
+  it('opens the booking from a night whose check-in card is on another day', async () => {
+    // The lookup searched only the open day, so on every night after the
+    // first the banner found nothing and silently did nothing at all.
+    const user = await openDay('Day 1');
+    await user.click(screen.getByTestId('stay-banner'));
+    expect(await screen.findByDisplayValue('入住 海雲台格蘭飯店')).toBeTruthy();
+  });
+});
+
+describe('a night with no room booked', () => {
+  beforeEach(() => seedStorage([
+    { id: 'it-only', date: DAY_5, time: '12:00', title: '午餐', location: '札嘎其市場', notes: '', type: 'FOOD' },
+  ]));
+
+  it('says so rather than looking the same as a booked night', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    expect(screen.queryByTestId('stay-banner')).toBeNull();
+    expect(within(screen.getByTestId('stay-banner-empty')).getByText('新增住宿資訊')).toBeTruthy();
   });
 });

@@ -37,6 +37,8 @@ interface Props {
   onUpdateItem?: (id: string, updates: Pick<ItineraryItem, 'date' | 'isCompleted'>) => void;
   onAdd?: (date?: string) => void;
   onEdit?: (item: ItineraryItem) => void;
+  /** Takes the traveller to the stay card, for a night with no room booked. */
+  onAddStay?: () => void;
   onDelete?: (id: string) => void;
   /** Trip city/country, used only to disambiguate a ticket lookup by name. */
   destination?: string;
@@ -80,7 +82,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onApplyFixedAdjustment, onTogglePin }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onApplyFixedAdjustment, onTogglePin }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ItineraryItem | null>(null);
   const dates = useMemo(() => (startDate && endDate ? enumerateLocalDates(startDate, endDate) : []), [startDate, endDate]);
@@ -689,29 +691,47 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         the traveller is staying. This is derived from the same two cards, so
         it needs no extra data and stays true when either one is edited.
       */}
-      {tonightsStay && (
+      {tonightsStay ? (
         <button
           type="button"
           data-testid="stay-banner"
           onClick={() => {
-            const target = dayItems.find(item => item.id === tonightsStay.itemId);
-            if (target) {
-              setSelectedDate(tonightsStay.checkInDate || activeDate);
-              onEdit?.(target);
-            }
+            // Looked up across the whole itinerary, not this day: on every
+            // night after the first, the check-in card lives on another day,
+            // and searching only today made the banner silently do nothing.
+            const target = items.find(item => item.id === tonightsStay.itemId);
+            if (!target) return;
+            if (target.date) setSelectedDate(target.date);
+            onEdit?.(target);
           }}
           className="mb-4 flex w-full items-center gap-3 rounded-[20px] border border-[#ecebf5] bg-white px-4 py-3 text-left shadow-[0_6px_18px_rgba(17,26,74,0.05)]"
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f0edff] text-[#5b3df5]">
             <BedDouble size={17} />
           </span>
-          <span className="text-[11px] font-black text-slate-400">住宿</span>
+          <span className="shrink-0 text-[11px] font-black text-slate-400">住宿</span>
           <span className="min-w-0 flex-1 truncate text-sm font-black text-[#111A4A]">{tonightsStay.name}</span>
           <span className="shrink-0 rounded-xl border border-[#e8e7f4] px-2.5 py-1.5 text-[11px] font-black text-slate-500">
             查看詳情 ›
           </span>
         </button>
-      )}
+      ) : activeDate && onAddStay ? (
+        // A night with no room booked says so. Leaving the row blank makes an
+        // unbooked night look identical to a booked one.
+        <button
+          type="button"
+          data-testid="stay-banner-empty"
+          onClick={onAddStay}
+          className="mb-4 flex w-full items-center gap-3 rounded-[20px] border border-dashed border-[#d9d5f5] bg-[#fbfaff] px-4 py-3 text-left"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#a99df0]">
+            <BedDouble size={17} />
+          </span>
+          <span className="shrink-0 text-[11px] font-black text-slate-400">住宿</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-black text-[#5b3df5]">新增住宿資訊</span>
+          <span className="shrink-0 text-[11px] font-black text-slate-300">›</span>
+        </button>
+      ) : null}
 
       {/*
         A journey line, not a time axis: every card gets the same spacing however
