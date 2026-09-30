@@ -337,3 +337,104 @@ describe('flight anchor persistence', () => {
     expect(reloaded.find(item => item.direction === 'RETURN')?.arrivalAirportIata).toBe('YYZ');
   });
 });
+
+/**
+ * The upload path, which shipped broken twice.
+ *
+ * First it read only one flight off a round-trip confirmation. Then, once it
+ * read both, it reported failure on every success — because the list of
+ * filled legs was collected inside a setState updater and read on the very
+ * next line, before React had run the updater.
+ *
+ * Both failures are invisible to a unit test of the parser: the parse was
+ * correct each time. Only driving the component catches them.
+ */
+describe('boarding pass upload', () => {
+  const bothLegs = {
+    OUTBOUND: {
+      direction: 'OUTBOUND', flightNumber: 'BR170',
+      departureAirport: '桃園國際機場', departureAirportIata: 'TPE',
+      departureDate: '2026-09-14', departureTime: '09:30',
+      arrivalAirport: '金海國際機場', arrivalAirportIata: 'PUS',
+    },
+    RETURN: {
+      direction: 'RETURN', flightNumber: 'BR169',
+      departureAirport: '金海國際機場', departureAirportIata: 'PUS',
+      departureDate: '2026-10-07', departureTime: '20:00',
+      arrivalAirport: '桃園國際機場', arrivalAirportIata: 'TPE',
+    },
+  };
+
+  const uploadReturning = async (body: unknown, ok = true) => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => ({
+      ok,
+      json: async () => body,
+    })) as unknown as typeof fetch;
+
+    // jsdom has no FileReader result for a synthetic file, so stand one in.
+    class StubReader {
+      result = 'data:image/png;base64,iVBORw0KGgo=';
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      readAsDataURL() { queueMicrotask(() => this.onload?.()); }
+    }
+    const originalReader = globalThis.FileReader;
+    (globalThis as { FileReader: unknown }).FileReader = StubReader;
+
+    render(<Host />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['x'], 'pass.png', { type: 'image/png' });
+    await fireEvent.change(input, { target: { files: [file] } });
+    // Let the read, the fetch and the state update all settle.
+    await screen.findByText(/已填入|看不出|辨識失敗|辨識服務/, undefined, { timeout: 3000 }).catch(() => null);
+
+    globalThis.fetch = originalFetch;
+    (globalThis as { FileReader: unknown }).FileReader = originalReader;
+  };
+
+  it('fills both legs and says so, instead of reporting failure on success', async () => {
+    await uploadReturning(bothLegs);
+
+    // The regression: this said 「看不出航班資訊」 while both legs parsed fine.
+    expect(screen.queryByText(/看不出航班資訊/)).toBeNull();
+    expect(screen.getByText(/已填入去程、回程/)).toBeTruthy();
+
+    // Assert on what gets saved, not on the formatted inputs: saving is the
+    // point, and it is what reaches the other traveller's phone.
+    await userEvent.click(screen.getByRole('button', { name: /儲存航班/ }));
+    const saved = savedAnchors();
+
+    expect(saved.find(a => a.direction === 'OUTBOUND')).toMatchObject({
+      departureDate: '2026-09-14',
+      departureTime: '09:30',
+      departureAirportIata: 'TPE',
+      arrivalAirportIata: 'PUS',
+    });
+    expect(saved.find(a => a.direction === 'RETURN')).toMatchObject({
+      departureDate: '2026-10-07',
+      departureTime: '20:00',
+      departureAirportIata: 'PUS',
+    });
+  });
+
+  it('fills only the outbound when the image held one flight', async () => {
+    await uploadReturning({ OUTBOUND: bothLegs.OUTBOUND });
+    expect(screen.getByText(/已填入去程，請確認後儲存/)).toBeTruthy();
+  });
+
+  it('asks for manual entry when neither leg came back', async () => {
+    await uploadReturning({});
+    expect(screen.getByText(/看不出航班資訊/)).toBeTruthy();
+  });
+
+  it('shows the message the server chose when the request failed', async () => {
+    await uploadReturning({ error: '辨識服務忙碌中，請稍後再試。' }, false);
+    expect(screen.getByText(/辨識服務忙碌中/)).toBeTruthy();
+  });
+
+  it('warns to check every field when the read was flagged uncertain', async () => {
+    await uploadReturning({ OUTBOUND: { ...bothLegs.OUTBOUND, isUncertain: true } });
+    expect(screen.getByText(/請逐欄核對/)).toBeTruthy();
+  });
+});

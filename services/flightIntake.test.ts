@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FlightAnchor } from '../types';
-import { applyFlightToDraft, assignFlightsToLegs, normalizeParsedFlight } from './flightIntake';
+import { applyFlightToDraft, assignFlightsToLegs, legsToApply, normalizeParsedFlight } from './flightIntake';
 
 const ticket = {
   direction: 'OUTBOUND',
@@ -160,5 +160,39 @@ describe('assignFlightsToLegs — a round-trip confirmation shows both', () => {
     expect(assignFlightsToLegs({ flights: [{ flightNumber: 'BR170' }] })).toEqual({});
     expect(assignFlightsToLegs(null)).toEqual({});
     expect(assignFlightsToLegs({ flights: [] })).toEqual({});
+  });
+});
+
+describe('legsToApply', () => {
+  const out = normalizeParsedFlight(ticket)!;
+  const back = normalizeParsedFlight({
+    flightNumber: 'BR169', departureAirportIata: 'PUS',
+    departureDate: '2026-10-07', departureTime: '20:00',
+  })!;
+
+  it('returns both legs for a round trip, which is what the caller reports', () => {
+    expect(legsToApply({ OUTBOUND: out, RETURN: back }, 'ROUND_TRIP')).toEqual([
+      ['OUTBOUND', out],
+      ['RETURN', back],
+    ]);
+  });
+
+  it('returns an empty list only when there is genuinely nothing to apply', () => {
+    // The shipped bug produced an empty list on every success, because the
+    // list was built inside a setState updater and read before React ran it.
+    // Deciding here is what makes the answer independent of render timing.
+    expect(legsToApply({}, 'ROUND_TRIP')).toEqual([]);
+    expect(legsToApply({ OUTBOUND: out }, 'ROUND_TRIP')).toHaveLength(1);
+  });
+
+  it('skips a leg the image did not supply rather than filling it with nothing', () => {
+    expect(legsToApply({ RETURN: back }, 'ROUND_TRIP')).toEqual([['RETURN', back]]);
+  });
+
+  it('puts a lone flight on the outbound in one-way mode, whichever leg it read as', () => {
+    expect(legsToApply({ OUTBOUND: out, RETURN: back }, 'ONE_WAY')).toEqual([['OUTBOUND', out]]);
+    // A one-way trip has no return field, so a return read still lands somewhere.
+    expect(legsToApply({ RETURN: back }, 'ONE_WAY')).toEqual([['OUTBOUND', back]]);
+    expect(legsToApply({}, 'ONE_WAY')).toEqual([]);
   });
 });

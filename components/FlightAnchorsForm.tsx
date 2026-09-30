@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlightAirport, FlightAnchor, TripFlightMode } from '../types';
 import { Plane, PlaneTakeoff, PlaneLanding, Settings2, Clock, MapPin, X, Check, Camera, Loader2, AlertTriangle } from 'lucide-react';
 import { formatAirportLabel, searchAirports } from '../services/airportDirectory';
-import { applyFlightToDraft, ParsedFlight } from '../services/flightIntake';
+import { applyFlightToDraft, legsToApply, ParsedFlight } from '../services/flightIntake';
 import {
   airportOf,
   applyAirport,
@@ -295,26 +295,26 @@ export default function FlightAnchorsForm({
       // A round-trip confirmation carries both legs, so both are applied. In
       // 單程 mode only the outbound exists to receive anything; a return read
       // from the image is kept out rather than silently discarded elsewhere.
-      const applicable: Array<[FlightAnchor['direction'], ParsedFlight | undefined]> =
-        flightMode === 'ONE_WAY'
-          ? [['OUTBOUND', legs.OUTBOUND ?? legs.RETURN]]
-          : [['OUTBOUND', legs.OUTBOUND], ['RETURN', legs.RETURN]];
+      // Decided before the state update, never inside it. React runs an
+      // updater on its own schedule, so a list the updater builds is still
+      // empty when the next line reads it — which sent every successful parse
+      // down the failure branch.
+      const applicable = legsToApply(legs, flightMode);
 
-      const filled: string[] = [];
-      let uncertain = false;
-      setDraft(current =>
-        applicable.reduce<FlightAnchor[]>((draftSoFar, [leg, flight]) => {
-          if (!flight) return draftSoFar;
-          filled.push(leg === 'RETURN' ? '回程' : '去程');
-          if (flight.isUncertain) uncertain = true;
-          return applyFlightToDraft(draftSoFar, flight, leg);
-        }, current),
-      );
-
-      if (filled.length === 0) {
+      if (applicable.length === 0) {
         setScanError('這張截圖看不出航班資訊，請手動輸入。');
         return;
       }
+
+      setDraft(current =>
+        applicable.reduce<FlightAnchor[]>(
+          (draftSoFar, [leg, flight]) => applyFlightToDraft(draftSoFar, flight, leg),
+          current,
+        ),
+      );
+
+      const filled = applicable.map(([leg]) => (leg === 'RETURN' ? '回程' : '去程'));
+      const uncertain = applicable.some(([, flight]) => flight.isUncertain);
       setScanNote(
         uncertain
           ? `已填入${filled.join('、')}，但截圖辨識不完全，請逐欄核對。`

@@ -136,6 +136,35 @@ export const assignFlightsToLegs = (
   return legs;
 };
 
+/**
+ * Which legs a parse can actually fill, given the trip's flight mode.
+ *
+ * Pure, and separate from the component, because the version that lived inside
+ * a setState updater shipped broken: it collected the filled legs while React
+ * ran the updater, and the very next line read that list — empty, because React
+ * runs an updater on its own schedule. Every successful upload reported
+ *「這張截圖看不出航班資訊」.
+ *
+ * React sometimes evaluates an updater eagerly, which is why it worked on a
+ * quiet fiber and failed on a busy one, and why a component test could pass
+ * against the broken code. Deciding here removes the timing from the question.
+ */
+export const legsToApply = (
+  legs: { OUTBOUND?: ParsedFlight; RETURN?: ParsedFlight },
+  flightMode: 'ROUND_TRIP' | 'ONE_WAY',
+): Array<['OUTBOUND' | 'RETURN', ParsedFlight]> => {
+  // A one-way trip has only an outbound field, so a return read from the image
+  // fills it rather than being dropped on the floor.
+  const candidates: Array<['OUTBOUND' | 'RETURN', ParsedFlight | undefined]> =
+    flightMode === 'ONE_WAY'
+      ? [['OUTBOUND', legs.OUTBOUND ?? legs.RETURN]]
+      : [['OUTBOUND', legs.OUTBOUND], ['RETURN', legs.RETURN]];
+
+  return candidates.filter(
+    (entry): entry is ['OUTBOUND' | 'RETURN', ParsedFlight] => Boolean(entry[1]),
+  );
+};
+
 export const flightPrompt = (tripStartDate?: string, tripEndDate?: string) => `
       Analyze this image. It is a boarding pass, e-ticket, or flight booking
       confirmation.
