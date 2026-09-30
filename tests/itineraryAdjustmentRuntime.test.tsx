@@ -279,6 +279,13 @@ describe('AI 行程調整模式 runtime', () => {
     expect(document.body.textContent).toContain('已把 2 個 AI 建議放進上方行程表');
     expect(persistedItinerary()).toHaveLength(3);
 
+    // Place resolution is refused here, so the card must say the name cannot be
+    // found rather than presenting it as a place. 「廣安里海景早午餐咖啡廳」 is
+    // what this protects against: a description no map has, which accepted
+    // became an itinerary card with nothing on it.
+    await user.click(screen.getByRole('button', { name: 'Day 2' }));
+    await waitFor(() => expect(document.body.textContent).toContain('這不是一個地圖上查得到的店名'));
+
     // Ticking writes that one suggestion, and only that one.
     await acceptSuggestion(user, 2, '黑房咖啡');
     await waitFor(() => expect(persistedItinerary()).toHaveLength(4));

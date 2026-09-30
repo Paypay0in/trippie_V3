@@ -212,7 +212,7 @@ import {
 } from "./services/savedTravelInspirationPersistence";
 import TripInspirationPlanner from "./components/TripInspirationPlanner";
 import { buildAcceptedItineraryItems } from "./services/itineraryAcceptance";
-import { enrichProposalPlaces } from "./services/itineraryPlaceEnrichment";
+import { enrichProposalPlaces, PlacePreview, previewPlaceResolution } from "./services/itineraryPlaceEnrichment";
 import type { AdjustmentApplyResult, ProposalAcceptanceResult } from "./components/TripInspirationPlanner";
 import {
   applyItineraryAdjustment,
@@ -2555,23 +2555,48 @@ const App: React.FC = () => {
   const [pendingSuggestions, setPendingSuggestions] = useState<
     Array<{ id: string; mode: ItineraryAdjustmentProposal["mode"]; change: ItineraryAdjustmentChange }>
   >([]);
+  // What the write would resolve each suggested name to, keyed by that name.
+  const [suggestionPreviews, setSuggestionPreviews] = useState<Map<string, PlacePreview>>(new Map());
 
   // A suggestion belongs to the trip it was proposed for. Switching drafts must
   // never leave another trip's suggestions sitting in this one's timeline.
   useEffect(() => {
     setPendingSuggestions([]);
+    setSuggestionPreviews(new Map());
   }, [activeDraftId]);
 
   const handleProposeSuggestions = (proposal: ItineraryAdjustmentProposal) => {
-    setPendingSuggestions(
-      proposal.changes
-        .filter((change) => change.type === "add" && change.proposedItem)
-        .map((change) => ({
-          id: change.proposedItem!.id || generateId(),
-          mode: proposal.mode,
-          change,
-        })),
+    const additions = proposal.changes.filter(
+      (change) => change.type === "add" && change.proposedItem,
     );
+    setPendingSuggestions(
+      additions.map((change) => ({
+        id: change.proposedItem!.id || generateId(),
+        mode: proposal.mode,
+        change,
+      })),
+    );
+    // Whether these names are places, asked before the traveller decides.
+    //
+    // 「廣安里海景早午餐咖啡廳」 is a description, not a business, so no map
+    // has it — and accepted it became a card with no address, no photo and no
+    // hours. It looked identical to a real suggestion right up until it was in
+    // the itinerary. The same lookup the write performs runs here instead, and
+    // what it finds is on the card.
+    setSuggestionPreviews(new Map());
+    const names = additions
+      .map((change) => change.proposedItem?.placeName || "")
+      .filter(Boolean);
+    if (names.length === 0) return;
+    void previewPlaceResolution(names, {
+      destination: tripDestination,
+      destinationCountry:
+        tripDestinationDraft?.destinationCountry || travelCountry,
+      destinationLatitude: tripDestinationCoordinates?.latitude,
+      destinationLongitude: tripDestinationCoordinates?.longitude,
+    })
+      .then(setSuggestionPreviews)
+      .catch(() => undefined);
   };
 
   /**
@@ -2600,17 +2625,28 @@ const App: React.FC = () => {
   };
 
   const pendingSuggestionCards: PendingItinerarySuggestion[] = pendingSuggestions.map(
-    ({ id, change }) => ({
-      id,
-      date: change.toDate,
-      time: change.toTime || change.proposedItem?.suggestedStartTime,
-      placeName: change.proposedItem?.placeName || "AI 建議行程",
-      durationMinutes: change.proposedItem?.durationMinutes,
-      note: change.proposedItem?.note,
-      reason: change.reason,
-      address: change.proposedItem?.address,
-      source: change.proposedItem?.source === "saved_inspiration" ? "saved_inspiration" : "ai_suggestion",
-    }),
+    ({ id, change }) => {
+      const name = change.proposedItem?.placeName || "";
+      const preview = suggestionPreviews.get(name.trim());
+      return {
+        id,
+        date: change.toDate,
+        time: change.toTime || change.proposedItem?.suggestedStartTime,
+        placeName: name || "AI 建議行程",
+        durationMinutes: change.proposedItem?.durationMinutes,
+        note: change.proposedItem?.note,
+        reason: change.reason,
+        address:
+          preview?.resolved?.address ||
+          preview?.resolved?.resolvedPlaceName ||
+          change.proposedItem?.address,
+        // Only ever true once the lookup has answered. While it is still in
+        // flight the card simply says nothing, rather than accusing a real
+        // place of not existing.
+        unresolved: preview ? Boolean(preview.rejection) : false,
+        source: change.proposedItem?.source === "saved_inspiration" ? "saved_inspiration" : "ai_suggestion",
+      };
+    },
   );
 
   /**

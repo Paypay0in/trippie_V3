@@ -89,6 +89,12 @@ export interface PendingItinerarySuggestion {
   note?: string;
   reason?: string;
   address?: string;
+  /**
+   * The lookup answered and no map has this name — 「廣安里海景早午餐咖啡廳」 is
+   * a description, not a business. Accepted it becomes a line of text with no
+   * address, photo or hours, so the card says so before it is ticked.
+   */
+  unresolved?: boolean;
   /** 收藏靈感 vs a place the AI proposed on its own. */
   source?: 'saved_inspiration' | 'ai_suggestion';
 }
@@ -911,6 +917,17 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         <div className="mt-1 flex items-start gap-1 text-[11px] leading-5 text-slate-500">
                           <MapPin size={12} className="mt-0.5 shrink-0" />
                           <span className="min-w-0 flex-1">{suggestion.address}</span>
+                        </div>
+                      )}
+                      {suggestion.unresolved && (
+                        <div
+                          data-testid={`suggestion-unresolved-${suggestion.id}`}
+                          className="mt-1 flex items-start gap-1 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] leading-5 text-amber-700"
+                        >
+                          <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            這不是一個地圖上查得到的店名，加進去只會是一段文字，沒有地址與照片。建議略過。
+                          </span>
                         </div>
                       )}
                       {suggestion.note && <div className="mt-1 text-[11px] leading-5 text-slate-500">{suggestion.note}</div>}
