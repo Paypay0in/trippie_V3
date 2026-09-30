@@ -19,6 +19,35 @@ export interface OverflowFinding {
   overhang: number;
 }
 
+
+/** Whether this element is a sideways-scrolling container. */
+export const canScrollHorizontally = (element: Element): boolean => {
+  if (typeof window === 'undefined' || !window.getComputedStyle) return false;
+  const overflowX = window.getComputedStyle(element).overflowX;
+  return overflowX === 'auto' || overflowX === 'scroll';
+};
+
+/**
+ * Whether anything above this element scrolls sideways.
+ *
+ * The element itself does not count: a scroller wider than the viewport is a
+ * genuine finding, while its contents are simply what it was built to hold.
+ */
+export const insideHorizontalScroller = (
+  element: Element,
+  scrolls: (candidate: Element) => boolean,
+): boolean => {
+  // Walks to the top rather than stopping at document.body: the check then
+  // needs no globals, so it is testable outside a browser — which is the whole
+  // point of keeping this part separate from the measuring.
+  let parent = element.parentElement;
+  while (parent) {
+    if (scrolls(parent)) return true;
+    parent = parent.parentElement;
+  }
+  return false;
+};
+
 const describe = (element: Element): string => {
   const tag = element.tagName.toLowerCase();
   const testId = element.getAttribute('data-testid');
@@ -43,9 +72,20 @@ const describe = (element: Element): string => {
  * those with no overflowing child: the innermost element is the one whose
  * styles need changing, and the twelve wrappers around it are noise.
  */
-export const findOverflowing = (root: ParentNode, viewportWidth: number, minOverhang = 1): OverflowFinding[] => {
+export const findOverflowing = (
+  root: ParentNode,
+  viewportWidth: number,
+  minOverhang = 1,
+  scrolls: (element: Element) => boolean = canScrollHorizontally,
+): OverflowFinding[] => {
   const all = Array.from(root.querySelectorAll('*'));
   const offenders = all.filter(element => {
+    // A row that scrolls sideways is meant to hold more than fits — the day
+    // tabs, a chip strip. Reporting its children filled the list with six
+    // findings that were working as designed while the actual broken layout,
+    // a button squeezed until its label broke one character per line, was not
+    // reported at all because it never crossed the edge.
+    if (insideHorizontalScroller(element, scrolls)) return false;
     const rect = element.getBoundingClientRect();
     return rect.width > 0 && rect.right - viewportWidth >= minOverhang;
   });
