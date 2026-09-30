@@ -6,6 +6,8 @@ export type GlobalActionContext = 'community' | 'travel' | 'wallet';
 interface Props {
   context: GlobalActionContext;
   onClose: () => void;
+  /** Joining a trip someone else owns, from the one menu that is always there. */
+  onJoinTrip: () => void;
   onCreatePost: () => void;
   onCreateTrip: () => void;
   onAddPlace: () => void;
@@ -14,11 +16,14 @@ interface Props {
   onAddExpense: () => void;
 }
 
-const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onCreatePost, onCreateTrip, onAddPlace, onAddNote, onAiImport, onAddExpense }) => {
+const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCreatePost, onCreateTrip, onAddPlace, onAddNote, onAiImport, onAddExpense }) => {
   const actions = context === 'community'
     ? [['發布旅行貼文', onCreatePost], ['分享一趟旅程', onClose], ['從相簿建立', onClose], ['儲存為草稿', onCreatePost]]
     : context === 'travel'
-      ? [['新增旅程', onCreateTrip], ['新增地點', onAddPlace], ['新增筆記', onAddNote], ['AI 匯入', onAiImport]]
+      // 加入旅程 sits first because someone who has been invited has nothing
+      // else here they want: every other action builds a trip of their own,
+      // and the one they were asked to join is somebody else's.
+      ? [['加入旅程', onJoinTrip], ['新增旅程', onCreateTrip], ['新增地點', onAddPlace], ['新增筆記', onAddNote], ['AI 匯入', onAiImport]]
       : [['新增支出', onAddExpense]];
   return <div className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-950/35 p-4`} onClick={onClose}>
     <div className="w-full max-w-2xl rounded-[28px] bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()}>

@@ -13,7 +13,17 @@ export interface ConfirmRequest {
   cancelLabel?: string;
   tone?: ConfirmTone;
   icon?: ConfirmIcon;
-  onConfirm: () => void;
+  /**
+   * The action, for callers that keep one shared request in state.
+   *
+   * Optional because there are two shapes in use and both are legitimate: a
+   * dialog wired to one specific thing passes `onConfirm` as a prop and has no
+   * need to repeat it here, while the shared confirm-request state carries the
+   * action with the message it belongs to. Requiring it made every dialog of
+   * the first kind fail to typecheck — which nobody saw, because React props
+   * were not being checked at all.
+   */
+  onConfirm?: () => void;
 }
 
 interface Props {

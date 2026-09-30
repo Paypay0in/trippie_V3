@@ -178,6 +178,7 @@ import {
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import QRShareModal from "./components/QRShareModal";
+import JoinTripByLinkSheet from "./components/JoinTripByLinkSheet";
 import CreateEditTripScreen, {
   TripSetupValues,
 } from "./components/CreateEditTripScreen";
@@ -609,6 +610,7 @@ const App: React.FC = () => {
   const selectedCommunityPost =
     communityPosts.find((post) => post.id === selectedCommunityPostId) ?? null;
   const [isGlobalActionOpen, setIsGlobalActionOpen] = useState(false);
+  const [isJoinTripOpen, setIsJoinTripOpen] = useState(false);
   const [tripSetupMode, setTripSetupMode] = useState<"create" | "edit">(
     "create",
   );
@@ -4812,10 +4814,26 @@ const App: React.FC = () => {
           }}
           onPlus={() => setIsGlobalActionOpen(true)}
         />
+        {isJoinTripOpen && (
+          <JoinTripByLinkSheet
+            onClose={() => setIsJoinTripOpen(false)}
+            onToken={(token) => {
+              // Navigating rather than claiming here on purpose: the invite
+              // sheet mounted beside App already does the whole job — peek,
+              // sign in if needed, claim, reload. A second implementation
+              // would be the one that goes stale.
+              window.location.href = inviteLinkFor(token, window.location.origin);
+            }}
+          />
+        )}
         {isGlobalActionOpen && (
           <GlobalActionSheet
             context={appSection === "community" ? "community" : "travel"}
             onClose={() => setIsGlobalActionOpen(false)}
+            onJoinTrip={() => {
+              setIsGlobalActionOpen(false);
+              setIsJoinTripOpen(true);
+            }}
             onCreatePost={openCommunityComposer}
             onCreateTrip={() => {
               setIsGlobalActionOpen(false);
@@ -4964,10 +4982,26 @@ const App: React.FC = () => {
           onPlus={() => setIsGlobalActionOpen(true)}
         />
 
+        {isJoinTripOpen && (
+          <JoinTripByLinkSheet
+            onClose={() => setIsJoinTripOpen(false)}
+            onToken={(token) => {
+              // Navigating rather than claiming here on purpose: the invite
+              // sheet mounted beside App already does the whole job — peek,
+              // sign in if needed, claim, reload. A second implementation
+              // would be the one that goes stale.
+              window.location.href = inviteLinkFor(token, window.location.origin);
+            }}
+          />
+        )}
         {isGlobalActionOpen && (
           <GlobalActionSheet
             context="travel"
             onClose={() => setIsGlobalActionOpen(false)}
+            onJoinTrip={() => {
+              setIsGlobalActionOpen(false);
+              setIsJoinTripOpen(true);
+            }}
             onCreatePost={openCommunityComposer}
             onCreateTrip={() => {
               setIsGlobalActionOpen(false);
@@ -5588,7 +5622,7 @@ const App: React.FC = () => {
             // Close first: a second press finds nothing pending,
             // so an action can never run twice.
             setConfirmRequest(null);
-            pending?.onConfirm();
+            pending?.onConfirm?.();
           }}
         />
         <DeleteExpenseConfirmModal
@@ -5890,6 +5924,10 @@ const App: React.FC = () => {
             <GlobalActionSheet
               context={workspaceSection === "records" ? "wallet" : "travel"}
               onClose={() => setIsGlobalActionOpen(false)}
+              onJoinTrip={() => {
+                setIsGlobalActionOpen(false);
+                setIsJoinTripOpen(true);
+              }}
               onCreatePost={openCommunityComposer}
               onCreateTrip={() => {
                 setIsGlobalActionOpen(false);
@@ -6218,6 +6256,7 @@ const App: React.FC = () => {
                   travelRules={travelRules}
                   visaInfo={visaInfo}
                   onOpenSettlement={handleOpenSettlement}
+                  onSettleRefund={() => handleOpenRefundSettlement()}
                   viewerMemberId={viewerMemberId}
                 />
 

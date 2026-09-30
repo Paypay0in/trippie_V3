@@ -2,6 +2,7 @@
 import { OVERLAY } from '../constants/layers';
 import React, { useState } from 'react';
 import { Companion } from '../types';
+import { QRCodeSVG } from 'qrcode.react';
 import { Copy, Link2, Share2, Trash2, UserPlus, Users, X } from 'lucide-react';
 
 interface Props {
@@ -131,6 +132,22 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                 <p className="mt-1 text-[11px] leading-5 text-slate-500">
                   用訊息傳給她。知道這個連結的人就能加入這趟旅程，所以別公開貼出來。
                 </p>
+                {/*
+                  A QR of the link, scanned with the phone's own camera.
+                  
+                  Not an in-app scanner: the person joining has no trip yet, so
+                  there is no screen in this app to put one on, and asking for
+                  camera access inside a home-screen web app is the least
+                  reliable thing iOS does. Every iPhone reads a QR from the lock
+                  screen and offers to open the URL — which lands exactly on the
+                  sheet that claims the invite.
+                */}
+                <div className="mt-3 flex flex-col items-center gap-2 rounded-2xl bg-white p-3 ring-1 ring-slate-200">
+                  <QRCodeSVG value={inviteLink.url} size={148} level="M" includeMargin={false} />
+                  <p className="text-center text-[11px] leading-5 text-slate-500">
+                    用她手機的<span className="font-bold text-slate-600">相機</span>直接掃這個碼
+                  </p>
+                </div>
                 <div className="mt-2 break-all rounded-xl bg-white px-3 py-2 text-[11px] text-slate-600 ring-1 ring-slate-200">
                   {inviteLink.url}
                 </div>
