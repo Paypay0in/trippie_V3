@@ -768,8 +768,8 @@ async function startServer() {
 
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
         contents: `以下是一位旅人的待辦事項，他想把可以交給同一個人處理的項目合併成一份協助需求。請判斷哪些項目屬於同一件事（同一個場所、同一個活動主題、同一種需要的能力、或有先後關係），並給每一組一個簡短標題與一句理由。\n只因為屬於同一趟旅行就合併是錯的（例如「東京餐廳預約」和「大阪遺失行李處理」不該合併）。合不起來就不要輸出那一組。\n只能使用下列 id，不可以發明新的 id、不可以修改項目文字、不可以回傳網址、價格、預約狀態或完成狀態。\n目的地：${destination || "未指定"}\n待辦：${JSON.stringify(tasks)}\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
@@ -792,7 +792,7 @@ async function startServer() {
             required: ["bundles"],
           },
         },
-      });
+      }));
       const parsed = JSON.parse(response.text?.trim() || '{"bundles":[]}');
       const known = new Set(tasks.map((task) => task.id));
       const bundles = (Array.isArray(parsed.bundles) ? parsed.bundles : [])
@@ -981,12 +981,15 @@ async function startServer() {
         },
       } as const;
 
+      // The model comes from the chain rather than a hard-coded name: the free
+      // tier meters per model per day, so one exhausted model says nothing
+      // about the next.
       const generate = (useSearch: boolean) =>
-        ai.models.generateContent({
-          model: "gemini-3-flash-preview",
+        withModelFallback(model => ai.models.generateContent({
+          model,
           ...generationConfig,
           config: { ...generationConfig.config, ...(useSearch ? { tools: [{ googleSearch: {} }] } : {}) },
-        });
+        }));
 
       let response;
       let grounded = true;
@@ -1261,12 +1264,12 @@ async function startServer() {
       let response;
       let grounded = true;
       try {
-        response = await generatePreparation(true, "gemini-3-flash-preview");
+        response = await withModelFallback(model => generatePreparation(true, model));
       } catch (groundedError) {
         console.warn("Grounded preparation lookup failed; retrying without search.", groundedError);
         grounded = false;
         try {
-          response = await generatePreparation(false, "gemini-3-flash-preview");
+          response = await withModelFallback(model => generatePreparation(false, model));
         } catch (primaryError) {
           console.warn("Primary preparation model failed; using fallback model.", primaryError);
           response = await generatePreparation(false, "gemini-3.6-flash");
@@ -1429,7 +1432,10 @@ ${MODE_RULES[mode]}
         try {
           response = await ai.models.generateContent({ model, ...generationConfig });
         } catch (primaryError) {
-          if (quotaStatusOf(primaryError)) throw primaryError;
+          // A quota error used to be rethrown here, on the assumption that an
+          // exhausted quota was exhausted everywhere. It is not: the free tier
+          // meters per model per day, so a 429 on one model says nothing about
+          // the next and is precisely when a fallback earns its keep.
           console.warn("Primary itinerary adjustment model failed; using fallback model.", primaryError);
           attemptedModel = fallbackModel;
           response = await ai.models.generateContent({ model: fallbackModel, ...generationConfig });
@@ -1524,7 +1530,6 @@ ${MODE_RULES[mode]}
         try {
           response = await ai.models.generateContent({ model, ...generationConfig });
         } catch (primaryError) {
-          if (quotaStatusOf(primaryError)) throw primaryError;
           console.warn("Primary itinerary proposal model failed; using fallback model.", primaryError);
           attemptedModel = fallbackModel;
           response = await ai.models.generateContent({ model: fallbackModel, ...generationConfig });

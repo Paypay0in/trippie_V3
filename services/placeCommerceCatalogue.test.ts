@@ -223,3 +223,30 @@ describe('server route registration order', () => {
     expect(inline).toEqual(['/api/expenses/parse-image', '/api/stays/parse-image', '/api/flights/parse-image']);
   });
 });
+
+describe('an exhausted model must not end the request', () => {
+  const server = () => readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+
+  it('never abandons a fallback because the first model hit its quota', () => {
+    // The itinerary endpoints held a second model and refused to use it on a
+    // 429, on the assumption that an exhausted quota was exhausted everywhere.
+    // It is not: the free tier meters per model per day — the quota id says so
+    // outright — so a 429 on one model says nothing about the next and is
+    // exactly when the fallback earns its keep.
+    expect(server()).not.toMatch(/quotaStatusOf\([a-zA-Z]+\)\)\s*throw/);
+  });
+
+  it('gives every Gemini call a way past one exhausted model', () => {
+    // Either the shared chain, or an endpoint's own second model.
+    const text = server();
+    const calls = [...text.matchAll(/ai\.models\.generateContent\(\{/g)].length;
+    const chained = [...text.matchAll(/withModelFallback\(/g)].length;
+    const ownFallback = [...text.matchAll(/fallbackModel/g)].length;
+
+    expect(calls).toBeGreaterThan(0);
+    expect(chained + ownFallback).toBeGreaterThan(0);
+    // Named so the count is a fact rather than a vibe: what matters is that a
+    // new endpoint added without either shows up here as a smaller ratio.
+    expect(chained).toBeGreaterThanOrEqual(7);
+  });
+});
