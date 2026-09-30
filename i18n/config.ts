@@ -21,6 +21,16 @@ import en from './locales/en.json';
 
 export const FALLBACK_LANGUAGE = 'zh-Hant';
 
+/**
+ * Whether the device's language decides the app's.
+ *
+ * Off until enough of the product is translated to be worth following. Turn it
+ * on in the same change that finishes the translation, not before: a partly
+ * translated app that follows the device reads as broken, while one that does
+ * not simply reads as Chinese.
+ */
+export const FOLLOW_DEVICE_LANGUAGE = false;
+
 export const SUPPORTED_LANGUAGES = ['zh-Hant', 'en'] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
@@ -76,7 +86,13 @@ export const initI18n = (options: { language?: string } = {}): I18nInstance => {
   // The detector reads the device; a caller that passes an explicit language
   // (tests, and the server when it renders for a known user) skips it entirely
   // so the result never depends on the environment it happens to run in.
-  if (!options.language) instance.use(LanguageDetector);
+  //
+  // Held back until the translation is real. Five strings are translated and
+  // the screens hold several hundred, so following the device gave an English
+  // phone an English bottom bar above an entirely Chinese app — worse than
+  // either language on its own, and visibly broken rather than merely
+  // untranslated. `?lang=en` still previews the work in progress.
+  if (!options.language && FOLLOW_DEVICE_LANGUAGE) instance.use(LanguageDetector);
 
   instance.init({
     resources: {

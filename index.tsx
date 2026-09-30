@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import JoinTripSheet from './components/JoinTripSheet';
+import { overflowProbeRequested, startOverflowProbe } from './services/overflowProbe';
 import './index.css';
 import { initI18n, languageFromUrl } from './i18n/config';
 
@@ -31,3 +32,8 @@ root.render(
     <JoinTripSheet />
   </React.StrictMode>
 );
+
+// `?overflow=1` names whatever is wider than the screen. Layout cannot be
+// measured in a test — jsdom does none — so the only place this question has
+// an answer is the real browser on the real phone.
+if (overflowProbeRequested()) startOverflowProbe();
