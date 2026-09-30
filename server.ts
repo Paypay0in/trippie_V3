@@ -420,6 +420,96 @@ async function startServer() {
     } catch { res.status(502).json({ error: "Routing provider unavailable." }); }
   });
 
+  /**
+   * How long from the arrival airport to the hotel.
+   *
+   * One call rather than three from the browser: the client holds a hotel name
+   * and an airport, not coordinates, and making it resolve both and then route
+   * between them would be three round trips on a phone that has just landed.
+   *
+   * Everything is best effort. A hotel Google cannot place, or a pair with no
+   * driving route, answers 200 with no duration — the itinerary still gets its
+   * transfer card, just without a number on it. An error here would block a
+   * booking from being saved at all, which is a far worse trade.
+   */
+  app.post("/api/stays/arrival-plan", async (req, res) => {
+    const hotel = typeof req.body?.hotel === "string" ? req.body.hotel.trim() : "";
+    const airport = typeof req.body?.airport === "string" ? req.body.airport.trim() : "";
+    if (!hotel || hotel.length > 200) { res.status(400).json({ error: "需要住宿名稱。" }); return; }
+
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) { res.json({}); return; }
+
+    const place = async (query: string): Promise<{ latitude: number; longitude: number } | null> => {
+      try {
+        const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": "places.location" },
+          body: JSON.stringify({ textQuery: query, languageCode: "zh-TW", maxResultCount: 1 }),
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (!response.ok) return null;
+        const data = await response.json() as { places?: Array<{ location?: { latitude?: number; longitude?: number } }> };
+        const found = data.places?.[0]?.location;
+        return typeof found?.latitude === "number" && typeof found.longitude === "number"
+          ? { latitude: found.latitude, longitude: found.longitude }
+          : null;
+      } catch { return null; }
+    };
+
+    try {
+      // Coordinates the caller already holds are used as given; the airport is
+      // only looked up when they were not supplied.
+      const airportPoint = Number.isFinite(Number(req.body?.airportLatitude)) && Number.isFinite(Number(req.body?.airportLongitude))
+        ? { latitude: Number(req.body.airportLatitude), longitude: Number(req.body.airportLongitude) }
+        : airport ? await place(airport) : null;
+      const hotelPoint = await place(hotel);
+
+      if (!hotelPoint) { res.json({}); return; }
+      const base = { hotelLatitude: hotelPoint.latitude, hotelLongitude: hotelPoint.longitude };
+      if (!airportPoint) { res.json(base); return; }
+
+      // Both modes, because driving alone is not enough.
+      //
+      // South Korea restricts the export of mapping data, so Google returns no
+      // driving or walking route anywhere in the country — Gimhae to a Haeundae
+      // hotel answers 200 with an empty body. Transit does work there, and is
+      // how most people leave an airport anyway. Asking for both in parallel
+      // costs one round trip and makes the answer exist in Busan at all.
+      const ask = async (travelMode: "DRIVE" | "TRANSIT") => {
+        try {
+          const routed = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": "routes.distanceMeters,routes.duration" },
+            body: JSON.stringify({
+              origin: { location: { latLng: airportPoint } },
+              destination: { location: { latLng: hotelPoint } },
+              travelMode,
+            }),
+            signal: AbortSignal.timeout(8_000),
+          });
+          if (!routed.ok) return null;
+          const data = await routed.json() as { routes?: Array<{ distanceMeters?: number; duration?: string }> };
+          const route = data.routes?.[0];
+          const seconds = route?.duration ? Number(route.duration.replace(/s$/, "")) : NaN;
+          if (!Number.isFinite(seconds) || seconds <= 0) return null;
+          return { travelSeconds: Math.round(seconds), distanceMeters: route?.distanceMeters, mode: travelMode };
+        } catch { return null; }
+      };
+
+      const [driving, transit] = await Promise.all([ask("DRIVE"), ask("TRANSIT")]);
+      // Driving when it exists: it is the simpler journey to describe and the
+      // one a taxi from the terminal actually takes. Transit is the answer in
+      // the places driving has none.
+      const best = driving ?? transit;
+      if (!best) { res.json(base); return; }
+
+      res.json({ ...base, ...best });
+    } catch {
+      res.json({});
+    }
+  });
+
   app.post("/api/places/autocomplete", async (req, res) => {
     const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
     if (query.length < 2 || query.length > 160) { res.json({ suggestions: [] }); return; }

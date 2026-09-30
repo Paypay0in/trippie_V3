@@ -2,11 +2,13 @@ import React, { useMemo, useRef, useState } from 'react';
 import { BedDouble, Camera, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { ParsedStay, normalizeParsedStay, stayToItineraryItems } from '../services/stayIntake';
+import { ArrivalPlan, airportTransferItem, departAirportTime, reachHotelTime } from '../services/arrivalPlan';
+import { FlightArrivalPoint } from '../services/flightDerivedItems';
 
 interface Props {
   itinerary: ItineraryItem[];
   /** Landing times, so a check-in defaults to when they are actually there. */
-  flightArrivals?: Array<{ date: string; time: string }>;
+  flightArrivals?: FlightArrivalPoint[];
   /** Appends the parsed stay's items; the caller owns persistence and sync. */
   onAddItems: (items: ItineraryItem[]) => void;
   onRemoveItem: (itemId: string) => void;
@@ -47,6 +49,62 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], onAdd
     [itinerary],
   );
 
+
+  /**
+   * Turns a parsed booking into the cards it belongs on the itinerary as.
+   *
+   * When a flight lands the same day, this also asks the server how far the
+   * hotel is from that airport and adds the transfer — so the itinerary shows
+   * the whole of arriving, not just the moment the wheels touch down. The
+   * lookup is best effort: the booking is added either way, because a stay
+   * that failed to save over a missing route estimate would be absurd.
+   */
+  const addStay = async (stay: ParsedStay) => {
+    const arrival = flightArrivals.find(entry => entry.date === stay.checkInDate && entry.time);
+    const items = stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[];
+    if (!arrival) { onAddItems(items); return; }
+
+    let plan: ArrivalPlan = {};
+    try {
+      const response = await fetch('/api/stays/arrival-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hotel: [stay.hotelName, stay.address].filter(Boolean).join(' '),
+          airport: arrival.airport,
+          airportLatitude: arrival.latitude,
+          airportLongitude: arrival.longitude,
+        }),
+      });
+      if (response.ok) plan = await response.json() as ArrivalPlan;
+    } catch {
+      // No route: the transfer card still goes on, without a duration.
+    }
+
+    const departTime = departAirportTime(arrival.time);
+    const transfer = departTime
+      ? [airportTransferItem({
+          id: makeId(),
+          date: arrival.date,
+          departTime,
+          airportName: arrival.airport || '機場',
+          hotelName: stay.hotelName,
+          travelSeconds: plan.travelSeconds,
+          mode: plan.mode,
+        }) as ItineraryItem]
+      : [];
+
+    // Check-in moves to when they actually reach the door, once the journey
+    // is known. Without a route it stays at the airport-exit time rather than
+    // being shifted by a number nobody can check.
+    const reach = stay.checkInTime ? null : reachHotelTime(arrival.time, plan.travelSeconds);
+    const withCheckIn = reach
+      ? items.map(item => (item.title.startsWith('入住 ') ? { ...item, time: reach } : item))
+      : items;
+
+    onAddItems([...transfer, ...withCheckIn]);
+  };
+
   const handleFile = async (file: File) => {
     setError('');
     setBusy(true);
@@ -72,8 +130,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], onAdd
         return;
       }
 
-      const stay = await response.json() as ParsedStay;
-      onAddItems(stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[]);
+      await addStay(await response.json() as ParsedStay);
     } catch {
       setError('辨識失敗，請手動新增住宿。');
     } finally {
@@ -154,7 +211,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], onAdd
               return;
             }
             setError('');
-            onAddItems(stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[]);
+            void addStay(stay);
             setForm(EMPTY_FORM);
             setManual(false);
           }}

@@ -122,9 +122,24 @@ export const reconcileFlightDerivedItems = (
  * Only anchors that state an arrival time qualify: a check-in derived from a
  * guessed landing would be a guess wearing a specific number.
  */
-export const flightArrivals = (anchors: FlightAnchor[]): Array<{ date: string; time: string }> =>
+export const flightArrivals = (anchors: FlightAnchor[]): FlightArrivalPoint[] =>
   anchors.flatMap(anchor =>
     anchor.arrivalTime
-      ? [{ date: anchor.arrivalDate || anchor.departureDate, time: anchor.arrivalTime }]
+      ? [{
+          date: anchor.arrivalDate || anchor.departureDate,
+          time: anchor.arrivalTime,
+          airport: anchor.arrivalAirport || anchor.arrivalAirportIata,
+          latitude: anchor.arrivalAirportLatitude,
+          longitude: anchor.arrivalAirportLongitude,
+        }]
       : [],
   );
+
+export interface FlightArrivalPoint {
+  date: string;
+  time: string;
+  /** Named so a route can be looked up when no coordinates were saved. */
+  airport?: string;
+  latitude?: number;
+  longitude?: number;
+}
