@@ -216,8 +216,10 @@ import { enrichProposalPlaces } from "./services/itineraryPlaceEnrichment";
 import type { AdjustmentApplyResult, ProposalAcceptanceResult } from "./components/TripInspirationPlanner";
 import {
   applyItineraryAdjustment,
+  ItineraryAdjustmentChange,
   ItineraryAdjustmentProposal,
 } from "./services/itineraryAdjustment";
+import type { PendingItinerarySuggestion } from "./components/ItineraryCalendar";
 import {
   itemsForDay,
   moveItemToDay,
@@ -2544,6 +2546,72 @@ const App: React.FC = () => {
       pinnedConflictCount: result.pinnedConflictCount,
     };
   };
+
+  /**
+   * AI additions waiting on the traveller, shown green inside the itinerary.
+   * Deliberately local state: nothing here is part of the trip or persisted
+   * until one is ticked, and a reload is allowed to forget them.
+   */
+  const [pendingSuggestions, setPendingSuggestions] = useState<
+    Array<{ id: string; mode: ItineraryAdjustmentProposal["mode"]; change: ItineraryAdjustmentChange }>
+  >([]);
+
+  // A suggestion belongs to the trip it was proposed for. Switching drafts must
+  // never leave another trip's suggestions sitting in this one's timeline.
+  useEffect(() => {
+    setPendingSuggestions([]);
+  }, [activeDraftId]);
+
+  const handleProposeSuggestions = (proposal: ItineraryAdjustmentProposal) => {
+    setPendingSuggestions(
+      proposal.changes
+        .filter((change) => change.type === "add" && change.proposedItem)
+        .map((change) => ({
+          id: change.proposedItem!.id || generateId(),
+          mode: proposal.mode,
+          change,
+        })),
+    );
+  };
+
+  /**
+   * Ticking one suggestion. It goes through the same apply path a confirmed
+   * adjustment uses — place enrichment, pinned-conflict handling and the draft
+   * writer included — carrying only that single change.
+   */
+  const handleAcceptSuggestion = async (suggestionId: string): Promise<string | null> => {
+    const pending = pendingSuggestions.find((entry) => entry.id === suggestionId);
+    if (!pending) return null;
+    const result = await handleApplyItineraryAdjustment({
+      mode: pending.mode,
+      changes: [pending.change],
+      summary: "",
+      warnings: [],
+    });
+    if (!result.ok) {
+      return result.error || "加入行程失敗，你的行程沒有被更動，請再試一次。";
+    }
+    setPendingSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
+    return null;
+  };
+
+  const handleDismissSuggestion = (suggestionId: string) => {
+    setPendingSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
+  };
+
+  const pendingSuggestionCards: PendingItinerarySuggestion[] = pendingSuggestions.map(
+    ({ id, change }) => ({
+      id,
+      date: change.toDate,
+      time: change.toTime || change.proposedItem?.suggestedStartTime,
+      placeName: change.proposedItem?.placeName || "AI 建議行程",
+      durationMinutes: change.proposedItem?.durationMinutes,
+      note: change.proposedItem?.note,
+      reason: change.reason,
+      address: change.proposedItem?.address,
+      source: change.proposedItem?.source === "saved_inspiration" ? "saved_inspiration" : "ai_suggestion",
+    }),
+  );
 
   /**
    * Toggles the user's pin and persists it immediately through the canonical
@@ -5381,6 +5449,9 @@ const App: React.FC = () => {
           }}
           onAddStay={scrollToStayCard}
           onDelete={handleDeleteItineraryItem}
+          pendingSuggestions={pendingSuggestionCards}
+          onAcceptSuggestion={handleAcceptSuggestion}
+          onDismissSuggestion={handleDismissSuggestion}
         />
         {itineraryFormItem !== undefined && (
           <ItineraryItemForm
@@ -5424,6 +5495,7 @@ const App: React.FC = () => {
           existingItinerary={itinerary}
           onAcceptProposal={handleAcceptAiProposal}
           onApplyAdjustment={handleApplyItineraryAdjustment}
+          onProposeToItinerary={handleProposeSuggestions}
           onProposalAccepted={() => setWorkspaceSection("overview")}
         />
         {/*

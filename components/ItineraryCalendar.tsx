@@ -67,6 +67,30 @@ interface Props {
   ) => { ok: boolean; pushedLate?: boolean; startTime?: string };
   /** Writes a confirmed fixed-event adjustment. Never called before confirmation. */
   onApplyFixedAdjustment?: (adjustment: FixedEventAdjustment) => boolean;
+  /**
+   * AI suggestions waiting on the traveller, shown green inside the day they
+   * were proposed for. They are not part of the itinerary and are not persisted
+   * until one is ticked.
+   */
+  pendingSuggestions?: PendingItinerarySuggestion[];
+  /** Ticking a suggestion. Resolves to an error message when the write failed. */
+  onAcceptSuggestion?: (suggestionId: string) => Promise<string | null>;
+  /** Removes one suggestion without writing anything. */
+  onDismissSuggestion?: (suggestionId: string) => void;
+}
+
+/** One un-accepted AI suggestion, flattened for display. */
+export interface PendingItinerarySuggestion {
+  id: string;
+  date?: string;
+  time?: string;
+  placeName: string;
+  durationMinutes?: number;
+  note?: string;
+  reason?: string;
+  address?: string;
+  /** 收藏靈感 vs a place the AI proposed on its own. */
+  source?: 'saved_inspiration' | 'ai_suggestion';
 }
 
 /**
@@ -84,14 +108,30 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onApplyFixedAdjustment, onTogglePin }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
+  /** The suggestion currently being written, so a double tap cannot add it twice. */
+  const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ItineraryItem | null>(null);
   const [stayDetail, setStayDetail] = useState<StaySpan | null>(null);
 
   const dates = useMemo(() => (startDate && endDate ? enumerateLocalDates(startDate, endDate) : []), [startDate, endDate]);
   const [selectedDate, setSelectedDate] = useState<string | undefined>(dates[0]);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : dates[0];
+
+  /**
+   * The suggestions proposed for the day on screen. A suggestion with no date is
+   * shown on the first day rather than hidden, so nothing proposed disappears.
+   */
+  const daySuggestions = useMemo(() => {
+    const pending = pendingSuggestions || [];
+    if (pending.length === 0) return [];
+    return pending
+      .filter(suggestion => (suggestion.date ? suggestion.date === activeDate : activeDate === dates[0]))
+      .slice()
+      .sort((left, right) => (left.time || '99:99').localeCompare(right.time || '99:99'));
+  }, [pendingSuggestions, activeDate, dates]);
 
   // Derived from the whole itinerary, not from this day: the check-in and
   // check-out cards that define the span sit on other days.
@@ -582,7 +622,11 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6b4df6]">ITINERARY</p><h2 className="mt-1 text-xl font-black text-[#111A4A]">行程規劃</h2><p className="mt-1 text-xs text-slate-400">規劃每日行程，讓旅程更順暢、更有趣。</p></div>
         <div className="flex shrink-0 items-center gap-2">{onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] px-3 py-2 text-xs font-black text-white shadow-[0_6px_14px_rgba(91,61,245,.16)]"><Plus size={14} />新增行程</button>}<button type="button" className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#eceaf5] bg-white px-3 py-2 text-xs font-bold text-[#5b3df5] shadow-sm"><Map size={14} />地圖模式</button><button type="button" aria-label="更多選項" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={17} /></button></div>
       </div>
-      {dates.length > 0 && <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{dates.map((date, index) => <button type="button" key={date} ref={node => { dayTabRefs.current[date] = node; }} onClick={() => setSelectedDate(date)} aria-label={`Day ${index + 1}`} data-drop-day={date} className={`relative min-w-[84px] rounded-[18px] border px-3.5 py-3 text-left transition ${overDate === date ? 'border-[#6b4df6] bg-[#ece7ff] ring-2 ring-[#b9adff]' : dragItemId && date !== activeDate ? 'border-dashed border-[#b9adff] bg-white' : activeDate === date ? 'border-[#b9adff] bg-[#f4f1ff] text-[#4f35d7] shadow-[0_8px_18px_rgba(91,61,245,.12)]' : 'border-[#edf0f6] bg-white text-slate-500 shadow-[0_3px_10px_rgba(17,26,74,.03)]'}`}><span className={`mb-2 block h-1.5 w-1.5 rounded-full ${activeDate === date ? 'bg-[#6b4df6]' : 'bg-slate-200'}`} /><span className="block text-[11px] font-black">Day {index + 1}</span><span className="mt-1 block text-xs font-bold">{date.slice(5).replace('-', '/')}</span></button>)}</div>}
+      {dates.length > 0 && <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{dates.map((date, index) => <button type="button" key={date} ref={node => { dayTabRefs.current[date] = node; }} onClick={() => setSelectedDate(date)} aria-label={`Day ${index + 1}`} data-drop-day={date} className={`relative min-w-[84px] rounded-[18px] border px-3.5 py-3 text-left transition ${overDate === date ? 'border-[#6b4df6] bg-[#ece7ff] ring-2 ring-[#b9adff]' : dragItemId && date !== activeDate ? 'border-dashed border-[#b9adff] bg-white' : activeDate === date ? 'border-[#b9adff] bg-[#f4f1ff] text-[#4f35d7] shadow-[0_8px_18px_rgba(91,61,245,.12)]' : 'border-[#edf0f6] bg-white text-slate-500 shadow-[0_3px_10px_rgba(17,26,74,.03)]'}`}><span className={`mb-2 block h-1.5 w-1.5 rounded-full ${activeDate === date ? 'bg-[#6b4df6]' : 'bg-slate-200'}`} /><span className="block text-[11px] font-black">Day {index + 1}</span><span className="mt-1 block text-xs font-bold">{date.slice(5).replace('-', '/')}</span>{(() => {
+      // A suggestion sitting on another day is invisible from here otherwise.
+      const count = (pendingSuggestions || []).filter(suggestion => (suggestion.date ? suggestion.date === date : date === dates[0])).length;
+      return count > 0 ? <span data-testid={`suggestion-badge-${date}`} className="absolute right-2 top-2 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">{count}</span> : null;
+    })()}</button>)}</div>}
 
       {/*
         The arranged order no longer reads chronologically. The times are shown
@@ -812,6 +856,88 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/*
+          The AI's suggestions for this day, sitting in the timeline where the
+          plan is actually read. Green means proposed, not scheduled: ticking one
+          is what writes it, and it writes only that one.
+        */}
+        {daySuggestions.length > 0 && (
+          <div data-testid="pending-suggestions" className="mt-3 space-y-3">
+            <div className="flex items-center gap-1.5 pl-[62px] text-[11px] font-black text-emerald-700">
+              <Sparkles size={12} />AI 建議 · 打勾即加入行程
+            </div>
+            {daySuggestions.map(suggestion => (
+              <div key={suggestion.id} data-testid={`suggestion-${suggestion.id}`} className="relative flex gap-2">
+                <div className="flex w-12 shrink-0 flex-col items-end pt-3.5">
+                  <span className="font-mono text-[11px] font-black text-emerald-600">{suggestion.time || '—'}</span>
+                  {suggestion.durationMinutes ? (
+                    <span className="mt-0.5 text-[9px] font-bold text-slate-400">約 {suggestion.durationMinutes} 分</span>
+                  ) : null}
+                </div>
+                <div className="relative w-3 shrink-0">
+                  <span className="absolute left-1/2 top-4 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-white bg-emerald-500 shadow-sm" />
+                  <span className="absolute left-1/2 top-7 bottom-[-12px] w-0.5 -translate-x-1/2 border-l-2 border-dashed border-emerald-200" />
+                </div>
+                <div className="min-w-0 flex-1 rounded-[20px] border border-dashed border-emerald-300 bg-emerald-50/70 p-3.5">
+                  <div className="flex items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      aria-label={`加入行程：${suggestion.placeName}`}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded accent-emerald-600"
+                      checked={false}
+                      disabled={acceptingSuggestionId !== null}
+                      onChange={async () => {
+                        if (!onAcceptSuggestion || acceptingSuggestionId) return;
+                        setAcceptingSuggestionId(suggestion.id);
+                        setSuggestionError(null);
+                        const failure = await onAcceptSuggestion(suggestion.id).catch(
+                          () => '加入行程失敗，你的行程沒有被更動，請再試一次。',
+                        );
+                        if (failure) setSuggestionError(failure);
+                        setAcceptingSuggestionId(null);
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <b className="text-sm font-black text-[#11183d]">{suggestion.placeName}</b>
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] font-black ${suggestion.source === 'saved_inspiration' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {suggestion.source === 'saved_inspiration' ? '收藏靈感' : 'AI 建議'}
+                        </span>
+                      </div>
+                      {suggestion.address && (
+                        <div className="mt-1 flex items-start gap-1 text-[11px] leading-5 text-slate-500">
+                          <MapPin size={12} className="mt-0.5 shrink-0" />
+                          <span className="min-w-0 flex-1">{suggestion.address}</span>
+                        </div>
+                      )}
+                      {suggestion.note && <div className="mt-1 text-[11px] leading-5 text-slate-500">{suggestion.note}</div>}
+                      {suggestion.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">原因：{suggestion.reason}</div>}
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="text-[10px] font-bold text-emerald-700">
+                          {acceptingSuggestionId === suggestion.id ? '正在加入…' : '尚未加入正式行程'}
+                        </span>
+                        {onDismissSuggestion && (
+                          <button
+                            type="button"
+                            onClick={() => onDismissSuggestion(suggestion.id)}
+                            disabled={acceptingSuggestionId !== null}
+                            className="text-[10px] font-black text-slate-400 disabled:opacity-40"
+                          >
+                            不需要
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {suggestionError && (
+              <div className="ml-[62px] rounded-2xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">{suggestionError}</div>
+            )}
           </div>
         )}
       </div>

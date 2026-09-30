@@ -66,6 +66,12 @@ interface Props {
   onApplyAdjustment: (proposal: ItineraryAdjustmentProposal) => Promise<AdjustmentApplyResult>;
   /** Returns the user to the normal itinerary view after a successful write. */
   onProposalAccepted: () => void;
+  /**
+   * Hands the `add` suggestions to the itinerary timeline, where each one shows
+   * as a green proposal card the traveller ticks to accept. Nothing is written
+   * here: this only moves the pending suggestions to where the plan is read.
+   */
+  onProposeToItinerary?: (proposal: ItineraryAdjustmentProposal) => void;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -100,7 +106,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +131,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const [appliedSummary, setAppliedSummary] = useState<AdjustmentApplyResult | null>(null);
+  // Set when the `add` suggestions were handed to the itinerary timeline, so the
+  // traveller is told where they went instead of watching the panel go empty.
+  const [forwardedCount, setForwardedCount] = useState(0);
 
   const hasExistingItinerary = existingItinerary.length > 0;
   const existingById = useMemo(
@@ -217,7 +226,17 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   // succeeded — the preview's "原本：" values are no longer true, so it goes away.
   // Deliberately narrower than discardPendingProposal: the applied summary is the
   // result of that very change and must survive it.
-  const itineraryFingerprint = existingItinerary.map(entry => `${entry.id}:${entry.date || ''}:${entry.time || ''}`).join('|');
+  //
+  // Sorted, so the order the list arrives in is not mistaken for a change.
+  // A cloud re-read replaces the itinerary with the server's copy every twenty
+  // seconds, and Postgres returns rows in whatever order it likes — which moves
+  // after any write. The same three items in a different order flipped this
+  // string, so the preview was torn down seconds after it appeared, with the
+  // traveller's finger on the way to 套用. Nothing had changed but the order.
+  const itineraryFingerprint = existingItinerary
+    .map(entry => `${entry.id}:${entry.date || ''}:${entry.time || ''}`)
+    .sort()
+    .join('|');
   useEffect(() => {
     setAdjustment(null);
     setAdjustmentError(null);
@@ -328,6 +347,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     setIsAdjusting(true);
     setAdjustmentError(null);
     setAppliedSummary(null);
+    setForwardedCount(0);
     try {
       const input = buildItineraryAdjustmentInput(
         buildTripPlanningInput(trip, buildTripPlanningSelection(groups, selected), planningPreferences),
@@ -341,12 +361,25 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         setAdjustmentError(generated.warnings[0] || 'AI 這次沒有提出可套用的調整，你的行程沒有被更動。請調整說明後再試一次。');
         return;
       }
-      setAdjustment(generated);
+      // Founder decision: an `add` suggestion belongs in the itinerary itself,
+      // shown green and accepted by ticking it. Only the changes that alter an
+      // existing item — move / update / remove — stay in this panel, because
+      // they have no card of their own to become.
+      const forwarded = onProposeToItinerary
+        ? generated.changes.filter(change => change.type === 'add' && change.proposedItem)
+        : [];
+      const remaining = onProposeToItinerary
+        ? generated.changes.filter(change => !(change.type === 'add' && change.proposedItem))
+        : generated.changes;
+
+      if (forwarded.length > 0) onProposeToItinerary!({ ...generated, changes: forwarded });
+      setForwardedCount(forwarded.length);
+      setAdjustment(remaining.length > 0 ? { ...generated, changes: remaining } : null);
       setPlacePreviews(new Map());
 
       // The same query and the same safety check the apply step runs, so the
       // card cannot promise something acceptance will not deliver.
-      const names = generated.changes
+      const names = remaining
         .filter(change => change.type === 'add' && change.proposedItem?.placeName)
         .map(change => change.proposedItem!.placeName);
       if (names.length > 0) {
@@ -594,6 +627,15 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             <div className="mt-3 flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-6 text-slate-700">
               <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
               <span className="min-w-0 flex-1 break-words">{adjustmentError}</span>
+            </div>
+          )}
+
+          {forwardedCount > 0 && (
+            <div data-testid="forwarded-suggestion-notice" className="mt-3 flex items-start gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+              <span className="min-w-0 flex-1 break-words">
+                已把 {forwardedCount} 個 AI 建議放進上方行程表，打勾就會加入正式行程。
+              </span>
             </div>
           )}
 

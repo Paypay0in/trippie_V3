@@ -118,11 +118,26 @@ const openPlanning = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByText('規劃'));
 };
 
-const generateWith = async (user: ReturnType<typeof userEvent.setup>, mode: string, response: Record<string, unknown>) => {
+const generateWith = async (
+  user: ReturnType<typeof userEvent.setup>,
+  mode: string,
+  response: Record<string, unknown>,
+  // An add-only proposal no longer produces a diff card: every addition goes to
+  // the itinerary as a green suggestion, so there is nothing left to 套用.
+  { expectDiffCard = true }: { expectDiffCard?: boolean } = {},
+) => {
   nextResponse = response;
   await user.click(screen.getByRole('radio', { name: new RegExp(mode) }));
   await user.click(screen.getByText('AI 幫我調整行程'));
-  await waitFor(() => expect(screen.getByText('套用這些調整')).toBeTruthy());
+  await waitFor(() => expect(
+    expectDiffCard ? screen.getByText('套用這些調整') : screen.getByTestId('forwarded-suggestion-notice'),
+  ).toBeTruthy());
+};
+
+/** Ticks one green AI suggestion on the given day of the itinerary timeline. */
+const acceptSuggestion = async (user: ReturnType<typeof userEvent.setup>, dayNumber: number, placeName: string) => {
+  await user.click(screen.getByRole('button', { name: `Day ${dayNumber}` }));
+  await user.click(screen.getByRole('checkbox', { name: `加入行程：${placeName}` }));
 };
 
 describe('AI 行程調整模式 runtime', () => {
@@ -256,13 +271,18 @@ describe('AI 行程調整模式 runtime', () => {
         { type: 'move', existingItemId: 'it-gamcheon', toTime: '11:30' },
         { type: 'remove', existingItemId: 'it-gukje' },
       ],
-    });
+    }, { expectDiffCard: false });
 
     expect(requests.at(-1)!.adjustmentMode).toBe('add');
     expect(document.body.textContent).not.toContain('－ 移除');
-    expect(document.body.textContent).toContain('只會新增');
+    // The suggestions are now in the itinerary itself, green and un-accepted.
+    expect(document.body.textContent).toContain('已把 2 個 AI 建議放進上方行程表');
+    expect(persistedItinerary()).toHaveLength(3);
 
-    await user.click(screen.getByText('套用這些調整'));
+    // Ticking writes that one suggestion, and only that one.
+    await acceptSuggestion(user, 2, '黑房咖啡');
+    await waitFor(() => expect(persistedItinerary()).toHaveLength(4));
+    await acceptSuggestion(user, 2, 'SPA LAND Centum City');
     await waitFor(() => expect(persistedItinerary()).toHaveLength(5));
 
     const applied = persistedItinerary();
@@ -322,13 +342,21 @@ describe('AI 行程調整模式 runtime', () => {
     expect(applied.find(entry => entry.id === 'it-gukje')).toBeUndefined();
     expect(applied.find(entry => entry.id === 'it-gamcheon')?.time).toBe('11:30');
     expect(applied.find(entry => entry.id === 'it-haeundae')).toMatchObject({ durationMinutes: 120, notes: '傍晚看海' });
-    expect(applied.find(entry => entry.title === '松島天空步道')).toMatchObject({ date: TRIP_END, time: '10:00' });
+    // The addition was not part of that apply: it is a green suggestion in the
+    // timeline until the traveller ticks it.
+    expect(applied.find(entry => entry.title === '松島天空步道')).toBeUndefined();
+
+    await user.click(screen.getByText('規劃'));
+    await acceptSuggestion(user, 3, '松島天空步道');
+    await waitFor(() => expect(persistedItinerary().find(entry => entry.title === '松島天空步道')).toMatchObject({ date: TRIP_END, time: '10:00' }));
+
+    const afterSuggestion = persistedItinerary();
 
     cleanup();
     render(<App />);
     await openPlanning(userEvent.setup());
     log('REPLAN_after_reload', describeItinerary(persistedItinerary()));
-    expect(describeItinerary(persistedItinerary())).toEqual(describeItinerary(applied));
+    expect(describeItinerary(persistedItinerary())).toEqual(describeItinerary(afterSuggestion));
   });
 
   it('a failed generation leaves the itinerary, the mode and the typed text alone', async () => {
