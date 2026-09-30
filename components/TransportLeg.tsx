@@ -12,7 +12,18 @@ interface Props {
   availableMinutes?: number;
   /** When the traveller is expected to set off, so transit answers for that hour. */
   departureTime?: string;
+  /**
+   * Where this leg is. Only used to explain an absent route: in South Korea
+   * Google publishes no driving or walking directions at all, which is a legal
+   * restriction rather than a gap in the data, and the traveller should be sent
+   * to Naver or Kakao instead of pressing the button again.
+   */
+  destinationCountry?: string;
 }
+
+/** Whether this is the one country whose missing routes have a known reason. */
+const isKorea = (country?: string): boolean =>
+  /韓國|南韓|韓国|korea|^kr$/i.test((country || '').trim());
 
 const MODES: TravelMode[] = ['TRANSIT', 'DRIVE', 'WALK'];
 
@@ -42,7 +53,7 @@ const summarize = (leg: RouteLeg): string => {
  * each answers for itself — a mode with no route says so rather than quietly
  * showing another mode's number.
  */
-const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, departureTime }) => {
+const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, departureTime, destinationCountry }) => {
   const [mode, setMode] = useState<TravelMode>('TRANSIT');
   const [leg, setLeg] = useState<RouteLeg | null>(null);
   const [error, setError] = useState('');
@@ -75,7 +86,9 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
           {loading ? '計算交通中…'
             : error ? error
             : leg?.available ? `約 ${needed} 分 · ${TRAVEL_MODE_LABELS[mode]}${summarize(leg) ? ` · ${summarize(leg)}` : ''}`
-            : `這個地區查不到${TRAVEL_MODE_LABELS[mode]}路線`}
+            : isKorea(destinationCountry)
+              ? `🚫 因法規限制，Google 地圖無法以「${TRAVEL_MODE_LABELS[mode]}」查詢`
+              : `這個地區查不到${TRAVEL_MODE_LABELS[mode]}路線`}
         </span>
         {leg?.available && (leg.steps?.length || 0) > 0 && (
           <button type="button" aria-label="交通方式說明" aria-expanded={open} onClick={() => setOpen(current => !current)} className="shrink-0 rounded-lg p-1 text-slate-400">
@@ -83,6 +96,13 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
           </button>
         )}
       </div>
+
+      {/* Pressing the button again will not help, so the next step is named. */}
+      {leg && !leg.available && isKorea(destinationCountry) && (
+        <div className="mt-1.5 text-[10px] font-bold leading-4 text-slate-400">
+          當地人用 Naver Map 或 KakaoMap，這兩款查得到。
+        </div>
+      )}
 
       {tooTight && (
         <div data-testid="transport-too-tight" className="mt-1.5 flex items-start gap-1 rounded-lg bg-amber-50 px-2 py-1.5 text-[10px] font-bold leading-4 text-amber-700">

@@ -907,6 +907,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     origin={{ latitude: from.latitude!, longitude: from.longitude!, title: from.title }}
                     destination={{ latitude: to.latitude!, longitude: to.longitude!, title: to.title }}
                     availableMinutes={Number.isFinite(gap) && gap >= 0 ? gap : undefined}
+                    destinationCountry={destinationCountry}
                     departureTime={activeDate ? new Date(`${activeDate}T${minutesToTime(leaveMinutes)}:00`).toISOString() : undefined}
                   />
                 );

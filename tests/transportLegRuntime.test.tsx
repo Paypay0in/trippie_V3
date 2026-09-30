@@ -72,6 +72,18 @@ describe('the transport leg', () => {
     expect(screen.getByText('步行 1 分')).toBeTruthy();
   });
 
+  it('names the reason in Korea, where the absence has one', async () => {
+    const user = userEvent.setup();
+    render(<TransportLeg origin={GAMCHEON} destination={HAEUNDAE} destinationCountry="韓國" />);
+    await waitFor(() => expect(screen.getByText(/約 78 分/)).toBeTruthy());
+
+    await user.click(screen.getByRole('button', { name: /步行/ }));
+
+    await waitFor(() => expect(screen.getByText('🚫 因法規限制，Google 地圖無法以「步行」查詢')).toBeTruthy());
+    // Pressing it again will not help, so the traveller is sent somewhere useful.
+    expect(screen.getByText('當地人用 Naver Map 或 KakaoMap，這兩款查得到。')).toBeTruthy();
+  });
+
   it('says plainly that a mode has no route here, rather than showing nothing', async () => {
     const user = userEvent.setup();
     render(<TransportLeg origin={GAMCHEON} destination={HAEUNDAE} />);
