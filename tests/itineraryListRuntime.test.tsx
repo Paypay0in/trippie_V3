@@ -454,3 +454,43 @@ describe('derived flight items are not editable on the itinerary', () => {
     expect(within(card).getByText('完成')).toBeTruthy();
   });
 });
+
+/**
+ * Flights and stays are the two fixed points a trip is arranged around, and
+ * they belong on the same screen.
+ *
+ * App renders FlightAnchorsForm from two places. The stay card was first
+ * mounted beside only one of them — the one the Founder never opens — so the
+ * feature shipped, was verified end to end against its endpoint, and was
+ * nowhere to be found in the app. This asserts against the screen a real
+ * traveller uses rather than against the component in isolation.
+ */
+describe('the planning screen carries both anchors', () => {
+  beforeEach(() => seedStorage([
+    { id: 'it-own', date: DAY_6, time: '19:00', title: '晚餐', location: '札嘎其市場', notes: '', type: 'FOOD' },
+  ]));
+
+  it('shows 航班資訊 and 住宿資訊 together', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    expect(screen.getByText('航班資訊')).toBeTruthy();
+    // This is the one that was missing.
+    expect(screen.getByText('住宿資訊')).toBeTruthy();
+  });
+
+  it('offers both ways to enter a stay, since a screenshot can be unreadable', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    const stays = screen.getByText('住宿資訊').closest('section') as HTMLElement;
+    // Exactly one of each: the actions live in the header or in the empty
+    // panel, never both, so the card never shows the same choice twice.
+    expect(within(stays).getByRole('button', { name: /上傳截圖/ })).toBeTruthy();
+    expect(within(stays).getByRole('button', { name: /手動/ })).toBeTruthy();
+  });
+});

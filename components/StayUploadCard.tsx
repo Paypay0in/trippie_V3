@@ -93,24 +93,31 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, onAddItems, onRemoveItem }
             <h2 className="mt-1 font-black text-[#111A4A]">住宿資訊</h2>
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <button
-            type="button"
-            onClick={() => { setManual(true); setError(''); }}
-            className="inline-flex min-h-11 items-center rounded-xl border border-[#e4e2f2] bg-white px-3 py-2 text-xs font-black text-slate-500"
-          >
-            手動
-          </button>
-          <button
-            type="button"
-            onClick={() => fileInput.current?.click()}
-            disabled={busy}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-black text-[#5b3df5] disabled:opacity-50"
-          >
-            {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-            {busy ? '辨識中' : '上傳截圖'}
-          </button>
-        </div>
+        {/*
+          The actions live in one place at a time. While the card is empty the
+          panel below carries them, where the explanation is; once there is a
+          stay to look at, they move up here so the list stays the subject.
+        */}
+        {stays.length > 0 && !manual && (
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => { setManual(true); setError(''); }}
+              className="inline-flex min-h-11 items-center rounded-xl border border-[#e4e2f2] bg-white px-3 py-2 text-xs font-black text-slate-500"
+            >
+              手動
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              disabled={busy}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-black text-[#5b3df5] disabled:opacity-50"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+              {busy ? '辨識中' : '上傳截圖'}
+            </button>
+          </div>
+        )}
       </div>
 
       <input
@@ -206,16 +213,17 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, onAddItems, onRemoveItem }
       ) : stays.length === 0 ? (
         <div className="mt-4 rounded-[22px] border border-dashed border-[#d9d5f5] bg-[#fbfaff] px-4 py-7 text-center">
           <Camera size={20} className="mx-auto text-[#a99df0]" />
-          <p className="mt-2 text-xs font-black text-[#5b3df5]">上傳訂房截圖</p>
+          <p className="mt-2 text-xs font-black text-[#5b3df5]">還沒有住宿資訊</p>
           <p className="mt-1 text-[11px] text-slate-400">自動讀出飯店名稱、入住與退房日期</p>
           <div className="mt-4 flex justify-center gap-2">
             <button
               type="button"
               onClick={() => fileInput.current?.click()}
               disabled={busy}
-              className="min-h-11 rounded-xl bg-[#5b3df5] px-4 text-xs font-black text-white disabled:opacity-50"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#5b3df5] px-4 text-xs font-black text-white disabled:opacity-50"
             >
-              選擇截圖
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+              {busy ? '辨識中' : '上傳截圖'}
             </button>
             <button
               type="button"

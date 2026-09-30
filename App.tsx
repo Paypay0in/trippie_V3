@@ -5264,6 +5264,11 @@ const App: React.FC = () => {
           flightMode={flightMode}
           onFlightModeChange={setFlightMode}
         />
+        <StayUploadCard
+          itinerary={itinerary}
+          onAddItems={handleAddStayItems}
+          onRemoveItem={handleDeleteItineraryItem}
+        />
         <TripInspirationPlanner
           inspirations={savedTravelInspirations}
           communityPosts={communityPosts}
