@@ -10,6 +10,7 @@ import {
 } from '../services/tripSync';
 import { hasRemoteContent } from '../services/tripSnapshotApply';
 import { nextKnownIds } from '../services/syncPrune';
+import { mergeWithUnpushed } from '../services/syncMerge';
 
 /**
  * Keeps one open trip in step with the shared tables.
@@ -223,7 +224,22 @@ export const useTripSync = ({
         const remote = await fetchTripSnapshot(tripId);
         if (readyTripIdRef.current !== tripId) return;
         if (remote.status === 'ok' && hasRemoteContent(remote.data)) {
-          onRemoteSnapshotRef.current(remote.data);
+          // Merged, not applied. Applying a snapshot replaces the local list,
+          // and this one arrives while the trip is being edited — a read
+          // landing between a new record and the push that carries it would
+          // wipe it off its author's own screen.
+          const local = payloadRef.current;
+          const known = knownRef.current;
+          const merged: TripSyncSnapshot = {
+            members: remote.data.members,
+            expenses: mergeWithUnpushed(local.expenses, remote.data.expenses, known.expenses),
+            itinerary: mergeWithUnpushed(local.itinerary, remote.data.itinerary, known.itinerary),
+            flightAnchors: mergeWithUnpushed(local.flightAnchors, remote.data.flightAnchors, known.flightAnchors),
+          };
+          onRemoteSnapshotRef.current(merged);
+          // Only what the server actually confirmed becomes known. Marking a
+          // still-unpushed local record as known would let the next push
+          // delete it.
           rememberRemote(remote.data);
         }
       } finally {
