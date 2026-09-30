@@ -1567,6 +1567,7 @@ ${MODE_RULES[mode]}
 6b. placeName 必須是「那家店／那個景點自己的正式名稱」，就是地圖上查得到、招牌上寫的那一個。
 絕對不要用描述或分類當名稱，例如「廣安里海景早午餐咖啡廳」「海雲台知名烤肉店」「當地人推薦的市場小吃」——這種名字地圖查不到，系統會找不到地址、照片與營業資訊，使用者收到的就是一張空白卡片。
 如果你沒辦法明確說出一家真實存在的店名，就換一個你說得出名字的地點，或者乾脆不要提這一筆，並在 warnings 說明。寧可少給一個建議，也不要給一個查不到的名字。
+6c. 每一筆變更都必須填 placeName：add 填你建議的新地點真實店名，move/update/remove 填【2】裡那個既有項目現在的名稱。這個欄位是必填，沒有它的變更會被丟掉。
 7. 每一筆變更都要在 reason 用繁體中文寫一句簡短理由。
 8. summary 用繁體中文寫一兩句話，說明這次調整的整體想法。
 9. update 只能改停留時間與備註，**改不了地點名稱**。所以絕對不要在 summary 或 reason 宣稱你「修正了地點名稱」「更新為具體店家」——你做不到，那句話只會是假的。
@@ -1587,6 +1588,12 @@ ${MODE_RULES[mode]}
                   properties: {
                     type: { type: Type.STRING },
                     existingItemId: { type: Type.STRING },
+                    // Required of every change, including move/update/remove,
+                    // where it simply repeats the existing item's name. Nested
+                    // inside proposedItem it was optional, and 「重新規劃」 came
+                    // back with four adds carrying no place at all — dropped on
+                    // arrival, under a summary claiming the request was handled.
+                    placeName: { type: Type.STRING },
                     toDate: { type: Type.STRING },
                     toTime: { type: Type.STRING },
                     durationMinutes: { type: Type.NUMBER },
@@ -1611,8 +1618,8 @@ ${MODE_RULES[mode]}
                   // no proposedItem at all, the place name stuffed into the
                   // time. Prompt wording did not move it; this did.
                   required: mode === "add" || mode === "fill"
-                    ? ["type", "toDate", "proposedItem"]
-                    : ["type"],
+                    ? ["type", "placeName", "toDate", "proposedItem"]
+                    : ["type", "placeName"],
                 },
               },
               warnings: { type: Type.ARRAY, items: { type: Type.STRING } },

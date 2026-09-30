@@ -94,3 +94,37 @@ describe('an add with no place on it', () => {
     expect(result.warnings).toEqual([]);
   });
 });
+
+describe('a place name that is not a name', () => {
+  it('drops an add whose place name is a paragraph', () => {
+    const result = checkProposedChanges([
+      {
+        type: 'add',
+        toDate: '2026-10-03',
+        proposedItem: { placeName: `${'safely cleanly efficiently '.repeat(20)}쿠에른 신세계백화점 센텀시티점` },
+      },
+    ], ['2026-10-03']);
+
+    expect(result.changes).toEqual([]);
+    expect(result.warnings).toEqual(['有一筆新增建議的地點名稱不像地名，已略過，請再試一次。']);
+  });
+
+  it('keeps an ordinary long-ish name', () => {
+    const result = checkProposedChanges([
+      { type: 'add', toDate: '2026-10-03', proposedItem: { placeName: '쿠에른 신세계백화점 센텀시티점' } },
+    ], ['2026-10-03']);
+
+    expect(result.changes).toHaveLength(1);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('rebuilds an add that named its place only at the top level', () => {
+    const result = checkProposedChanges([
+      { type: 'add', toDate: '2026-10-03', placeName: 'Millac The Market' },
+    ], ['2026-10-03']);
+
+    expect(result.changes).toHaveLength(1);
+    expect(result.changes[0].proposedItem?.placeName).toBe('Millac The Market');
+    expect(result.warnings).toEqual([]);
+  });
+});

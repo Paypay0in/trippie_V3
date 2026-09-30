@@ -15,6 +15,17 @@ export interface ProposedChange {
   existingItemId?: string;
   toDate?: string;
   toTime?: string;
+  /**
+   * The place this change is about, named at the top level.
+   *
+   * Required of every change by the schema, which is the only thing that has
+   * ever made the model reliably write one: nested inside `proposedItem` it was
+   * optional, and 「重新規劃」 answered a six-line request with four adds that
+   * carried no place at all. They were dropped, so the traveller got a summary
+   * claiming the whole request had been handled and an itinerary where nothing
+   * had happened.
+   */
+  placeName?: string;
   proposedItem?: { placeName?: string };
   [key: string]: unknown;
 }
@@ -25,6 +36,9 @@ export interface CheckedChanges {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Longer than the longest real place name, and far shorter than a paragraph. */
+const MAX_PLACE_NAME_LENGTH = 80;
 
 const nameOf = (change: ProposedChange): string =>
   change.proposedItem?.placeName?.trim() || '一個新地點';
@@ -47,7 +61,17 @@ export const checkProposedChanges = (
   const withinTrip = new Set(tripDates);
   const warnings: string[] = [];
 
-  const kept = changes.filter(change => {
+  const kept = changes.map(change => {
+    if (change?.type !== 'add') return change;
+    // The top-level name is the one the schema insists on, so an `add` whose
+    // `proposedItem` came back empty is still a real suggestion and is rebuilt
+    // around it rather than thrown away.
+    const fallbackName = typeof change.placeName === 'string' ? change.placeName.trim() : '';
+    if (!change.proposedItem?.placeName?.trim() && fallbackName) {
+      return { ...change, proposedItem: { ...(change.proposedItem || {}), placeName: fallbackName } };
+    }
+    return change;
+  }).filter(change => {
     if (change?.type !== 'add') return true;
 
     // A place is the entire content of an `add`. One came back with no
@@ -55,6 +79,14 @@ export const checkProposedChanges = (
     // 「22:45 N/A (Late Night Snack near Hotel)」 — a change that can only be
     // accepted into a card with no name on it.
     const placeName = change.proposedItem?.placeName?.trim() || '';
+    // A place has a name, not an essay. Pushed onto a fallback model, one came
+    // back as nine hundred words of 「safely cleanly efficiently」 with the real
+    // shop name buried at the end — which would have become the title of a card
+    // in somebody's itinerary. No real place is anywhere near this long.
+    if (placeName.length > MAX_PLACE_NAME_LENGTH) {
+      warnings.push('有一筆新增建議的地點名稱不像地名，已略過，請再試一次。');
+      return false;
+    }
     if (!placeName) {
       warnings.push('有一筆新增建議沒有地點名稱，已略過。');
       return false;
