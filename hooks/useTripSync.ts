@@ -7,6 +7,7 @@ import {
   isSyncAvailable,
   pushTripSnapshot,
 } from '../services/tripSync';
+import { hasRemoteContent } from '../services/tripSnapshotApply';
 
 /**
  * Keeps one open trip in step with the shared tables.
@@ -113,8 +114,7 @@ export const useTripSync = ({
         setState('error');
         return;
       }
-      if (remote.status === 'ok'
-        && (remote.data.expenses.length || remote.data.members.length || remote.data.itinerary.length)) {
+      if (remote.status === 'ok' && hasRemoteContent(remote.data)) {
         onRemoteSnapshotRef.current(remote.data);
       }
 
