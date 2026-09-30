@@ -23,12 +23,13 @@ const itinerary: ItineraryItem[] = [
   { id: 'it-c', date: DAY_6, time: '17:00', durationMinutes: 90, title: 'Place C', location: 'Place C', notes: '', type: 'ACTIVITY' },
 ];
 
-const seedStorage = (items: ItineraryItem[] = itinerary) => {
+const seedStorage = (items: ItineraryItem[] = itinerary, flightAnchors: unknown[] = []) => {
   localStorage.clear();
   localStorage.setItem('trippie_drafts_v1', JSON.stringify([{
     id: DRAFT_ID, name: '釜山測試行程', destination: '釜山',
     startDate: DAY_5, endDate: DAY_6,
     expenses: [], companions: [], shoppingList: [], itinerary: items,
+    ...(flightAnchors.length ? { flightAnchors, flightMode: 'ONE_WAY' } : {}),
     createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',
   }]));
   localStorage.setItem('trippie_active_trip_id', DRAFT_ID);
@@ -717,5 +718,68 @@ describe('a stay can be moved; a flight cannot', () => {
     expect(screen.queryByTestId('fixed-badge-stay-in')).toBeNull();
     // The flight beside it keeps its lock, so this is not just "no badges".
     expect(screen.getByTestId('fixed-badge-flight')).toBeTruthy();
+  });
+});
+
+/**
+ * Entering a landing time must be enough.
+ *
+ * The transfer card was created once, when a booking was added, so saving an
+ * arrival time afterwards changed nothing and the only way to see it was to
+ * delete the stay and add it again — asking the traveller to work around the
+ * shape of the code. It is derived now, so both ends keep it current.
+ */
+describe('the airport transfer follows the flight', () => {
+  const STAY_ONLY: ItineraryItem[] = [
+    {
+      id: 'stay-in', date: DAY_5, time: '15:00', title: '入住 海雲台格蘭飯店',
+      location: '海雲台', notes: '', type: 'HOTEL', fixedEventKind: 'accommodation',
+    },
+    {
+      id: 'stay-out', date: '2026-10-08', time: '11:00', title: '退房 海雲台格蘭飯店',
+      location: '海雲台', notes: '', type: 'HOTEL', fixedEventKind: 'accommodation',
+    },
+  ];
+
+  beforeEach(() => {
+    // No route estimate: the card must still appear, without a duration.
+    globalThis.fetch = (async () => ({ ok: true, json: async () => ({}) })) as unknown as typeof fetch;
+    seedStorage(STAY_ONLY, [
+      {
+        id: 'anchor-out', direction: 'OUTBOUND',
+        departureDate: DAY_5, departureTime: '09:30', departureAirport: '桃園國際機場',
+        arrivalDate: DAY_5, arrivalTime: '13:05', arrivalAirport: '金海國際機場',
+        airportArrivalBufferMinutes: 120, source: 'MANUAL',
+      },
+    ]);
+  });
+
+  it('shows the ride in, two hours after landing', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    const transfer = await screen.findByText(/前往 海雲台格蘭飯店/);
+    const card = transfer.closest('[class*="rounded-[20px]"]') as HTMLElement;
+    // Landing 13:05, out of the airport around 15:05.
+    expect(within(card).getByText('15:05')).toBeTruthy();
+    expect(within(card).getByText(/入境與提領行李/)).toBeTruthy();
+  });
+
+  it('moves a check-in that was still on the uninformed default', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    await screen.findByText(/前往 海雲台格蘭飯店/);
+    // Asserted on what was stored, not on the rendered time: storage is what
+    // reaches the other traveller's phone, and it reads unambiguously.
+    await waitFor(() => {
+      const checkIn = persisted().find(item => item.title === '入住 海雲台格蘭飯店');
+      // With no route estimate, reaching the hotel is the airport-exit time.
+      expect(checkIn?.time).toBe('15:05');
+    });
   });
 });
