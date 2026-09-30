@@ -21,6 +21,7 @@ import {
   textExpensePrompt,
 } from "./services/expenseIntake";
 import { STAY_MODEL, normalizeParsedStay, stayPrompt } from "./services/stayIntake";
+import { FLIGHT_MODEL, flightPrompt, normalizeParsedFlight } from "./services/flightIntake";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -174,6 +175,55 @@ async function startServer() {
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
       res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識訂房截圖，請手動輸入。" });
+    }
+  });
+
+  // A boarding pass is a photo too; same parser placement as the two above.
+  app.post("/api/flights/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
+    const { base64Data, mimeType, tripStartDate, tripEndDate } = req.body ?? {};
+    if (typeof base64Data !== "string" || !base64Data || !isSupportedImageMime(mimeType)) {
+      res.status(400).json({ error: "需要一張機票或登機證截圖。" });
+      return;
+    }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在無法辨識機票，請手動輸入。" }); return; }
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: FLIGHT_MODEL,
+        contents: {
+          parts: [
+            { inlineData: { mimeType: mimeType.trim(), data: base64Data } },
+            { text: flightPrompt(typeof tripStartDate === "string" ? tripStartDate : undefined, typeof tripEndDate === "string" ? tripEndDate : undefined) },
+          ],
+        },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              direction: { type: Type.STRING, enum: ["OUTBOUND", "RETURN"] },
+              flightNumber: { type: Type.STRING },
+              departureAirport: { type: Type.STRING },
+              departureAirportIata: { type: Type.STRING },
+              departureDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+              departureTime: { type: Type.STRING, description: "HH:mm local" },
+              arrivalAirport: { type: Type.STRING },
+              arrivalAirportIata: { type: Type.STRING },
+              arrivalDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+              arrivalTime: { type: Type.STRING, description: "HH:mm local" },
+              isUncertain: { type: Type.BOOLEAN },
+            },
+            required: ["departureDate", "departureTime"],
+          },
+        },
+      });
+      const flight = normalizeParsedFlight(JSON.parse(cleanModelJson(response.text ?? "")));
+      if (!flight) { res.status(422).json({ error: "這張截圖看不出起飛日期與時間，請手動輸入。" }); return; }
+      res.json(flight);
+    } catch (error) {
+      const status = quotaStatusOf(error) ?? 502;
+      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識機票，請手動輸入。" });
     }
   });
 

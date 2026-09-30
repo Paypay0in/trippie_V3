@@ -144,6 +144,7 @@ import ItineraryCalendar from "./components/ItineraryCalendar";
 import ItineraryItemForm from "./components/ItineraryItemForm";
 import FlightAnchorsForm from "./components/FlightAnchorsForm";
 import StayUploadCard from "./components/StayUploadCard";
+import { reconcileFlightDerivedItems } from "./services/flightDerivedItems";
 import ItineraryPlanningAssistant from "./components/ItineraryPlanningAssistant";
 import TravelBookView from "./components/TravelBookView";
 import PointsDashboard from "./components/PointsDashboard";
@@ -1584,51 +1585,18 @@ const App: React.FC = () => {
       });
     }
   }, [expenses, viewMode, itinerary.length]);
+  // Every anchor id this device has held, including ones just deleted.
+  //
+  // Anchors do not sync but the items they derive do, so a companion receives
+  // flight items without the anchor behind them. Without this set the
+  // reconciliation below cannot tell "deleted here" from "never mine", and the
+  // companion's device deletes the owner's flights for both of them.
+  const knownFlightAnchorIds = useRef<Set<string>>(new Set());
   useEffect(() => {
-    setItinerary((current) => {
-      const derived = flightAnchors.flatMap((anchor) => {
-        if (
-          !anchor.departureDate ||
-          !anchor.departureTime ||
-          !anchor.departureAirport
-        )
-          return [];
-        const [hours, minutes] = anchor.departureTime.split(":").map(Number);
-        const total =
-          hours * 60 + minutes - (anchor.airportArrivalBufferMinutes || 120);
-        const arrivalTime = `${String(Math.floor(Math.max(0, total) / 60)).padStart(2, "0")}:${String(Math.max(0, total) % 60).padStart(2, "0")}`;
-        return [
-          {
-            id: `flight-arrival-${anchor.id}`,
-            time: arrivalTime,
-            title: "抵達機場",
-            location: anchor.departureAirport,
-            notes: "依航班起飛時間與機場緩衝自動推算，可再編輯",
-            type: "TRANSPORT" as const,
-            date: anchor.departureDate,
-            isCompleted: false,
-            derivedFromFlightAnchorId: anchor.id,
-          },
-          {
-            id: `flight-departure-${anchor.id}`,
-            time: anchor.departureTime,
-            title: "航班起飛",
-            location: anchor.departureAirport,
-            notes: "由已保存航班錨點產生",
-            type: "FLIGHT" as const,
-            date: anchor.departureDate,
-            isCompleted: false,
-            derivedFromFlightAnchorId: anchor.id,
-          },
-        ];
-      });
-      const kept = current.filter((item) => !item.derivedFromFlightAnchorId);
-      const next = [...kept, ...derived];
-      return next.length === current.length &&
-        next.every((item, index) => item === current[index])
-        ? current
-        : next;
-    });
+    for (const anchor of flightAnchors) knownFlightAnchorIds.current.add(anchor.id);
+    setItinerary((current) =>
+      reconcileFlightDerivedItems(current, flightAnchors, knownFlightAnchorIds.current),
+    );
   }, [flightAnchors]);
   useEffect(() => {
     localStorage.setItem("trippie_origin_country", originCountry);

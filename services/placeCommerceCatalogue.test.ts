@@ -220,6 +220,6 @@ describe('server route registration order', () => {
     const inline = [...server.matchAll(/app\.(?:post|put|patch)\("([^"]+)",\s*express\.json\(/g)].map(m => m[1]);
     // Photos are the only bodies this server accepts above 16kb.
     // Widening that to another route is a decision, not a detail.
-    expect(inline).toEqual(['/api/expenses/parse-image', '/api/stays/parse-image']);
+    expect(inline).toEqual(['/api/expenses/parse-image', '/api/stays/parse-image', '/api/flights/parse-image']);
   });
 });

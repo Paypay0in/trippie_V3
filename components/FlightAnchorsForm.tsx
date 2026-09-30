@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlightAirport, FlightAnchor, TripFlightMode } from '../types';
-import { Plane, PlaneTakeoff, PlaneLanding, Settings2, Clock, MapPin, X, Check } from 'lucide-react';
+import { Plane, PlaneTakeoff, PlaneLanding, Settings2, Clock, MapPin, X, Check, Camera, Loader2, AlertTriangle } from 'lucide-react';
 import { formatAirportLabel, searchAirports } from '../services/airportDirectory';
+import { applyFlightToDraft, ParsedFlight } from '../services/flightIntake';
 import {
   airportOf,
   applyAirport,
@@ -258,6 +259,55 @@ export default function FlightAnchorsForm({
     setEditing(false);
   };
 
+  // Upload stays alongside manual entry rather than replacing it. A boarding
+  // pass can be blurry, cropped, or a photo of a screen, and a flight is the
+  // one thing on a trip that cannot be approximately right — so the parse fills
+  // the draft for the traveller to confirm, never the saved anchors directly.
+  const fileInput = useRef<HTMLInputElement>(null);
+  const uploadDirection = useRef<FlightAnchor['direction']>('OUTBOUND');
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const [scanNote, setScanNote] = useState('');
+
+  const scanTicket = async (file: File, direction: FlightAnchor['direction']) => {
+    setScanError('');
+    setScanNote('');
+    setScanning(true);
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+        reader.onerror = () => reject(new Error('read failed'));
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch('/api/flights/parse-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64Data, mimeType: file.type, tripStartDate: startDate, tripEndDate: endDate }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setScanError(body?.error || '辨識失敗，請手動輸入。');
+        return;
+      }
+      const flight = await response.json() as ParsedFlight;
+      // The model's own read of which leg this is beats the button pressed,
+      // but only when it actually gave one.
+      const target = flight.direction && flightMode === 'ROUND_TRIP' ? flight.direction : direction;
+      setDraft(current => applyFlightToDraft(current, flight, target));
+      setScanNote(
+        flight.isUncertain
+          ? '已填入，但截圖辨識不完全，請逐欄核對。'
+          : `已填入${target === 'RETURN' ? '回程' : '去程'}，請確認後儲存。`,
+      );
+    } catch {
+      setScanError('辨識失敗，請手動輸入。');
+    } finally {
+      setScanning(false);
+      if (fileInput.current) fileInput.current.value = '';
+    }
+  };
+
   const cancel = () => {
     setDraft(buildFlightAnchorDraft(anchors, context, flightMode));
     setHasAttemptedSave(false);
@@ -383,6 +433,41 @@ export default function FlightAnchorsForm({
           ))}
         </div>
       )}
+
+      <div className="mb-4 rounded-[20px] border border-dashed border-[#d9d5f5] bg-[#fbfaff] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-bold text-slate-500">有機票或登機證截圖？直接上傳</p>
+          <button
+            type="button"
+            disabled={scanning}
+            onClick={() => {
+              uploadDirection.current = 'OUTBOUND';
+              fileInput.current?.click();
+            }}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-black text-[#5b3df5] disabled:opacity-50"
+          >
+            {scanning ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+            {scanning ? '辨識中' : '上傳截圖'}
+          </button>
+        </div>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={event => {
+            const file = event.target.files?.[0];
+            if (file) void scanTicket(file, uploadDirection.current);
+          }}
+        />
+        {scanError && (
+          <p className="mt-2 flex items-start gap-1.5 text-[11px] font-bold text-rose-600">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            {scanError}
+          </p>
+        )}
+        {scanNote && <p className="mt-2 text-[11px] font-bold text-[#5b3df5]">{scanNote}</p>}
+      </div>
 
       <div className="space-y-3">
         {draft.map(anchor => {
