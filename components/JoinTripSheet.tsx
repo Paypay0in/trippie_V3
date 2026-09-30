@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Loader2, Users } from 'lucide-react';
 import { InvitePreview, claimInvite, inviteTokenFromUrl, previewInvite } from '../services/tripInvites';
+import { claimFailureMessage } from '../services/inviteFailure';
 import { getSession, subscribeToAuthChanges } from '../services/authService';
 
 /**
@@ -109,7 +110,7 @@ const JoinTripSheet: React.FC = () => {
         return;
       }
       setState('error');
-      setError(result.status === 'unavailable' ? '雲端尚未設定，無法加入。' : '加入失敗，請再試一次或請對方重新邀請。');
+      setError(result.status === 'unavailable' ? '雲端尚未設定，無法加入。' : claimFailureMessage(result.message));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, authUserId, state]);

@@ -47,6 +47,7 @@ import PhaseSelector from "./components/PhaseSelector";
 import ExpenseForm from "./components/ExpenseForm";
 import { useTripSync } from "./hooks/useTripSync";
 import { createInviteLink, inviteLinkFor } from "./services/tripInvites";
+import { inviteFailureMessage } from "./services/inviteFailure";
 import { applicableBroadcastFields, cloudOwnsSharedState } from "./services/sharedStateOwnership";
 import JoinTripSheet from "./components/JoinTripSheet";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
@@ -3879,7 +3880,16 @@ const App: React.FC = () => {
     try {
       const result = await createInviteLink(tripId, companion.id);
       if (result.status !== "ok") {
-        showToast(result.status === "unavailable" ? "雲端尚未設定，無法邀請" : "產生邀請連結失敗", "error");
+        // The database function refuses for reasons the traveller can act on
+        // — the trip or this companion has not reached the server yet — and
+        // every one of them arrived as 「產生邀請連結失敗」, which says only
+        // that it did not work.
+        showToast(
+          result.status === "unavailable"
+            ? "雲端尚未設定，無法邀請"
+            : inviteFailureMessage(result.message),
+          "error",
+        );
         return;
       }
       setInviteLink({

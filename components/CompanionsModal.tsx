@@ -144,10 +144,23 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                 */}
                 <div className="mt-3 flex flex-col items-center gap-2 rounded-2xl bg-white p-3 ring-1 ring-slate-200">
                   <QRCodeSVG value={inviteLink.url} size={148} level="M" includeMargin={false} />
+
                   <p className="text-center text-[11px] leading-5 text-slate-500">
                     用她手機的<span className="font-bold text-slate-600">相機</span>直接掃這個碼
                   </p>
                 </div>
+                {/*
+                  Said here because iOS makes it unavoidable and invisible. A
+                  scanned link always opens Safari — a home-screen web app
+                  cannot capture an http URL — and Safari does not share
+                  storage with that home-screen app. So joining in Safari and
+                  then opening the icon shows an empty app, which reads as the
+                  invite having failed when it did not.
+                */}
+                <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-900">
+                  掃描一定會在 <span className="font-bold">Safari</span> 打開，不會開已經加到桌面的 App。
+                  她在 Safari 加入之後，如果要用桌面上的圖示，<span className="font-bold">要用同一個帳號在那裡再登入一次</span>，行程和帳目就會出現。
+                </p>
                 <div className="mt-2 break-all rounded-xl bg-white px-3 py-2 text-[11px] text-slate-600 ring-1 ring-slate-200">
                   {inviteLink.url}
                 </div>
