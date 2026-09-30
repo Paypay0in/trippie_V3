@@ -399,6 +399,100 @@ async function startServer() {
   // shipped 404-equivalent twice.
   registerPlaceCommerceRoute(app);
 
+  /**
+   * One leg of a day: how you actually get from this place to the next one.
+   *
+   * Separate from /api/routes/estimate, which exists to buffer a fixed event and
+   * asks for DRIVE only. That is fine for its purpose and wrong for this one:
+   * South Korea publishes no Google driving or walking routes at all — verified
+   * again today, 甘川文化村 → 海雲台 answers `{}` for DRIVE and for WALK, and
+   * 4672 seconds for TRANSIT. A traveller told 「78 分鐘車程」 goes looking for a
+   * taxi that will not come, so every answer here names the mode that produced
+   * it, and a mode with no route says so rather than borrowing another's number.
+   */
+  app.post("/api/routes/leg", async (req, res) => {
+    const values = [req.body?.originLatitude, req.body?.originLongitude, req.body?.destinationLatitude, req.body?.destinationLongitude].map(Number);
+    const [originLatitude, originLongitude, destinationLatitude, destinationLongitude] = values;
+    const valid = values.every(Number.isFinite)
+      && Math.abs(originLatitude) <= 90 && Math.abs(destinationLatitude) <= 90
+      && Math.abs(originLongitude) <= 180 && Math.abs(destinationLongitude) <= 180;
+    if (!valid) { res.status(400).json({ error: "需要出發與抵達的座標。" }); return; }
+
+    const MODES = ["TRANSIT", "DRIVE", "WALK"] as const;
+    const requested = MODES.includes(req.body?.mode) ? req.body.mode as typeof MODES[number] : "TRANSIT";
+    const departureTime = typeof req.body?.departureTime === "string" && !Number.isNaN(Date.parse(req.body.departureTime))
+      ? new Date(req.body.departureTime).toISOString()
+      : undefined;
+
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "路線服務尚未設定。" }); return; }
+
+    // A transit departure in the past is refused by the provider, and a trip
+    // being planned is usually in the future — but not always, so the request
+    // only carries a departure time when it is still ahead of now.
+    const future = departureTime && Date.parse(departureTime) > Date.now() ? departureTime : undefined;
+
+    try {
+      const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.legs.steps.travelMode,routes.legs.steps.staticDuration,routes.legs.steps.transitDetails",
+        },
+        body: JSON.stringify({
+          origin: { location: { latLng: { latitude: originLatitude, longitude: originLongitude } } },
+          destination: { location: { latLng: { latitude: destinationLatitude, longitude: destinationLongitude } } },
+          travelMode: requested,
+          languageCode: "zh-TW",
+          ...(requested === "TRANSIT" ? (future ? { departureTime: future } : {}) : {}),
+          ...(requested === "DRIVE" ? { routingPreference: "TRAFFIC_AWARE" } : {}),
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) { res.status(502).json({ error: "路線服務暫時無法使用。" }); return; }
+
+      const data = await response.json() as {
+        routes?: Array<{
+          distanceMeters?: number;
+          duration?: string;
+          legs?: Array<{ steps?: Array<Record<string, any>> }>;
+        }>;
+      };
+      const route = data.routes?.[0];
+      const durationSeconds = route?.duration ? Number(String(route.duration).replace(/s$/, "")) : NaN;
+
+      // An empty body is the provider saying "this mode does not exist here",
+      // which is a fact the traveller needs, not an error to retry.
+      if (!route || !Number.isFinite(durationSeconds)) {
+        res.json({ mode: requested, available: false });
+        return;
+      }
+
+      const steps = (route.legs?.[0]?.steps || []).map(step => {
+        const transit = step.transitDetails;
+        const line = transit?.transitLine || {};
+        const stops = transit?.stopDetails || {};
+        return {
+          travelMode: typeof step.travelMode === "string" ? step.travelMode : "WALK",
+          durationSeconds: step.staticDuration ? Number(String(step.staticDuration).replace(/s$/, "")) : undefined,
+          lineName: typeof line.nameShort === "string" ? line.nameShort : typeof line.name === "string" ? line.name : undefined,
+          departureStop: typeof stops.departureStop?.name === "string" ? stops.departureStop.name : undefined,
+          arrivalStop: typeof stops.arrivalStop?.name === "string" ? stops.arrivalStop.name : undefined,
+          stopCount: typeof transit?.stopCount === "number" ? transit.stopCount : undefined,
+        };
+      }).filter(step => step.durationSeconds === undefined || step.durationSeconds > 0);
+
+      res.json({
+        mode: requested,
+        available: true,
+        durationSeconds,
+        distanceMeters: typeof route.distanceMeters === "number" ? route.distanceMeters : undefined,
+        steps,
+      });
+    } catch { res.status(502).json({ error: "路線服務暫時無法使用。" }); }
+  });
+
   app.post("/api/routes/estimate", async (req, res) => {
     const values = [req.body?.currentLatitude, req.body?.currentLongitude, req.body?.destinationLatitude, req.body?.destinationLongitude].map(Number);
     const [currentLatitude, currentLongitude, destinationLatitude, destinationLongitude] = values;
@@ -656,14 +750,14 @@ async function startServer() {
     const residenceCountryCode = typeof req.body?.residenceCountryCode === "string" ? req.body.residenceCountryCode.trim().toUpperCase() : undefined;
     if (!destination) { res.status(400).json({ error: "A destination is required." }); return; }
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) { res.status(503).json({ error: "Travel rules research is unavailable." }); return; }
+    if (!apiKey) { res.status(503).json({ error: "入境規定查詢尚未設定，請聯絡管理者。" }); return; }
     const fetchedAt = new Date().toISOString();
     try {
       const ai = new GoogleGenAI({ apiKey });
       let researchMode: "grounded" | "model_knowledge" = "grounded";
       let response;
-      const generateResearch = (grounded: boolean) => ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const generateResearch = (model: string, grounded: boolean) => ai.models.generateContent({
+        model,
         contents: `研究目前旅遊規定：目的地 ${destination}；旅程日期 ${startDate || "未知"} 至 ${endDate || "未知"}；使用護照國籍 countryCode ${passportCountryCode || "未知"}；居住地 ${residenceCountryCode || "未知"}。請只依可追溯的官方移民、海關、稅務、官方旅遊或機場來源整理入境/簽證與購物退稅。護照國籍不等於居住地。每個入境 actionable item 必須有且只有一個 actionType：visa_or_eta、passport_validity、health_declaration、customs_declaration、arrival_form、required_documents、onward_travel 或 other。相同 actionType 只產生一個 canonical action。若退稅規則有官方且可計算的數值，除 user-facing guidance 外回傳 taxRefund.numericRule，且只使用 thresholdScope per_transaction；提供 currency、minSpend 與 refundMethod { type: rate, rate }，無法安全計算時使用 refundMethod { type: not_calculable }。不要自行決定 numericCalculationAvailable。model_knowledge fallback 可提供 guidance，但不得提供可信 numericRule。每個 grounded source URL 必須來自 Google Search grounding 結果，不可捏造。**所有給使用者看的文字一律使用繁體中文**（title、description、timingText、summary、guidance 等），來源是英文或日文官網時要翻譯，不要照抄原文。唯一例外是官方系統、表單與服務的專有名稱（例如 Visit Japan Web、ESTA、K-ETA），這些保留原名，因為旅客到現場要認得出來。`,
         config: {
           ...(grounded ? { tools: [{ googleSearch: {} }] } : {}),
@@ -678,21 +772,60 @@ async function startServer() {
           },
         },
       });
-      try {
-        response = await generateResearch(true);
-      } catch (error: any) {
-        const status = error?.status ?? error?.response?.status;
-        const resourceExhausted = error?.code === "RESOURCE_EXHAUSTED" || error?.message?.includes("RESOURCE_EXHAUSTED");
-        if (status !== 429 && !resourceExhausted) throw error;
-        researchMode = "model_knowledge";
-        try {
-          response = await generateResearch(false);
-        } catch (fallbackError: any) {
-          throw fallbackError;
+      /**
+       * The free tier meters per model per day, so one model running out is not
+       * the service running out — it is the reason to ask the next one. Both
+       * attempts used to name the same model, which meant the grounded call and
+       * its own fallback failed for the identical reason and the traveller was
+       * told 「Travel rules research is unavailable.」 with nothing else. Same
+       * order as INTAKE_MODELS, for the same reason.
+       */
+      const RESEARCH_MODELS = [
+        "gemini-3-flash-preview",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+      ];
+      const isQuotaError = (error: any): boolean =>
+        (error?.status ?? error?.response?.status) === 429
+        || error?.code === "RESOURCE_EXHAUSTED"
+        || String(error?.message || "").includes("RESOURCE_EXHAUSTED");
+
+      let everyModelOutOfQuota = true;
+      let lastError: unknown;
+      for (const model of RESEARCH_MODELS) {
+        // Grounded first on every model: a cited answer from a smaller model
+        // beats an uncited one from a larger.
+        for (const grounded of [true, false]) {
+          try {
+            response = await generateResearch(model, grounded);
+            researchMode = grounded ? "grounded" : "model_knowledge";
+            everyModelOutOfQuota = false;
+            break;
+          } catch (error) {
+            lastError = error;
+            if (isQuotaError(error)) continue;
+            everyModelOutOfQuota = false;
+            // A grounded call can fail for reasons the plain one will not —
+            // search is not available on every model. Anything else is a real
+            // failure and must not be hidden behind a quota message.
+            if (grounded) continue;
+            throw error;
+          }
         }
+        if (response) break;
+      }
+
+      if (!response) {
+        if (everyModelOutOfQuota) {
+          console.warn("[travel-rules] every model out of quota");
+          res.status(429).json({ error: "今日 AI 查詢額度已用完，明天會恢復。你仍可以手動建立入境待辦。" });
+          return;
+        }
+        throw lastError;
       }
       const raw = response.text?.trim();
-      if (!raw) { res.status(502).json({ error: "Travel rules research returned no result." }); return; }
+      if (!raw) { res.status(502).json({ error: "入境規定查詢沒有回傳內容，請稍後再試一次。" }); return; }
       const parsed = JSON.parse(raw) as Record<string, any>;
       const groundedUrls = new Set<string>(((response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || []).map((chunk: any) => chunk.web?.uri).filter((url: unknown): url is string => typeof url === "string"));
       const safeSource = (source: any) => source && typeof source.title === "string" && typeof source.url === "string" && /^https?:\/\//i.test(source.url) && groundedUrls.has(source.url) ? { title: source.title.trim(), url: source.url, publisher: typeof source.publisher === "string" ? source.publisher.trim() || undefined : undefined } : undefined;
@@ -711,7 +844,12 @@ async function startServer() {
       const numericRuleSource = numericRule ? researchMode : undefined;
       const numericCalculationAvailable = Boolean(numericRule);
       res.json({ travelRules: { context: { tripId, destination, passportCountryCode, residenceCountryCode, residenceStatus: residenceCountryCode ? "known" : "unknown", startDate, endDate }, destination, passportCountryCode, residenceStatus: residenceCountryCode ? "known" : "unknown", entry: { guidance: typeof parsed.entry?.summary === "string" ? parsed.entry.summary : "", summary: typeof parsed.entry?.summary === "string" ? parsed.entry.summary : "", actionableItems: actions, sources: researchMode === "grounded" ? sources(parsed.entry?.sources) : [], fetchedAt }, taxRefund: { guidance: typeof parsed.taxRefund?.summary === "string" ? parsed.taxRefund.summary : "", summary: typeof parsed.taxRefund?.summary === "string" ? parsed.taxRefund.summary : "", merchantRequirements: Array.isArray(parsed.taxRefund?.merchantRequirements) ? parsed.taxRefund.merchantRequirements : [], documentRequirements: Array.isArray(parsed.taxRefund?.documentRequirements) ? parsed.taxRefund.documentRequirements : [], processNotes: Array.isArray(parsed.taxRefund?.processNotes) ? parsed.taxRefund.processNotes : [], numericRule, numericRuleSource, sources: researchMode === "grounded" ? groundedSources : [], fetchedAt, numericCalculationAvailable, disclaimer: typeof parsed.taxRefund?.disclaimer === "string" ? parsed.taxRefund.disclaimer : "退稅資訊僅供行前參考，資格仍取決於居住地與官方規定。" }, generatedAt: fetchedAt, source: "AI_PREPARATION", researchMode, disclaimer: researchMode === "grounded" ? "資料來自搜尋研究結果，請於出發前向官方來源確認。" : "此為 AI 行前整理，未經即時官方來源驗證，請於出發前再次確認最新規定。" } });
-    } catch { res.status(502).json({ error: "Travel rules research is unavailable." }); }
+    } catch (error) {
+      // Silent before: the traveller got one English sentence and we got
+      // nothing, so a quota limit and a real bug looked identical.
+      console.warn("[travel-rules] research failed", error instanceof Error ? error.message : error);
+      res.status(502).json({ error: "入境規定查詢暫時無法使用，請稍後再試一次。" });
+    }
   });
 
   app.post("/api/community/post-slices", async (req, res) => {
@@ -1431,6 +1569,10 @@ ${MODE_RULES[mode]}
 如果你沒辦法明確說出一家真實存在的店名，就換一個你說得出名字的地點，或者乾脆不要提這一筆，並在 warnings 說明。寧可少給一個建議，也不要給一個查不到的名字。
 7. 每一筆變更都要在 reason 用繁體中文寫一句簡短理由。
 8. summary 用繁體中文寫一兩句話，說明這次調整的整體想法。
+9. update 只能改停留時間與備註，**改不了地點名稱**。所以絕對不要在 summary 或 reason 宣稱你「修正了地點名稱」「更新為具體店家」——你做不到，那句話只會是假的。
+10.【2】裡如果有既有項目的名稱是描述而不是店名（例如「廣安里海景早午餐咖啡廳」「知名烤肉店」），那一筆在地圖上查不到，使用者手上是一張沒有地址與照片的空白卡片。
+**不要為了替換它而 remove 它。** 你沒有可靠的方式在同一次回應裡補上替代地點，只 remove 不補，使用者就是平白少一筆行程。
+請在 warnings 用一句話指出那一筆的名稱查不到、需要換成真實店名，然後照常安排其他部分。使用者的畫面上會有換地點的按鈕。
 只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
