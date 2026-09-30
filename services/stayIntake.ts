@@ -13,7 +13,7 @@
  * Everything here is pure; the provider call is injected by the caller.
  */
 
-import { addLocalDays } from './localDate';
+import { addLocalDays, fromLocalIsoDate } from './localDate';
 
 export const STAY_MODEL = 'gemini-3-flash-preview';
 
@@ -288,3 +288,45 @@ export const staysFromItinerary = (
  */
 export const stayForNight = (stays: StaySpan[], date: string): StaySpan | undefined =>
   date ? stays.find(stay => stay.nights.includes(date)) : undefined;
+
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+/**
+ * The stay's dates as one line: 10/02（五）– 10/04（日）· 2 晚.
+ *
+ * Built from the local calendar rather than a locale formatter so the weekday
+ * matches the day tab beside it. A date read in UTC is a day out east of
+ * Greenwich, which is the bug this project has already paid for once.
+ */
+export const formatStayDates = (stay: Pick<StaySpan, 'checkInDate' | 'checkOutDate' | 'nights'>): string => {
+  const label = (iso?: string) => {
+    if (!iso) return '';
+    const date = fromLocalIsoDate(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    return `${iso.slice(5).replace('-', '/')}（${WEEKDAYS[date.getDay()]}）`;
+  };
+
+  const checkIn = label(stay.checkInDate);
+  const checkOut = label(stay.checkOutDate);
+  const nights = stay.nights.length;
+
+  if (checkIn && checkOut) {
+    return nights > 0 ? `${checkIn} – ${checkOut} · ${nights} 晚` : `${checkIn} – ${checkOut}`;
+  }
+  if (checkIn) return `${checkIn} 入住`;
+  if (checkOut) return `${checkOut} 退房`;
+  return '尚未設定日期';
+};
+
+/**
+ * A maps link for a place, preferring the one Google resolved.
+ *
+ * The address fallback is a search rather than a pin: an address string can be
+ * ambiguous, and dropping a pin on the wrong 上野 is worse than handing the
+ * traveller a search they can see the results of.
+ */
+export const stayMapUrl = (stay: { name: string; address?: string; mapsUri?: string }): string => {
+  if (stay.mapsUri) return stay.mapsUri;
+  const query = [stay.name, stay.address].filter(Boolean).join(' ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+};

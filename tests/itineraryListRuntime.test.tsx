@@ -550,12 +550,72 @@ describe('tonight’s stay banner', () => {
     expect(within(screen.getByTestId('stay-banner-empty')).getByText('新增住宿資訊')).toBeTruthy();
   });
 
-  it('opens the booking from a night whose check-in card is on another day', async () => {
-    // The lookup searched only the open day, so on every night after the
-    // first the banner found nothing and silently did nothing at all.
+  it('opens the stay sheet from a night whose check-in card is on another day', async () => {
     const user = await openDay('Day 1');
     await user.click(screen.getByTestId('stay-banner'));
-    expect(await screen.findByDisplayValue('入住 海雲台格蘭飯店')).toBeTruthy();
+
+    const sheet = await screen.findByRole('dialog', { name: '住宿詳情' });
+    // What someone standing outside a hotel at 23:00 needs: which one, when,
+    // and where — not a form with fourteen editable fields.
+    expect(within(sheet).getByText('海雲台格蘭飯店')).toBeTruthy();
+    expect(within(sheet).getByText(/10\/03/)).toBeTruthy();
+    expect(within(sheet).getByRole('link', { name: /在地圖中查看/ })).toBeTruthy();
+  });
+
+  it('shows no call or website button when the place could not be resolved', async () => {
+    // Every Google-sourced detail is best effort. A button that dials nothing
+    // is worse than a smaller sheet.
+    const user = await openDay('Day 1');
+    await user.click(screen.getByTestId('stay-banner'));
+    const sheet = await screen.findByRole('dialog', { name: '住宿詳情' });
+
+    expect(within(sheet).queryByRole('link', { name: /致電/ })).toBeNull();
+    expect(within(sheet).queryByRole('link', { name: /前往官網/ })).toBeNull();
+  });
+
+  it('shows the photo the places endpoint nests, and credits it', async () => {
+    // The endpoint answers { photo: { imageUrl, attribution } }. Reading
+    // imageUrl off the top level found nothing and fell back to the bed icon,
+    // which looks like a hotel with no photograph rather than a bug.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      const path = String(url);
+      if (path.endsWith('/api/places/resolve')) {
+        return { ok: true, json: async () => ({ placeId: 'p1', address: '海雲台' }) };
+      }
+      if (path.endsWith('/api/places/details')) {
+        return { ok: true, json: async () => ({ phone: '+82 51-742-2121', website: 'https://example.com' }) };
+      }
+      if (path.endsWith('/api/places/photo')) {
+        return { ok: true, json: async () => ({ photo: { imageUrl: 'https://img.example/a.jpg', attribution: { uri: 'https://maps.example/x' } } }) };
+      }
+      return originalFetch(url as RequestInfo, init);
+    }) as unknown as typeof fetch;
+
+    try {
+      const user = await openDay('Day 1');
+      await user.click(screen.getByTestId('stay-banner'));
+      const sheet = await screen.findByRole('dialog', { name: '住宿詳情' });
+
+      // Queried by tag: the photo sits beside the name it illustrates, so its
+      // alt is empty and it is correctly not exposed as an image to a reader.
+      await waitFor(() => expect(sheet.querySelector('img')).toBeTruthy());
+      expect(sheet.querySelector('img')?.getAttribute('src')).toBe('https://img.example/a.jpg');
+      expect(within(sheet).getByLabelText('查看照片來源')).toBeTruthy();
+      // And the contact buttons appear once their values arrive.
+      expect(within(sheet).getByRole('link', { name: /致電/ })).toBeTruthy();
+      expect(within(sheet).getByRole('link', { name: /前往官網/ })).toBeTruthy();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('closes again', async () => {
+    const user = await openDay('Day 1');
+    await user.click(screen.getByTestId('stay-banner'));
+    await screen.findByRole('dialog', { name: '住宿詳情' });
+    await user.click(screen.getByLabelText('關閉'));
+    expect(screen.queryByRole('dialog', { name: '住宿詳情' })).toBeNull();
   });
 });
 

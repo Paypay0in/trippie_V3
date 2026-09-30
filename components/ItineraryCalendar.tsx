@@ -27,7 +27,8 @@ import {
 } from '../services/itineraryFixedEvents';
 import { estimateRoute } from '../services/routesService';
 import { enumerateLocalDates } from '../services/localDate';
-import { stayForNight, staysFromItinerary } from '../services/stayIntake';
+import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
+import StayDetailSheet from './StayDetailSheet';
 
 interface Props {
   items: ItineraryItem[];
@@ -85,6 +86,8 @@ const VISIBLE_NOTE_COUNT = 3;
 const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onApplyFixedAdjustment, onTogglePin }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ItineraryItem | null>(null);
+  const [stayDetail, setStayDetail] = useState<StaySpan | null>(null);
+
   const dates = useMemo(() => (startDate && endDate ? enumerateLocalDates(startDate, endDate) : []), [startDate, endDate]);
   const [selectedDate, setSelectedDate] = useState<string | undefined>(dates[0]);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : dates[0];
@@ -695,15 +698,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         <button
           type="button"
           data-testid="stay-banner"
-          onClick={() => {
-            // Looked up across the whole itinerary, not this day: on every
-            // night after the first, the check-in card lives on another day,
-            // and searching only today made the banner silently do nothing.
-            const target = items.find(item => item.id === tonightsStay.itemId);
-            if (!target) return;
-            if (target.date) setSelectedDate(target.date);
-            onEdit?.(target);
-          }}
+          onClick={() => setStayDetail(tonightsStay)}
           className="mb-4 flex w-full items-center gap-3 rounded-[20px] border border-[#ecebf5] bg-white px-4 py-3 text-left shadow-[0_6px_18px_rgba(17,26,74,0.05)]"
         >
           {/*
@@ -825,6 +820,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             </div>
           </div>
         </div>
+      )}
+
+      {stayDetail && (
+        <StayDetailSheet
+          stay={stayDetail}
+          notes={items.find(item => item.id === stayDetail.itemId)?.notes}
+          onClose={() => setStayDetail(null)}
+        />
       )}
     </div>
   );

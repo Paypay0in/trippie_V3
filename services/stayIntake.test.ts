@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeParsedStay, stayForNight, stayNights, staysFromItinerary, stayToItineraryItems } from './stayIntake';
+import { formatStayDates, normalizeParsedStay, stayForNight, stayMapUrl, stayNights, staysFromItinerary, stayToItineraryItems } from './stayIntake';
 
 let counter = 0;
 const makeId = () => `stay-${++counter}`;
@@ -248,5 +248,58 @@ describe('a trip with more than one place to sleep', () => {
     expect(stayForNight(gapped, '2026-10-03')).toBeUndefined();
     expect(stayForNight(gapped, '2026-10-04')).toBeUndefined();
     expect(stayForNight(gapped, '2026-10-05')?.name).toBe('B 旅館');
+  });
+});
+
+describe('formatStayDates', () => {
+  it('reads as one line with weekdays and the night count', () => {
+    // 2026-10-02 is a Friday, 2026-10-07 a Wednesday.
+    expect(formatStayDates({ checkInDate: '2026-10-02', checkOutDate: '2026-10-07', nights: ['a', 'b', 'c', 'd', 'e'] }))
+      .toBe('10/02（五） – 10/07（三） · 5 晚');
+  });
+
+  it('takes the weekday from the local calendar, not from UTC', () => {
+    // The whole project has paid once for reading a date in UTC: east of
+    // Greenwich that lands a day earlier, and the weekday beside the day tab
+    // would disagree with the tab itself.
+    const previous = process.env.TZ;
+    process.env.TZ = 'Asia/Taipei';
+    try {
+      expect(formatStayDates({ checkInDate: '2026-10-02', checkOutDate: '2026-10-03', nights: ['a'] }))
+        .toContain('10/02（五）');
+    } finally {
+      process.env.TZ = previous;
+    }
+  });
+
+  it('says what it knows when only one end is known', () => {
+    expect(formatStayDates({ checkInDate: '2026-10-02', nights: [] })).toBe('10/02（五） 入住');
+    expect(formatStayDates({ checkOutDate: '2026-10-07', nights: [] })).toBe('10/07（三） 退房');
+    expect(formatStayDates({ nights: [] })).toBe('尚未設定日期');
+  });
+
+  it('drops the night count rather than printing zero', () => {
+    // Same-day in and out: a day room, not a night.
+    expect(formatStayDates({ checkInDate: '2026-10-02', checkOutDate: '2026-10-02', nights: [] }))
+      .toBe('10/02（五） – 10/02（五）');
+  });
+});
+
+describe('stayMapUrl', () => {
+  it('prefers the link Google resolved', () => {
+    expect(stayMapUrl({ name: 'X', address: 'Y', mapsUri: 'https://maps.app.goo.gl/abc' }))
+      .toBe('https://maps.app.goo.gl/abc');
+  });
+
+  it('falls back to a search, not a dropped pin', () => {
+    // An address string can be ambiguous; a search the traveller can see the
+    // results of beats a pin confidently placed on the wrong 上野.
+    const url = stayMapUrl({ name: '海雲台格蘭飯店', address: '釜山廣域市海雲台區' });
+    expect(url).toContain('/maps/search/');
+    expect(decodeURIComponent(url)).toContain('海雲台格蘭飯店 釜山廣域市海雲台區');
+  });
+
+  it('works with a name alone', () => {
+    expect(decodeURIComponent(stayMapUrl({ name: '某民宿' }))).toContain('某民宿');
   });
 });

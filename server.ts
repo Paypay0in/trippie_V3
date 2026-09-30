@@ -439,11 +439,24 @@ async function startServer() {
     const placeId = typeof req.body?.placeId === "string" ? req.body.placeId.trim() : "";
     if (!placeId || !process.env.GOOGLE_MAPS_API_KEY) { res.status(404).json({ error: "Place details unavailable." }); return; }
     try {
-      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location" }, signal: AbortSignal.timeout(5_000) });
+      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location,nationalPhoneNumber,internationalPhoneNumber,websiteUri,googleMapsUri" }, signal: AbortSignal.timeout(5_000) });
       if (!response.ok) throw new Error("Place details failed");
-      const data = await response.json() as { id?: string; displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number }; addressComponents?: Array<{ longText?: string; types?: string[] }> };
+      const data = await response.json() as { id?: string; displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number }; addressComponents?: Array<{ longText?: string; types?: string[] }>; nationalPhoneNumber?: string; internationalPhoneNumber?: string; websiteUri?: string; googleMapsUri?: string };
       if (!data.displayName?.text || typeof data.location?.latitude !== "number" || typeof data.location.longitude !== "number") throw new Error("Incomplete place details");
-      res.json({ placeId: data.id || placeId, location: data.displayName.text, address: data.formattedAddress, latitude: data.location.latitude, longitude: data.location.longitude, country: data.addressComponents?.find(c => c.types?.includes("country"))?.longText });
+      res.json({
+        placeId: data.id || placeId,
+        location: data.displayName.text,
+        address: data.formattedAddress,
+        latitude: data.location.latitude,
+        longitude: data.location.longitude,
+        country: data.addressComponents?.find(c => c.types?.includes("country"))?.longText,
+        // Contact details, for a stay the traveller may need to phone from the
+        // street. Absent for places Google has none for, which is why the UI
+        // renders each button only when its value arrived.
+        phone: data.internationalPhoneNumber || data.nationalPhoneNumber,
+        website: data.websiteUri,
+        mapsUri: data.googleMapsUri,
+      });
     } catch { res.status(502).json({ error: "Place details unavailable." }); }
   });
 
