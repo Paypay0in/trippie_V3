@@ -169,3 +169,33 @@ describe('the transport leg, on the planning screen', () => {
     expect(screen.getByText('這段只留了 20 分鐘，實際要 78 分鐘。')).toBeTruthy();
   });
 });
+
+describe('pushing the rest of the day back', () => {
+  it('offers it only when the journey does not fit, and asks for the right time', async () => {
+    const pushed: number[] = [];
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <TransportLeg origin={GAMCHEON} destination={HAEUNDAE} availableMinutes={120} onPushBackNext={minutes => { pushed.push(minutes); return true; }} />,
+    );
+    await waitFor(() => expect(screen.getAllByText(/約 78 分/).length).toBeGreaterThan(0));
+    expect(screen.queryByRole('button', { name: '順延後面的行程' })).toBeNull();
+
+    rerender(
+      <TransportLeg origin={GAMCHEON} destination={HAEUNDAE} availableMinutes={20} onPushBackNext={minutes => { pushed.push(minutes); return true; }} />,
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: '順延後面的行程' })).toBeTruthy());
+
+    await user.click(screen.getByRole('button', { name: '順延後面的行程' }));
+    expect(pushed).toEqual([78]);
+  });
+
+  it('says so when the day refuses to move', async () => {
+    const user = userEvent.setup();
+    render(<TransportLeg origin={GAMCHEON} destination={HAEUNDAE} availableMinutes={20} onPushBackNext={() => false} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '順延後面的行程' })).toBeTruthy());
+
+    await user.click(screen.getByRole('button', { name: '順延後面的行程' }));
+
+    expect(screen.getByText('這一天有固定行程擋著，沒有自動順延。請手動調整。')).toBeTruthy();
+  });
+});

@@ -908,6 +908,12 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     destination={{ latitude: to.latitude!, longitude: to.longitude!, title: to.title }}
                     availableMinutes={Number.isFinite(gap) && gap >= 0 ? gap : undefined}
                     destinationCountry={destinationCountry}
+                    // Reuses the cascade a drag already performs: the next item
+                    // starts when this journey ends, and everything after it on
+                    // the day follows. A fixed event refuses, and says so.
+                    onPushBackNext={onRescheduleItem
+                      ? journeyMinutes => onRescheduleItem(next.id, leaveMinutes + journeyMinutes).ok
+                      : undefined}
                     departureTime={activeDate ? new Date(`${activeDate}T${minutesToTime(leaveMinutes)}:00`).toISOString() : undefined}
                   />
                 );

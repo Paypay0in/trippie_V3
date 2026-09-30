@@ -20,6 +20,15 @@ interface Props {
    * to Naver or Kakao instead of pressing the button again.
    */
   destinationCountry?: string;
+  /**
+   * Pushes the next item — and everything after it on that day — back far
+   * enough that this journey fits. Offered only when the plan leaves less time
+   * than the journey takes, and only ever run on an explicit tap: the day is
+   * the traveller's, and the number is a provider's estimate.
+   *
+   * Returns false when the write was refused, e.g. a fixed event in the way.
+   */
+  onPushBackNext?: (journeyMinutes: number) => boolean;
 }
 
 /** Whether this is the one country whose missing routes have a known reason. */
@@ -54,12 +63,14 @@ const summarize = (leg: RouteLeg): string => {
  * each answers for itself — a mode with no route says so rather than quietly
  * showing another mode's number.
  */
-const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, departureTime, destinationCountry }) => {
+const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, departureTime, destinationCountry, onPushBackNext }) => {
   const [mode, setMode] = useState<TravelMode>('TRANSIT');
   const [leg, setLeg] = useState<RouteLeg | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  /** Set when a push-back was refused, so the tap is not silently ignored. */
+  const [pushBackError, setPushBackError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -115,9 +126,24 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
       )}
 
       {tooTight && (
-        <div data-testid="transport-too-tight" className="mt-1.5 flex items-start gap-1 rounded-lg bg-amber-50 px-2 py-1.5 text-[10px] font-bold leading-4 text-amber-700">
-          <AlertTriangle size={11} className="mt-0.5 shrink-0" />
-          <span className="min-w-0 flex-1">這段只留了 {availableMinutes} 分鐘，實際要 {needed} 分鐘。</span>
+        <div data-testid="transport-too-tight" className="mt-1.5 rounded-lg bg-amber-50 px-2 py-1.5">
+          <div className="flex items-start gap-1 text-[10px] font-bold leading-4 text-amber-700">
+            <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+            <span className="min-w-0 flex-1">這段只留了 {availableMinutes} 分鐘，實際要 {needed} 分鐘。</span>
+          </div>
+          {onPushBackNext && (
+            <button
+              type="button"
+              onClick={() => {
+                setPushBackError('');
+                if (!onPushBackNext(needed!)) setPushBackError('這一天有固定行程擋著，沒有自動順延。請手動調整。');
+              }}
+              className="mt-1.5 min-h-8 w-full rounded-lg bg-white text-[10px] font-black text-amber-700 shadow-sm"
+            >
+              順延後面的行程
+            </button>
+          )}
+          {pushBackError && <p className="mt-1 text-[10px] font-bold leading-4 text-amber-700">{pushBackError}</p>}
         </div>
       )}
 
