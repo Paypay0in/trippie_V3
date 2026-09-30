@@ -1268,12 +1268,9 @@ async function startServer() {
       } catch (groundedError) {
         console.warn("Grounded preparation lookup failed; retrying without search.", groundedError);
         grounded = false;
-        try {
-          response = await withModelFallback(model => generatePreparation(false, model));
-        } catch (primaryError) {
-          console.warn("Primary preparation model failed; using fallback model.", primaryError);
-          response = await generatePreparation(false, "gemini-3.6-flash");
-        }
+        // No third attempt on a named model: the chain has already tried every
+        // one of them, so this was a repeat of the last thing that failed.
+        response = await withModelFallback(model => generatePreparation(false, model));
       }
 
       // Only URLs the search step actually returned. A model-written link is
@@ -1324,7 +1321,6 @@ async function startServer() {
       if (existingItinerary.length === 0) { res.status(400).json({ error: "目前沒有可調整的正式行程。" }); return; }
       const selections = Array.isArray(input.selections) ? input.selections : [];
       const model = "gemini-3-flash-preview";
-      const fallbackModel = "gemini-3.6-flash";
       const planningPreferences = typeof input.planningPreferences === "string"
         ? input.planningPreferences.trim().slice(0, 1200)
         : "";
@@ -1428,18 +1424,17 @@ ${MODE_RULES[mode]}
       let attemptedModel = model;
       try {
         const ai = new GoogleGenAI({ apiKey });
-        let response;
-        try {
-          response = await ai.models.generateContent({ model, ...generationConfig });
-        } catch (primaryError) {
-          // A quota error used to be rethrown here, on the assumption that an
-          // exhausted quota was exhausted everywhere. It is not: the free tier
-          // meters per model per day, so a 429 on one model says nothing about
-          // the next and is precisely when a fallback earns its keep.
-          console.warn("Primary itinerary adjustment model failed; using fallback model.", primaryError);
-          attemptedModel = fallbackModel;
-          response = await ai.models.generateContent({ model: fallbackModel, ...generationConfig });
-        }
+        // The shared chain rather than a second model of its own.
+        //
+        // Two models is one transient failure away from nothing: the primary
+        // was out of quota, the fallback answered 502, and the whole request
+        // was lost. The chain carries four, each with its own daily allowance
+        // and its own retry, and records which one answered so the error
+        // message can still name it.
+        const response = await withModelFallback(candidate => {
+          attemptedModel = candidate;
+          return ai.models.generateContent({ model: candidate, ...generationConfig });
+        });
         const raw = response.text?.trim();
         if (!raw) { res.json({ changes: [], warnings: ["AI 沒有回傳可檢視的調整建議。"] }); return; }
         let data;
@@ -1473,7 +1468,6 @@ ${MODE_RULES[mode]}
       const selections = input.selections as Array<Record<string, unknown>>;
       if (selections.length === 0) { res.status(400).json({ error: "請先選擇要排進行程的收藏靈感。" }); return; }
       const model = "gemini-3-flash-preview";
-      const fallbackModel = "gemini-3.6-flash";
       // Trip-wide guidance the user typed. Bounded before it reaches the prompt so a
       // pasted wall of text cannot crowd out the trip facts or the selection rules.
       const planningPreferences = typeof input.planningPreferences === "string"
@@ -1526,14 +1520,12 @@ ${MODE_RULES[mode]}
       let attemptedModel = model;
       try {
         const ai = new GoogleGenAI({ apiKey });
-        let response;
-        try {
-          response = await ai.models.generateContent({ model, ...generationConfig });
-        } catch (primaryError) {
-          console.warn("Primary itinerary proposal model failed; using fallback model.", primaryError);
-          attemptedModel = fallbackModel;
-          response = await ai.models.generateContent({ model: fallbackModel, ...generationConfig });
-        }
+        // Same reasoning as the adjustment endpoint: four allowances and a
+        // retry each, instead of two models and no second chance.
+        const response = await withModelFallback(candidate => {
+          attemptedModel = candidate;
+          return ai.models.generateContent({ model: candidate, ...generationConfig });
+        });
         const raw = response.text?.trim();
         if (!raw) { res.json({ days: [], warnings: ["AI 沒有回傳可檢視的行程提案。"] }); return; }
         let data;
@@ -1561,16 +1553,10 @@ ${MODE_RULES[mode]}
     try {
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `Create a realistic itinerary proposal only; never claim bookings. Dates ${input.startDate} to ${input.endDate}. Destination: ${input.destination || ''}. Existing itinerary (preserve it): ${JSON.stringify(input.existingItinerary || [])}. Saved travel inspiration with original context: ${JSON.stringify(input.savedInspirations || [])}. Flight anchors: ${JSON.stringify(input.flightAnchors || [])}. Constraints: ${input.constraints || ''}. Return JSON with days [{date,items:[{id,time,title,location,notes,type,date}]}], conflicts [{type,message,existingItemId,proposedItemId}], warnings []. Use only provided facts; unresolved places may remain text.`;
-      let response;
-      try {
-        response = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: prompt, config: { responseMimeType: "application/json" } });
-      } catch (primaryError) {
-        try {
-          response = await ai.models.generateContent({ model: "gemini-3.6-flash", contents: prompt, config: { responseMimeType: "application/json" } });
-        } catch (fallbackError) {
-          throw fallbackError;
-        }
-      }
+      // The chain, rather than a pair. A catch that only rethrows is two
+      // models pretending to be a strategy.
+      const response = await withModelFallback(model =>
+        ai.models.generateContent({ model, contents: prompt, config: { responseMimeType: "application/json" } }));
       const raw = response.text?.trim();
       if (!raw) { res.json({ days: [], conflicts: [], warnings: ["AI 沒有回傳可檢視的行程提案。"] }); return; }
       const data = JSON.parse(raw.replace(/```json|```/g, '').trim());
