@@ -218,8 +218,8 @@ describe('server route registration order', () => {
   it('keeps the oversized-body allowance to the one route that needs it', () => {
     const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
     const inline = [...server.matchAll(/app\.(?:post|put|patch)\("([^"]+)",\s*express\.json\(/g)].map(m => m[1]);
-    // A receipt photo is the only body this server accepts above 16kb.
+    // Photos are the only bodies this server accepts above 16kb.
     // Widening that to another route is a decision, not a detail.
-    expect(inline).toEqual(['/api/expenses/parse-image']);
+    expect(inline).toEqual(['/api/expenses/parse-image', '/api/stays/parse-image']);
   });
 });

@@ -20,6 +20,7 @@ import {
   rateFromFxResponse,
   textExpensePrompt,
 } from "./services/expenseIntake";
+import { STAY_MODEL, normalizeParsedStay, stayPrompt } from "./services/stayIntake";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -128,6 +129,51 @@ async function startServer() {
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
       res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識收據，請手動輸入。" });
+    }
+  });
+
+  // Same reasoning as the receipt route above: a booking screenshot is a photo,
+  // so it needs its own parser ahead of the global limit.
+  app.post("/api/stays/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
+    const { base64Data, mimeType } = req.body ?? {};
+    if (typeof base64Data !== "string" || !base64Data || !isSupportedImageMime(mimeType)) {
+      res.status(400).json({ error: "需要一張訂房截圖。" });
+      return;
+    }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在無法辨識訂房截圖，請手動輸入。" }); return; }
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: STAY_MODEL,
+        contents: { parts: [{ inlineData: { mimeType: mimeType.trim(), data: base64Data } }, { text: stayPrompt() }] },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              hotelName: { type: Type.STRING },
+              checkInDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+              checkOutDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+              checkInTime: { type: Type.STRING, description: "HH:mm, only if stated" },
+              checkOutTime: { type: Type.STRING, description: "HH:mm, only if stated" },
+              address: { type: Type.STRING },
+              confirmationNumber: { type: Type.STRING },
+              guestName: { type: Type.STRING },
+              totalAmount: { type: Type.NUMBER },
+              currency: { type: Type.STRING },
+              isUncertain: { type: Type.BOOLEAN },
+            },
+            required: ["hotelName"],
+          },
+        },
+      });
+      const stay = normalizeParsedStay(JSON.parse(cleanModelJson(response.text ?? "")));
+      if (!stay) { res.status(422).json({ error: "這張截圖看不出住宿名稱，請手動輸入。" }); return; }
+      res.json(stay);
+    } catch (error) {
+      const status = quotaStatusOf(error) ?? 502;
+      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識訂房截圖，請手動輸入。" });
     }
   });
 

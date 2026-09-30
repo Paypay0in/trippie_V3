@@ -549,7 +549,7 @@ export type ScheduleFlexibility = 'fixed' | 'flexible';
  * Kinds of hard time constraint. Conflict logic keys off `scheduleFlexibility`,
  * never off the kind, so supporting a new kind needs no new conflict rules.
  */
-export type FixedEventKind = 'flight' | 'train' | 'reservation' | 'ticketed_event';
+export type FixedEventKind = 'flight' | 'train' | 'reservation' | 'ticketed_event' | 'accommodation';
 
 export interface ItineraryItem {
   id: string;

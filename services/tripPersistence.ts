@@ -112,7 +112,7 @@ const normalizeItinerary = (value: unknown): ItineraryItem[] | undefined => {
     // the safe default: the schedule stays adjustable rather than frozen.
     scheduleFlexibility: item.scheduleFlexibility === 'fixed' ? 'fixed' : undefined,
     isPinned: item.isPinned === true ? true : undefined,
-    fixedEventKind: ['flight', 'train', 'reservation', 'ticketed_event'].includes(String(item.fixedEventKind))
+    fixedEventKind: ['flight', 'train', 'reservation', 'ticketed_event', 'accommodation'].includes(String(item.fixedEventKind))
       ? item.fixedEventKind as ItineraryItem['fixedEventKind']
       : undefined,
     date: typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) ? item.date : undefined,
