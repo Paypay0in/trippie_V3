@@ -5,6 +5,7 @@ import {
   isSafePlaceMatch,
   needsPlaceEnrichment,
   PlaceEnrichmentContext,
+  previewPlaceResolution,
 } from './itineraryPlaceEnrichment';
 import { ProposedItineraryItem, TripInspirationProposal } from './itineraryPlanningService';
 import { ResolvedPlace } from './placeService';
@@ -309,5 +310,53 @@ describe('enrichment of items with no canonical placeId', () => {
       async () => { calls += 1; return GUKJE; },
     );
     expect(calls).toBe(0);
+  });
+});
+
+describe('previewPlaceResolution', () => {
+  const context = { destination: '釜山', destinationCountry: '韓國' };
+
+  const place = (over: Record<string, unknown> = {}) => ({
+    placeId: 'ChIJ-real',
+    resolvedPlaceName: '札嘎其市場',
+    address: '釜山廣域市中區',
+    latitude: 35.0966,
+    longitude: 129.0306,
+    country: '韓國',
+    ...over,
+  });
+
+  it('reports what the apply step would attach', async () => {
+    const previews = await previewPlaceResolution(['札嘎其市場'], context, async () => place());
+    expect(previews.get('札嘎其市場')?.resolved?.address).toBe('釜山廣域市中區');
+  });
+
+  it('reports why it would attach nothing', async () => {
+    // An Instagram handle is a name no map has. The card showed it exactly
+    // like a real address until after it had been accepted.
+    const previews = await previewPlaceResolution(['cueren_official 鞋店'], context, async () => null);
+    expect(previews.get('cueren_official 鞋店')?.resolved).toBeUndefined();
+    expect(previews.get('cueren_official 鞋店')?.rejection).toBe('no-result');
+  });
+
+  it('rejects the same loose matches the apply step rejects', async () => {
+    // Text search answers something for almost any string; the check is what
+    // stops a shoe shop being pinned to whatever was nearest.
+    const previews = await previewPlaceResolution(['某店'], context, async () => place({ placeId: '' }));
+    expect(previews.get('某店')?.rejection).toBe('not-google-identity');
+
+    const noCoords = await previewPlaceResolution(['某店'], context, async () => place({ latitude: undefined }));
+    expect(noCoords.get('某店')?.rejection).toBe('no-coordinates');
+  });
+
+  it('looks each distinct name up once', async () => {
+    let calls = 0;
+    await previewPlaceResolution(['A', 'A', ' A ', 'B'], context, async () => { calls += 1; return place(); });
+    expect(calls).toBe(2);
+  });
+
+  it('treats a thrown lookup as no result rather than failing the preview', async () => {
+    const previews = await previewPlaceResolution(['X'], context, async () => { throw new Error('offline'); });
+    expect(previews.get('X')?.rejection).toBe('no-result');
   });
 });

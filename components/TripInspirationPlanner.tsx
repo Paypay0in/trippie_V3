@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Compass, MapPin, Sparkles, Check, AlertTriangle, ArrowRight, Clock3, RotateCcw, CalendarDays, CheckCircle2, Wand2, MoveRight, Trash2, Plus, PencilLine } from 'lucide-react';
 import { CommunityPost, ExperienceNoteType, ItineraryItem, SavedTravelInspiration } from '../types';
+import { PlacePreview, previewPlaceResolution } from '../services/itineraryPlaceEnrichment';
 import {
   buildItineraryAdjustmentInput,
   generateItineraryAdjustment,
@@ -114,6 +115,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   // AI 行程調整模式 — only reachable when the trip already has an itinerary.
   const [adjustmentMode, setAdjustmentMode] = useState<ItineraryAdjustmentMode | null>(null);
   const [adjustment, setAdjustment] = useState<ItineraryAdjustmentProposal | null>(null);
+  // What the apply step would resolve each suggested place to, looked up while
+  // the traveller is deciding rather than after they have accepted.
+  const [placePreviews, setPlacePreviews] = useState<Map<string, PlacePreview>>(new Map());
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [adjustmentError, setAdjustmentError] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
@@ -310,6 +314,23 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         return;
       }
       setAdjustment(generated);
+      setPlacePreviews(new Map());
+
+      // The same query and the same safety check the apply step runs, so the
+      // card cannot promise something acceptance will not deliver.
+      const names = generated.changes
+        .filter(change => change.type === 'add' && change.proposedItem?.placeName)
+        .map(change => change.proposedItem!.placeName);
+      if (names.length > 0) {
+        void previewPlaceResolution(names, {
+          destination: trip.destination,
+          destinationCountry: trip.destinationCountry,
+          destinationLatitude: trip.destinationLatitude,
+          destinationLongitude: trip.destinationLongitude,
+        }).then(previews => {
+          if (requestRef.current === requestId) setPlacePreviews(previews);
+        }).catch(() => undefined);
+      }
     } catch (caught) {
       if (requestRef.current !== requestId) return;
       // The current itinerary, the chosen mode, the typed text and the saved
@@ -577,6 +598,31 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                           </span>
                         </div>
                         <div className="mt-1 text-[11px] leading-5 text-emerald-700">加到：{formatDayHeading(change.toDate)}</div>
+                        {/*
+                          Whether this name is a place. A suggestion built from
+                          a social handle is a name no map has, and it looked
+                          exactly like one pinned to a real address until after
+                          it had been accepted.
+                        */}
+                        {(() => {
+                          const preview = placePreviews.get((change.proposedItem?.placeName || '').trim());
+                          if (preview?.resolved) {
+                            return (
+                              <div className="mt-1 flex items-start gap-1 text-[11px] leading-5 text-slate-500">
+                                <MapPin size={12} className="mt-0.5 shrink-0" />
+                                <span>{preview.resolved.address || preview.resolved.resolvedPlaceName}</span>
+                              </div>
+                            );
+                          }
+                          if (preview?.rejection) {
+                            return (
+                              <div className="mt-1 text-[11px] leading-5 text-amber-700">
+                                地圖上找不到這個地點，加進去會是一段文字，之後要自己補位置。
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                         {change.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">原因：{change.reason}</div>}
                       </div>
                     );

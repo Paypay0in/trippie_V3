@@ -172,3 +172,41 @@ export const enrichProposalPlaces = async (
     summary: { attempted: targets.length, resolved, unresolved: targets.length - resolved },
   };
 };
+
+export interface PlacePreview {
+  /** What the same resolution the apply step runs would attach, if anything. */
+  resolved?: ResolvedPlace;
+  /** Why it would not, when it would not. */
+  rejection?: PlaceMatchRejection;
+}
+
+/**
+ * What enrichment *would* do, without doing it.
+ *
+ * The preview card named a place and said nothing about whether that place
+ * exists. So a suggestion built from an Instagram handle — a name no map has —
+ * looked exactly like one pinned to a real address, and the traveller only
+ * found out after accepting it.
+ *
+ * Runs the identical query and the identical safety check as the apply step,
+ * deliberately: a preview that uses its own logic is a preview that can
+ * disagree with what happens next, which is worse than no preview.
+ */
+export const previewPlaceResolution = async (
+  placeNames: string[],
+  context: PlaceEnrichmentContext,
+  resolve: PlaceResolver = resolvePlace,
+): Promise<Map<string, PlacePreview>> => {
+  const unique = Array.from(new Set(placeNames.map(name => name.trim()).filter(Boolean)));
+  const previews = new Map<string, PlacePreview>();
+
+  await Promise.all(unique.map(async name => {
+    const place = await resolve(buildPlaceQuery(name, context), context.destinationCountry).catch(() => null);
+    const verdict: PlaceMatchVerdict = isSafePlaceMatch(place, context);
+    previews.set(name, verdict.safe === true
+      ? { resolved: verdict.place }
+      : { rejection: verdict.reason });
+  }));
+
+  return previews;
+};
