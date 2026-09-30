@@ -290,15 +290,35 @@ export default function FlightAnchorsForm({
         setScanError(body?.error || '辨識失敗，請手動輸入。');
         return;
       }
-      const flight = await response.json() as ParsedFlight;
-      // The model's own read of which leg this is beats the button pressed,
-      // but only when it actually gave one.
-      const target = flight.direction && flightMode === 'ROUND_TRIP' ? flight.direction : direction;
-      setDraft(current => applyFlightToDraft(current, flight, target));
+      const legs = await response.json() as { OUTBOUND?: ParsedFlight; RETURN?: ParsedFlight };
+
+      // A round-trip confirmation carries both legs, so both are applied. In
+      // 單程 mode only the outbound exists to receive anything; a return read
+      // from the image is kept out rather than silently discarded elsewhere.
+      const applicable: Array<[FlightAnchor['direction'], ParsedFlight | undefined]> =
+        flightMode === 'ONE_WAY'
+          ? [['OUTBOUND', legs.OUTBOUND ?? legs.RETURN]]
+          : [['OUTBOUND', legs.OUTBOUND], ['RETURN', legs.RETURN]];
+
+      const filled: string[] = [];
+      let uncertain = false;
+      setDraft(current =>
+        applicable.reduce<FlightAnchor[]>((draftSoFar, [leg, flight]) => {
+          if (!flight) return draftSoFar;
+          filled.push(leg === 'RETURN' ? '回程' : '去程');
+          if (flight.isUncertain) uncertain = true;
+          return applyFlightToDraft(draftSoFar, flight, leg);
+        }, current),
+      );
+
+      if (filled.length === 0) {
+        setScanError('這張截圖看不出航班資訊，請手動輸入。');
+        return;
+      }
       setScanNote(
-        flight.isUncertain
-          ? '已填入，但截圖辨識不完全，請逐欄核對。'
-          : `已填入${target === 'RETURN' ? '回程' : '去程'}，請確認後儲存。`,
+        uncertain
+          ? `已填入${filled.join('、')}，但截圖辨識不完全，請逐欄核對。`
+          : `已填入${filled.join('、')}，請確認後儲存。`,
       );
     } catch {
       setScanError('辨識失敗，請手動輸入。');

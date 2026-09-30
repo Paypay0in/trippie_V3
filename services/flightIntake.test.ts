@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FlightAnchor } from '../types';
-import { applyFlightToDraft, normalizeParsedFlight } from './flightIntake';
+import { applyFlightToDraft, assignFlightsToLegs, normalizeParsedFlight } from './flightIntake';
 
 const ticket = {
   direction: 'OUTBOUND',
@@ -95,5 +95,70 @@ describe('applyFlightToDraft', () => {
   it('returns the same anchors when no leg matches', () => {
     const next = applyFlightToDraft([draft[0]], normalizeParsedFlight(ticket)!, 'RETURN');
     expect(next).toEqual([draft[0]]);
+  });
+});
+
+describe('assignFlightsToLegs — a round-trip confirmation shows both', () => {
+  const outbound = { ...ticket, direction: undefined };
+  const ret = {
+    flightNumber: 'BR169',
+    departureAirport: '金海國際機場',
+    departureAirportIata: 'PUS',
+    departureDate: '2026-10-07',
+    departureTime: '20:00',
+    arrivalAirportIata: 'TPE',
+  };
+
+  it('fills both legs from one image', () => {
+    const legs = assignFlightsToLegs({ flights: [outbound, ret] });
+    expect(legs.OUTBOUND?.flightNumber).toBe('BR170');
+    expect(legs.RETURN?.flightNumber).toBe('BR169');
+  });
+
+  it('is the bug this replaced: one flight used to be all that came back', () => {
+    // The old endpoint normalised a single object and stopped, so the return
+    // leg stayed empty and the upload looked half-broken.
+    const legs = assignFlightsToLegs({ flights: [outbound, ret] });
+    expect(Object.keys(legs).sort()).toEqual(['OUTBOUND', 'RETURN']);
+  });
+
+  it('uses chronology when the model does not say which leg is which', () => {
+    // Given in reverse order, the earlier departure is still the outbound.
+    const legs = assignFlightsToLegs({ flights: [ret, outbound] });
+    expect(legs.OUTBOUND?.departureDate).toBe('2026-10-02');
+    expect(legs.RETURN?.departureDate).toBe('2026-10-07');
+  });
+
+  it('trusts an explicit direction over chronology', () => {
+    const legs = assignFlightsToLegs({
+      flights: [{ ...ret, direction: 'OUTBOUND' }, { ...outbound, direction: 'RETURN' }],
+    });
+    expect(legs.OUTBOUND?.flightNumber).toBe('BR169');
+    expect(legs.RETURN?.flightNumber).toBe('BR170');
+  });
+
+  it('treats a single flight as the outbound', () => {
+    expect(assignFlightsToLegs({ flights: [outbound] })).toEqual({
+      OUTBOUND: normalizeParsedFlight(outbound),
+    });
+  });
+
+  it('still reads the old single-object shape', () => {
+    expect(assignFlightsToLegs(outbound).OUTBOUND?.flightNumber).toBe('BR170');
+    expect(assignFlightsToLegs([outbound, ret]).RETURN?.flightNumber).toBe('BR169');
+  });
+
+  it('keeps the first segment of a connection rather than the last', () => {
+    // Three flights is a connecting journey, not an out-and-back, so the
+    // chronological "second is the return" rule must not apply.
+    const leg2 = { ...ret, flightNumber: 'KE123', departureDate: '2026-10-02', departureTime: '15:00' };
+    const legs = assignFlightsToLegs({ flights: [outbound, leg2, ret] });
+    expect(legs.OUTBOUND?.flightNumber).toBe('BR170');
+  });
+
+  it('returns nothing usable when no flight has a departure date and time', () => {
+    expect(assignFlightsToLegs({ flights: [{ flightNumber: 'BR170' }] })).toEqual({});
+    expect(assignFlightsToLegs(null)).toEqual({});
+    expect(assignFlightsToLegs({ flights: [] })).toEqual({});
   });
 });

@@ -97,9 +97,52 @@ export const normalizeParsedFlight = (raw: unknown): ParsedFlight | null => {
   return flight;
 };
 
+/**
+ * Every flight readable from one image, assigned to a leg.
+ *
+ * A round-trip booking shows both legs on the same screen. Parsing only the
+ * first left the return empty and the traveller assuming the upload had
+ * half-worked — which is exactly what it had done.
+ *
+ * Assignment prefers what the model said, then falls back to chronology: with
+ * two flights, the earlier departure is the outbound. Only the first flight
+ * per leg is kept, so a connecting itinerary fills the leg from its first
+ * segment rather than overwriting it with the second.
+ */
+export const assignFlightsToLegs = (
+  raw: unknown,
+): { OUTBOUND?: ParsedFlight; RETURN?: ParsedFlight } => {
+  const list = Array.isArray(raw)
+    ? raw
+    : Array.isArray((raw as { flights?: unknown })?.flights)
+      ? (raw as { flights: unknown[] }).flights
+      : [raw];
+
+  const flights = list
+    .map(normalizeParsedFlight)
+    .filter((flight): flight is ParsedFlight => flight !== null)
+    .sort((a, b) =>
+      `${a.departureDate} ${a.departureTime}`.localeCompare(`${b.departureDate} ${b.departureTime}`),
+    );
+
+  const legs: { OUTBOUND?: ParsedFlight; RETURN?: ParsedFlight } = {};
+  for (const [index, flight] of flights.entries()) {
+    // Chronological fallback only applies when there are exactly two flights;
+    // with three or more the order is a connection, not an out-and-back.
+    const inferred = flights.length === 2 && index === 1 ? 'RETURN' : 'OUTBOUND';
+    const leg = flight.direction ?? inferred;
+    if (!legs[leg]) legs[leg] = flight;
+  }
+  return legs;
+};
+
 export const flightPrompt = (tripStartDate?: string, tripEndDate?: string) => `
       Analyze this image. It is a boarding pass, e-ticket, or flight booking
       confirmation.
+
+      It may show MORE THAN ONE flight. A round-trip booking normally shows the
+      outbound and the return together, and a journey may have connections.
+      Return every distinct flight you can see, in the "flights" array.
 
       Extract:
       1. "flightNumber": e.g. "BR170".
@@ -121,9 +164,11 @@ export const flightPrompt = (tripStartDate?: string, tripEndDate?: string) => `
       Rules:
       - Return only what the image shows. Omit anything it does not.
       - Never convert times between timezones; report each as printed.
+      - One entry per flight. Do not repeat the same flight twice.
+      - If only one flight is shown, return an array of one.
       - Set "isUncertain" to true if the image is blurry, cropped, or ambiguous.
 
-      Return JSON.
+      Return JSON shaped { "flights": [ ... ] }.
     `;
 
 /**

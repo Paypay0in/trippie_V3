@@ -22,7 +22,7 @@ import {
   textExpensePrompt,
 } from "./services/expenseIntake";
 import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
-import { flightPrompt, normalizeParsedFlight } from "./services/flightIntake";
+import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -278,25 +278,40 @@ async function startServer() {
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              direction: { type: Type.STRING, enum: ["OUTBOUND", "RETURN"] },
-              flightNumber: { type: Type.STRING },
-              departureAirport: { type: Type.STRING },
-              departureAirportIata: { type: Type.STRING },
-              departureDate: { type: Type.STRING, description: "YYYY-MM-DD" },
-              departureTime: { type: Type.STRING, description: "HH:mm local" },
-              arrivalAirport: { type: Type.STRING },
-              arrivalAirportIata: { type: Type.STRING },
-              arrivalDate: { type: Type.STRING, description: "YYYY-MM-DD" },
-              arrivalTime: { type: Type.STRING, description: "HH:mm local" },
-              isUncertain: { type: Type.BOOLEAN },
+              // An array because a round-trip confirmation shows both legs on
+              // one screen. Reading only the first filled the outbound and left
+              // the return blank, which reads as a half-broken upload.
+              flights: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    direction: { type: Type.STRING, enum: ["OUTBOUND", "RETURN"] },
+                    flightNumber: { type: Type.STRING },
+                    departureAirport: { type: Type.STRING },
+                    departureAirportIata: { type: Type.STRING },
+                    departureDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+                    departureTime: { type: Type.STRING, description: "HH:mm local" },
+                    arrivalAirport: { type: Type.STRING },
+                    arrivalAirportIata: { type: Type.STRING },
+                    arrivalDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+                    arrivalTime: { type: Type.STRING, description: "HH:mm local" },
+                    isUncertain: { type: Type.BOOLEAN },
+                  },
+                  required: ["departureDate", "departureTime"],
+                },
+              },
             },
-            required: ["departureDate", "departureTime"],
+            required: ["flights"],
           },
         },
       }));
-      const flight = normalizeParsedFlight(JSON.parse(cleanModelJson(response.text ?? "")));
-      if (!flight) { res.status(422).json({ error: "這張截圖看不出起飛日期與時間，請手動輸入。" }); return; }
-      res.json(flight);
+      const legs = assignFlightsToLegs(JSON.parse(cleanModelJson(response.text ?? "")));
+      if (!legs.OUTBOUND && !legs.RETURN) {
+        res.status(422).json({ error: "這張截圖看不出起飛日期與時間，請手動輸入。" });
+        return;
+      }
+      res.json(legs);
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
       res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識機票，請手動輸入。" });
