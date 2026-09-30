@@ -494,3 +494,55 @@ describe('the planning screen carries both anchors', () => {
     expect(within(stays).getByRole('button', { name: /手動/ })).toBeTruthy();
   });
 });
+
+/**
+ * Where you sleep, on every night you sleep there.
+ *
+ * A booking becomes a check-in card and a check-out card. Everything between —
+ * most of a trip — said nothing about accommodation at all, so a day in the
+ * middle gave no answer to the one question a traveller asks at midnight.
+ */
+describe('tonight’s stay banner', () => {
+  const STAY: ItineraryItem[] = [
+    // Checked in before this trip's first visible day and out on its last, so
+    // Day 1 is a night in the middle of the stay carrying no accommodation
+    // card of its own — the case that previously showed nothing.
+    {
+      id: 'stay-in', date: '2026-10-03', time: '15:00',
+      title: '入住 海雲台格蘭飯店', location: '釜山廣域市海雲台區', notes: '共 3 晚',
+      type: 'HOTEL', scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+    },
+    {
+      id: 'stay-out', date: DAY_6, time: '11:00',
+      title: '退房 海雲台格蘭飯店', location: '釜山廣域市海雲台區', notes: '',
+      type: 'HOTEL', scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+    },
+    { id: 'it-mid', date: DAY_5, time: '12:00', title: '午餐', location: '札嘎其市場', notes: '', type: 'FOOD' },
+    { id: 'it-six', date: DAY_6, time: '12:00', title: '太宗臺', location: '太宗臺', notes: '', type: 'ACTIVITY' },
+  ];
+
+  beforeEach(() => seedStorage(STAY));
+
+  const openDay = async (label: string) => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+    await user.click(screen.getByText(label));
+    return user;
+  };
+
+  it('names the hotel on a night in the middle of the stay', async () => {
+    // Day 1 is 2026-10-05: inside the stay, but with no accommodation card.
+    await openDay('Day 1');
+    const banner = screen.getByTestId('stay-banner');
+    expect(within(banner).getByText('海雲台格蘭飯店')).toBeTruthy();
+    expect(within(banner).getByText('住宿')).toBeTruthy();
+  });
+
+  it('shows nothing on the morning they check out', async () => {
+    // Day 2 is 2026-10-06 — the key goes back, so there is no room tonight.
+    await openDay('Day 2');
+    expect(screen.queryByTestId('stay-banner')).toBeNull();
+  });
+});

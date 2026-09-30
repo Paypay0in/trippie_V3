@@ -211,3 +211,80 @@ export const stayNights = (stay: ParsedStay): string[] => {
   }
   return nights;
 };
+
+export interface StaySpan {
+  /** The property, as the traveller entered or uploaded it. */
+  name: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+  address?: string;
+  /** Every night slept here; empty when the span is unknown. */
+  nights: string[];
+  /** The check-in item, so the banner can open the detail the card holds. */
+  itemId: string;
+}
+
+const CHECK_IN_PREFIX = '入住 ';
+const CHECK_OUT_PREFIX = '退房 ';
+
+/**
+ * Reconstructs each stay from the itinerary items it became.
+ *
+ * The span is not stored anywhere: a stay exists as a check-in item on one day
+ * and a check-out item on another, and those are what sync. Pairing them back
+ * up by property name is what lets every night in between know where the
+ * traveller is sleeping — the days between check-in and check-out otherwise
+ * say nothing at all, which is most of a trip.
+ *
+ * Pairing on the name rather than on an id kept alongside is deliberate: the
+ * items already carry the name, so this needs no new column and works on
+ * bookings entered before this existed.
+ */
+export const staysFromItinerary = (
+  items: Array<{ id: string; type: string; title: string; date?: string; address?: string; location?: string; fixedEventKind?: string }>,
+): StaySpan[] => {
+  const byName = new Map<string, StaySpan>();
+
+  const ensure = (name: string, itemId: string): StaySpan => {
+    const existing = byName.get(name);
+    if (existing) return existing;
+    const created: StaySpan = { name, nights: [], itemId };
+    byName.set(name, created);
+    return created;
+  };
+
+  for (const item of items) {
+    if (item.type !== 'HOTEL' || item.fixedEventKind !== 'accommodation') continue;
+
+    if (item.title.startsWith(CHECK_IN_PREFIX)) {
+      const stay = ensure(item.title.slice(CHECK_IN_PREFIX.length), item.id);
+      stay.checkInDate = item.date;
+      stay.address = stay.address ?? item.address ?? item.location;
+      // The check-in item is the one worth opening, so it wins the id.
+      stay.itemId = item.id;
+    } else if (item.title.startsWith(CHECK_OUT_PREFIX)) {
+      const stay = ensure(item.title.slice(CHECK_OUT_PREFIX.length), item.id);
+      stay.checkOutDate = item.date;
+      stay.address = stay.address ?? item.address ?? item.location;
+    } else {
+      // A stay entered with no dates keeps its bare title.
+      const stay = ensure(item.title, item.id);
+      stay.address = stay.address ?? item.address ?? item.location;
+    }
+  }
+
+  for (const stay of byName.values()) {
+    stay.nights = stayNights({ hotelName: stay.name, checkInDate: stay.checkInDate, checkOutDate: stay.checkOutDate });
+  }
+  return [...byName.values()];
+};
+
+/**
+ * Where the traveller sleeps on a given night.
+ *
+ * The check-out morning is not a night here: they are leaving, and saying
+ * 「住宿」 on the day they hand the key back would be telling them they have a
+ * room they no longer have.
+ */
+export const stayForNight = (stays: StaySpan[], date: string): StaySpan | undefined =>
+  date ? stays.find(stay => stay.nights.includes(date)) : undefined;

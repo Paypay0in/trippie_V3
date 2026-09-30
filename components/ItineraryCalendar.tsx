@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
 import { ItineraryItem, PlaceCommerceInfo } from '../types';
-import { Clock, MapPin, Plane, Hotel, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
+import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
 import { fetchPlaceCommerce, hasDisplayableCommerce } from '../services/placeCommerceService';
 import { itemsForDay, orderItemsForDay, hasTimeOrderConflict } from '../services/itineraryOrdering';
@@ -27,6 +27,7 @@ import {
 } from '../services/itineraryFixedEvents';
 import { estimateRoute } from '../services/routesService';
 import { enumerateLocalDates } from '../services/localDate';
+import { stayForNight, staysFromItinerary } from '../services/stayIntake';
 
 interface Props {
   items: ItineraryItem[];
@@ -85,6 +86,13 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   const dates = useMemo(() => (startDate && endDate ? enumerateLocalDates(startDate, endDate) : []), [startDate, endDate]);
   const [selectedDate, setSelectedDate] = useState<string | undefined>(dates[0]);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : dates[0];
+
+  // Derived from the whole itinerary, not from this day: the check-in and
+  // check-out cards that define the span sit on other days.
+  const tonightsStay = useMemo(
+    () => (activeDate ? stayForNight(staysFromItinerary(items), activeDate) : undefined),
+    [items, activeDate],
+  );
   // The day's cards, in the order the user arranged them (or chronological until
   // they arrange one). This is a journey list, not a calendar: the gap between
   // two cards is always the same, whatever the gap between their times.
@@ -671,6 +679,38 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         <div className="mb-3 rounded-2xl bg-amber-50 px-4 py-2.5 text-xs font-bold leading-5 text-amber-700">
           調整後部分行程時間較晚，請確認安排。
         </div>
+      )}
+
+      {/*
+        Where they sleep tonight, on every night of the stay.
+        
+        A booking produces a check-in card and a check-out card, which leaves
+        every night in between — most of a trip — saying nothing about where
+        the traveller is staying. This is derived from the same two cards, so
+        it needs no extra data and stays true when either one is edited.
+      */}
+      {tonightsStay && (
+        <button
+          type="button"
+          data-testid="stay-banner"
+          onClick={() => {
+            const target = dayItems.find(item => item.id === tonightsStay.itemId);
+            if (target) {
+              setSelectedDate(tonightsStay.checkInDate || activeDate);
+              onEdit?.(target);
+            }
+          }}
+          className="mb-4 flex w-full items-center gap-3 rounded-[20px] border border-[#ecebf5] bg-white px-4 py-3 text-left shadow-[0_6px_18px_rgba(17,26,74,0.05)]"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f0edff] text-[#5b3df5]">
+            <BedDouble size={17} />
+          </span>
+          <span className="text-[11px] font-black text-slate-400">住宿</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-black text-[#111A4A]">{tonightsStay.name}</span>
+          <span className="shrink-0 rounded-xl border border-[#e8e7f4] px-2.5 py-1.5 text-[11px] font-black text-slate-500">
+            查看詳情 ›
+          </span>
+        </button>
       )}
 
       {/*
