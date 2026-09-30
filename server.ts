@@ -1317,8 +1317,8 @@ async function startServer() {
     // Adjustment of an itinerary that already has items. Branches ahead of the
     // creation path because it is the one mode where an empty `selections` list is
     // legitimate: the user may just want their current plan reordered.
-    if (input.adjustmentMode === "add" || input.adjustmentMode === "reorder" || input.adjustmentMode === "replan") {
-      const mode = input.adjustmentMode as "add" | "reorder" | "replan";
+    if (input.adjustmentMode === "add" || input.adjustmentMode === "fill" || input.adjustmentMode === "reorder" || input.adjustmentMode === "replan") {
+      const mode = input.adjustmentMode as "add" | "fill" | "reorder" | "replan";
       const existingItinerary = Array.isArray(input.existingItinerary) ? input.existingItinerary : [];
       if (existingItinerary.length === 0) { res.status(400).json({ error: "目前沒有可調整的正式行程。" }); return; }
       const selections = Array.isArray(input.selections) ? input.selections : [];
@@ -1336,6 +1336,27 @@ async function startServer() {
 嚴禁回傳 move、update 或 remove：既有行程的日期、時間與內容一律保持原樣。
 找出目前行程中合理的空檔再加入，不要把任何一天塞得太滿，新增的地點要和前後既有項目在地理上相近。
 無論哪一種模式，isPinned 為 true 的項目都不可以被移動、刪除、改時間或改地點。`,
+        fill: `模式：把空白的日子排滿。
+你「只能」回傳 type 為 "add" 的變更。
+嚴禁回傳 move、update 或 remove：既有行程一個都不會被動到，航班、住宿與使用者固定的項目全部原封不動。
+
+這個模式的任務是「安排」，不是「補充」。
+你「必須」自己提出適合這個目的地的知名景點、市場、海灘、觀景點與餐廳，不要等使用者給你地點。
+【3b】的收藏清單是空的時候，那代表使用者還沒挑，不代表你沒有東西可以排——請直接用你對這個城市的既有知識規劃。
+絕對不要因為「沒有可引用的收藏地點」就不排，也不要回傳空的一天並叫使用者自己加。
+只提出真實存在、觀光客找得到的地點，並用它慣用的正式名稱；不確定是否存在的就不要放。
+
+【3】的 unplannedDates 是目前整天只有航班與住宿、等於還沒安排的日子。
+請把 unplannedDates 裡的「每一天」都排成一個完整可執行的一天，每天 3 到 5 個地點，不要只加一兩個就交差。
+每一天都要有自己的主題與地理範圍：同一天的地點集中在同一區，不同天去不同區域，不要讓使用者每天橫跨整個城市。
+
+排每一天的時候：
+- 從【2】裡那一天的航班與住宿讀出這一天實際可用的時間。抵達當天只排下午與晚上，離開當天只排退房前，不要安排在飛機起飛之後。
+- 住宿的位置就是每天的起點和終點，動線要從那裡出發、回得去。
+- 用餐時段要排到食物，不要整天只有景點。
+- 沒有被指派的空白日子要在 warnings 說明原因，不要無聲略過。
+
+無論哪一種模式，isPinned 為 true 的項目都不可以被移動、刪除、改時間或改地點。`,
         reorder: `模式：重新安排路線。
 你可以回傳 type 為 "move"、"update"、"add" 的變更。
 嚴禁回傳 remove：使用者目前想去的每一個地點都必須留下來，只能改日期、改時間、改順序。
@@ -1351,8 +1372,31 @@ async function startServer() {
         ? `\n\n【4. 使用者這次想怎麼調整（自由文字）】\n"""\n${planningPreferences}\n"""\n這是高優先度的調整指示。請照著調整出發時間、每天的密度、交通方式與活動類型。\n它仍必須服從旅程日期、地理位置、既有地點識別與模式規則；做不到就盡力接近並在 warnings 說明，不要假裝已經滿足。\n這段文字「不會」賦予任何地點收藏靈感的身分：因為這段話而加入的地點，sourceInspirationIds 一律是空陣列。`
         : "";
 
-      const generationConfig = {
-        contents: `使用者這趟旅程「已經有正式行程」了。請先讀懂目前的安排，再提出調整建議。不要當成空白行程重排。
+      /**
+       * The day this request is planning, when there is exactly one.
+       *
+       * Filling a week is split into one request per day. The first two models
+       * in the chain spend their daily allowance early, so the model that
+       * actually answers is usually a `-lite` one — and asked to plan six days
+       * from a prompt this long it returned a single change with no place name
+       * on it. One day is a task that size of model can finish.
+       *
+       * It also fails better: a day that comes back empty costs that day, not
+       * the whole week.
+       */
+      const configFor = (focusDate: string | null, plannedElsewhere: string[] = []) => {
+      // Each day is planned in its own request, so no day can see what the
+      // others were given. Left to themselves both days opened at 海雲臺海水浴場
+      // and closed at The Bay 101 — a correct answer to "plan one day in
+      // Busan", produced twice. This is how the request carries the trip.
+      const alreadyBlock = plannedElsewhere.length > 0
+        ? `\n\n【0b. 這趟旅程其他日子已經排了這些地點，絕對不要重複】\n${plannedElsewhere.join("、")}\n請安排不同區域、不同類型的地點。`
+        : "";
+      const focusBlock = focusDate
+        ? `\n\n【0. 這次只規劃這一天：${focusDate}】\n只回傳 toDate 等於 ${focusDate} 的 add，其他日子這次完全不要碰。把這一天排成完整的一天：3 到 5 個地點，含用餐。${alreadyBlock}`
+        : "";
+      return {
+        contents: `使用者這趟旅程「已經有正式行程」了。請先讀懂目前的安排，再提出調整建議。不要當成空白行程重排。${focusBlock}
 
 【1. 旅程事實】
 只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。
@@ -1362,11 +1406,12 @@ ${JSON.stringify(existingItinerary)}
 每個項目的 id 是穩定識別碼。要更動既有項目時，existingItemId 必須原封不動使用這裡的 id。
 locked 為 true 的項目（航班錨點、已連結支出、固定行程）完全不能被 move、update 或 remove。
 fixedEvent 為 true 的項目是硬性時間限制（航班、火車、訂位、已購票活動）：其他行程必須繞開它，絕對不要在它的時段安排觀光，也不要提議更改它的時間。
+accommodation 為 true 的項目是入住／退房：它是每天動線的起點與終點，讀它來決定當天的活動範圍，但它本身不是當天的行程內容。
 isPinned 為 true 的項目是使用者親手固定的錨點，在所有模式（補充行程、重新安排路線、重新規劃）都是硬性限制：不可以移動它、不可以刪除它、不可以更改它的時間、不可以更改它的地點。請把它當成固定錨點，安排周邊的其他行程來配合它。
 
 【3. 系統對目前行程的分析】
 ${JSON.stringify(input.analysis || {})}
-emptyDates 是完全沒有安排的日子；crowdedDates 是已經太滿的日子；untimedItemIds 是沒有時間的項目；tightTransitions 是前後太趕的銜接；longHops 是同一天相隔太遠的移動；unusedInspirationIds 是使用者收藏了但還沒排進行程的地點。
+emptyDates 是完全沒有安排的日子；unplannedDates 是整天只有航班與住宿、實際上還沒安排任何行程的日子（包含 emptyDates）；crowdedDates 是已經太滿的日子；untimedItemIds 是沒有時間的項目；tightTransitions 是前後太趕的銜接；longHops 是同一天相隔太遠的移動；unusedInspirationIds 是使用者收藏了但還沒排進行程的地點。
 
 【3b. 使用者已收藏並挑選、可供參考的地點】
 ${JSON.stringify(selections)}${preferenceBlock}
@@ -1414,7 +1459,15 @@ ${MODE_RULES[mode]}
                       required: ["placeName", "suggestedStartTime", "sourceInspirationIds"],
                     },
                   },
-                  required: ["type"],
+                  // In the two add-only modes every change must carry a place
+                  // and a day, so the schema says so. With only `type`
+                  // required, a `-lite` model legally returned
+                  // `{type:'add', toTime:'22:45 N/A (Late Night Snack)'}` —
+                  // no proposedItem at all, the place name stuffed into the
+                  // time. Prompt wording did not move it; this did.
+                  required: mode === "add" || mode === "fill"
+                    ? ["type", "toDate", "proposedItem"]
+                    : ["type"],
                 },
               },
               warnings: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -1423,6 +1476,22 @@ ${MODE_RULES[mode]}
           },
         },
       } as const;
+      };
+
+      const tripDates = enumerateTripDates(input.startDate, input.endDate);
+      /**
+       * The days this run has to plan, one request each.
+       *
+       * Only `fill` fans out. The other modes reason across the whole trip —
+       * 重新安排路線 moves an item from Thursday to Tuesday, which a per-day
+       * request cannot see — so splitting them would break what they are for.
+       */
+      const focusDates: Array<string | null> = mode === "fill"
+        ? (Array.isArray(input.analysis?.unplannedDates) ? input.analysis.unplannedDates : [])
+            .filter((date: unknown): date is string => typeof date === "string" && tripDates.includes(date))
+            .slice(0, 10)
+        : [null];
+      if (focusDates.length === 0) focusDates.push(null);
 
       let attemptedModel = model;
       try {
@@ -1434,29 +1503,58 @@ ${MODE_RULES[mode]}
         // was lost. The chain carries four, each with its own daily allowance
         // and its own retry, and records which one answered so the error
         // message can still name it.
-        const response = await withModelFallback(candidate => {
-          attemptedModel = candidate;
-          return ai.models.generateContent({ model: candidate, ...generationConfig });
-        });
-        const raw = response.text?.trim();
-        if (!raw) { res.json({ changes: [], warnings: ["AI 沒有回傳可檢視的調整建議。"] }); return; }
-        let data;
-        try {
-          data = JSON.parse(raw.replace(/```json|```/g, "").trim());
-        } catch {
-          res.status(502).json({ error: "AI 回傳的調整格式無法解析，請重新產生。", provider: "google", model: attemptedModel });
-          return;
+        const runOne = async (focusDate: string | null, plannedElsewhere: string[]) => {
+          const response = await withModelFallback(candidate => {
+            attemptedModel = candidate;
+            return ai.models.generateContent({ model: candidate, ...configFor(focusDate, plannedElsewhere) });
+          });
+          const raw = response.text?.trim();
+          if (!raw) throw new Error("empty");
+          return JSON.parse(raw.replace(/```json|```/g, "").trim());
+        };
+
+        // Sequential, not parallel. Six simultaneous calls to one free-tier
+        // key is how a per-minute limit gets hit, and a 429 partway through
+        // would cost the days that had not started yet.
+        const results: Array<{ focusDate: string | null; data: any } | { focusDate: string | null; failed: true }> = [];
+        const plannedElsewhere: string[] = [];
+        for (const focusDate of focusDates) {
+          try {
+            const data = await runOne(focusDate, plannedElsewhere);
+            (Array.isArray(data.changes) ? data.changes : []).forEach((change: any) => {
+              const name = change?.proposedItem?.placeName;
+              if (typeof name === "string" && name.trim()) plannedElsewhere.push(name.trim());
+            });
+            results.push({ focusDate, data });
+          } catch (error) {
+            // One bad day is not a failed request — unless every day failed,
+            // which falls through to the error handler below.
+            if (focusDates.length === 1) throw error;
+            console.error(`Itinerary fill failed for ${focusDate}:`, error);
+            results.push({ focusDate, failed: true });
+          }
         }
+        const succeeded = results.filter((entry): entry is { focusDate: string | null; data: any } => !("failed" in entry));
+        if (succeeded.length === 0) { res.json({ changes: [], warnings: ["AI 沒有回傳可檢視的調整建議。"] }); return; }
+
         // Checked rather than passed straight through. An add with no day is a
         // suggestion the traveller asked to have scheduled, handed back
         // unscheduled — and it reached the screen because nothing here looked.
-        const checked = checkProposedChanges(data.changes, enumerateTripDates(input.startDate, input.endDate));
+        const checked = checkProposedChanges(
+          succeeded.flatMap(entry => (Array.isArray(entry.data.changes) ? entry.data.changes : [])),
+          tripDates,
+        );
+        const failedDates = results
+          .filter(entry => "failed" in entry)
+          .map(entry => entry.focusDate)
+          .filter((date): date is string => Boolean(date));
         res.json({
-          summary: typeof data.summary === "string" ? data.summary : "",
+          summary: succeeded.map(entry => (typeof entry.data.summary === "string" ? entry.data.summary : "")).filter(Boolean).join(" "),
           changes: checked.changes,
           warnings: [
-            ...(Array.isArray(data.warnings) ? data.warnings : []),
+            ...succeeded.flatMap(entry => (Array.isArray(entry.data.warnings) ? entry.data.warnings : [])),
             ...checked.warnings,
+            ...(failedDates.length > 0 ? [`${failedDates.join("、")} 這幾天這次沒有排出來，可以再按一次試試。`] : []),
           ],
         });
       } catch (error) {

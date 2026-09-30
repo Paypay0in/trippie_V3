@@ -29,11 +29,17 @@ import {
  *    changes rejected with a warning rather than quietly applied.
  */
 
-export type ItineraryAdjustmentMode = 'add' | 'reorder' | 'replan';
+export type ItineraryAdjustmentMode = 'add' | 'fill' | 'reorder' | 'replan';
 
 /** Which change types each mode is allowed to express. Section 8 safety, in data. */
 const ALLOWED_CHANGE_TYPES: Record<ItineraryAdjustmentMode, ReadonlySet<ItineraryAdjustmentChangeType>> = {
   add: new Set<ItineraryAdjustmentChangeType>(['add']),
+  // Same permission as `add` — it may only create. The difference is ambition,
+  // not power: `add` looks for gaps in days that already work, while this one
+  // is asked to plan a day that currently holds nothing but a flight and a
+  // hotel. A traveller with five blank days got two suggestions from `add`,
+  // because being sparse is exactly what that mode is for.
+  fill: new Set<ItineraryAdjustmentChangeType>(['add']),
   reorder: new Set<ItineraryAdjustmentChangeType>(['add', 'move', 'update']),
   replan: new Set<ItineraryAdjustmentChangeType>(['add', 'move', 'update', 'remove']),
 };
@@ -73,6 +79,8 @@ export interface ExistingItinerarySnapshotItem {
   fixedEvent?: boolean;
   /** True when the user pinned this item. A hard anchor in every mode. */
   isPinned?: boolean;
+  /** A check-in or check-out card. Where the day starts and ends, not its plan. */
+  accommodation?: boolean;
 }
 
 export interface ItineraryAdjustmentChange {
@@ -162,6 +170,11 @@ export const buildExistingItinerarySnapshot = (
       notes: item.notes?.trim() || undefined,
       locked: isLockedItineraryItem(item),
       ...(item.scheduleFlexibility === 'fixed' || item.derivedFromFlightAnchorId ? { fixedEvent: true } : {}),
+      // Accommodation is an anchor without being a fixed time. Check-in was
+      // deliberately made movable — it is the one hour on arrival day that is
+      // genuinely negotiable — so `fixedEvent` does not cover it, and a day
+      // holding only a flight and a hotel read as a day with plans on it.
+      ...(item.fixedEventKind === 'accommodation' ? { accommodation: true } : {}),
       ...(item.isPinned === true ? { isPinned: true } : {}),
     }))
     .filter(item => Boolean(item.placeName));
@@ -184,6 +197,16 @@ const LONG_HOP_KM = 12;
 export interface ItineraryAnalysis {
   /** Trip dates that hold no items at all. */
   emptyDates: string[];
+  /**
+   * Trip dates with nothing on them but anchors.
+   *
+   * `emptyDates` counts a day as planned the moment anything lands on it, and
+   * arrival day always has a flight and a check-in on it. So a trip whose days
+   * were entirely unplanned reported one empty day out of six, and the mode
+   * meant to fill them had almost nothing to aim at. A flight and a hotel are
+   * where the day starts and ends — they are not a day's plan.
+   */
+  unplannedDates: string[];
   /** Dates carrying more items than a comfortable day. */
   crowdedDates: string[];
   /** Items with no start time, so they cannot be sequenced. */
@@ -224,6 +247,14 @@ export const analyzeExistingItinerary = (
 
   const tripDates = enumerateTripDates(options.startDate, options.endDate);
   const emptyDates = tripDates.filter(date => !byDate.has(date));
+  // An anchor is something the trip is built around, not something chosen for
+  // the day: the flight, the hotel, anything the traveller pinned themselves.
+  const isAnchor = (item: ExistingItinerarySnapshotItem): boolean =>
+    item.locked === true
+    || item.fixedEvent === true
+    || item.accommodation === true
+    || item.provenance === 'flight_anchor';
+  const unplannedDates = tripDates.filter(date => (byDate.get(date) ?? []).every(isAnchor));
   const crowdedDates = Array.from(byDate.entries())
     .filter(([, items]) => items.length > CROWDED_DAY_ITEM_COUNT)
     .map(([date]) => date)
@@ -268,7 +299,7 @@ export const analyzeExistingItinerary = (
       && !(selection.placeId && usedPlaceIds.has(selection.placeId)))
     .flatMap(selection => selection.inspirationIds);
 
-  return { emptyDates, crowdedDates, untimedItemIds, tightTransitions, longHops, unusedInspirationIds };
+  return { emptyDates, unplannedDates, crowdedDates, untimedItemIds, tightTransitions, longHops, unusedInspirationIds };
 };
 
 /* ------------------------------------------------------------------ *
@@ -288,6 +319,7 @@ interface RawChange {
 
 const MODE_LABELS: Record<ItineraryAdjustmentMode, string> = {
   add: '補充行程',
+  fill: '把空白的日子排滿',
   reorder: '重新安排路線',
   replan: '重新規劃',
 };

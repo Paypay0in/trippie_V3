@@ -388,3 +388,48 @@ describe('buildItineraryAdjustmentInput', () => {
     expect(input.analysis.emptyDates).toEqual(['2026-10-02', '2026-10-03']);
   });
 });
+
+/**
+ * Which days still need planning.
+ *
+ * `emptyDates` answers "is anything on this day", which is not the question a
+ * traveller with a booked flight and a booked hotel is asking. Arrival day
+ * always holds both, so a trip with nothing planned at all looked mostly full.
+ */
+describe('unplannedDates', () => {
+  const anchoredDay = (date: string): ItineraryItem[] => [
+    item({ id: `flight-${date}`, date, time: '20:15', title: '航班抵達', location: '金海國際機場', scheduleFlexibility: 'fixed', fixedEventKind: 'flight' } as Partial<ItineraryItem> & { id: string }),
+    item({ id: `stay-${date}`, date, time: '22:15', title: '入住 廣安里凱星頓特酒店', location: '廣安里', fixedEventKind: 'accommodation' } as Partial<ItineraryItem> & { id: string }),
+  ];
+
+  const analyse = (itinerary: ItineraryItem[]) =>
+    analyzeExistingItinerary(buildExistingItinerarySnapshot(itinerary), {
+      startDate: TRIP_START,
+      endDate: TRIP_END,
+    });
+
+  it('counts a day holding only a flight and a hotel as unplanned', () => {
+    // The whole reason 把空白的日子排滿 exists: this day reads as busy to
+    // emptyDates and has nothing on it the traveller chose.
+    const analysis = analyse(anchoredDay(TRIP_START));
+
+    expect(analysis.unplannedDates).toContain(TRIP_START);
+    expect(analysis.emptyDates).not.toContain(TRIP_START);
+  });
+
+  it('stops counting the day once something is actually planned on it', () => {
+    const analysis = analyse([
+      ...anchoredDay(TRIP_START),
+      item({ id: 'it-gamcheon', date: TRIP_START, time: '09:00', location: '甘川文化村' }),
+    ]);
+
+    expect(analysis.unplannedDates).not.toContain(TRIP_START);
+  });
+
+  it('still includes the days that hold nothing at all', () => {
+    // Otherwise the mode would skip exactly the days most in need of it.
+    const analysis = analyse(anchoredDay(TRIP_START));
+
+    expect(analysis.unplannedDates).toEqual([TRIP_START, '2026-10-02', TRIP_END]);
+  });
+});

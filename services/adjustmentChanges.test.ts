@@ -49,9 +49,12 @@ describe('checkProposedChanges', () => {
     expect(checkProposedChanges(moves, TRIP).changes).toEqual(moves);
   });
 
-  it('names an unnamed place without saying undefined', () => {
+  it('reports a nameless add as missing a place, not as missing a day', () => {
+    // It is missing both. The place is the one worth saying: 「沒有指定哪一天」
+    // reads as something the traveller could fix by picking a date, and there
+    // is nothing here to put on one.
     const result = checkProposedChanges([{ type: 'add' }], TRIP);
-    expect(result.warnings[0]).toContain('一個新地點');
+    expect(result.warnings).toEqual(['有一筆新增建議沒有地點名稱，已略過。']);
     expect(result.warnings[0]).not.toContain('undefined');
   });
 
@@ -65,5 +68,29 @@ describe('checkProposedChanges', () => {
   it('survives a response that is not a list', () => {
     expect(checkProposedChanges(null, TRIP)).toEqual({ changes: [], warnings: [] });
     expect(checkProposedChanges({ changes: [] }, TRIP)).toEqual({ changes: [], warnings: [] });
+  });
+});
+
+describe('an add with no place on it', () => {
+  it('is dropped, because a place is the whole content of an add', () => {
+    // Observed from a -lite model: no proposedItem at all, the place written
+    // into the time field. Accepting it creates a card with no name.
+    const result = checkProposedChanges(
+      [{ type: 'add', toDate: TRIP[0], toTime: '22:45 N/A (Late Night Snack near Hotel)' }],
+      TRIP,
+    );
+
+    expect(result.changes).toEqual([]);
+    expect(result.warnings).toEqual(['有一筆新增建議沒有地點名稱，已略過。']);
+  });
+
+  it('still keeps an add that has one', () => {
+    const result = checkProposedChanges(
+      [{ type: 'add', toDate: TRIP[0], toTime: '11:30', proposedItem: { placeName: '海雲臺海水浴場' } }],
+      TRIP,
+    );
+
+    expect(result.changes).toHaveLength(1);
+    expect(result.warnings).toEqual([]);
   });
 });

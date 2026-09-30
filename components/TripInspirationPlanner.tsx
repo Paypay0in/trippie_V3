@@ -3,6 +3,8 @@ import { Compass, MapPin, Sparkles, Check, AlertTriangle, ArrowRight, Clock3, Ro
 import { CommunityPost, ExperienceNoteType, ItineraryItem, SavedTravelInspiration } from '../types';
 import { PlacePreview, previewPlaceResolution } from '../services/itineraryPlaceEnrichment';
 import {
+  analyzeExistingItinerary,
+  buildExistingItinerarySnapshot,
   buildItineraryAdjustmentInput,
   generateItineraryAdjustment,
   ItineraryAdjustmentMode,
@@ -68,6 +70,7 @@ interface Props {
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
   { mode: 'add', label: '補充行程', subtitle: '保留目前安排，幫我找適合的空檔加入新景點' },
+  { mode: 'fill', label: '把空白的日子排滿', subtitle: '航班、住宿與我固定的項目都不動，其他日子幫我排成完整的一天' },
   { mode: 'reorder', label: '重新安排路線', subtitle: '保留目前想去的景點，調整日期、時間與順序，讓動線更順' },
   { mode: 'replan', label: '重新規劃', subtitle: '參考目前行程、收藏靈感與我的偏好，提出一份新的完整版本' },
 ];
@@ -128,6 +131,31 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     () => new Map(existingItinerary.map(item => [item.id, item])),
     [existingItinerary],
   );
+
+  /**
+   * What the AI is about to be told, shown before it is asked anything.
+   *
+   * The analysis was computed and sent and never displayed, so 「AI 會先讀過
+   * 目前 N 個項目」 was a claim the traveller had to take on faith — and a
+   * number that counts a flight and a check-in as a planned day tells them
+   * nothing about the days that are actually blank.
+   *
+   * Built from the same snapshot the request is built from, so this cannot
+   * describe a plan different from the one the model receives.
+   */
+  const itineraryReadBack = useMemo(() => {
+    if (existingItinerary.length === 0) return null;
+    const snapshot = buildExistingItinerarySnapshot(existingItinerary);
+    const analysis = analyzeExistingItinerary(snapshot, {
+      startDate: trip.startDate,
+      endDate: trip.endDate,
+    });
+    return {
+      anchorCount: snapshot.filter(item => item.locked || item.fixedEvent || item.accommodation).length,
+      plannedCount: snapshot.filter(item => !item.locked && !item.fixedEvent && !item.accommodation).length,
+      unplannedDates: analysis.unplannedDates,
+    };
+  }, [existingItinerary, trip.startDate, trip.endDate]);
 
   const groups = useMemo(() => selectTripInspirationGroups(inspirations, trip), [inspirations, trip]);
   const groupIds = useMemo(() => new Set(groups.map(group => group.id)), [groups]);
@@ -483,6 +511,34 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
           <h3 className="flex items-center gap-2 font-black text-[#11183d]"><Wand2 size={17} className="text-violet-600" />AI 行程調整模式</h3>
           <p className="mt-1 text-sm leading-6 text-slate-600">你目前已經有行程安排了，這次想怎麼調整？</p>
 
+          {/* Read back before asking. Choosing a mode is a decision about days
+              that are blank, and the traveller could not see which those were. */}
+          {itineraryReadBack && (
+            <div className="mt-3 rounded-2xl bg-white/80 p-3.5 ring-1 ring-violet-100">
+              <p className="text-[11px] font-black text-slate-500">AI 讀到的目前行程</p>
+              <ul className="mt-1.5 space-y-1 text-[12px] leading-5 text-slate-600">
+                <li>
+                  <span className="font-black text-[#11183d]">{itineraryReadBack.anchorCount}</span> 個固定項目（航班、住宿等），不會被更動
+                </li>
+                <li>
+                  <span className="font-black text-[#11183d]">{itineraryReadBack.plannedCount}</span> 個你自己安排的行程
+                </li>
+                <li>
+                  {itineraryReadBack.unplannedDates.length === 0 ? (
+                    '每一天都已經有安排了。'
+                  ) : (
+                    <>
+                      <span className="font-black text-amber-600">
+                        {itineraryReadBack.unplannedDates.length} 天
+                      </span>
+                      還是空的：{itineraryReadBack.unplannedDates.map(date => formatDayHeading(date)).join('、')}
+                    </>
+                  )}
+                </li>
+              </ul>
+            </div>
+          )}
+
           <div className="mt-3 space-y-2">
             {ADJUSTMENT_MODES.map(option => {
               const isActive = adjustmentMode === option.mode;
@@ -532,7 +588,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             <Sparkles size={16} />{isAdjusting ? 'AI 正在讀你的行程…' : 'AI 幫我調整行程'}
           </button>
 
-          <p className="mt-2 text-[11px] leading-5 text-slate-400">AI 會先讀過目前 {existingItinerary.length} 個行程項目再提出建議，確認之前不會更動任何安排。</p>
+          <p className="mt-2 text-[11px] leading-5 text-slate-400">你確認之前不會更動任何安排。</p>
 
           {adjustmentError && (
             <div className="mt-3 flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-6 text-slate-700">

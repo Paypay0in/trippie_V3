@@ -50,6 +50,16 @@ export const checkProposedChanges = (
   const kept = changes.filter(change => {
     if (change?.type !== 'add') return true;
 
+    // A place is the entire content of an `add`. One came back with no
+    // `proposedItem` at all and the place written into `toTime` as
+    // 「22:45 N/A (Late Night Snack near Hotel)」 — a change that can only be
+    // accepted into a card with no name on it.
+    const placeName = change.proposedItem?.placeName?.trim() || '';
+    if (!placeName) {
+      warnings.push('有一筆新增建議沒有地點名稱，已略過。');
+      return false;
+    }
+
     const date = typeof change.toDate === 'string' ? change.toDate.trim() : '';
     if (!ISO_DATE.test(date)) {
       warnings.push(`${nameOf(change)} 沒有指定要排在哪一天，已略過。`);
