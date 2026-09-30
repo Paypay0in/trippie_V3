@@ -1,31 +1,43 @@
 
 import { OVERLAY } from '../constants/layers';
 import React, { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { X, Camera, QrCode, UserPlus, Share2, CheckCircle, Loader2 } from 'lucide-react';
+import { X, Camera, QrCode, Users, Share2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { inviteTokenFromUrl } from '../services/tripInvites';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  userId: string;
-  userName: string;
-  currentTripId: string | null;
   currentTripName?: string;
-  onScanSuccess: (data: any) => void;
+  /** Hands a scanned invite token to the same claim path a tapped link uses. */
+  onScanToken: (token: string) => void;
+  /** Opens 旅伴管理, where a link for one named seat is actually minted. */
+  onManageTravelers: () => void;
 }
 
-const QRShareModal: React.FC<Props> = ({ 
-  isOpen, 
-  onClose, 
-  userId, 
-  userName, 
-  currentTripId, 
+/**
+ * Sharing a trip, and joining one that was shared.
+ *
+ * The QR here used to encode `{type:'SHARE_TRIP', userId, tripId}` — a payload
+ * from before invites existed. Scanning it granted nothing on the server: it
+ * fabricated an empty local trip with a matching id, which then synced nothing
+ * and looked like it had worked. A phone camera pointed at it went to Google
+ * and searched the JSON.
+ *
+ * There is no generic trip QR any more, because there is no generic invite. A
+ * link belongs to one named companion's seat so that two people cannot both
+ * arrive as the same person. Minting one happens in 旅伴管理; this screen sends
+ * you there rather than growing a second way to do it.
+ */
+const QRShareModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
   currentTripName,
-  onScanSuccess 
+  onScanToken,
+  onManageTravelers,
 }) => {
   const [mode, setMode] = useState<'show' | 'scan'>('show');
-  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
 
   useEffect(() => {
     let scanner: Html5QrcodeScanner | null = null;
@@ -38,14 +50,18 @@ const QRShareModal: React.FC<Props> = ({
       );
 
       scanner.render((decodedText) => {
-        try {
-          const data = JSON.parse(decodedText);
-          onScanSuccess(data);
-          scanner?.clear();
-          setMode('show');
-        } catch (e) {
-          console.error("Invalid QR code data", e);
+        // An invite link, or the token out of one. Nothing else grants access:
+        // authorisation comes from claiming the token, so a QR that decodes to
+        // anything else cannot be honoured no matter what it claims to be.
+        const token = inviteTokenFromUrl(decodedText)
+          || (/^[a-z0-9]{16,}$/i.test(decodedText.trim()) ? decodedText.trim() : '');
+        if (!token) {
+          setScanError('這個 QR 不是旅程邀請碼。請對方在「旅伴管理」裡替你產生邀請連結。');
+          return;
         }
+        setScanError('');
+        scanner?.clear().catch(() => undefined);
+        onScanToken(token);
       }, (error) => {
         // console.warn(error);
       });
@@ -58,17 +74,9 @@ const QRShareModal: React.FC<Props> = ({
         scanner.clear().catch(err => console.error("Failed to clear scanner", err));
       }
     };
-  }, [mode, isOpen, onScanSuccess]);
+  }, [mode, isOpen, onScanToken]);
 
   if (!isOpen) return null;
-
-  const qrData = JSON.stringify({
-    type: 'SHARE_TRIP',
-    userId,
-    userName,
-    tripId: currentTripId,
-    tripName: currentTripName
-  });
 
   return (
     <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm ${OVERLAY.alert} flex items-center justify-center p-4 animate-fade-in`}>
@@ -92,7 +100,7 @@ const QRShareModal: React.FC<Props> = ({
                 mode === 'show' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-400'
               }`}
             >
-              <QrCode size={17} /> 我的 QR Code
+              <QrCode size={17} /> 邀請朋友
             </button>
             <button
               onClick={() => setMode('scan')}
@@ -118,40 +126,35 @@ const QRShareModal: React.FC<Props> = ({
           />
           {mode === 'show' ? (
             <div className="flex w-full flex-col items-center animate-fade-in">
-              <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
-                <QRCodeSVG
-                  value={qrData}
-                  size={200}
-                  level="H"
-                  includeMargin={true}
-                  imageSettings={{
-                    src: "https://picsum.photos/seed/trippie/40/40",
-                    x: undefined,
-                    y: undefined,
-                    height: 40,
-                    width: 40,
-                    excavate: true,
-                  }}
-                />
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-[#f5f1ff]">
+                <Users size={34} className="text-violet-600" />
               </div>
-
-              <h3 className="mt-4 text-xl font-black tracking-tight text-[#11183d]">{userName}</h3>
-              <p className="mt-1.5 text-center text-[13px] font-medium leading-relaxed text-slate-500">
-                讓朋友掃描此碼，即可加入好友並共享目前帳本
+              <h3 className="mt-4 text-center text-lg font-black tracking-tight text-[#11183d]">
+                邀請連結是給某一個人的
+              </h3>
+              <p className="mt-2 text-center text-[13px] font-medium leading-relaxed text-slate-500">
+                到「旅伴管理」新增朋友的名字，再按邀請，就會產生她專屬的連結和 QR。
+                她用手機相機掃，或直接點連結就能加入{currentTripName ? `「${currentTripName}」` : '這趟旅程'}。
               </p>
-
-              {currentTripName && (
-                <div className="mt-4 flex items-center gap-2 rounded-full bg-[#f5f1ff] px-4 py-2 ring-1 ring-violet-100">
-                  <Share2 size={15} className="text-violet-600" />
-                  <span className="text-xs font-black text-violet-700">共享中：{currentTripName}</span>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => { onClose(); onManageTravelers(); }}
+                className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-sm font-black text-white"
+              >
+                <Share2 size={16} /> 前往旅伴管理
+              </button>
             </div>
           ) : (
             <div className="flex w-full flex-col items-center animate-fade-in">
               <p className="mt-4 text-center text-[13px] font-medium text-slate-500">
-                請將對方的 QR Code 置於框內進行掃描
+                把對方畫面上的邀請 QR 放進框內。
               </p>
+              {scanError && (
+                <p className="mt-3 flex items-start gap-1.5 text-xs font-bold text-rose-600">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  {scanError}
+                </p>
+              )}
             </div>
           )}
 

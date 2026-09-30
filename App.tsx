@@ -1115,54 +1115,18 @@ const App: React.FC = () => {
     }
   }, [socket, activeDraftId, currentLoadedTripId]);
 
-  const handleScanSuccess = (data: any) => {
-    if (data.type === "SHARE_TRIP") {
-      // 1. Add to friends if not already there
-      const isFriend = friends.some((f) => f.id === data.userId);
-      if (!isFriend) {
-        const newFriend = { id: data.userId, name: data.userName };
-        const updatedFriends = [...friends, newFriend];
-        setFriends(updatedFriends);
-        localStorage.setItem("trippie_friends", JSON.stringify(updatedFriends));
-        showToast(`已將 ${data.userName} 加入好友`);
-      }
-
-      // 2. If tripId is present, join the trip
-      if (data.tripId) {
-        const now = new Date().toISOString();
-        const sharedDraft: TripDraft = drafts.find(
-          (draft) => draft.id === data.tripId,
-        ) || {
-          id: data.tripId,
-          ownerId: userId,
-          name: data.tripName || "共享旅程",
-          startDate: "",
-          endDate: "",
-          expenses: [],
-          companions: [],
-          shoppingList: [],
-          createdAt: now,
-          updatedAt: now,
-        };
-        if (!drafts.some((draft) => draft.id === data.tripId)) {
-          setDrafts((prev) => [...prev, sharedDraft]);
-        }
-        hydrateDraft(sharedDraft);
-        setViewMode("trip");
-        showToast(`已加入共享旅程：${data.tripName}`);
-
-        // Add the owner as a companion if not already there
-        const isCompanion = companions.some((c) => c.id === data.userId);
-        if (!isCompanion) {
-          setCompanions((prev) => [
-            ...prev,
-            { id: data.userId, name: data.userName },
-          ]);
-        }
-      }
-
-      setIsShareModalOpen(false);
-    }
+  /**
+   * A scanned invite goes down the same road a tapped link does.
+   *
+   * What stood here fabricated a local trip from the scanned payload: same id,
+   * empty contents, no membership on the server. It synced nothing and showed
+   * a success toast, which is worse than an error because it looks like it
+   * worked. Authorisation lives in `claim_trip_invite`; navigating to the link
+   * reaches the one implementation that performs it.
+   */
+  const handleScanInviteToken = (token: string) => {
+    setIsShareModalOpen(false);
+    window.location.href = inviteLinkFor(token, window.location.origin);
   };
 
   const handleOpenShareModal = () => {
@@ -5049,13 +5013,11 @@ const App: React.FC = () => {
         <QRShareModal
           isOpen={isShareModalOpen}
           onClose={() => setIsShareModalOpen(false)}
-          userId={userId}
-          userName={userProfile.name}
-          currentTripId={activeDraftId || currentLoadedTripId}
           currentTripName={
             draftName || (currentLoadedTripId ? "歷史旅程" : undefined)
           }
-          onScanSuccess={handleScanSuccess}
+          onScanToken={handleScanInviteToken}
+          onManageTravelers={() => setIsCompanionsOpen(true)}
         />
       </div>
     );
@@ -5912,13 +5874,11 @@ const App: React.FC = () => {
           <QRShareModal
             isOpen={isShareModalOpen}
             onClose={() => setIsShareModalOpen(false)}
-            userId={userId}
-            userName={userProfile.name}
-            currentTripId={activeDraftId || currentLoadedTripId}
             currentTripName={
               currentTripName || (currentLoadedTripId ? "歷史旅程" : undefined)
             }
-            onScanSuccess={handleScanSuccess}
+            onScanToken={handleScanInviteToken}
+            onManageTravelers={() => setIsCompanionsOpen(true)}
           />
           {isGlobalActionOpen && (
             <GlobalActionSheet
@@ -6490,13 +6450,11 @@ const App: React.FC = () => {
       <QRShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
-        userId={userId}
-        userName={userProfile.name}
-        currentTripId={activeDraftId || currentLoadedTripId}
         currentTripName={
           currentTripName || (currentLoadedTripId ? "歷史旅程" : undefined)
         }
-        onScanSuccess={handleScanSuccess}
+        onScanToken={handleScanInviteToken}
+        onManageTravelers={() => setIsCompanionsOpen(true)}
       />
     </div>
   );
