@@ -22,11 +22,13 @@ export interface DestinationTip {
   /**
    * An official page for this tip, when one exists.
    *
-   * Apps like Wallet have no public link that opens a particular screen, so
-   * this points at the vendor's own instructions rather than pretending to
-   * deep-link somewhere the phone will not actually go.
+   * `appUrl` is tried first on a phone. There is no public link that opens a
+   * particular screen inside Wallet, so it opens the app and the traveller
+   * taps 加入 ＞ 交通卡 themselves; `url` is where they land when the scheme
+   * goes nowhere, which is what happens on a desktop and on any device
+   * without that app.
    */
-  link?: { label: string; url: string };
+  link?: { label: string; url: string; appUrl?: string };
 }
 
 const TIPS: Record<string, DestinationTip[]> = {
@@ -44,8 +46,11 @@ const TIPS: Record<string, DestinationTip[]> = {
         '地鐵、公車、計程車都能刷，超商就能買和加值。iPhone 也可以先試 Wallet ＞ 加入 ＞ 交通卡：' +
         'Apple 的支援地區清單包含南韓，卡片能不能加會依機型與地區顯示。不行就在超商買實體卡。',
       link: {
-        label: 'Apple：在 Wallet 加入交通卡',
+        label: '打開 Wallet 加入交通卡',
         url: 'https://support.apple.com/en-us/105079',
+        // Wallet's own scheme. Undocumented, so the support page above is the
+        // fallback rather than an afterthought.
+        appUrl: 'shoebox://',
       },
     },
     {
@@ -65,8 +70,11 @@ const TIPS: Record<string, DestinationTip[]> = {
       title: 'Suica／PASMO 交通卡',
       detail: '可加入手機錢包，搭車和便利商店都能用。',
       link: {
-        label: 'Apple：在 Wallet 加入交通卡',
+        label: '打開 Wallet 加入交通卡',
         url: 'https://support.apple.com/en-us/105079',
+        // Wallet's own scheme. Undocumented, so the support page above is the
+        // fallback rather than an afterthought.
+        appUrl: 'shoebox://',
       },
     },
     {

@@ -8,7 +8,8 @@ import ActivityPlanCards from './ActivityPlanCards';
 import { tripDays, tripDaysBrief } from '../services/tripFreeDays';
 import ServiceRequestSheet from './ServiceRequestSheet';
 import { ServiceRequest } from '../types';
-import { AlertTriangle, ArrowRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake } from 'lucide-react';
+import { openAppWithFallback, browserLaunchEnvironment } from '../services/appLaunch';
 import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
 import { fetchSuggestedPlaces } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
@@ -677,7 +678,25 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                 <div className="min-w-0 flex-1">
                   <span className="block text-sm font-bold text-slate-800">{tip.title}</span>
                   <p className="mt-1 text-xs leading-5 text-slate-500">{tip.detail}</p>
-                  {tip.link && <a href={tip.link.url} target="_blank" rel="noreferrer noopener" className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-xs font-black text-violet-700">{tip.link.label}<ExternalLink size={14} /></a>}
+                  {tip.link && (
+                    <a
+                      href={tip.link.url}
+                      target={tip.link.appUrl ? undefined : '_blank'}
+                      rel="noreferrer noopener"
+                      onClick={event => {
+                        // Only intercepted when this tip names an app. The
+                        // href stays the real page so a long-press, a copied
+                        // link and a browser with JS off all still work.
+                        if (!tip.link?.appUrl) return;
+                        event.preventDefault();
+                        openAppWithFallback(tip.link.appUrl, tip.link.url, browserLaunchEnvironment());
+                      }}
+                      className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-xs font-black text-violet-700"
+                    >
+                      {tip.link.label}
+                      {tip.link.appUrl ? <ArrowUpRight size={14} /> : <ExternalLink size={14} />}
+                    </a>
+                  )}
                 </div>
               </div>
             ))}
