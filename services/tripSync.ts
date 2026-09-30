@@ -1,13 +1,16 @@
-import { Expense, ItineraryItem, TripMember } from '../types';
+import { Expense, FlightAnchor, ItineraryItem, TripMember } from '../types';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import {
   ExpenseRow,
+  FlightAnchorRow,
   ItineraryItemRow,
   TripMemberRow,
   fromExpenseRow,
+  fromFlightAnchorRow,
   fromItineraryRow,
   fromMemberRow,
   toExpenseRow,
+  toFlightAnchorRow,
   toItineraryRow,
   toMemberRow,
 } from './tripSyncMapping';
@@ -38,6 +41,15 @@ export interface TripSyncSnapshot {
    * it.
    */
   itinerary: ItineraryItem[];
+  /**
+   * The flights the trip is arranged around.
+   *
+   * These were local-only while the itinerary items they derive did sync — so
+   * a companion received "航班起飛" with no anchor behind it, and her device
+   * then deleted those rows for both travellers. Carrying the anchors here
+   * closes that gap, on the same read-before-write ordering as the rest.
+   */
+  flightAnchors: FlightAnchor[];
 }
 
 export type SyncResult<T> =
@@ -142,14 +154,16 @@ export const fetchTripSnapshot = async (
 ): Promise<SyncResult<TripSyncSnapshot>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
-    const [members, expenses, itinerary] = await Promise.all([
+    const [members, expenses, itinerary, flights] = await Promise.all([
       supabase.from('trip_members').select('*').eq('trip_id', tripId),
       supabase.from('expenses').select('*').eq('trip_id', tripId),
       supabase.from('itinerary_items').select('*').eq('trip_id', tripId),
+      supabase.from('flight_anchors').select('*').eq('trip_id', tripId),
     ]);
     if (members.error) throw members.error;
     if (expenses.error) throw expenses.error;
     if (itinerary.error) throw itinerary.error;
+    if (flights.error) throw flights.error;
 
     return {
       status: 'ok',
@@ -157,6 +171,7 @@ export const fetchTripSnapshot = async (
         members: (members.data as TripMemberRow[]).map(fromMemberRow),
         expenses: (expenses.data as ExpenseRow[]).map(fromExpenseRow),
         itinerary: (itinerary.data as ItineraryItemRow[]).map(fromItineraryRow),
+        flightAnchors: (flights.data as FlightAnchorRow[]).map(fromFlightAnchorRow),
       },
     };
   } catch (error) {
@@ -232,7 +247,7 @@ export const pushMembers = async (
  * because nobody is looking for it.
  */
 export const pushTripSnapshot = async (
-  { members, expenses, itinerary }: TripSyncSnapshot,
+  { members, expenses, itinerary, flightAnchors }: TripSyncSnapshot,
   tripId: string,
 ): Promise<SyncResult<null>> => {
   if (!supabase) return { status: 'unavailable' };
@@ -275,6 +290,26 @@ export const pushTripSnapshot = async (
       .eq('trip_id', tripId)
       .not('id', 'in', `(${keepItems.map(id => `"${id}"`).join(',') || '""'})`);
     if (itineraryPruneError) throw itineraryPruneError;
+
+    // Upsert on the leg rather than the id: re-entering the outbound flight
+    // produces a fresh anchor id locally, and keying on id alone would leave
+    // the old departure sitting in the shared trip beside the new one.
+    if (flightAnchors.length) {
+      const { error } = await supabase
+        .from('flight_anchors')
+        .upsert(flightAnchors.map(anchor => toFlightAnchorRow(anchor, tripId)), {
+          onConflict: 'trip_id,direction',
+        });
+      if (error) throw error;
+    }
+
+    const keepAnchors = flightAnchors.map(anchor => anchor.id);
+    const { error: flightPruneError } = await supabase
+      .from('flight_anchors')
+      .delete()
+      .eq('trip_id', tripId)
+      .not('id', 'in', `(${keepAnchors.map(id => `"${id}"`).join(',') || '""'})`);
+    if (flightPruneError) throw flightPruneError;
 
     return { status: 'ok', data: null };
   } catch (error) {

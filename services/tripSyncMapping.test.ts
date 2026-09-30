@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Category, Expense, ItineraryItem, PaymentMethod, TripMember } from '../types';
+import { Category, Expense, FlightAnchor, ItineraryItem, PaymentMethod, TripMember } from '../types';
 import {
   ExpenseRow,
   fromExpenseRow,
@@ -8,6 +8,9 @@ import {
   toItineraryRow,
   toExpenseRow,
   toMemberRow,
+  flightModeFromAnchors,
+  fromFlightAnchorRow,
+  toFlightAnchorRow,
 } from './tripSyncMapping';
 
 const TRIP = 'trip-1';
@@ -211,5 +214,62 @@ describe('itinerary rows', () => {
     const row = { ...toItineraryRow(item, 'trip-1'), source_inspiration_ids: null, saved_travel_notes: null };
     expect(fromItineraryRow(row).sourceInspirationIds).toBeUndefined();
     expect(fromItineraryRow(row).savedTravelNotes).toBeUndefined();
+  });
+});
+
+describe('flight anchor rows', () => {
+  const anchor: FlightAnchor = {
+    id: 'anchor-out',
+    direction: 'OUTBOUND',
+    departureDate: '2026-10-02',
+    departureTime: '09:30',
+    departureAirport: '桃園國際機場',
+    departureAirportIata: 'TPE',
+    arrivalAirport: '金海國際機場',
+    arrivalAirportIata: 'PUS',
+    arrivalDate: '2026-10-02',
+    arrivalTime: '13:05',
+    airportArrivalBufferMinutes: 120,
+    source: 'MANUAL',
+  };
+
+  it('survives the round trip unchanged', () => {
+    expect(fromFlightAnchorRow(toFlightAnchorRow(anchor, 'trip-1'))).toEqual(anchor);
+  });
+
+  it('keeps a zero airport buffer, which is a real answer', () => {
+    // "I am already at the airport." A falsy check would turn it into 120 and
+    // put the arrival item two hours before a flight already being boarded.
+    const row = toFlightAnchorRow({ ...anchor, airportArrivalBufferMinutes: 0 }, 'trip-1');
+    expect(row.airport_arrival_buffer_minutes).toBe(0);
+    expect(fromFlightAnchorRow(row).airportArrivalBufferMinutes).toBe(0);
+  });
+
+  it('stores absent optional airports as null, not empty string', () => {
+    const row = toFlightAnchorRow(
+      { id: 'a', direction: 'RETURN', departureDate: '', departureTime: '', departureAirport: '', airportArrivalBufferMinutes: 120, source: 'MANUAL' },
+      'trip-1',
+    );
+    expect(row.arrival_airport).toBeNull();
+    expect(row.arrival_date).toBeNull();
+    expect(row.departure_airport).toBe('');
+  });
+
+  it('falls back to outbound rather than dropping an unreadable direction', () => {
+    const row = { ...toFlightAnchorRow(anchor, 'trip-1'), direction: 'SIDEWAYS' };
+    expect(fromFlightAnchorRow(row).direction).toBe('OUTBOUND');
+  });
+});
+
+describe('flightModeFromAnchors', () => {
+  const leg = (direction: FlightAnchor['direction']): FlightAnchor => ({
+    id: direction, direction, departureDate: '2026-10-02', departureTime: '09:30',
+    departureAirport: 'TPE', airportArrivalBufferMinutes: 120, source: 'MANUAL',
+  });
+
+  it('is a round trip exactly when a return flight exists', () => {
+    expect(flightModeFromAnchors([leg('OUTBOUND'), leg('RETURN')])).toBe('ROUND_TRIP');
+    expect(flightModeFromAnchors([leg('OUTBOUND')])).toBe('ONE_WAY');
+    expect(flightModeFromAnchors([])).toBe('ONE_WAY');
   });
 });

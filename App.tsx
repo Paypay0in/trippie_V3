@@ -145,6 +145,7 @@ import ItineraryItemForm from "./components/ItineraryItemForm";
 import FlightAnchorsForm from "./components/FlightAnchorsForm";
 import StayUploadCard from "./components/StayUploadCard";
 import { reconcileFlightDerivedItems } from "./services/flightDerivedItems";
+import { flightModeFromAnchors } from "./services/tripSyncMapping";
 import ItineraryPlanningAssistant from "./components/ItineraryPlanningAssistant";
 import TravelBookView from "./components/TravelBookView";
 import PointsDashboard from "./components/PointsDashboard";
@@ -2707,6 +2708,7 @@ const App: React.FC = () => {
     members: settlementMembers,
     expenses,
     itinerary,
+    flightAnchors,
     note: cloudTripNote,
     onRemoteSnapshot: (snapshot) => {
       // The remote copy wins on open. Someone else may have added an expense
@@ -2720,6 +2722,19 @@ const App: React.FC = () => {
       if (snapshot.itinerary.length) {
         isHydratingTripRef.current = false;
         setItinerary(snapshot.itinerary);
+      }
+      // Flights arrive with the rest of the trip now. Every remote anchor id
+      // is registered as known before the list is applied, so the
+      // reconciliation treats them as this device's own from here on — without
+      // that, the next edit would see them as strangers and refuse to clean up
+      // the items they derive.
+      if (snapshot.flightAnchors.length) {
+        isHydratingTripRef.current = false;
+        for (const anchor of snapshot.flightAnchors) {
+          knownFlightAnchorIds.current.add(anchor.id);
+        }
+        setFlightAnchors(snapshot.flightAnchors);
+        setFlightMode(flightModeFromAnchors(snapshot.flightAnchors));
       }
       // The owner is derived locally from the account, not stored as a
       // companion, so only the others come back into the companion list.

@@ -1,4 +1,4 @@
-import { Category, Expense, ItineraryItem, PaymentMethod, SplitMethod, TripMember } from '../types';
+import { Category, Expense, FlightAnchor, ItineraryItem, PaymentMethod, SplitMethod, TripFlightMode, TripMember } from '../types';
 
 /**
  * Translation between the app's objects and the shared tables.
@@ -205,3 +205,109 @@ export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
     ? (row.saved_travel_notes as ItineraryItem['savedTravelNotes'])
     : undefined,
 });
+
+export interface FlightAnchorRow {
+  id: string;
+  trip_id: string;
+  direction: string;
+  departure_date: string;
+  departure_time: string;
+  departure_airport: string;
+  departure_airport_iata: string | null;
+  departure_airport_city: string | null;
+  departure_airport_country: string | null;
+  departure_airport_address: string | null;
+  departure_airport_place_id: string | null;
+  departure_airport_latitude: number | null;
+  departure_airport_longitude: number | null;
+  arrival_date: string | null;
+  arrival_time: string | null;
+  arrival_airport: string | null;
+  arrival_airport_iata: string | null;
+  arrival_airport_city: string | null;
+  arrival_airport_country: string | null;
+  arrival_airport_address: string | null;
+  arrival_airport_place_id: string | null;
+  arrival_airport_latitude: number | null;
+  arrival_airport_longitude: number | null;
+  airport_arrival_buffer_minutes: number;
+  source: string;
+}
+
+/** Matches the airport buffer default in the table and in the derived items. */
+const DEFAULT_AIRPORT_BUFFER_MINUTES = 120;
+
+export const toFlightAnchorRow = (anchor: FlightAnchor, tripId: string): FlightAnchorRow => ({
+  id: anchor.id,
+  trip_id: tripId,
+  direction: anchor.direction,
+  departure_date: anchor.departureDate ?? '',
+  departure_time: anchor.departureTime ?? '',
+  departure_airport: anchor.departureAirport ?? '',
+  departure_airport_iata: anchor.departureAirportIata ?? null,
+  departure_airport_city: anchor.departureAirportCity ?? null,
+  departure_airport_country: anchor.departureAirportCountry ?? null,
+  departure_airport_address: anchor.departureAirportAddress ?? null,
+  departure_airport_place_id: anchor.departureAirportPlaceId ?? null,
+  departure_airport_latitude: anchor.departureAirportLatitude ?? null,
+  departure_airport_longitude: anchor.departureAirportLongitude ?? null,
+  arrival_date: anchor.arrivalDate ?? null,
+  arrival_time: anchor.arrivalTime ?? null,
+  arrival_airport: anchor.arrivalAirport ?? null,
+  arrival_airport_iata: anchor.arrivalAirportIata ?? null,
+  arrival_airport_city: anchor.arrivalAirportCity ?? null,
+  arrival_airport_country: anchor.arrivalAirportCountry ?? null,
+  arrival_airport_address: anchor.arrivalAirportAddress ?? null,
+  arrival_airport_place_id: anchor.arrivalAirportPlaceId ?? null,
+  arrival_airport_latitude: anchor.arrivalAirportLatitude ?? null,
+  arrival_airport_longitude: anchor.arrivalAirportLongitude ?? null,
+  // Zero is a real answer — "I am already at the airport" — so it must not be
+  // swallowed by a falsy check the way `||` would.
+  airport_arrival_buffer_minutes:
+    typeof anchor.airportArrivalBufferMinutes === 'number'
+      ? anchor.airportArrivalBufferMinutes
+      : DEFAULT_AIRPORT_BUFFER_MINUTES,
+  source: anchor.source ?? 'MANUAL',
+});
+
+export const fromFlightAnchorRow = (row: FlightAnchorRow): FlightAnchor => ({
+  id: row.id,
+  // A row that somehow holds neither direction is treated as outbound rather
+  // than dropped; losing a flight entirely is the worse failure.
+  direction: row.direction === 'RETURN' ? 'RETURN' : 'OUTBOUND',
+  departureDate: row.departure_date ?? '',
+  departureTime: row.departure_time ?? '',
+  departureAirport: row.departure_airport ?? '',
+  departureAirportIata: row.departure_airport_iata ?? undefined,
+  departureAirportCity: row.departure_airport_city ?? undefined,
+  departureAirportCountry: row.departure_airport_country ?? undefined,
+  departureAirportAddress: row.departure_airport_address ?? undefined,
+  departureAirportPlaceId: row.departure_airport_place_id ?? undefined,
+  departureAirportLatitude: row.departure_airport_latitude ?? undefined,
+  departureAirportLongitude: row.departure_airport_longitude ?? undefined,
+  arrivalDate: row.arrival_date ?? undefined,
+  arrivalTime: row.arrival_time ?? undefined,
+  arrivalAirport: row.arrival_airport ?? undefined,
+  arrivalAirportIata: row.arrival_airport_iata ?? undefined,
+  arrivalAirportCity: row.arrival_airport_city ?? undefined,
+  arrivalAirportCountry: row.arrival_airport_country ?? undefined,
+  arrivalAirportAddress: row.arrival_airport_address ?? undefined,
+  arrivalAirportPlaceId: row.arrival_airport_place_id ?? undefined,
+  arrivalAirportLatitude: row.arrival_airport_latitude ?? undefined,
+  arrivalAirportLongitude: row.arrival_airport_longitude ?? undefined,
+  airportArrivalBufferMinutes:
+    typeof row.airport_arrival_buffer_minutes === 'number'
+      ? row.airport_arrival_buffer_minutes
+      : DEFAULT_AIRPORT_BUFFER_MINUTES,
+  source: 'MANUAL',
+});
+
+/**
+ * Whether a trip is a round trip, read from the anchors themselves.
+ *
+ * The flight mode is not stored. Deriving it removes a field that would have
+ * needed its own sync path and could disagree with the anchors it describes —
+ * a trip showing 單程 while holding a return flight.
+ */
+export const flightModeFromAnchors = (anchors: FlightAnchor[]): TripFlightMode =>
+  anchors.some(anchor => anchor.direction === 'RETURN') ? 'ROUND_TRIP' : 'ONE_WAY';

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Expense, ItineraryItem, TripMember } from '../types';
+import { Expense, FlightAnchor, ItineraryItem, TripMember } from '../types';
 import {
   TripSyncSnapshot,
   ensureTripRow,
@@ -41,6 +41,8 @@ interface Options {
    * completes covers the plan as well as the money.
    */
   itinerary: ItineraryItem[];
+  /** The flights, carried on the same write as the rest of the trip. */
+  flightAnchors: FlightAnchor[];
   /** Extra text for the dev banner, e.g. how many cloud trips were found. */
   note?: string;
   /** Called when the trip already exists remotely and the remote copy wins. */
@@ -60,6 +62,7 @@ export const useTripSync = ({
   members,
   expenses,
   itinerary,
+  flightAnchors,
   note,
   onRemoteSnapshot,
 }: Options): TripSyncState => {
@@ -129,16 +132,16 @@ export const useTripSync = ({
   // The roster and the expense list are rebuilt on every render, so depending
   // on the arrays themselves would restart the debounce forever and never
   // write. Comparing content also means an idle re-render costs no request.
-  const payloadSignature = JSON.stringify({ members, expenses, itinerary });
-  const payloadRef = useRef({ members, expenses, itinerary });
-  payloadRef.current = { members, expenses, itinerary };
+  const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors });
+  const payloadRef = useRef({ members, expenses, itinerary, flightAnchors });
+  payloadRef.current = { members, expenses, itinerary, flightAnchors };
 
   useEffect(() => {
     if (!enabled || !tripId || readyTripIdRef.current !== tripId) return;
 
     const timer = window.setTimeout(() => {
-      const { members: m, expenses: e, itinerary: i } = payloadRef.current;
-      void pushTripSnapshot({ members: m, expenses: e, itinerary: i }, tripId).then(result => {
+      const { members: m, expenses: e, itinerary: i, flightAnchors: f } = payloadRef.current;
+      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f }, tripId).then(result => {
         if (readyTripIdRef.current !== tripId) return;
         if (result.status === 'error') {
           if (import.meta.env.DEV) console.warn('[tripSync] write failed', result.message);
