@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Check, Loader2, Users } from 'lucide-react';
+import { Check, Loader2, LogIn, Users } from 'lucide-react';
 import { InvitePreview, claimInvite, inviteTokenFromUrl, previewInvite } from '../services/tripInvites';
 import { claimFailureMessage } from '../services/inviteFailure';
 import { getSession, subscribeToAuthChanges } from '../services/authService';
@@ -29,6 +29,16 @@ import { getSession, subscribeToAuthChanges } from '../services/authService';
 /** Survives the sign-up round trip, and only for this tab. */
 const PENDING_KEY = 'trippie_pending_invite';
 
+/**
+ * Asks the app to open its sign-in screen.
+ *
+ * This sheet is mounted beside App, not inside it, so it cannot reach the
+ * navigation state — which is why it could tell the friend to sign in and
+ * give her no way to do it. An event crosses that gap without either side
+ * having to own the other.
+ */
+export const OPEN_SIGN_IN_EVENT = 'trippie:open-sign-in';
+
 export const readPendingInvite = (search: string, storage: Storage | undefined): string | null => {
   const fromUrl = inviteTokenFromUrl(search);
   if (fromUrl) {
@@ -56,6 +66,15 @@ const JoinTripSheet: React.FC = () => {
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [state, setState] = useState<'idle' | 'joining' | 'done' | 'error'>('idle');
   const [error, setError] = useState('');
+  /**
+   * Hidden while she signs in, without forgetting the invite.
+   *
+   * This is a full-screen overlay, so it would cover the sign-in form it just
+   * sent her to. Dismissing it instead would drop the token. It stays mounted
+   * and keeps watching the session, so the claim still fires the moment the
+   * account exists — she never comes back to this screen.
+   */
+  const [steppedAside, setSteppedAside] = useState(false);
 
   // Its own session watch. Whether the friend signs in on this screen or
   // arrives already signed in, the claim has to fire either way.
@@ -117,6 +136,9 @@ const JoinTripSheet: React.FC = () => {
 
   if (!token) return null;
   if (state === 'done') return null;
+  // Deliberately after the effects above, so stepping aside never unsubscribes
+  // the session watch that is going to complete the join.
+  if (steppedAside) return null;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-end justify-center bg-[#11183d]/40 p-4 md:items-center">
@@ -145,9 +167,23 @@ const JoinTripSheet: React.FC = () => {
               /* Said plainly, because the next step is somebody else's screen.
                  The link is remembered, so coming back after registering
                  lands them in the trip rather than in an empty app. */
-              <p className="mt-3 rounded-2xl bg-[#f3f0ff] px-3.5 py-3 text-xs leading-5 text-[#4d35c7]">
-                先登入或註冊，完成後會自動加入這趟旅程——這個邀請會保留著。
-              </p>
+              <>
+                <p className="mt-3 rounded-2xl bg-[#f3f0ff] px-3.5 py-3 text-xs leading-5 text-[#4d35c7]">
+                  先登入或註冊，完成後會自動加入這趟旅程——這個邀請會保留著。
+                </p>
+                {/* The sentence above described a next step that had no button
+                    under it: the only thing to press was 稍後再說. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent(OPEN_SIGN_IN_EVENT));
+                    setSteppedAside(true);
+                  }}
+                  className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-sm font-black text-white"
+                >
+                  <LogIn size={16} />登入 / 註冊並加入
+                </button>
+              </>
             )}
             {state === 'joining' && (
               <p className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-500">

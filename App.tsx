@@ -49,7 +49,7 @@ import { useTripSync } from "./hooks/useTripSync";
 import { createInviteLink, inviteLinkFor } from "./services/tripInvites";
 import { inviteFailureMessage } from "./services/inviteFailure";
 import { applicableBroadcastFields, cloudOwnsSharedState } from "./services/sharedStateOwnership";
-import JoinTripSheet from "./components/JoinTripSheet";
+import JoinTripSheet, { OPEN_SIGN_IN_EVENT } from "./components/JoinTripSheet";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
 import { PASSPORT_OPTIONS } from "./services/passportOptions";
 import { countSaversForPost, saverCountsByPost } from "./services/postSaveCounts";
@@ -1438,6 +1438,23 @@ const App: React.FC = () => {
       ownershipMigrationAttemptedRef.current = null;
     }
   }, [authStatus, authUser?.id, anonymousUserId]);
+
+  /**
+   * Opens the sign-in screen for the invite sheet.
+   *
+   * That sheet is mounted beside App, so it cannot set this navigation state
+   * itself — which is how it ended up telling the friend to sign in with no
+   * button under the sentence. It asks; this answers.
+   */
+  useEffect(() => {
+    const open = () => {
+      setAuthEntryContext("account");
+      setAppSection("profile");
+      setAccountView("auth");
+    };
+    window.addEventListener(OPEN_SIGN_IN_EVENT, open);
+    return () => window.removeEventListener(OPEN_SIGN_IN_EVENT, open);
+  }, []);
 
   const handleAuthSuccess = () => {
     setAccountView("account");
