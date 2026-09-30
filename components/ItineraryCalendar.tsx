@@ -30,6 +30,7 @@ import { estimateRoute } from '../services/routesService';
 import { enumerateLocalDates } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
 import StayDetailSheet from './StayDetailSheet';
+import TransportLeg from './TransportLeg';
 
 interface Props {
   items: ItineraryItem[];
@@ -482,6 +483,24 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     <h4 className="mb-1 text-base font-black leading-tight text-[#111A4A]">{item.title}</h4>
                     {item.location && <div className="flex items-start gap-1 text-xs font-semibold text-slate-600"><MapPin size={11} className="mt-0.5 shrink-0 text-[#6b4df6]" />{item.location}</div>}
                     {item.address && <p className="mt-1 pl-4 text-[10px] font-medium leading-snug text-slate-400">{item.address}</p>}
+                    {/*
+                      An item no map knows. 「廣安里海景早午餐咖啡廳」 is a
+                      description, not a business, so it has no address, no photo
+                      and no hours — and until now it looked like an ordinary card
+                      that happened to be missing them. The repair already exists
+                      inside the edit sheet; this is what says it is needed.
+                    */}
+                    {!item.placeId && !item.derivedFromFlightAnchorId && (
+                      <div data-testid={`unlinked-place-${item.id}`} className="mt-1.5 flex flex-wrap items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-[10px] font-bold leading-4 text-amber-700">
+                        <AlertTriangle size={11} className="shrink-0" />
+                        <span className="min-w-0 flex-1">地圖上沒有這個地點，沒有地址與照片</span>
+                        {onEdit && (
+                          <button type="button" onClick={() => onEdit(item)} className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-amber-700 shadow-sm">
+                            連結地點
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -820,9 +839,9 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           </div>
         ) : (
           <div className="space-y-3">
-            {(previewItemsTimed ?? previewItems.filter(isTimedItem)).map((item, index) => (
+            {(previewItemsTimed ?? previewItems.filter(isTimedItem)).map((item, index, rendered) => (
+              <React.Fragment key={item.id}>
               <div
-                key={item.id}
                 ref={node => { cardRefs.current[item.id] = node; }}
                 data-item-id={item.id}
                 data-start={item.time}
@@ -861,6 +880,38 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   {renderCard(item)}
                 </div>
               </div>
+
+              {/*
+                How you get to the next place. Between the two cards, because
+                that is where the journey happens and where the traveller looks
+                when wondering whether the next start time is possible.
+              */}
+              {(() => {
+                const next = rendered[index + 1];
+                if (!next || dragItemId) return null;
+                const from = typeof item.latitude === 'number' && typeof item.longitude === 'number' ? item : null;
+                const to = typeof next.latitude === 'number' && typeof next.longitude === 'number' ? next : null;
+                if (!from || !to) {
+                  // Said rather than skipped: a missing leg would otherwise look
+                  // like the app had nothing to say about a long hop.
+                  return (
+                    <div data-testid={`transport-unavailable-${item.id}`} className="ml-[62px] rounded-2xl border border-dashed border-[#e6e3f3] px-3 py-2 text-[10px] font-bold leading-4 text-slate-400">
+                      其中一個地點還沒連結地圖，無法計算交通時間
+                    </div>
+                  );
+                }
+                const leaveMinutes = timeToMinutes(item.time) + durationOf(item);
+                const gap = timeToMinutes(next.time) - leaveMinutes;
+                return (
+                  <TransportLeg
+                    origin={{ latitude: from.latitude!, longitude: from.longitude!, title: from.title }}
+                    destination={{ latitude: to.latitude!, longitude: to.longitude!, title: to.title }}
+                    availableMinutes={Number.isFinite(gap) && gap >= 0 ? gap : undefined}
+                    departureTime={activeDate ? new Date(`${activeDate}T${minutesToTime(leaveMinutes)}:00`).toISOString() : undefined}
+                  />
+                );
+              })()}
+              </React.Fragment>
             ))}
           </div>
         )}
