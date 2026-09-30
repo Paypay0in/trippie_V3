@@ -12,7 +12,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import TransportLeg from '../components/TransportLeg';
 
 const GAMCHEON = { latitude: 35.0975, longitude: 129.0107, title: '甘川文化村' };
@@ -59,17 +59,25 @@ describe('the transport leg', () => {
     expect(requestedModes).toEqual(['TRANSIT']);
   });
 
-  it('opens into the actual lines, stops and walking legs', async () => {
+  it('opens a sheet with the actual lines, stops and walking legs', async () => {
     const user = userEvent.setup();
     render(<TransportLeg origin={GAMCHEON} destination={HAEUNDAE} />);
-    await waitFor(() => expect(screen.getByText(/約 78 分/)).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText(/約 78 分/).length).toBeGreaterThan(0));
 
+    // Nothing is open until the row is tapped.
+    expect(screen.queryByTestId('transport-sheet')).toBeNull();
     await user.click(screen.getByRole('button', { name: '交通方式說明' }));
 
+    const sheet = screen.getByTestId('transport-sheet');
+    expect(within(sheet).getByText('甘川文化村 → 海雲台')).toBeTruthy();
     expect(screen.getByText('1003')).toBeTruthy();
     expect(screen.getByText(/西区厅 → 海云台海水浴场/)).toBeTruthy();
     expect(screen.getByText(/27 站/)).toBeTruthy();
     expect(screen.getByText('步行 1 分')).toBeTruthy();
+    expect(screen.getByText('全程約 20.8 公里')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: '關閉' }));
+    expect(screen.queryByTestId('transport-sheet')).toBeNull();
   });
 
   it('names the reason in Korea, where the absence has one', async () => {
