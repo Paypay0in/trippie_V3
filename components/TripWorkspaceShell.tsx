@@ -74,10 +74,15 @@ const TripWorkspaceShell: React.FC<Props> = ({
       <header className="mx-auto w-full max-w-2xl bg-white px-4 pb-3 pt-5">
         <div className="mb-3 flex items-center justify-between gap-3">
           <button className={actionClass} onClick={onBack} aria-label="回到旅程首頁"><ArrowLeft size={21} /></button>
-          <div className="flex min-w-0 items-center gap-2 text-lg font-black">
-            <span className="text-violet-600">✈</span><span>{currentSection === 'records' ? 'Trippie 旅費管理' : 'Trippie'}</span>
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-lg font-black">
+            <span className="shrink-0 text-violet-600">✈</span>
+            <span className="truncate">{currentSection === 'records' ? 'Trippie 旅費管理' : 'Trippie'}</span>
           </div>
-          <div className="flex gap-1.5">
+          {/* Hidden on phones, where five 44px targets and a title do not fit a
+              320px row: they overlapped the title instead of wrapping. Every
+              one of them is in 「更多」 at the bottom, which is within thumb
+              reach anyway — so this is a duplicate, not the only way in. */}
+          <div className="hidden shrink-0 gap-1.5 sm:flex">
             <button className={actionClass} onClick={onEdit} aria-label="編輯旅程"><Pencil size={18} /></button>
             <button className={actionClass} onClick={onDestination} aria-label="目的地設定"><Globe size={18} /></button>
             <button className={`${actionClass} relative`} onClick={onTravelers} aria-label="旅伴管理">
@@ -135,8 +140,14 @@ const TripWorkspaceShell: React.FC<Props> = ({
               ))}
             </div>
           )}
-          <button onClick={() => setMoreOpen(value => !value)} className="flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold text-slate-400">
+          <button onClick={() => setMoreOpen(value => !value)} className="relative flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold text-slate-400">
             {moreOpen ? <ChevronUp size={20} /> : <MoreHorizontal size={20} />}更多
+            {/* The companion marker lived on the header's 旅伴 button, which is
+                not on screen at phone width. Without this it would simply
+                vanish on the devices this trip is actually run from. */}
+            {companionCount > 0 && !moreOpen && (
+              <span className="absolute right-2.5 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500" />
+            )}
           </button>
         </div>
       </nav>
