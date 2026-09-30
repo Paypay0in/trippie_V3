@@ -170,11 +170,16 @@ export const fetchTripSnapshot = async (
 ): Promise<SyncResult<TripSyncSnapshot>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
+    // Ordered by id, which is stable and means nothing beyond being the same
+    // every time. Without it Postgres answers in heap order, which moves after
+    // any update — so a re-read handed the app the same trip in a new order
+    // every twenty seconds, and anything watching the list for changes saw one
+    // that had not happened.
     const [members, expenses, itinerary, flights] = await Promise.all([
-      supabase.from('trip_members').select('*').eq('trip_id', tripId),
-      supabase.from('expenses').select('*').eq('trip_id', tripId),
-      supabase.from('itinerary_items').select('*').eq('trip_id', tripId),
-      supabase.from('flight_anchors').select('*').eq('trip_id', tripId),
+      supabase.from('trip_members').select('*').eq('trip_id', tripId).order('id'),
+      supabase.from('expenses').select('*').eq('trip_id', tripId).order('id'),
+      supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('id'),
+      supabase.from('flight_anchors').select('*').eq('trip_id', tripId).order('id'),
     ]);
     if (members.error) throw members.error;
     if (expenses.error) throw expenses.error;

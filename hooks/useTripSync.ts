@@ -64,6 +64,38 @@ const PUSH_DEBOUNCE_MS = 900;
  */
 const REREAD_INTERVAL_MS = 20_000;
 
+/**
+ * Whether the traveller asked for the sync panel, with `?sync=1`.
+ *
+ * Remembered for the rest of the browser session, because the answer has to
+ * survive the taps it takes to reach the screen in question — the query string
+ * is gone the moment the app navigates. `?sync=0` turns it back off.
+ */
+const SYNC_PANEL_KEY = 'trippie_sync_panel';
+
+const requestedSyncPanel = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const asked = new URLSearchParams(window.location.search).get('sync');
+    if (asked === '1') window.sessionStorage.setItem(SYNC_PANEL_KEY, '1');
+    if (asked === '0') window.sessionStorage.removeItem(SYNC_PANEL_KEY);
+    return window.sessionStorage.getItem(SYNC_PANEL_KEY) === '1';
+  } catch {
+    // Private mode denies sessionStorage. The query string still answers for
+    // this page, which is enough to take one screenshot.
+    try {
+      return new URLSearchParams(window.location.search).get('sync') === '1';
+    } catch {
+      return false;
+    }
+  }
+};
+
+/** A short, screenshot-legible id. The full uuid wraps and reads as noise. */
+const shortId = (value?: string | null): string => (value ? `${value.slice(0, 8)}…` : '—');
+
+const clockNow = (): string => new Date().toLocaleTimeString('zh-TW', { hour12: false });
+
 export const useTripSync = ({
   tripId,
   authUserId,
@@ -83,6 +115,10 @@ export const useTripSync = ({
   // The failure text, kept so the badge can show it. A red badge that will not
   // say why costs another round trip with someone who cannot open a console.
   const [failure, setFailure] = useState('');
+  // What the panel shows under `?sync=1`: which trip and account this device is
+  // on, and what the last read and the last write actually carried. Two phones
+  // showing 「正常」 while sharing nothing differ somewhere in these numbers.
+  const [detail, setDetail] = useState('');
   // The trip whose first read has completed. Pushes are refused for any other
   // trip, which covers both "not read yet" and "the user switched trips
   // mid-flight and the debounce is still holding the old list".
@@ -102,6 +138,24 @@ export const useTripSync = ({
    * survives a push that has never seen it.
    */
   const knownRef = useRef<KnownRemoteIds>({ members: new Set<string>(), expenses: new Set<string>(), itinerary: new Set<string>(), flightAnchors: new Set<string>() });
+
+  // The last read and the last write, kept as text because that is all the
+  // panel does with them.
+  const lastReadRef = useRef('尚未讀取');
+  const lastWriteRef = useRef('尚未寫入');
+
+  const countsOf = (snapshot: TripSyncSnapshot): string =>
+    `成員${snapshot.members.length}・帳${snapshot.expenses.length}・行程${snapshot.itinerary.length}・航班${snapshot.flightAnchors.length}`;
+
+  const refreshDetail = () => {
+    setDetail(
+      [
+        `旅程 ${shortId(tripId)}｜帳號 ${shortId(authUserId)}`,
+        `讀取 ${lastReadRef.current}`,
+        `寫入 ${lastWriteRef.current}`,
+      ].join('\n'),
+    );
+  };
 
   const rememberRemote = (snapshot: TripSyncSnapshot) => {
     knownRef.current = {
@@ -143,13 +197,19 @@ export const useTripSync = ({
         // nothing looks wrong while nothing is being shared.
         if (import.meta.env.DEV) console.warn('[tripSync] read failed', remote.message);
         setFailure(`讀取：${remote.message}`);
+        lastReadRef.current = `${clockNow()} 失敗 — ${remote.message}`;
+        refreshDetail();
         setState('error');
         return;
       }
       if (remote.status === 'ok' && hasRemoteContent(remote.data)) {
         onRemoteSnapshotRef.current(remote.data);
       }
-      if (remote.status === 'ok') rememberRemote(remote.data);
+      if (remote.status === 'ok') {
+        rememberRemote(remote.data);
+        lastReadRef.current = `${clockNow()} 開啟時 ${countsOf(remote.data)}`;
+        refreshDetail();
+      }
 
       readyTripIdRef.current = tripId;
       setState('synced');
@@ -190,7 +250,11 @@ export const useTripSync = ({
         if (result.status === 'error') {
           if (import.meta.env.DEV) console.warn('[tripSync] write failed', result.message);
           setFailure(`寫入：${result.message}`);
+          lastWriteRef.current = `${clockNow()} 失敗 — ${result.message}`;
+        } else {
+          lastWriteRef.current = `${clockNow()} ${countsOf(payloadRef.current)}`;
         }
+        refreshDetail();
         setState(result.status === 'error' ? 'error' : 'synced');
       });
     }, PUSH_DEBOUNCE_MS);
@@ -241,6 +305,11 @@ export const useTripSync = ({
           // still-unpushed local record as known would let the next push
           // delete it.
           rememberRemote(remote.data);
+          lastReadRef.current = `${clockNow()} 重讀 ${countsOf(remote.data)}`;
+          refreshDetail();
+        } else if (remote.status === 'error') {
+          lastReadRef.current = `${clockNow()} 重讀失敗 — ${remote.message}`;
+          refreshDetail();
         }
       } finally {
         inFlight = false;
@@ -258,7 +327,12 @@ export const useTripSync = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, tripId]);
 
-  useSyncBadge(state, { tripId, signedIn: Boolean(authUserId), failure, note });
+  // Even before the first read lands, the panel must say which trip and which
+  // account this device is on — that alone settles most of 「沒有同步」.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshDetail(); }, [tripId, authUserId]);
+
+  useSyncBadge(state, { tripId, signedIn: Boolean(authUserId), failure, note, detail });
 
   return state;
 };
@@ -281,15 +355,22 @@ export const useTripSync = ({
  */
 const useSyncBadge = (
   state: TripSyncState,
-  { tripId, signedIn, failure, note }: { tripId: string | null; signedIn: boolean; failure: string; note?: string },
+  { tripId, signedIn, failure, note, detail }: { tripId: string | null; signedIn: boolean; failure: string; note?: string; detail?: string },
 ) => {
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
     const id = 'trippie-sync-badge';
     const existing = document.getElementById(id);
+    // `?sync=1` forces it on, including when everything reports healthy.
+    //
+    // 「都沒有同步到彼此手機」 cannot be diagnosed from two screens that both
+    // look fine. The facts that settle it — which trip each device is on, how
+    // many records the server returned — are known here and were shown
+    // nowhere, so every round of this was guesswork. Two screenshots end it.
+    const forced = requestedSyncPanel();
     // Errors everywhere; the rest only while developing.
-    const quiet = state === 'synced' || state === 'loading' || (state !== 'error' && !import.meta.env.DEV);
+    const quiet = !forced && (state === 'synced' || state === 'loading' || (state !== 'error' && !import.meta.env.DEV));
     if (quiet) {
       existing?.remove();
       return;
@@ -304,13 +385,15 @@ const useSyncBadge = (
     const look: Partial<Record<TripSyncState, [string, string, string]>> = {
       error: ['#ffe4e6', '#be123c', `失敗 — ${failure || '原因不明'}`],
       off: ['#e2e8f0', '#475569', `關閉（${!signedIn ? '未登入' : !tripId ? '沒有旅程' : '未設定'}）`],
+      synced: ['#dcfce7', '#166534', '正常'],
+      loading: ['#e0e7ff', '#3730a3', '讀取中'],
     };
     const [background, color, label] = look[state] ?? ['#e2e8f0', '#475569', state];
     node.style.background = background;
     node.style.color = color;
-    node.textContent = `雲端同步：${label}${note ? ` ｜ ${note}` : ''}`;
+    node.textContent = `雲端同步：${label}${note ? ` ｜ ${note}` : ''}${forced && detail ? `\n${detail}` : ''}`;
 
     if (!node.isConnected) document.body.appendChild(node);
     return () => node.remove();
-  }, [state, tripId, signedIn, failure, note]);
+  }, [state, tripId, signedIn, failure, note, detail]);
 };
