@@ -438,3 +438,73 @@ describe('boarding pass upload', () => {
     expect(screen.getByText(/請逐欄核對/)).toBeTruthy();
   });
 });
+
+/**
+ * The landing time, which the form had no way to hold.
+ *
+ * Everything about arriving is built on it — clearing the airport, the ride to
+ * the hotel, what time check-in should be. With no field, all of that quietly
+ * did nothing on every flight entered by hand, and there was nowhere to see or
+ * correct what a boarding pass had read.
+ */
+describe('arrival time', () => {
+  const fillAirports = async (user: ReturnType<typeof userEvent.setup>) => {
+    const outbound = screen.getByTestId('flight-card-OUTBOUND');
+    await user.type(within(outbound).getByLabelText('去程出發機場'), 'Taipei');
+    await user.click(within(outbound).getByText('Taiwan Taoyuan International Airport'));
+  };
+
+  const saveRoundTrip = async (user: ReturnType<typeof userEvent.setup>) => {
+    await fillAirports(user);
+    await user.type(screen.getByLabelText('回程出發時間'), '20:00');
+    await user.click(screen.getByRole('button', { name: /儲存航班/ }));
+    expect(screen.queryByRole('alert')).toBeNull();
+  };
+
+  it('saves what was typed, so the arrival logic has something to work from', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    await user.type(screen.getByLabelText('去程出發時間'), '09:30');
+    await user.type(screen.getByLabelText('去程抵達時間'), '13:05');
+    await saveRoundTrip(user);
+
+    const outbound = savedAnchors().find(anchor => anchor.direction === 'OUTBOUND');
+    expect(outbound?.departureTime).toBe('09:30');
+    expect(outbound?.arrivalTime).toBe('13:05');
+  });
+
+  it('defaults the arrival date to the departure day, which most flights keep', () => {
+    render(<Host />);
+    // The trip starts 2026-09-14, which prefills the outbound departure.
+    expect((screen.getByLabelText('去程抵達日期') as HTMLInputElement).value).toBe('2026-09-14');
+  });
+
+  it('keeps an overnight arrival on its own day', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    await user.type(screen.getByLabelText('去程出發時間'), '23:40');
+    fireEvent.change(screen.getByLabelText('去程抵達日期'), { target: { value: '2026-09-15' } });
+    await user.type(screen.getByLabelText('去程抵達時間'), '03:15');
+    await saveRoundTrip(user);
+
+    const outbound = savedAnchors().find(anchor => anchor.direction === 'OUTBOUND');
+    expect(outbound?.arrivalDate).toBe('2026-09-15');
+    expect(outbound?.arrivalTime).toBe('03:15');
+  });
+
+  it('still saves a flight whose arrival is unknown', async () => {
+    // A departure is what makes an anchor. Requiring an arrival would block
+    // saving a flight the traveller only half knows.
+    const user = userEvent.setup();
+    render(<Host />);
+
+    await user.type(screen.getByLabelText('去程出發時間'), '09:30');
+    await saveRoundTrip(user);
+
+    const outbound = savedAnchors().find(anchor => anchor.direction === 'OUTBOUND');
+    expect(outbound?.departureTime).toBe('09:30');
+    expect(outbound?.arrivalTime).toBeFalsy();
+  });
+});

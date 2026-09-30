@@ -549,6 +549,42 @@ export default function FlightAnchorsForm({
                 invalid={Boolean(errorFor(anchor.id, 'arrivalAirport'))}
                 onSelect={airport => selectAirport(anchor.id, 'arrival', airport)}
               />
+
+              {/*
+                Landing time, which the form had no way to hold.
+                
+                Everything downstream of arriving is built on it — when the
+                traveller clears the airport, how long the ride to the hotel
+                takes, what time check-in should be. Without a field, those
+                quietly did nothing on every flight entered by hand, and there
+                was nowhere to see or correct what a boarding pass had read.
+                
+                Optional on purpose: a departure is what makes an anchor, and
+                requiring an arrival would block saving a flight the traveller
+                only half knows.
+              */}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="flex items-center gap-1.5 rounded-xl border border-[#e5e5ef] bg-white px-2 text-slate-400">
+                  <PlaneLanding size={13} />
+                  <input
+                    aria-label={`${legLabel(anchor.direction)}抵達日期`}
+                    type="date"
+                    value={anchor.arrivalDate || anchor.departureDate || ''}
+                    onChange={event => update(anchor.id, { arrivalDate: event.target.value })}
+                    className="min-w-0 bg-transparent py-2 text-xs text-slate-600"
+                  />
+                </label>
+                <TimeField
+                  label={`${legLabel(anchor.direction)}抵達時間`}
+                  anchorId={`${anchor.id}-arrival`}
+                  value={anchor.arrivalTime || ''}
+                  invalid={false}
+                  onCommit={canonical => update(anchor.id, { arrivalTime: canonical })}
+                />
+              </div>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                填了抵達時間，才會自動推算出關時間、機場到住宿的交通，以及入住時間。
+              </p>
             </div>
           );
         })}
