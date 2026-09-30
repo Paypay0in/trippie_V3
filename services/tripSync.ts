@@ -148,7 +148,14 @@ export const fetchMyTrips = async (): Promise<SyncResult<RemoteTripSummary[]>> =
   }
 };
 
-/** Everything this trip holds remotely. Absent tables or no access read as an error, not as an empty trip. */
+/**
+ * Everything this trip holds remotely.
+ *
+ * For members, expenses and the itinerary, an absent table or no access reads
+ * as an error rather than as an empty trip — answering "you have nothing" to a
+ * question we could not ask is how a device wipes a ledger it never read.
+ * Flights are the one exception, and the comment below says why.
+ */
 export const fetchTripSnapshot = async (
   tripId: string,
 ): Promise<SyncResult<TripSyncSnapshot>> => {
@@ -163,7 +170,18 @@ export const fetchTripSnapshot = async (
     if (members.error) throw members.error;
     if (expenses.error) throw expenses.error;
     if (itinerary.error) throw itinerary.error;
-    if (flights.error) throw flights.error;
+
+    // Flights degrade on their own rather than failing the read.
+    //
+    // This table arrives in migration 0007, and code reaches a deployment
+    // before a migration reaches a database — there is always a window. Letting
+    // a missing table throw here would abort the whole snapshot, so the money
+    // and the plan would stop syncing too, over a table nobody had created yet.
+    // Losing the flights for that window is a visible gap; losing the ledger is
+    // a silent one.
+    if (flights.error && import.meta.env.DEV) {
+      console.warn('[tripSync] flight anchors unavailable', flights.error.message);
+    }
 
     return {
       status: 'ok',
@@ -171,7 +189,9 @@ export const fetchTripSnapshot = async (
         members: (members.data as TripMemberRow[]).map(fromMemberRow),
         expenses: (expenses.data as ExpenseRow[]).map(fromExpenseRow),
         itinerary: (itinerary.data as ItineraryItemRow[]).map(fromItineraryRow),
-        flightAnchors: (flights.data as FlightAnchorRow[]).map(fromFlightAnchorRow),
+        flightAnchors: flights.error
+          ? []
+          : (flights.data as FlightAnchorRow[]).map(fromFlightAnchorRow),
       },
     };
   } catch (error) {
@@ -294,13 +314,21 @@ export const pushTripSnapshot = async (
     // Upsert on the leg rather than the id: re-entering the outbound flight
     // produces a fresh anchor id locally, and keying on id alone would leave
     // the old departure sitting in the shared trip beside the new one.
+    //
+    // Written last, and allowed to fail on its own, for the same reason the
+    // read tolerates a missing table: until 0007 is applied there is nowhere to
+    // put these, and that must not mark a write as failed when the expenses and
+    // the itinerary both landed.
     if (flightAnchors.length) {
       const { error } = await supabase
         .from('flight_anchors')
         .upsert(flightAnchors.map(anchor => toFlightAnchorRow(anchor, tripId)), {
           onConflict: 'trip_id,direction',
         });
-      if (error) throw error;
+      if (error) {
+        if (import.meta.env.DEV) console.warn('[tripSync] flight anchors not written', error.message);
+        return { status: 'ok', data: null };
+      }
     }
 
     const keepAnchors = flightAnchors.map(anchor => anchor.id);
@@ -309,7 +337,9 @@ export const pushTripSnapshot = async (
       .delete()
       .eq('trip_id', tripId)
       .not('id', 'in', `(${keepAnchors.map(id => `"${id}"`).join(',') || '""'})`);
-    if (flightPruneError) throw flightPruneError;
+    if (flightPruneError && import.meta.env.DEV) {
+      console.warn('[tripSync] flight anchors not pruned', flightPruneError.message);
+    }
 
     return { status: 'ok', data: null };
   } catch (error) {
