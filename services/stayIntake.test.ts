@@ -204,3 +204,49 @@ describe('staysFromItinerary — knowing where you sleep on the nights between',
     expect(staysFromItinerary(items)[0].address).toBe('釜山廣域市海雲台區');
   });
 });
+
+describe('a trip with more than one place to sleep', () => {
+  const toItems = (stay: Parameters<typeof normalizeParsedStay>[0]) =>
+    stayToItineraryItems(normalizeParsedStay(stay)!, makeId).map(item => ({
+      ...item, type: item.type as string, fixedEventKind: item.fixedEventKind as string,
+    }));
+
+  // Two hotels back to back: out of the first on the 4th, into the second the
+  // same afternoon. This is the ordinary shape of a longer trip.
+  const first = toItems({ hotelName: '海雲台格蘭飯店', checkInDate: '2026-10-02', checkOutDate: '2026-10-04' });
+  const second = toItems({ hotelName: '西面商務旅館', checkInDate: '2026-10-04', checkOutDate: '2026-10-07' });
+  const stays = staysFromItinerary([...first, ...second]);
+
+  it('keeps them as two separate stays', () => {
+    expect(stays.map(stay => stay.name).sort()).toEqual(['海雲台格蘭飯店', '西面商務旅館'].sort());
+  });
+
+  it('names the right hotel on each night, including the changeover', () => {
+    expect(stayForNight(stays, '2026-10-02')?.name).toBe('海雲台格蘭飯店');
+    expect(stayForNight(stays, '2026-10-03')?.name).toBe('海雲台格蘭飯店');
+    // The 4th: checking out of one and into the other. The night belongs to
+    // the second, and the first is excluded because its check-out day is not
+    // one of its nights.
+    expect(stayForNight(stays, '2026-10-04')?.name).toBe('西面商務旅館');
+    expect(stayForNight(stays, '2026-10-05')?.name).toBe('西面商務旅館');
+    expect(stayForNight(stays, '2026-10-06')?.name).toBe('西面商務旅館');
+    expect(stayForNight(stays, '2026-10-07')).toBeUndefined();
+  });
+
+  it('is unaffected by the order the bookings were entered', () => {
+    const reversed = staysFromItinerary([...second, ...first]);
+    expect(stayForNight(reversed, '2026-10-03')?.name).toBe('海雲台格蘭飯店');
+    expect(stayForNight(reversed, '2026-10-04')?.name).toBe('西面商務旅館');
+  });
+
+  it('leaves a gap between two bookings unclaimed, so the night reads as unbooked', () => {
+    const early = toItems({ hotelName: 'A 旅館', checkInDate: '2026-10-02', checkOutDate: '2026-10-03' });
+    const late = toItems({ hotelName: 'B 旅館', checkInDate: '2026-10-05', checkOutDate: '2026-10-07' });
+    const gapped = staysFromItinerary([...early, ...late]);
+    // 10-03 and 10-04 have nowhere booked; saying nothing would be wrong, and
+    // guessing one of the two would be worse.
+    expect(stayForNight(gapped, '2026-10-03')).toBeUndefined();
+    expect(stayForNight(gapped, '2026-10-04')).toBeUndefined();
+    expect(stayForNight(gapped, '2026-10-05')?.name).toBe('B 旅館');
+  });
+});

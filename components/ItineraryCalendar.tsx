@@ -706,13 +706,17 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           }}
           className="mb-4 flex w-full items-center gap-3 rounded-[20px] border border-[#ecebf5] bg-white px-4 py-3 text-left shadow-[0_6px_18px_rgba(17,26,74,0.05)]"
         >
+          {/*
+            The name gets the room. The bed icon already says 住宿, so a text
+            label beside it spends the width twice on the same word — and a
+            property name is the part that is long and the part worth reading.
+          */}
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f0edff] text-[#5b3df5]">
             <BedDouble size={17} />
           </span>
-          <span className="shrink-0 text-[11px] font-black text-slate-400">住宿</span>
           <span className="min-w-0 flex-1 truncate text-sm font-black text-[#111A4A]">{tonightsStay.name}</span>
           <span className="shrink-0 rounded-xl border border-[#e8e7f4] px-2.5 py-1.5 text-[11px] font-black text-slate-500">
-            查看詳情 ›
+            詳情 ›
           </span>
         </button>
       ) : activeDate && onAddStay ? (
@@ -727,7 +731,6 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#a99df0]">
             <BedDouble size={17} />
           </span>
-          <span className="shrink-0 text-[11px] font-black text-slate-400">住宿</span>
           <span className="min-w-0 flex-1 truncate text-sm font-black text-[#5b3df5]">新增住宿資訊</span>
           <span className="shrink-0 text-[11px] font-black text-slate-300">›</span>
         </button>

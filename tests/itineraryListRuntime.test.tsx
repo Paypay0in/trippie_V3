@@ -537,7 +537,10 @@ describe('tonight’s stay banner', () => {
     await openDay('Day 1');
     const banner = screen.getByTestId('stay-banner');
     expect(within(banner).getByText('海雲台格蘭飯店')).toBeTruthy();
-    expect(within(banner).getByText('住宿')).toBeTruthy();
+    // The bed icon carries the meaning; a 住宿 label beside it would spend the
+    // row's width twice on the same word, at the name's expense.
+    expect(within(banner).queryByText('住宿')).toBeNull();
+    expect(within(banner).getByText(/詳情/)).toBeTruthy();
   });
 
   it('offers to add one on the morning they check out, with no room that night', async () => {
@@ -569,5 +572,57 @@ describe('a night with no room booked', () => {
 
     expect(screen.queryByTestId('stay-banner')).toBeNull();
     expect(within(screen.getByTestId('stay-banner-empty')).getByText('新增住宿資訊')).toBeTruthy();
+  });
+});
+
+/**
+ * Longer trips move hotels. The banner has to name the right one for the
+ * night being looked at, including the day the traveller changes over.
+ */
+describe('two hotels on one trip', () => {
+  beforeEach(() => seedStorage([
+    {
+      id: 'a-in', date: '2026-10-03', time: '15:00', title: '入住 海雲台格蘭飯店',
+      location: '海雲台', notes: '', type: 'HOTEL',
+      scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+    },
+    {
+      id: 'a-out', date: DAY_5, time: '11:00', title: '退房 海雲台格蘭飯店',
+      location: '海雲台', notes: '', type: 'HOTEL',
+      scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+    },
+    {
+      id: 'b-in', date: DAY_5, time: '15:00', title: '入住 西面商務旅館',
+      location: '西面', notes: '', type: 'HOTEL',
+      scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+    },
+    {
+      id: 'b-out', date: '2026-10-07', time: '11:00', title: '退房 西面商務旅館',
+      location: '西面', notes: '', type: 'HOTEL',
+      scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+    },
+  ]));
+
+  it('names the hotel they move into on the changeover day, not the one they left', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    // Day 1 is 2026-10-05: out of the first hotel that morning, into the
+    // second that afternoon. Tonight is the second one.
+    const banner = screen.getByTestId('stay-banner');
+    expect(within(banner).getByText('西面商務旅館')).toBeTruthy();
+    expect(within(banner).queryByText('海雲台格蘭飯店')).toBeNull();
+  });
+
+  it('names the second hotel on the night after as well', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+    await user.click(screen.getByText('Day 2'));
+
+    expect(within(screen.getByTestId('stay-banner')).getByText('西面商務旅館')).toBeTruthy();
   });
 });
