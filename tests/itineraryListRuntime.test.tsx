@@ -392,3 +392,65 @@ describe('fixed events runtime', () => {
     log('FIXED_AFTER_RELOAD', persisted().filter(entry => entry.date === DAY_6).map(entry => entry.time));
   });
 });
+
+/**
+ * A flight's date belongs to the flight.
+ *
+ * The two items an anchor derives are rebuilt from that anchor whenever it
+ * changes, so an edit made on the itinerary card is accepted, looks saved, and
+ * silently reverts. The card must not offer the edit at all.
+ */
+describe('derived flight items are not editable on the itinerary', () => {
+  const DERIVED: ItineraryItem[] = [
+    {
+      id: 'flight-arrival-anchor-out', date: DAY_6, time: '14:35',
+      title: '抵達機場', location: '台灣桃園國際機場',
+      notes: '依航班起飛時間與機場緩衝自動推算，於「航班資訊」修改',
+      type: 'TRANSPORT', derivedFromFlightAnchorId: 'anchor-out',
+    },
+    {
+      id: 'it-own', date: DAY_6, time: '19:00',
+      title: '晚餐', location: '札嘎其市場', notes: '', type: 'FOOD',
+    },
+  ];
+
+  beforeEach(() => seedStorage(DERIVED));
+
+  const openDay = async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+    await user.click(screen.getByText('Day 2'));
+    return user;
+  };
+
+  it('shows the flight date as text, with no date control to change it', async () => {
+    await openDay();
+    const card = screen.getByText('抵達機場').closest('[class*="rounded-[20px]"]') as HTMLElement;
+    expect(within(card).queryByDisplayValue(DAY_6)).toBeNull();
+    expect(within(card).getByText(/於航班資訊修改/)).toBeTruthy();
+    // The date is still shown — hiding it would be worse than locking it.
+    expect(within(card).getByText(DAY_6.replace(/-/g, '/'))).toBeTruthy();
+  });
+
+  it('still lets an ordinary item have its date changed', async () => {
+    await openDay();
+    const card = screen.getByText('晚餐').closest('[class*="rounded-[20px]"]') as HTMLElement;
+    const input = within(card).getByDisplayValue(DAY_6);
+    expect((input as HTMLInputElement).type).toBe('date');
+  });
+
+  it('points at the flight form instead of offering 編輯行程', async () => {
+    const user = await openDay();
+    await user.click(screen.getByLabelText('抵達機場 更多選項'));
+    expect(screen.queryByRole('button', { name: '編輯行程' })).toBeNull();
+    expect(screen.getByText(/航班時間請於「航班資訊」修改/)).toBeTruthy();
+  });
+
+  it('keeps 完成 tickable, because that one is the traveller’s own', async () => {
+    await openDay();
+    const card = screen.getByText('抵達機場').closest('[class*="rounded-[20px]"]') as HTMLElement;
+    expect(within(card).getByText('完成')).toBeTruthy();
+  });
+});

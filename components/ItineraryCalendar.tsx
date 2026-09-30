@@ -323,6 +323,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         {fixedKindOf(item) === 'flight' ? '航班 · 固定'
                           : fixedKindOf(item) === 'train' ? '列車 · 固定'
                           : fixedKindOf(item) === 'reservation' ? '訂位 · 固定'
+                          : fixedKindOf(item) === 'accommodation' ? '住宿 · 固定'
                           : '固定時間'}
                       </span>
                     ) : onReorder && (
@@ -374,7 +375,10 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     {(onEdit || onDelete) && <div className="relative">
                       <button type="button" onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} aria-label={`${item.title} 更多選項`} aria-expanded={menuItemId === item.id} className="rounded-lg p-2 text-slate-300 transition hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={16} /></button>
                       {menuItemId === item.id && <div className="absolute right-0 top-10 z-20 w-44 rounded-2xl border border-slate-100 bg-white p-1.5 text-left shadow-xl">
-                        {onEdit && <button type="button" onClick={() => { setMenuItemId(null); onEdit(item); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯行程</button>}
+                        {onEdit && !item.derivedFromFlightAnchorId && <button type="button" onClick={() => { setMenuItemId(null); onEdit(item); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯行程</button>}
+                        {/* Editing here writes to an item the anchor owns and
+                            rebuilds, so the entry points at the anchor instead. */}
+                        {onEdit && item.derivedFromFlightAnchorId && <p className="px-3 py-2 text-[11px] font-bold text-slate-400">航班時間請於「航班資訊」修改</p>}
                         {onDelete && <button type="button" onClick={() => { setMenuItemId(null); setRemoveTarget(item); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">刪除行程</button>}
                       </div>}
                     </div>}
@@ -382,11 +386,28 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 </div>
 
                 {onUpdateItem && <div className="mb-2 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
-                  <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                    日期
-                    <input type="date" value={item.date || ''} min={startDate || undefined} max={endDate || undefined} onChange={event => onUpdateItem(item.id, { date: event.target.value || undefined })} className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[10px] text-slate-600" />
-                  </label>
-                  {!item.date && <span className="text-[10px] font-bold text-slate-400">尚未指定日期</span>}
+                  {/*
+                    A flight's date belongs to the flight, not to this card.
+                    These two items are re-derived from the anchor whenever it
+                    changes, so an edit here would be accepted, look saved, and
+                    silently revert. Showing the date read-only and naming
+                    where it can actually be changed is the honest version.
+                  */}
+                  {item.derivedFromFlightAnchorId ? (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                      日期
+                      <span className="rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] text-slate-500">
+                        {item.date ? item.date.replace(/-/g, '/') : '—'}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-300">· 於航班資訊修改</span>
+                    </span>
+                  ) : (
+                    <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                      日期
+                      <input type="date" value={item.date || ''} min={startDate || undefined} max={endDate || undefined} onChange={event => onUpdateItem(item.id, { date: event.target.value || undefined })} className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[10px] text-slate-600" />
+                    </label>
+                  )}
+                  {!item.date && !item.derivedFromFlightAnchorId && <span className="text-[10px] font-bold text-slate-400">尚未指定日期</span>}
                   <label className="ml-auto flex items-center gap-1 text-[10px] font-bold text-slate-400">
                     <input type="checkbox" className="h-3.5 w-3.5 rounded accent-[#5b3df5]" checked={item.isCompleted === true} onChange={event => onUpdateItem(item.id, { isCompleted: event.target.checked })} /> 完成
                   </label>
