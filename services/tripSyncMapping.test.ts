@@ -145,16 +145,34 @@ describe('member mapping', () => {
     const linked: TripMember = { id: GINA, name: 'Gina', userId: 'user-gina', type: 'member' };
     const guest: TripMember = { id: 'member-bob', name: 'Bob', type: 'guest' };
 
-    expect(fromMemberRow(toMemberRow(linked, TRIP))).toEqual(linked);
-    expect(fromMemberRow(toMemberRow(guest, TRIP))).toEqual({
+    // The write shape may omit user_id; what comes back from the database
+    // always has the column, so the read is given the stored value.
+    const stored = (member: TripMember) => ({
+      ...toMemberRow(member, TRIP),
+      user_id: member.userId ?? null,
+    });
+
+    expect(fromMemberRow(stored(linked))).toEqual(linked);
+    expect(fromMemberRow(stored(guest))).toEqual({
       ...guest,
       userId: undefined,
     });
   });
 
-  it('stores a guest with a null user rather than a placeholder', () => {
+  it('leaves user_id out entirely when this device does not know it', () => {
+    // Absent and null are different in an upsert. That column is what
+    // is_trip_member reads, and it is written by the friend claiming her
+    // invite on her own phone — so sending null from a device that has not
+    // re-read since would blank it and revoke her access to the whole trip.
+    // Omitting the column keeps whatever the server already has, and still
+    // leaves a genuine guest with no account attached.
     const row = toMemberRow({ id: 'member-bob', name: 'Bob', type: 'guest' }, TRIP);
-    expect(row.user_id).toBeNull();
+    expect('user_id' in row).toBe(false);
+  });
+
+  it('still sends the account when there is one', () => {
+    const row = toMemberRow({ id: 'member-gina', name: 'Gina', type: 'member', userId: 'auth-1' }, TRIP);
+    expect(row.user_id).toBe('auth-1');
   });
 });
 

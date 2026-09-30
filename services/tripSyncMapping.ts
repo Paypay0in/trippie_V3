@@ -41,6 +41,14 @@ export interface TripMemberRow {
   type: TripMember['type'];
 }
 
+/**
+ * A member row on the way out, where `user_id` may be absent.
+ *
+ * Separate from the read shape on purpose: absent and null mean different
+ * things in an upsert. Null writes null; absent leaves whatever is there.
+ */
+export type TripMemberWriteRow = Omit<TripMemberRow, 'user_id'> & { user_id?: string };
+
 export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   id: expense.id,
   trip_id: tripId,
@@ -96,10 +104,20 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   linkedShoppingItemId: row.linked_shopping_item_id ?? undefined,
 });
 
-export const toMemberRow = (member: TripMember, tripId: string): TripMemberRow => ({
+/**
+ * A member row for upsert.
+ *
+ * `user_id` is omitted rather than sent as null when this device does not know
+ * it. That column is what `is_trip_member` reads, and it is written by the
+ * friend claiming her invite — on someone else's device. Sending null would
+ * blank it on the next push from a phone that had not re-read since, silently
+ * revoking her access to the whole trip. Leaving the column out of the
+ * statement means the existing value is kept.
+ */
+export const toMemberRow = (member: TripMember, tripId: string): TripMemberWriteRow => ({
   id: member.id,
   trip_id: tripId,
-  user_id: member.userId ?? null,
+  ...(member.userId ? { user_id: member.userId } : {}),
   name: member.name,
   type: member.type,
 });

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Expense, FlightAnchor, ItineraryItem, TripMember } from '../types';
 import {
+  KnownRemoteIds,
   TripSyncSnapshot,
   ensureTripRow,
   fetchTripSnapshot,
@@ -8,6 +9,7 @@ import {
   pushTripSnapshot,
 } from '../services/tripSync';
 import { hasRemoteContent } from '../services/tripSnapshotApply';
+import { nextKnownIds } from '../services/syncPrune';
 
 /**
  * Keeps one open trip in step with the shared tables.
@@ -51,6 +53,15 @@ interface Options {
 }
 
 const PUSH_DEBOUNCE_MS = 900;
+/**
+ * How often an open trip goes back for the other person's changes.
+ *
+ * Twenty seconds is chosen against the situation this is for: two people at
+ * the same table, one of them paying. Long enough that an idle phone is not
+ * making a request a second, short enough that 「她記的帳呢」 is answered by
+ * waiting rather than by reloading.
+ */
+const REREAD_INTERVAL_MS = 20_000;
 
 export const useTripSync = ({
   tripId,
@@ -79,6 +90,26 @@ export const useTripSync = ({
   onRemoteSnapshotRef.current = onRemoteSnapshot;
 
   const enabled = Boolean(tripId && authUserId && isSyncAvailable());
+
+  /**
+   * What this device knows is on the server.
+   *
+   * The push used to delete every row not in the list it was sending, which
+   * on a second phone deletes the other traveller's expenses — they are
+   * absent because this device has not re-read, not because anyone removed
+   * them. Only ids in here may be deleted, so a record created elsewhere
+   * survives a push that has never seen it.
+   */
+  const knownRef = useRef<KnownRemoteIds>({ members: new Set<string>(), expenses: new Set<string>(), itinerary: new Set<string>(), flightAnchors: new Set<string>() });
+
+  const rememberRemote = (snapshot: TripSyncSnapshot) => {
+    knownRef.current = {
+      members: new Set(snapshot.members.map(member => member.id)),
+      expenses: new Set(snapshot.expenses.map(expense => expense.id)),
+      itinerary: new Set(snapshot.itinerary.map(item => item.id)),
+      flightAnchors: new Set(snapshot.flightAnchors.map(anchor => anchor.id)),
+    };
+  };
 
   useEffect(() => {
     readyTripIdRef.current = null;
@@ -117,6 +148,7 @@ export const useTripSync = ({
       if (remote.status === 'ok' && hasRemoteContent(remote.data)) {
         onRemoteSnapshotRef.current(remote.data);
       }
+      if (remote.status === 'ok') rememberRemote(remote.data);
 
       readyTripIdRef.current = tripId;
       setState('synced');
@@ -141,8 +173,19 @@ export const useTripSync = ({
 
     const timer = window.setTimeout(() => {
       const { members: m, expenses: e, itinerary: i, flightAnchors: f } = payloadRef.current;
-      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f }, tripId).then(result => {
+      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f }, tripId, knownRef.current).then(result => {
         if (readyTripIdRef.current !== tripId) return;
+        if (result.status !== 'error') {
+          // What was just written is now known, and what was deleted stops
+          // being — otherwise a later push would try to delete it again, and
+          // would destroy a row someone else recreated under the same id.
+          knownRef.current = {
+            members: nextKnownIds(knownRef.current.members ?? [], m.map(member => member.id)),
+            expenses: nextKnownIds(knownRef.current.expenses, e.map(expense => expense.id)),
+            itinerary: nextKnownIds(knownRef.current.itinerary, i.map(item => item.id)),
+            flightAnchors: nextKnownIds(knownRef.current.flightAnchors, f.map(anchor => anchor.id)),
+          };
+        }
         if (result.status === 'error') {
           if (import.meta.env.DEV) console.warn('[tripSync] write failed', result.message);
           setFailure(`寫入：${result.message}`);
@@ -153,6 +196,51 @@ export const useTripSync = ({
 
     return () => window.clearTimeout(timer);
   }, [enabled, tripId, payloadSignature]);
+
+  /**
+   * Re-read while the trip is open, so the other person's records arrive.
+   *
+   * The read above runs once per trip. Everything after it was a write, so a
+   * device only ever learned what the other traveller had done by being
+   * reopened — 「他記帳我的有出現，但我記帳她的沒出現」 was simply whichever
+   * phone had been restarted more recently.
+   *
+   * On focus and on an interval, because the two catch different things: a
+   * phone picked up after lunch, and a phone left open on the table while the
+   * other person pays.
+   */
+  useEffect(() => {
+    if (!enabled || !tripId) return;
+
+    let inFlight = false;
+    const reread = async () => {
+      // Never while a push is pending or the first read has not landed: both
+      // would reorder a write against a read.
+      if (inFlight || readyTripIdRef.current !== tripId) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const remote = await fetchTripSnapshot(tripId);
+        if (readyTripIdRef.current !== tripId) return;
+        if (remote.status === 'ok' && hasRemoteContent(remote.data)) {
+          onRemoteSnapshotRef.current(remote.data);
+          rememberRemote(remote.data);
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const timer = window.setInterval(reread, REREAD_INTERVAL_MS);
+    window.addEventListener('focus', reread);
+    document.addEventListener('visibilitychange', reread);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', reread);
+      document.removeEventListener('visibilitychange', reread);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, tripId]);
 
   useSyncBadge(state, { tripId, signedIn: Boolean(authUserId), failure, note });
 

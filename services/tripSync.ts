@@ -1,4 +1,5 @@
 import { Expense, FlightAnchor, ItineraryItem, TripMember } from '../types';
+import { idsToPrune } from './syncPrune';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import {
   ExpenseRow,
@@ -27,6 +28,14 @@ import {
  * offline, so a network error must leave the local book usable rather than
  * blocking the person standing at a till.
  */
+
+/** Rows this device has read or written, and may therefore delete. */
+export interface KnownRemoteIds {
+  members?: Iterable<string>;
+  expenses: Iterable<string>;
+  itinerary: Iterable<string>;
+  flightAnchors: Iterable<string>;
+}
 
 export interface TripSyncSnapshot {
   members: TripMember[];
@@ -236,6 +245,8 @@ export const deleteExpense = async (expenseId: string): Promise<SyncResult<null>
 export const pushMembers = async (
   members: TripMember[],
   tripId: string,
+  /** Seats this device knows about. Only these may be removed. */
+  knownMemberIds?: Iterable<string>,
 ): Promise<SyncResult<null>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
@@ -245,13 +256,18 @@ export const pushMembers = async (
         .upsert(members.map(member => toMemberRow(member, tripId)), { onConflict: 'id' });
       if (error) throw error;
     }
-    const keep = members.map(member => member.id);
-    const { error: pruneError } = await supabase
-      .from('trip_members')
-      .delete()
-      .eq('trip_id', tripId)
-      .not('id', 'in', `(${keep.map(id => `"${id}"`).join(',') || '""'})`);
-    if (pruneError) throw pruneError;
+    // Same rule as the ledger, and the stakes are higher: deleting a seat this
+    // device simply had not read about removes that person's access to the
+    // entire trip, not one record.
+    const removed = idsToPrune(knownMemberIds ?? [], members.map(member => member.id));
+    if (removed.length) {
+      const { error: pruneError } = await supabase
+        .from('trip_members')
+        .delete()
+        .eq('trip_id', tripId)
+        .in('id', removed);
+      if (pruneError) throw pruneError;
+    }
     return { status: 'ok', data: null };
   } catch (error) {
     return failed(error);
@@ -269,13 +285,24 @@ export const pushMembers = async (
 export const pushTripSnapshot = async (
   { members, expenses, itinerary, flightAnchors }: TripSyncSnapshot,
   tripId: string,
+  /**
+   * What this device knows exists on the server: everything it has read or
+   * written. Only these may be deleted.
+   *
+   * Without it the prune below deleted every row not in this push, which on a
+   * second phone means deleting the other traveller's expenses — they are
+   * missing from the list because this device never re-read, not because
+   * anyone removed them. Omitted, nothing is pruned at all, which is the safe
+   * direction for a caller that has not been taught this yet.
+   */
+  known?: KnownRemoteIds,
 ): Promise<SyncResult<null>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
     // A member who is not the owner is refused by the roster policy. That must
     // not stop their expenses from being written — losing someone's record of
     // what they paid is a far worse failure than a stale roster.
-    await pushMembers(members, tripId);
+    await pushMembers(members, tripId, known?.members);
 
     if (expenses.length) {
       const { error } = await supabase
@@ -284,13 +311,15 @@ export const pushTripSnapshot = async (
       if (error) throw error;
     }
 
-    const keep = expenses.map(expense => expense.id);
-    const { error: pruneError } = await supabase
-      .from('expenses')
-      .delete()
-      .eq('trip_id', tripId)
-      .not('id', 'in', `(${keep.map(id => `"${id}"`).join(',') || '""'})`);
-    if (pruneError) throw pruneError;
+    const removedExpenses = idsToPrune(known?.expenses ?? [], expenses.map(expense => expense.id));
+    if (removedExpenses.length) {
+      const { error: pruneError } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('trip_id', tripId)
+        .in('id', removedExpenses);
+      if (pruneError) throw pruneError;
+    }
 
     // Same shape as the expense write above: upsert what is here, then remove
     // what is not. Deleting a day's plan has to reach the other phone too, or
@@ -303,13 +332,15 @@ export const pushTripSnapshot = async (
       if (error) throw error;
     }
 
-    const keepItems = itinerary.map(item => item.id);
-    const { error: itineraryPruneError } = await supabase
-      .from('itinerary_items')
-      .delete()
-      .eq('trip_id', tripId)
-      .not('id', 'in', `(${keepItems.map(id => `"${id}"`).join(',') || '""'})`);
-    if (itineraryPruneError) throw itineraryPruneError;
+    const removedItems = idsToPrune(known?.itinerary ?? [], itinerary.map(item => item.id));
+    if (removedItems.length) {
+      const { error: itineraryPruneError } = await supabase
+        .from('itinerary_items')
+        .delete()
+        .eq('trip_id', tripId)
+        .in('id', removedItems);
+      if (itineraryPruneError) throw itineraryPruneError;
+    }
 
     // Upsert on the leg rather than the id: re-entering the outbound flight
     // produces a fresh anchor id locally, and keying on id alone would leave
@@ -331,14 +362,16 @@ export const pushTripSnapshot = async (
       }
     }
 
-    const keepAnchors = flightAnchors.map(anchor => anchor.id);
-    const { error: flightPruneError } = await supabase
-      .from('flight_anchors')
-      .delete()
-      .eq('trip_id', tripId)
-      .not('id', 'in', `(${keepAnchors.map(id => `"${id}"`).join(',') || '""'})`);
-    if (flightPruneError && import.meta.env.DEV) {
-      console.warn('[tripSync] flight anchors not pruned', flightPruneError.message);
+    const removedAnchors = idsToPrune(known?.flightAnchors ?? [], flightAnchors.map(anchor => anchor.id));
+    if (removedAnchors.length) {
+      const { error: flightPruneError } = await supabase
+        .from('flight_anchors')
+        .delete()
+        .eq('trip_id', tripId)
+        .in('id', removedAnchors);
+      if (flightPruneError && import.meta.env.DEV) {
+        console.warn('[tripSync] flight anchors not pruned', flightPruneError.message);
+      }
     }
 
     return { status: 'ok', data: null };
