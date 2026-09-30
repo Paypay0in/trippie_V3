@@ -1567,6 +1567,8 @@ ${MODE_RULES[mode]}
 6b. placeName 必須是「那家店／那個景點自己的正式名稱」，就是地圖上查得到、招牌上寫的那一個。
 絕對不要用描述或分類當名稱，例如「廣安里海景早午餐咖啡廳」「海雲台知名烤肉店」「當地人推薦的市場小吃」——這種名字地圖查不到，系統會找不到地址、照片與營業資訊，使用者收到的就是一張空白卡片。
 如果你沒辦法明確說出一家真實存在的店名，就換一個你說得出名字的地點，或者乾脆不要提這一筆，並在 warnings 說明。寧可少給一個建議，也不要給一個查不到的名字。
+6d. 使用者可能給你社群連結（Instagram、小紅書等）、品牌名或只是一句描述。請用搜尋找出它在這個目的地實際存在的門市／店家，並在**同一個品牌有多家分店時，挑與當天其他行程地理上最接近的那一家**，placeName 要寫那家分店的正式全名（含分店名，例如「○○ 新世界百貨 Centum City 店」）。
+找不到實際門市就不要硬排，在 warnings 說明查不到，並請使用者自己確認。
 6c. 每一筆變更都必須填 placeName：add 填你建議的新地點真實店名，move/update/remove 填【2】裡那個既有項目現在的名稱。這個欄位是必填，沒有它的變更會被丟掉。
 7. 每一筆變更都要在 reason 用繁體中文寫一句簡短理由。
 8. summary 用繁體中文寫一兩句話，說明這次調整的整體想法。
@@ -1655,11 +1657,32 @@ ${MODE_RULES[mode]}
         // was lost. The chain carries four, each with its own daily allowance
         // and its own retry, and records which one answered so the error
         // message can still name it.
+        /**
+         * Grounded first, on every model in the chain.
+         *
+         * Without search this route answers from the model's own memory, so an
+         * Instagram handle is either guessed at or handed back as 「請自行確認
+         * 分店地址」 — and 「哪家分店最近」 cannot be answered at all. Search is
+         * not available on every model and can fail on its own, so the whole
+         * chain is retried without it rather than losing the request.
+         */
         const runOne = async (focusDate: string | null, plannedElsewhere: string[]) => {
-          const response = await withModelFallback(candidate => {
+          const attempt = (grounded: boolean) => withModelFallback(candidate => {
             attemptedModel = candidate;
-            return ai.models.generateContent({ model: candidate, ...configFor(focusDate, plannedElsewhere) });
+            const request = configFor(focusDate, plannedElsewhere);
+            return ai.models.generateContent({
+              model: candidate,
+              ...request,
+              config: { ...request.config, ...(grounded ? { tools: [{ googleSearch: {} }] } : {}) },
+            });
           });
+          let response;
+          try {
+            response = await attempt(true);
+          } catch (error) {
+            console.warn("Itinerary adjustment: grounded attempt failed, retrying without search", error instanceof Error ? error.message : error);
+            response = await attempt(false);
+          }
           const raw = response.text?.trim();
           if (!raw) throw new Error("empty");
           return JSON.parse(raw.replace(/```json|```/g, "").trim());
