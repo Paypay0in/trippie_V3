@@ -131,7 +131,11 @@ describe('isSafePlaceMatch', () => {
     expect(isSafePlaceMatch(seoulMarket, BUSAN)).toEqual({ safe: false, reason: 'too-far' });
   });
 
-  it('still accepts when the trip has no coordinates to compare against', () => {
+  it('has no radius to apply when it is handed no coordinates', () => {
+    // Stated so the gap is on the record: this function cannot check distance
+    // without a centre, and skipping the check is the failure that put a Seoul
+    // restaurant in a Busan trip. Callers are what close it — both resolve the
+    // destination before asking, so this shape no longer reaches a traveller.
     expect(isSafePlaceMatch(JAGALCHI, { destination: '釜山', destinationCountry: 'South Korea' }).safe).toBe(true);
   });
 });
@@ -350,9 +354,33 @@ describe('previewPlaceResolution', () => {
   });
 
   it('looks each distinct name up once', async () => {
-    let calls = 0;
-    await previewPlaceResolution(['A', 'A', ' A ', 'B'], context, async () => { calls += 1; return place(); });
-    expect(calls).toBe(2);
+    const queries: string[] = [];
+    await previewPlaceResolution(['A', 'A', ' A ', 'B'], context, async query => {
+      queries.push(query);
+      return place();
+    });
+
+    // Two names, plus one lookup for the trip centre. That extra call is the
+    // point of the centre resolution: the radius check is the only thing that
+    // rejects a Seoul restaurant for a Busan trip, and a trip whose
+    // destination was typed rather than picked has no coordinates to check
+    // against until this runs.
+    expect(queries).toHaveLength(3);
+    expect(queries.filter(query => query.startsWith('A '))).toHaveLength(1);
+    expect(queries.filter(query => query.startsWith('B '))).toHaveLength(1);
+  });
+
+  it('measures matches against the resolved centre when the trip has no coordinates', async () => {
+    // The reported defect: 「EATONT」 came back at 서울특별시 강남구 for a Busan
+    // trip, because the trip carried no coordinates and the radius check was
+    // therefore skipped entirely.
+    const seoul = { ...place(), latitude: 37.5045, longitude: 127.0493, address: '서울특별시 강남구 언주로 601' };
+    const busanCentre = { ...place(), latitude: 35.1796, longitude: 129.0756 };
+
+    const previews = await previewPlaceResolution(['EATONT'], context, async query =>
+      query.startsWith('EATONT') ? seoul : busanCentre);
+
+    expect(previews.get('EATONT')?.rejection).toBe('too-far');
   });
 
   it('treats a thrown lookup as no result rather than failing the preview', async () => {

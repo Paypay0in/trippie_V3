@@ -114,6 +114,47 @@ export interface PlaceEnrichmentOutcome {
 type PlaceResolver = (query: string, country?: string) => Promise<ResolvedPlace | null>;
 
 /**
+ * The trip's centre, resolving the destination name when the trip has no
+ * coordinates of its own.
+ *
+ * The radius check is the only thing that actually falsifies a bad match —
+ * putting 釜山 in the query does not stop Google returning a Seoul restaurant,
+ * which is how 「EATONT」 arrived at an address in 서울특별시 강남구, 325km from
+ * the trip. And that check was skipped entirely whenever the trip had no
+ * coordinates, which is every trip whose destination was typed rather than
+ * picked from the place list.
+ *
+ * A guard that disappears when its input is missing is worse than no guard: it
+ * reads as protection in the code and is absent exactly where nobody checked.
+ * The destination is itself a place, so it can be looked up.
+ */
+const withResolvedCentre = async (
+  context: PlaceEnrichmentContext,
+  resolve: PlaceResolver,
+): Promise<PlaceEnrichmentContext> => {
+  const centre = await resolveDestinationCentre(context, resolve);
+  if (!centre) return context;
+  return { ...context, destinationLatitude: centre.latitude, destinationLongitude: centre.longitude };
+};
+
+export const resolveDestinationCentre = async (
+  context: PlaceEnrichmentContext,
+  resolve: PlaceResolver,
+): Promise<PlaceCoordinates | undefined> => {
+  const stated = toCoordinates(context.destinationLatitude, context.destinationLongitude);
+  if (stated) return stated;
+
+  const name = context.destination?.trim();
+  if (!name) return undefined;
+
+  const place = await resolve(
+    [name, context.destinationCountry?.trim()].filter(Boolean).join(' '),
+    context.destinationCountry,
+  ).catch(() => null);
+  return toCoordinates(place?.latitude, place?.longitude);
+};
+
+/**
  * Returns a copy of the proposal with AI-suggested places enriched where a safe
  * match was found. Enrichment is best effort by construction: a rejected match, a
  * failed request and a thrown resolver all leave the item exactly as it was, so
@@ -134,9 +175,13 @@ export const enrichProposalPlaces = async (
   const uniqueNames = Array.from(new Set(targets.map(item => item.placeName.trim()).filter(Boolean)));
   const resolvedByName = new Map<string, ResolvedPlace>();
 
+  // Looked up once, before anything else, so every verdict below is measured
+  // against a centre that exists.
+  const centred = await withResolvedCentre(context, resolve);
+
   await Promise.all(uniqueNames.map(async name => {
-    const place = await resolve(buildPlaceQuery(name, context), context.destinationCountry).catch(() => null);
-    const verdict = isSafePlaceMatch(place, context);
+    const place = await resolve(buildPlaceQuery(name, centred), centred.destinationCountry).catch(() => null);
+    const verdict = isSafePlaceMatch(place, centred);
     if (verdict.safe) resolvedByName.set(name, verdict.place);
   }));
 
@@ -200,9 +245,11 @@ export const previewPlaceResolution = async (
   const unique = Array.from(new Set(placeNames.map(name => name.trim()).filter(Boolean)));
   const previews = new Map<string, PlacePreview>();
 
+  const centred = await withResolvedCentre(context, resolve);
+
   await Promise.all(unique.map(async name => {
-    const place = await resolve(buildPlaceQuery(name, context), context.destinationCountry).catch(() => null);
-    const verdict: PlaceMatchVerdict = isSafePlaceMatch(place, context);
+    const place = await resolve(buildPlaceQuery(name, centred), centred.destinationCountry).catch(() => null);
+    const verdict: PlaceMatchVerdict = isSafePlaceMatch(place, centred);
     previews.set(name, verdict.safe === true
       ? { resolved: verdict.place }
       : { rejection: verdict.reason });
