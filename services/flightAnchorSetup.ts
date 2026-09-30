@@ -173,3 +173,37 @@ export const formatTimeInput = (raw: string): string => {
   if (digits.length <= 2) return digits;
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 };
+
+/**
+ * The times on a saved flight card: 16:35 → 20:15, or 16:35 → 03:15 +1.
+ *
+ * The card showed only the departure, so a traveller could not tell an
+ * arrival time they had entered from one they had not — which is precisely
+ * what everything downstream of landing depends on. An unset arrival now says
+ * so on the card rather than being indistinguishable from a set one.
+ *
+ * A next-day landing is marked rather than quietly shown as an earlier
+ * o'clock: 16:35 → 03:15 reads as a flight going backwards in time.
+ */
+export const flightTimesLabel = (anchor: {
+  departureDate?: string;
+  departureTime?: string;
+  arrivalDate?: string;
+  arrivalTime?: string;
+}): { departure: string; arrival?: string; dayOffset: number } => {
+  const departure = anchor.departureTime || '';
+  if (!anchor.arrivalTime) return { departure, dayOffset: 0 };
+
+  const offset = anchor.arrivalDate && anchor.departureDate && anchor.arrivalDate !== anchor.departureDate
+    ? Math.round(
+        (Date.parse(`${anchor.arrivalDate}T00:00:00Z`) - Date.parse(`${anchor.departureDate}T00:00:00Z`))
+        / 86_400_000,
+      )
+    : 0;
+
+  return {
+    departure,
+    arrival: anchor.arrivalTime,
+    dayOffset: Number.isFinite(offset) ? offset : 0,
+  };
+};

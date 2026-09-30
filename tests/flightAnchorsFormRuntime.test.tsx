@@ -508,3 +508,35 @@ describe('arrival time', () => {
     expect(outbound?.arrivalTime).toBeFalsy();
   });
 });
+
+/**
+ * The saved card has to show the arrival, because the arrival is what the
+ * rest of the day is built from — and showing only a departure made an
+ * arrival the traveller never filled in look exactly like one they had.
+ */
+describe('the saved flight card', () => {
+  const saved = (over: Partial<FlightAnchor> = {}): FlightAnchor => ({
+    id: 'out', direction: 'OUTBOUND',
+    departureDate: '2026-10-02', departureTime: '16:35',
+    departureAirport: '桃園國際機場', departureAirportIata: 'TPE',
+    arrivalAirport: '金海國際機場', arrivalAirportIata: 'PUS',
+    airportArrivalBufferMinutes: 120, source: 'MANUAL',
+    ...over,
+  });
+
+  it('shows both times', () => {
+    render(<Host initial={[saved({ arrivalDate: '2026-10-02', arrivalTime: '20:15' })]} oneWay />);
+    expect(screen.getByText(/16:35 → 20:15/)).toBeTruthy();
+  });
+
+  it('says so when the arrival was never entered', () => {
+    render(<Host initial={[saved()]} oneWay />);
+    expect(screen.getByText('抵達時間未填')).toBeTruthy();
+  });
+
+  it('marks a landing on the next day', () => {
+    render(<Host initial={[saved({ departureTime: '23:40', arrivalDate: '2026-10-03', arrivalTime: '03:15' })]} oneWay />);
+    expect(screen.getByText(/23:40 → 03:15/)).toBeTruthy();
+    expect(screen.getByText('+1')).toBeTruthy();
+  });
+});

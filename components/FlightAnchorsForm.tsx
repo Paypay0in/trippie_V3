@@ -5,6 +5,7 @@ import { formatAirportLabel, searchAirports } from '../services/airportDirectory
 import { applyFlightToDraft, legsToApply, ParsedFlight } from '../services/flightIntake';
 import {
   airportOf,
+  flightTimesLabel,
   applyAirport,
   buildFlightAnchorDraft,
   destinationAirportCandidates,
@@ -370,6 +371,7 @@ export default function FlightAnchorsForm({
             const item = anchors.find(anchor => anchor.direction === direction);
             const departure = item ? airportOf(item, 'departure') : undefined;
             const arrival = item ? airportOf(item, 'arrival') : undefined;
+            const times = flightTimesLabel(item ?? {});
             return (
               <div
                 key={direction}
@@ -393,8 +395,24 @@ export default function FlightAnchorsForm({
                 </div>
                 {item ? (
                   <>
+                    {/*
+                      Both times, because the arrival is what the rest of the
+                      day is built from — clearing the airport, the ride to the
+                      hotel, check-in — and the card showing only a departure
+                      made an unset arrival look identical to a set one.
+                    */}
                     <p className="mt-3 text-sm font-black text-[#111A4A]">
-                      {dateLabel(item.departureDate)} · {item.departureTime}
+                      {dateLabel(item.departureDate)} · {times.departure}
+                      {times.arrival ? (
+                        <>
+                          {' → '}{times.arrival}
+                          {times.dayOffset > 0 && (
+                            <span className="ml-0.5 align-super text-[10px] text-[#6b4df6]">+{times.dayOffset}</span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="ml-1.5 text-[11px] font-bold text-amber-600">抵達時間未填</span>
+                      )}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       {departure ? formatAirportLabel(departure) : item.departureAirport}

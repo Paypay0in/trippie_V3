@@ -8,6 +8,7 @@ import {
   validateFlightAnchors,
   parseTimeInput,
   formatTimeInput,
+  flightTimesLabel,
 } from './flightAnchorSetup';
 import { airportCandidatesForCity, findAirportByIata, searchAirports } from './airportDirectory';
 import { dedupeFlightAnchors } from './tripPersistence';
@@ -227,5 +228,48 @@ describe('time input parsing (Safari native control replacement)', () => {
   it('ignores stray non-digits and extra length', () => {
     expect(formatTimeInput('1a2b3c0')).toBe('12:30');
     expect(parseTimeInput('12:30:00')).toBe('12:30');
+  });
+});
+
+describe('flightTimesLabel', () => {
+  it('gives both times for an ordinary flight', () => {
+    expect(flightTimesLabel({
+      departureDate: '2026-10-02', departureTime: '16:35',
+      arrivalDate: '2026-10-02', arrivalTime: '20:15',
+    })).toEqual({ departure: '16:35', arrival: '20:15', dayOffset: 0 });
+  });
+
+  it('marks a landing on the next day', () => {
+    // 23:40 → 03:15 with no marker reads as a flight going backwards in time.
+    expect(flightTimesLabel({
+      departureDate: '2026-10-02', departureTime: '23:40',
+      arrivalDate: '2026-10-03', arrivalTime: '03:15',
+    })).toEqual({ departure: '23:40', arrival: '03:15', dayOffset: 1 });
+  });
+
+  it('reports no arrival when none was entered', () => {
+    // The card showed only a departure, so an arrival the traveller had never
+    // filled in looked exactly like one they had — while everything after
+    // landing silently depended on it.
+    expect(flightTimesLabel({ departureDate: '2026-10-02', departureTime: '16:35' }))
+      .toEqual({ departure: '16:35', dayOffset: 0 });
+  });
+
+  it('treats a same-day arrival as no offset even when both dates are given', () => {
+    expect(flightTimesLabel({
+      departureDate: '2026-10-02', departureTime: '09:30',
+      arrivalDate: '2026-10-02', arrivalTime: '13:05',
+    }).dayOffset).toBe(0);
+  });
+
+  it('does not invent an offset from an unreadable date', () => {
+    expect(flightTimesLabel({
+      departureDate: 'someday', departureTime: '09:30',
+      arrivalDate: '2026-10-03', arrivalTime: '13:05',
+    }).dayOffset).toBe(0);
+  });
+
+  it('survives an empty anchor', () => {
+    expect(flightTimesLabel({})).toEqual({ departure: '', dayOffset: 0 });
   });
 });
