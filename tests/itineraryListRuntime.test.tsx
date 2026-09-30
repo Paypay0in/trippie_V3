@@ -510,12 +510,12 @@ describe('tonight’s stay banner', () => {
     {
       id: 'stay-in', date: '2026-10-03', time: '15:00',
       title: '入住 海雲台格蘭飯店', location: '釜山廣域市海雲台區', notes: '共 3 晚',
-      type: 'HOTEL', scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+      type: 'HOTEL', fixedEventKind: 'accommodation',
     },
     {
       id: 'stay-out', date: DAY_6, time: '11:00',
       title: '退房 海雲台格蘭飯店', location: '釜山廣域市海雲台區', notes: '',
-      type: 'HOTEL', scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+      type: 'HOTEL', fixedEventKind: 'accommodation',
     },
     { id: 'it-mid', date: DAY_5, time: '12:00', title: '午餐', location: '札嘎其市場', notes: '', type: 'FOOD' },
     { id: 'it-six', date: DAY_6, time: '12:00', title: '太宗臺', location: '太宗臺', notes: '', type: 'ACTIVITY' },
@@ -644,22 +644,22 @@ describe('two hotels on one trip', () => {
     {
       id: 'a-in', date: '2026-10-03', time: '15:00', title: '入住 海雲台格蘭飯店',
       location: '海雲台', notes: '', type: 'HOTEL',
-      scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+      fixedEventKind: 'accommodation',
     },
     {
       id: 'a-out', date: DAY_5, time: '11:00', title: '退房 海雲台格蘭飯店',
       location: '海雲台', notes: '', type: 'HOTEL',
-      scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+      fixedEventKind: 'accommodation',
     },
     {
       id: 'b-in', date: DAY_5, time: '15:00', title: '入住 西面商務旅館',
       location: '西面', notes: '', type: 'HOTEL',
-      scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+      fixedEventKind: 'accommodation',
     },
     {
       id: 'b-out', date: '2026-10-07', time: '11:00', title: '退房 西面商務旅館',
       location: '西面', notes: '', type: 'HOTEL',
-      scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation',
+      fixedEventKind: 'accommodation',
     },
   ]));
 
@@ -684,5 +684,38 @@ describe('two hotels on one trip', () => {
     await user.click(screen.getByText('Day 2'));
 
     expect(within(screen.getByTestId('stay-banner')).getByText('西面商務旅館')).toBeTruthy();
+  });
+});
+
+/**
+ * A booked room is a commitment. The hour you walk in is not.
+ *
+ * These cards were marked fixed, which put a lock badge on them and took away
+ * the drag handle — so arriving late, dropping bags early, or reordering the
+ * afternoon around check-in all became impossible on the one card that is
+ * genuinely flexible about its time.
+ */
+describe('a stay can be moved; a flight cannot', () => {
+  beforeEach(() => seedStorage([
+    {
+      id: 'stay-in', date: DAY_5, time: '15:00', title: '入住 海雲台格蘭飯店',
+      location: '海雲台', notes: '', type: 'HOTEL', fixedEventKind: 'accommodation',
+    },
+    {
+      id: 'flight', date: DAY_5, time: '18:00', title: '航班起飛',
+      location: '金海國際機場', notes: '', type: 'FLIGHT',
+      scheduleFlexibility: 'fixed', fixedEventKind: 'flight',
+    },
+  ]));
+
+  it('leaves the stay unlocked', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    expect(screen.queryByTestId('fixed-badge-stay-in')).toBeNull();
+    // The flight beside it keeps its lock, so this is not just "no badges".
+    expect(screen.getByTestId('fixed-badge-flight')).toBeTruthy();
   });
 });

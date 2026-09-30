@@ -5,6 +5,8 @@ import { ParsedStay, normalizeParsedStay, stayToItineraryItems } from '../servic
 
 interface Props {
   itinerary: ItineraryItem[];
+  /** Landing times, so a check-in defaults to when they are actually there. */
+  flightArrivals?: Array<{ date: string; time: string }>;
   /** Appends the parsed stay's items; the caller owns persistence and sync. */
   onAddItems: (items: ItineraryItem[]) => void;
   onRemoveItem: (itemId: string) => void;
@@ -31,7 +33,7 @@ const makeId = () => `stay-${Date.now().toString(36)}-${Math.random().toString(3
  * because the itinerary syncs between travellers and the trip object does not
  * — a companion can see the room booking, which is the point of entering it.
  */
-const StayUploadCard: React.FC<Props> = ({ itinerary, onAddItems, onRemoveItem }) => {
+const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], onAddItems, onRemoveItem }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -71,7 +73,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, onAddItems, onRemoveItem }
       }
 
       const stay = await response.json() as ParsedStay;
-      onAddItems(stayToItineraryItems(stay, makeId) as ItineraryItem[]);
+      onAddItems(stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[]);
     } catch {
       setError('辨識失敗，請手動新增住宿。');
     } finally {
@@ -152,7 +154,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, onAddItems, onRemoveItem }
               return;
             }
             setError('');
-            onAddItems(stayToItineraryItems(stay, makeId) as ItineraryItem[]);
+            onAddItems(stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[]);
             setForm(EMPTY_FORM);
             setManual(false);
           }}

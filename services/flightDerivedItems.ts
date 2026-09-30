@@ -115,3 +115,16 @@ export const reconcileFlightDerivedItems = (
     next.length === current.length && next.every((item, index) => item === current[index]);
   return unchanged ? current : next;
 };
+
+/**
+ * When each flight puts the traveller on the ground.
+ *
+ * Only anchors that state an arrival time qualify: a check-in derived from a
+ * guessed landing would be a guess wearing a specific number.
+ */
+export const flightArrivals = (anchors: FlightAnchor[]): Array<{ date: string; time: string }> =>
+  anchors.flatMap(anchor =>
+    anchor.arrivalTime
+      ? [{ date: anchor.arrivalDate || anchor.departureDate, time: anchor.arrivalTime }]
+      : [],
+  );

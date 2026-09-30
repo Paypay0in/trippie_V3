@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FlightAnchor, ItineraryItem } from '../types';
 import {
   derivedItemIdsFor,
+  flightArrivals,
   itemsFromFlightAnchor,
   reconcileFlightDerivedItems,
 } from './flightDerivedItems';
@@ -134,5 +135,29 @@ describe('stability', () => {
     );
     expect(result.find(item => item.id === arrival.id)?.isCompleted).toBe(true);
     expect(result.find(item => item.id === departure.id)?.isCompleted).toBe(false);
+  });
+});
+
+describe('flightArrivals', () => {
+  it('reports when each flight lands', () => {
+    expect(flightArrivals([
+      anchor({ arrivalDate: '2026-10-02', arrivalTime: '13:05' }),
+      anchor({ id: 'ret', direction: 'RETURN', arrivalDate: '2026-10-07', arrivalTime: '21:40' }),
+    ])).toEqual([
+      { date: '2026-10-02', time: '13:05' },
+      { date: '2026-10-07', time: '21:40' },
+    ]);
+  });
+
+  it('skips an anchor with no arrival time rather than guessing one', () => {
+    // A check-in derived from a guessed landing is a guess wearing a
+    // specific number, which is harder to notice than a blank.
+    expect(flightArrivals([anchor()])).toEqual([]);
+  });
+
+  it('falls back to the departure date when only the time is known', () => {
+    // Most flights land the day they take off.
+    expect(flightArrivals([anchor({ arrivalTime: '13:05' })]))
+      .toEqual([{ date: '2026-10-02', time: '13:05' }]);
   });
 });

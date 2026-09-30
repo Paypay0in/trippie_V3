@@ -144,7 +144,7 @@ import ItineraryCalendar from "./components/ItineraryCalendar";
 import ItineraryItemForm from "./components/ItineraryItemForm";
 import FlightAnchorsForm from "./components/FlightAnchorsForm";
 import StayUploadCard from "./components/StayUploadCard";
-import { reconcileFlightDerivedItems } from "./services/flightDerivedItems";
+import { flightArrivals, reconcileFlightDerivedItems } from "./services/flightDerivedItems";
 import { flightModeFromAnchors } from "./services/tripSyncMapping";
 import ItineraryPlanningAssistant from "./components/ItineraryPlanningAssistant";
 import TravelBookView from "./components/TravelBookView";
@@ -5278,6 +5278,7 @@ const App: React.FC = () => {
         />
         <StayUploadCard
           itinerary={itinerary}
+          flightArrivals={flightArrivals(flightAnchors)}
           onAddItems={handleAddStayItems}
           onRemoveItem={handleDeleteItineraryItem}
         />
@@ -6077,6 +6078,7 @@ const App: React.FC = () => {
                 />
                 <StayUploadCard
                   itinerary={itinerary}
+                  flightArrivals={flightArrivals(flightAnchors)}
                   onAddItems={handleAddStayItems}
                   onRemoveItem={handleDeleteItineraryItem}
                 />

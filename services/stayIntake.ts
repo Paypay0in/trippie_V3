@@ -127,9 +127,47 @@ export const stayPrompt = () => `
  * Both are marked `fixed`: a booked room is a hard constraint, and the planner
  * may not move it to make an afternoon fit.
  */
+/** When a flight puts the traveller on the ground, per date. */
+export interface FlightArrival {
+  date: string;
+  time: string;
+}
+
+/** Hours between landing and realistically standing at a hotel desk. */
+const HOURS_FROM_LANDING_TO_CHECK_IN = 2;
+
+const addHours = (time: string, hours: number): string => {
+  const [h, m] = time.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return time;
+  // Clamped rather than rolled into the next day: an arrival late enough to
+  // push past midnight means check-in is that night, not tomorrow, and moving
+  // the item to another date would take it off the day it belongs to.
+  const total = Math.min(23 * 60 + 59, h * 60 + m + hours * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+/**
+ * The check-in time to use when the booking did not state one.
+ *
+ * Two hours after the flight lands, because that is when the traveller is
+ * actually at the door — immigration, baggage, and the ride in. A flat 15:00
+ * put the card in the wrong half of the day for a morning landing and a late
+ * one alike.
+ *
+ * Only an arrival on the same date counts: a flight two days earlier says
+ * nothing about when they reach this hotel.
+ */
+export const defaultCheckInTime = (checkInDate: string | undefined, arrivals: FlightArrival[] = []): string => {
+  const sameDay = arrivals.find(arrival => arrival.date === checkInDate && arrival.time);
+  if (sameDay) return addHours(sameDay.time, HOURS_FROM_LANDING_TO_CHECK_IN);
+  // No flight that day: the near-universal hotel check-in hour.
+  return '15:00';
+};
+
 export const stayToItineraryItems = (
   stay: ParsedStay,
   makeId: () => string,
+  arrivals: FlightArrival[] = [],
 ): Array<{
   id: string;
   type: 'HOTEL';
@@ -139,14 +177,17 @@ export const stayToItineraryItems = (
   notes: string;
   date?: string;
   time: string;
-  scheduleFlexibility: 'fixed';
   fixedEventKind: 'accommodation';
 }> => {
   const base = {
     type: 'HOTEL' as const,
     location: stay.address || stay.hotelName,
     address: stay.address,
-    scheduleFlexibility: 'fixed' as const,
+    // Not marked fixed. A booked room is a commitment, but the hour you walk
+    // in is not: arriving late, dropping bags early, or reordering the day
+    // around it are all ordinary. `fixedEventKind` stays as the marker that
+    // identifies these as accommodation — it is the field already stored and
+    // synced, so changing it would orphan every stay entered before now.
     fixedEventKind: 'accommodation' as const,
   };
 
@@ -168,9 +209,7 @@ export const stayToItineraryItems = (
       id: makeId(),
       title: `入住 ${stay.hotelName}`,
       date: stay.checkInDate,
-      // 15:00 is the near-universal hotel check-in, and a blank time sorts an
-      // item to the top of the day, above the morning it does not belong in.
-      time: stay.checkInTime || '15:00',
+      time: stay.checkInTime || defaultCheckInTime(stay.checkInDate, arrivals),
       notes: [
         nights > 0 ? `共 ${nights} 晚，${stay.checkOutDate} 退房` : '',
         detail,

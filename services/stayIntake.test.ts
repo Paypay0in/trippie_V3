@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatStayDates, normalizeParsedStay, stayForNight, stayMapUrl, stayNights, staysFromItinerary, stayToItineraryItems } from './stayIntake';
+import { defaultCheckInTime, formatStayDates, normalizeParsedStay, stayForNight, stayMapUrl, stayNights, staysFromItinerary, stayToItineraryItems } from './stayIntake';
 
 let counter = 0;
 const makeId = () => `stay-${++counter}`;
@@ -68,11 +68,13 @@ describe('stayToItineraryItems', () => {
     expect(items[1].title).toContain('退房');
   });
 
-  it('marks both as fixed, so the planner may not move a booked room', () => {
+  it('marks them as accommodation without pinning the hour', () => {
+    // A booked room is a commitment; the hour you walk in is not. Arriving
+    // late, dropping bags early, or reordering the day around it are ordinary.
     const items = stayToItineraryItems(normalizeParsedStay(booking)!, makeId);
     for (const item of items) {
-      expect(item.scheduleFlexibility).toBe('fixed');
       expect(item.fixedEventKind).toBe('accommodation');
+      expect('scheduleFlexibility' in item).toBe(false);
     }
   });
 
@@ -87,6 +89,18 @@ describe('stayToItineraryItems', () => {
     const items = stayToItineraryItems(stay, makeId);
     expect(items[0].time).toBe('15:00');
     expect(items[1].time).toBe('11:00');
+  });
+
+  it('checks in two hours after the flight lands that day', () => {
+    const stay = normalizeParsedStay({ ...booking, checkInTime: undefined })!;
+    const items = stayToItineraryItems(stay, makeId, [{ date: '2026-10-02', time: '13:05' }]);
+    // Landing 13:05, at the door around 15:05: immigration, bags, the ride in.
+    expect(items[0].time).toBe('15:05');
+  });
+
+  it('keeps a time the booking stated, over anything derived from a flight', () => {
+    const items = stayToItineraryItems(normalizeParsedStay(booking)!, makeId, [{ date: '2026-10-02', time: '13:05' }]);
+    expect(items[0].time).toBe('15:00');
   });
 
   it('carries the booking reference into the notes', () => {
@@ -301,5 +315,37 @@ describe('stayMapUrl', () => {
 
   it('works with a name alone', () => {
     expect(decodeURIComponent(stayMapUrl({ name: '某民宿' }))).toContain('某民宿');
+  });
+});
+
+describe('defaultCheckInTime', () => {
+  it('is two hours after a flight landing the same day', () => {
+    expect(defaultCheckInTime('2026-10-02', [{ date: '2026-10-02', time: '08:30' }])).toBe('10:30');
+    expect(defaultCheckInTime('2026-10-02', [{ date: '2026-10-02', time: '13:05' }])).toBe('15:05');
+  });
+
+  it('ignores a flight on another day', () => {
+    // A landing two days earlier says nothing about reaching this hotel.
+    expect(defaultCheckInTime('2026-10-04', [{ date: '2026-10-02', time: '08:30' }])).toBe('15:00');
+    expect(defaultCheckInTime(undefined, [{ date: '2026-10-02', time: '08:30' }])).toBe('15:00');
+  });
+
+  it('falls back to the usual hotel hour when no flight lands that day', () => {
+    expect(defaultCheckInTime('2026-10-02', [])).toBe('15:00');
+    expect(defaultCheckInTime('2026-10-02', [{ date: '2026-10-02', time: '' }])).toBe('15:00');
+  });
+
+  it('stays on the arrival day rather than rolling past midnight', () => {
+    // A 23:40 landing means checking in that night. Moving the card to the
+    // next date would take it off the day the traveller actually arrives.
+    expect(defaultCheckInTime('2026-10-02', [{ date: '2026-10-02', time: '23:40' }])).toBe('23:59');
+  });
+
+  it('picks the flight that lands on the check-in date when several exist', () => {
+    const arrivals = [
+      { date: '2026-10-02', time: '13:05' },
+      { date: '2026-10-05', time: '09:00' },
+    ];
+    expect(defaultCheckInTime('2026-10-05', arrivals)).toBe('11:00');
   });
 });
