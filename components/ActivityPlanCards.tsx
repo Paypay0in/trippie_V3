@@ -10,6 +10,7 @@ import {
 import { tripHasStarted } from '../services/planPreparationCoverage';
 import { BURDEN_LABELS, dayTripIsRealistic, travelTimeLabel } from '../services/planLogistics';
 import { TripDay, pinnedConflictDates } from '../services/tripFreeDays';
+import { addLocalDays, localToday } from '../services/localDate';
 
 /**
  * The screen that helps someone decide.
@@ -62,12 +63,8 @@ const generateItemId = () => `plan-${Date.now().toString(36)}-${Math.random().to
 
 /** The next few weeks, for a trip that has no dates on it yet. */
 const nextDates = (count: number): string[] => {
-  const today = new Date();
-  return Array.from({ length: count }, (_, offset) => {
-    const date = new Date(today);
-    date.setDate(date.getDate() + offset);
-    return date.toISOString().slice(0, 10);
-  });
+  const today = localToday();
+  return Array.from({ length: count }, (_, offset) => addLocalDays(today, offset));
 };
 
 const Tag: React.FC<{ children: React.ReactNode; tone?: 'violet' | 'slate' }> = ({ children, tone = 'slate' }) => (

@@ -1,4 +1,5 @@
 import { ItineraryItem } from '../types';
+import { addLocalDays } from './localDate';
 
 /**
  * Which days of this trip a new activity could actually go into.
@@ -24,12 +25,7 @@ export interface TripDay {
   isFree: boolean;
 }
 
-const addDays = (isoDate: string, days: number): string => {
-  const date = new Date(`${isoDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return '';
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-};
+const addDays = addLocalDays;
 
 export const tripDays = ({
   startDate,

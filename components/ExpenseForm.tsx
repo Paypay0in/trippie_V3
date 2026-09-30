@@ -7,6 +7,7 @@ import { CustomCategories, categoriesForPhase } from '../services/customCategori
 import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
 import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown } from 'lucide-react';
+import { localToday } from '../services/localDate';
 
 interface Props {
   currentPhase: Phase;
@@ -101,7 +102,7 @@ const ExpenseForm: React.FC<Props> = ({
   const phaseCategories = categoriesForPhase(currentPhase, customCategories);
   const ownCategories = customCategories[currentPhase] ?? [];
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
-  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(initialData?.date || localToday());
   const [expenseSaveDebug, setExpenseSaveDebug] = useState({ submitClicked: false, formValid: false, validationError: '', expenseObjectCreated: false, onSubmitCalled: false });
   const [beneficiaryDebug, setBeneficiaryDebug] = useState({ clickedMemberId: '', previous: [] as string[], next: [] as string[] });
   
@@ -306,7 +307,7 @@ const ExpenseForm: React.FC<Props> = ({
                   const parsedCurrency = result.currency?.toUpperCase() || (taxRule?.currency || 'TWD');
                   const parsedCategory = (Object.values(Category).find(c => c === result.category) as Category) || Category.OTHER;
                   const parsedPayment = (Object.values(PaymentMethod).find(p => p === result.paymentMethod) as PaymentMethod) || PaymentMethod.CASH_TWD;
-                  const parsedDate = result.date || new Date().toISOString().split('T')[0];
+                  const parsedDate = result.date || localToday();
                   
                   // Calculate Rate & TWD
                   const rate = getRateForAutoSave(parsedCurrency, parsedPayment);
@@ -1079,7 +1080,7 @@ const ExpenseForm: React.FC<Props> = ({
                           >
                             {isFetchingRate ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                             <span className="text-[10px] font-bold whitespace-nowrap">
-                              {new Date().toISOString().split('T')[0].replace(/-/g, '/')} Google 當日匯率
+                              {localToday().replace(/-/g, '/')} Google 當日匯率
                             </span>
                           </button>
                       </label>

@@ -28,8 +28,11 @@ export const phaseForDate = (
   return 'pre';
 };
 
-/** Today in the traveller's own timezone, as YYYY-MM-DD. */
-export const localToday = (now: Date = new Date()): string => {
-  const offset = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
-};
+/**
+ * Today in the traveller's own timezone, as YYYY-MM-DD.
+ *
+ * Re-exported so existing callers keep working, but it is one implementation
+ * now: this was the only place that got local dates right, and five other
+ * call sites each rewrote it and each shifted a day.
+ */
+export { localToday } from './localDate';

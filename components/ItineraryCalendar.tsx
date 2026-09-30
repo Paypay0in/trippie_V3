@@ -26,6 +26,7 @@ import {
   isFixedItem,
 } from '../services/itineraryFixedEvents';
 import { estimateRoute } from '../services/routesService';
+import { enumerateLocalDates } from '../services/localDate';
 
 interface Props {
   items: ItineraryItem[];
@@ -81,7 +82,7 @@ const VISIBLE_NOTE_COUNT = 3;
 const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onApplyFixedAdjustment, onTogglePin }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ItineraryItem | null>(null);
-  const dates = useMemo(() => { if (!startDate || !endDate) return []; const result: string[] = []; const cursor = new Date(`${startDate}T00:00:00`); const end = new Date(`${endDate}T00:00:00`); while (cursor <= end && result.length < 366) { result.push(cursor.toISOString().slice(0, 10)); cursor.setDate(cursor.getDate() + 1); } return result; }, [startDate, endDate]);
+  const dates = useMemo(() => (startDate && endDate ? enumerateLocalDates(startDate, endDate) : []), [startDate, endDate]);
   const [selectedDate, setSelectedDate] = useState<string | undefined>(dates[0]);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : dates[0];
   // The day's cards, in the order the user arranged them (or chronological until
