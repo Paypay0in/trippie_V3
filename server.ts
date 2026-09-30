@@ -23,6 +23,8 @@ import {
 } from "./services/expenseIntake";
 import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
 import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
+import { checkProposedChanges } from "./services/adjustmentChanges";
+import { enumerateTripDates } from "./services/itineraryPlanningService";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1376,10 +1378,11 @@ ${MODE_RULES[mode]}
 1. 只回傳「變更」，不要回傳整份重排後的行程。沒有要動的項目就不要出現在 changes 裡。
 2. move / update / remove 必須帶 existingItemId，而且只能用【2】裡出現過的 id。絕對不要用地點名稱指認項目。
 3. 不要重複建議目前行程已經有的地點。
-4. add 的項目若來自【3b】的收藏地點，sourceInspirationIds 必須原封不動使用該地點的 inspirationIds；否則一律是空陣列。
-5. 不要捏造 placeId 或座標；地點識別由系統自行帶入。
-6. 每一筆變更都要在 reason 用繁體中文寫一句簡短理由。
-7. summary 用繁體中文寫一兩句話，說明這次調整的整體想法。
+4. 每一筆 add 都「必須」帶 toDate，而且只能是 ${enumerateTripDates(input.startDate, input.endDate).join("、") || "旅程範圍內的日期"} 其中之一，並帶 toTime。沒有日期的建議使用者無法採用，會被系統丟棄。
+5. add 的項目若來自【3b】的收藏地點，sourceInspirationIds 必須原封不動使用該地點的 inspirationIds；否則一律是空陣列。
+6. 不要捏造 placeId 或座標；地點識別由系統自行帶入。
+7. 每一筆變更都要在 reason 用繁體中文寫一句簡短理由。
+8. summary 用繁體中文寫一兩句話，說明這次調整的整體想法。
 只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
@@ -1444,10 +1447,17 @@ ${MODE_RULES[mode]}
           res.status(502).json({ error: "AI 回傳的調整格式無法解析，請重新產生。", provider: "google", model: attemptedModel });
           return;
         }
+        // Checked rather than passed straight through. An add with no day is a
+        // suggestion the traveller asked to have scheduled, handed back
+        // unscheduled — and it reached the screen because nothing here looked.
+        const checked = checkProposedChanges(data.changes, enumerateTripDates(input.startDate, input.endDate));
         res.json({
           summary: typeof data.summary === "string" ? data.summary : "",
-          changes: Array.isArray(data.changes) ? data.changes : [],
-          warnings: Array.isArray(data.warnings) ? data.warnings : [],
+          changes: checked.changes,
+          warnings: [
+            ...(Array.isArray(data.warnings) ? data.warnings : []),
+            ...checked.warnings,
+          ],
         });
       } catch (error) {
         const quotaStatus = quotaStatusOf(error);
