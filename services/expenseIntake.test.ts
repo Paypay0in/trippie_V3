@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Category, PaymentMethod } from '../types';
 import {
+  INTAKE_MODELS,
   extractExchangeRate,
   isCurrencyCode,
   isSupportedImageMime,
@@ -167,5 +168,19 @@ describe('resolveImageMime — what an actual phone sends', () => {
     expect(resolveImageMime('text/html', 'PGh0bWw+')).toBeNull();
     expect(resolveImageMime('', 'not-an-image-at-all')).toBeNull();
     expect(resolveImageMime(42, 'unknownbytes')).toBeNull();
+  });
+});
+
+describe('INTAKE_MODELS', () => {
+  it('starts with the default model and has fallbacks behind it', () => {
+    // The free tier meters per model per day, so the list length is the
+    // multiplier on the daily allowance. One model is 20 requests, which does
+    // not survive two people on a six-day trip.
+    expect(INTAKE_MODELS[0]).toBe('gemini-3-flash-preview');
+    expect(INTAKE_MODELS.length).toBeGreaterThan(1);
+  });
+
+  it('lists each model once, so a fallback is never wasted on a spent bucket', () => {
+    expect(new Set(INTAKE_MODELS).size).toBe(INTAKE_MODELS.length);
   });
 });

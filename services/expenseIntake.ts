@@ -17,6 +17,29 @@ import { Category, PaymentMethod } from '../types';
 
 export const EXPENSE_MODEL = 'gemini-3-flash-preview';
 
+/**
+ * The models to try, in order, when one is out of quota.
+ *
+ * The free tier meters per model per day — the quota id is literally
+ * `GenerateRequestsPerDayPerProjectPerModel-FreeTier` — and the limit on
+ * gemini-3-flash is 20 requests. Twenty does not survive two people recording
+ * expenses across a six-day trip; it was exhausted in an afternoon of testing.
+ *
+ * Because the bucket is per model, falling through to the next one is not a
+ * workaround, it is what the quota actually permits: four models is four
+ * separate daily allowances.
+ *
+ * All four were checked against the same boarding pass and read it identically
+ * — flight number, both IATA codes, date and time — so the order is by
+ * capability, not by accuracy anyone has to give up.
+ */
+export const INTAKE_MODELS = [
+  'gemini-3-flash-preview',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+] as const;
+
 /** What the ledger accepts. A value outside this set is a value we drop. */
 const CATEGORIES = Object.values(Category) as string[];
 const PAYMENT_METHODS = Object.values(PaymentMethod) as string[];

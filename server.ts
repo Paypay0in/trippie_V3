@@ -10,19 +10,19 @@ import { markDepartureTiming, withRequiredPreparation } from "./services/planPre
 import { stripPriceClaims } from "./services/priceClaims";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
-  EXPENSE_MODEL,
   exchangeRatePrompt,
   extractExchangeRate,
   imageExpensePrompt,
   isCurrencyCode,
   isSupportedImageMime,
   normalizeParsedExpense,
+  INTAKE_MODELS,
   rateFromFxResponse,
   resolveImageMime,
   textExpensePrompt,
 } from "./services/expenseIntake";
-import { STAY_MODEL, normalizeParsedStay, stayPrompt } from "./services/stayIntake";
-import { FLIGHT_MODEL, flightPrompt, normalizeParsedFlight } from "./services/flightIntake";
+import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
+import { flightPrompt, normalizeParsedFlight } from "./services/flightIntake";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -140,6 +140,35 @@ async function startServer() {
     throw lastError;
   };
 
+  /**
+   * Runs a call against each model in turn until one is not out of quota.
+   *
+   * The free tier meters per model per day, twenty requests on the default
+   * model — exhausted in one afternoon. Falling through to the next model is
+   * not a trick; the quota is genuinely separate, so four models is four
+   * allowances. All four were checked against the same boarding pass and read
+   * it identically.
+   *
+   * A daily exhaustion does not recover within a request, so that case moves
+   * straight to the next model instead of sleeping. Other transient failures
+   * still get the backoff, per model.
+   */
+  const withModelFallback = async <T>(call: (model: string) => Promise<T>): Promise<T> => {
+    let lastError: unknown;
+    for (const model of INTAKE_MODELS) {
+      try {
+        return await withRetry(() => call(model));
+      } catch (error) {
+        lastError = error;
+        if (quotaStatusOf(error) !== 429) throw error;
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[intake] ${model} out of quota, trying the next model`);
+        }
+      }
+    }
+    throw lastError;
+  };
+
   // A receipt photo is base64, so it arrives far larger than any other body
   // this server accepts. Its parser is mounted *before* the global 16kb one
   // because the global parser would reject the request first — express.json
@@ -152,8 +181,8 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "現在無法辨識收據，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await withRetry(() => ai.models.generateContent({
-        model: EXPENSE_MODEL,
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
         contents: { parts: [{ inlineData: { mimeType: imageMime, data: base64Data } }, { text: imageExpensePrompt() }] },
         config: {
           responseMimeType: "application/json",
@@ -194,8 +223,8 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "現在無法辨識訂房截圖，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await withRetry(() => ai.models.generateContent({
-        model: STAY_MODEL,
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
         contents: { parts: [{ inlineData: { mimeType: imageMime, data: base64Data } }, { text: stayPrompt() }] },
         config: {
           responseMimeType: "application/json",
@@ -236,8 +265,8 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "現在無法辨識機票，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await withRetry(() => ai.models.generateContent({
-        model: FLIGHT_MODEL,
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
         contents: {
           parts: [
             { inlineData: { mimeType: imageMime, data: base64Data } },
@@ -283,8 +312,8 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "現在無法自動辨識，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await withRetry(() => ai.models.generateContent({
-        model: EXPENSE_MODEL,
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
         contents: textExpensePrompt(text),
         config: {
           responseMimeType: "application/json",
@@ -334,8 +363,8 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "查不到即時匯率。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await withRetry(() => ai.models.generateContent({
-        model: EXPENSE_MODEL,
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
         contents: exchangeRatePrompt(source, target),
         config: { tools: [{ googleSearch: {} }] },
       }));
