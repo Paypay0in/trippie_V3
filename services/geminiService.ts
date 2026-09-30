@@ -55,6 +55,31 @@ const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 2000)
   }
 };
 
+/**
+ * The three functions below used to call Gemini straight from the browser,
+ * which required `VITE_GEMINI_API_KEY` — and a VITE_ variable is compiled into
+ * the public JavaScript bundle, so the key was readable by anyone who opened
+ * devtools. They now ask the server, which holds the key. The signatures are
+ * unchanged so callers did not have to move.
+ *
+ * Each returns null on failure rather than throwing: every caller already
+ * treats null as "leave what the traveller typed alone".
+ */
+const postExpenseIntake = async <T>(path: string, body: unknown): Promise<T | null> => {
+  try {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) return null;
+    return await response.json() as T;
+  } catch (error) {
+    console.error(`Expense intake failed (${path}):`, error);
+    return null;
+  }
+};
+
 export const parseExpenseWithGemini = async (text: string): Promise<{
   description?: string;
   amount?: number;
@@ -62,62 +87,8 @@ export const parseExpenseWithGemini = async (text: string): Promise<{
   category?: string;
   paymentMethod?: string;
 } | null> => {
-  const ai = getAiModel();
-  if (!ai) {
-    console.warn("API Key missing");
-    return null;
-  }
-
-  try {
-    const prompt = `
-      Extract expense details from this text: "${text}".
-      Identify the description, amount, currency code (ISO 4217), and fit it into one of these categories:
-      ${Object.values(Category).join(', ')}.
-      
-      Important Category Rules:
-      - If the text mentions "幫買", "代買", "幫朋友", "代購" (help buy/buying for friend), set category to '${Category.HELP_BUY}'.
-      - If the text mentions "回國", "回家", "機場捷運", "高鐵", "統聯" (return transport), set category to '${Category.TRANSPORT_POST}'.
-
-      Also identify the payment method.
-      - If it is credit card, map to '${PaymentMethod.CREDIT_CARD}'.
-      - If it is TWD cash (台幣現金) or implied domestic cash, map to '${PaymentMethod.CASH_TWD}'.
-      - If it is foreign cash (外幣現金), map to '${PaymentMethod.CASH_FOREIGN}'.
-      - If it is IC card/Suica/EasyCard, map to '${PaymentMethod.IC_CARD}'.
-      
-      If unknown cash type, just return '${PaymentMethod.CASH_FOREIGN}' if currency is not TWD, otherwise '${PaymentMethod.CASH_TWD}'.
-
-      If the currency is not specified but implied (e.g. "yen"), use the code (JPY). Default to TWD if unknown.
-      If category is unclear, use "其他".
-    `;
-
-    const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            description: { type: Type.STRING },
-            amount: { type: Type.NUMBER },
-            currency: { type: Type.STRING },
-            category: { type: Type.STRING },
-            paymentMethod: { type: Type.STRING },
-          },
-          required: ["amount"],
-        },
-      },
-    }));
-
-    if (response.text) {
-        return JSON.parse(cleanJsonString(response.text));
-    }
-    return null;
-
-  } catch (error) {
-    console.error("Gemini parse error:", error);
-    return null;
-  }
+  if (!text.trim()) return null;
+  return postExpenseIntake('/api/expenses/parse-text', { text });
 };
 
 export const parseImageExpenseWithGemini = async (base64Data: string, mimeType: string): Promise<{
@@ -132,75 +103,8 @@ export const parseImageExpenseWithGemini = async (base64Data: string, mimeType: 
   travelStartDate?: string;
   travelEndDate?: string;
 } | null> => {
-  const ai = getAiModel();
-  if (!ai) {
-    console.warn("API Key missing");
-    return null;
-  }
-
-  try {
-    const prompt = `
-      Analyze this image (receipt, flight ticket, hotel booking, or screen capture).
-      
-      Extract the following details:
-      1. Merchant Name or Short Description.
-      2. Total Amount (Final total).
-      3. Currency Code (ISO 4217).
-      4. Category: Choose strictly from: ${Object.values(Category).join(', ')}.
-      5. Payment Method: Infer Credit Card, Cash, or IC Card.
-      6. Country: Infer the country in Traditional Chinese.
-
-      CRITICAL DATE PARSING:
-      - "date": The specific date when the TRANSACTION/PAYMENT happened (or the invoice date). This is for the ledger.
-      - "travelStartDate" & "travelEndDate": IF this is a FLIGHT ticket or HOTEL booking, extract the actual TRAVEL dates.
-        - For flights: Start = Departure Date, End = Return Date (or Arrival Date if one-way).
-        - For hotels: Start = Check-in, End = Check-out.
-        - For normal receipts (food, shopping), these fields should be null.
-      
-      Format all dates as YYYY-MM-DD.
-
-      Flag 'isUncertain' as true if the image is blurry or key info is ambiguous.
-      Return JSON.
-    `;
-
-    const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-            { inlineData: { mimeType, data: base64Data } },
-            { text: prompt }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            description: { type: Type.STRING },
-            amount: { type: Type.NUMBER },
-            currency: { type: Type.STRING },
-            category: { type: Type.STRING },
-            date: { type: Type.STRING, description: "Transaction/Invoice Date" },
-            travelStartDate: { type: Type.STRING, description: "Actual Travel Start Date (Flights/Hotels)" },
-            travelEndDate: { type: Type.STRING, description: "Actual Travel End Date (Flights/Hotels)" },
-            paymentMethod: { type: Type.STRING },
-            country: { type: Type.STRING, description: "Inferred country in Traditional Chinese" },
-            isUncertain: { type: Type.BOOLEAN, description: "True if low confidence" },
-          },
-          required: ["amount", "currency"],
-        },
-      },
-    }));
-
-    if (response.text) {
-        return JSON.parse(cleanJsonString(response.text));
-    }
-    return null;
-
-  } catch (error) {
-    console.error("Gemini image parse error:", error);
-    return null;
-  }
+  if (!base64Data) return null;
+  return postExpenseIntake('/api/expenses/parse-image', { base64Data, mimeType });
 };
 
 export const fetchTaxRefundRules = async (countryName: string): Promise<TaxRule | null> => {
@@ -546,30 +450,8 @@ export const findCheapestTimes = async (location: string, publicTrips: PublicTri
 };
 
 export const fetchCurrentExchangeRate = async (fromCurrency: string, toCurrency: string = 'TWD'): Promise<number | null> => {
-    const ai = getAiModel();
-    if (!ai || !fromCurrency || fromCurrency === toCurrency) return null;
-
-    try {
-        const prompt = `What is the current exchange rate from ${fromCurrency} to ${toCurrency}? Provide only the numerical rate.`;
-        
-        const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt,
-            config: {
-                tools: [{ googleSearch: {} }]
-            }
-        }));
-
-        if (response.text) {
-            // Extract number from text (e.g., "0.22" or "The rate is 0.22")
-            const match = response.text.match(/(\d+(\.\d+)?)/);
-            if (match) {
-                return parseFloat(match[0]);
-            }
-        }
-        return null;
-    } catch (error) {
-        console.error("Gemini exchange rate fetch error:", error);
-        return null;
-    }
+    if (!fromCurrency || fromCurrency === toCurrency) return null;
+    const result = await postExpenseIntake<{ rate?: number }>('/api/exchange-rate', { from: fromCurrency, to: toCurrency });
+    const rate = result?.rate;
+    return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : null;
 };

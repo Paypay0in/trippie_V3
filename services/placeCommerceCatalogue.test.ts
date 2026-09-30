@@ -190,17 +190,36 @@ describe('commerceNameKey', () => {
  * mounted after the body parser.
  */
 describe('server route registration order', () => {
-  it('mounts every body-reading API route after express.json()', () => {
+  // The failure this prevents: a body-reading route mounted before any JSON
+  // parser sees `req.body` as undefined and answers as though the caller sent
+  // nothing — a 400 that looks like the client's fault. It shipped twice.
+  //
+  // Sitting after the global express.json() is the usual way to satisfy this,
+  // but not the only one: a route that must accept a body larger than the
+  // global limit has to be mounted earlier, carrying its own parser, because
+  // the global parser would reject the request first. Either shape is fine;
+  // having no parser at all is not.
+  it('gives every body-reading API route a JSON parser', () => {
     const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8').split('\n');
     const jsonLine = server.findIndex(line => line.includes('app.use(express.json('));
     expect(jsonLine).toBeGreaterThan(-1);
 
-    const early = server
+    const unparsed = server
       .map((line, index) => ({ line, index }))
       .filter(({ line }) => /app\.(post|put|patch)\(/.test(line))
       .filter(({ index }) => index < jsonLine)
+      // An earlier route is only acceptable when it brings its own parser.
+      .filter(({ line }) => !/express\.json\(/.test(line))
       .map(({ line }) => line.trim());
 
-    expect(early).toEqual([]);
+    expect(unparsed).toEqual([]);
+  });
+
+  it('keeps the oversized-body allowance to the one route that needs it', () => {
+    const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+    const inline = [...server.matchAll(/app\.(?:post|put|patch)\("([^"]+)",\s*express\.json\(/g)].map(m => m[1]);
+    // A receipt photo is the only body this server accepts above 16kb.
+    // Widening that to another route is a decision, not a detail.
+    expect(inline).toEqual(['/api/expenses/parse-image']);
   });
 });

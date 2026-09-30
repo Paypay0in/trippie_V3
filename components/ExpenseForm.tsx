@@ -387,13 +387,21 @@ const ExpenseForm: React.FC<Props> = ({
               setPaymentMethod(PaymentMethod.CASH_FOREIGN);
           }
           
-          // Auto-fetch current rate from AI/Google
+          // Auto-fetch current rate from AI/Google.
+          //
+          // Falling through without setting anything leaves the rate at the
+          // previous currency's value — switching TWD to KRW and losing the
+          // lookup would record every won at 1:1 and quietly wreck the whole
+          // ledger. A stored rate is stale; the old currency's rate is wrong.
           setIsFetchingRate(true);
           const rate = await fetchCurrentExchangeRate(newCurrency);
           setIsFetchingRate(false);
           if (rate) {
               setExchangeRate(rate.toFixed(4));
               setAutoRateApplied(true);
+          } else {
+              const target = COMMON_CURRENCIES.find(c => c.code === newCurrency);
+              if (target) setExchangeRate(target.defaultRate.toString());
           }
       } else {
           if (paymentMethod === PaymentMethod.CASH_FOREIGN) {
@@ -411,6 +419,12 @@ const ExpenseForm: React.FC<Props> = ({
       if (rate) {
           setExchangeRate(rate.toFixed(4));
           setAutoRateApplied(true);
+      } else {
+          // Keep the rate already on screen — it is the traveller's, or a
+          // stored default, and either beats blanking it. But say so: a
+          // refresh button that does nothing visible reads as "refreshed".
+          setStatusMessage('查不到即時匯率，沿用目前的匯率。');
+          window.setTimeout(() => setStatusMessage(''), 3000);
       }
   };
 

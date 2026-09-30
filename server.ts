@@ -9,6 +9,17 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
+import {
+  EXPENSE_MODEL,
+  exchangeRatePrompt,
+  extractExchangeRate,
+  imageExpensePrompt,
+  isCurrencyCode,
+  isSupportedImageMime,
+  normalizeParsedExpense,
+  rateFromFxResponse,
+  textExpensePrompt,
+} from "./services/expenseIntake";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,7 +82,127 @@ async function startServer() {
     return /\b429\b|RESOURCE_EXHAUSTED|rate.?limit|quota/i.test(message) ? 429 : undefined;
   };
 
+  /** Models wrap JSON in a markdown fence often enough to be worth stripping. */
+  const cleanModelJson = (raw: string) => raw.replace(/```json|```/g, "").trim() || "null";
+
+  // A receipt photo is base64, so it arrives far larger than any other body
+  // this server accepts. Its parser is mounted *before* the global 16kb one
+  // because the global parser would reject the request first — express.json
+  // skips a body it has already parsed, so the order is what makes this work.
+  app.post("/api/expenses/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
+    const { base64Data, mimeType } = req.body ?? {};
+    if (typeof base64Data !== "string" || !base64Data || !isSupportedImageMime(mimeType)) {
+      res.status(400).json({ error: "需要一張收據照片。" });
+      return;
+    }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在無法辨識收據，請手動輸入。" }); return; }
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: EXPENSE_MODEL,
+        contents: { parts: [{ inlineData: { mimeType: mimeType.trim(), data: base64Data } }, { text: imageExpensePrompt() }] },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              description: { type: Type.STRING },
+              amount: { type: Type.NUMBER },
+              currency: { type: Type.STRING },
+              category: { type: Type.STRING },
+              date: { type: Type.STRING, description: "Transaction/Invoice Date" },
+              travelStartDate: { type: Type.STRING, description: "Actual Travel Start Date (Flights/Hotels)" },
+              travelEndDate: { type: Type.STRING, description: "Actual Travel End Date (Flights/Hotels)" },
+              paymentMethod: { type: Type.STRING },
+              country: { type: Type.STRING, description: "Inferred country in Traditional Chinese" },
+              isUncertain: { type: Type.BOOLEAN, description: "True if low confidence" },
+            },
+            required: ["amount", "currency"],
+          },
+        },
+      });
+      const parsed = normalizeParsedExpense(JSON.parse(cleanModelJson(response.text ?? "")));
+      if (!parsed) { res.status(422).json({ error: "這張照片看不出金額，請手動輸入。" }); return; }
+      res.json(parsed);
+    } catch (error) {
+      const status = quotaStatusOf(error) ?? 502;
+      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識收據，請手動輸入。" });
+    }
+  });
+
   app.use(express.json({ limit: "16kb" }));
+
+  app.post("/api/expenses/parse-text", async (req, res) => {
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    if (!text || text.length > 500) { res.status(400).json({ error: "請描述這筆花費。" }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在無法自動辨識，請手動輸入。" }); return; }
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: EXPENSE_MODEL,
+        contents: textExpensePrompt(text),
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              description: { type: Type.STRING },
+              amount: { type: Type.NUMBER },
+              currency: { type: Type.STRING },
+              category: { type: Type.STRING },
+              paymentMethod: { type: Type.STRING },
+            },
+            required: ["amount"],
+          },
+        },
+      });
+      const parsed = normalizeParsedExpense(JSON.parse(cleanModelJson(response.text ?? "")));
+      if (!parsed) { res.status(422).json({ error: "這句話看不出金額，請手動輸入。" }); return; }
+      res.json(parsed);
+    } catch (error) {
+      const status = quotaStatusOf(error) ?? 502;
+      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法自動辨識，請手動輸入。" });
+    }
+  });
+
+  // The form has a stored fallback rate for every currency it offers, so a
+  // failure here is a downgrade rather than a dead end — which is why this
+  // answers with a plain status and no retry prompt.
+  app.post("/api/exchange-rate", async (req, res) => {
+    const { from, to } = req.body ?? {};
+    const target = isCurrencyCode(to) ? to.trim().toUpperCase() : "TWD";
+    if (!isCurrencyCode(from)) { res.status(400).json({ error: "需要幣別代碼。" }); return; }
+    const source = from.trim().toUpperCase();
+    if (source === target) { res.json({ rate: 1 }); return; }
+
+    // A published rates feed first: no key, no quota, and authoritative in a
+    // way a language model reading search results is not.
+    try {
+      const response = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(source)}`, { signal: AbortSignal.timeout(6_000) });
+      if (response.ok) {
+        const rate = rateFromFxResponse(await response.json(), target);
+        if (rate !== null) { res.json({ rate }); return; }
+      }
+    } catch { /* fall through to the model */ }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "查不到即時匯率。" }); return; }
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: EXPENSE_MODEL,
+        contents: exchangeRatePrompt(source, target),
+        config: { tools: [{ googleSearch: {} }] },
+      });
+      const rate = extractExchangeRate(response.text);
+      if (rate === null) { res.status(422).json({ error: "查不到即時匯率。" }); return; }
+      res.json({ rate });
+    } catch (error) {
+      res.status(quotaStatusOf(error) ?? 502).json({ error: "查不到即時匯率。" });
+    }
+  });
 
   // Mounted from the shared module so the identical handler can be exercised by a
   // real HTTP test. Registered after express.json() — a body-reading route before
