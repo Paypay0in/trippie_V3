@@ -783,3 +783,49 @@ describe('the airport transfer follows the flight', () => {
     });
   });
 });
+
+/**
+ * Landing belongs on the day it happens.
+ *
+ * The timeline held the two steps before take-off and then nothing until the
+ * hotel, so the moment the traveller actually reaches the country was absent
+ * from their itinerary entirely.
+ */
+describe('the landing card', () => {
+  beforeEach(() => {
+    globalThis.fetch = (async () => ({ ok: true, json: async () => ({}) })) as unknown as typeof fetch;
+    seedStorage([], [
+      {
+        id: 'anchor-out', direction: 'OUTBOUND',
+        departureDate: DAY_5, departureTime: '16:35', departureAirport: '桃園國際機場',
+        arrivalDate: DAY_5, arrivalTime: '20:15', arrivalAirport: '金海國際機場',
+        airportArrivalBufferMinutes: 120, source: 'MANUAL',
+      },
+    ]);
+  });
+
+  it('shows the landing, at its airport and its hour', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    const landing = await screen.findByText('航班抵達');
+    const card = landing.closest('[class*="rounded-[20px]"]') as HTMLElement;
+    expect(within(card).getByText('20:15')).toBeTruthy();
+    expect(within(card).getByText(/金海國際機場/)).toBeTruthy();
+  });
+
+  it('sits after take-off, so the day reads in order', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+    await screen.findByText('航班抵達');
+
+    const titles = Array.from(document.querySelectorAll('h4, h3'))
+      .map(node => node.textContent?.trim())
+      .filter(title => title === '抵達機場' || title === '航班起飛' || title === '航班抵達');
+    expect(titles).toEqual(['抵達機場', '航班起飛', '航班抵達']);
+  });
+});

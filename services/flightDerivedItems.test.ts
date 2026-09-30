@@ -45,11 +45,23 @@ describe('itemsFromFlightAnchor', () => {
     expect(itemsFromFlightAnchor(anchor({ departureAirport: '' }))).toEqual([]);
   });
 
-  it('keeps ids stable, so re-deriving does not duplicate the pair', () => {
+  it('keeps ids stable, so re-deriving does not duplicate anything', () => {
     const first = itemsFromFlightAnchor(anchor()).map(item => item.id);
     const second = itemsFromFlightAnchor(anchor()).map(item => item.id);
     expect(first).toEqual(second);
-    expect(first).toEqual(derivedItemIdsFor('anchor-out'));
+  });
+
+  it('only ever produces ids the reconciliation knows to replace', () => {
+    // derivedItemIdsFor lists what an anchor *can* produce; what it does
+    // produce depends on the data — a flight with no arrival time has no
+    // landing card. Anything outside that list would survive reconciliation
+    // and accumulate.
+    const possible = derivedItemIdsFor('anchor-out');
+    for (const over of [{}, { arrivalTime: '20:15' }, { arrivalTime: '03:15', arrivalDate: '2026-10-03' }]) {
+      for (const item of itemsFromFlightAnchor(anchor(over))) {
+        expect(possible).toContain(item.id);
+      }
+    }
   });
 });
 
@@ -159,5 +171,52 @@ describe('flightArrivals', () => {
     // Most flights land the day they take off.
     expect(flightArrivals([anchor({ arrivalTime: '13:05' })]))
       .toEqual([{ date: '2026-10-02', time: '13:05' }]);
+  });
+});
+
+describe('landing', () => {
+  it('puts the moment they reach the country on the itinerary', () => {
+    // The timeline held the two steps before take-off and then nothing until
+    // the hotel: the landing itself was absent from the day it happens on.
+    const items = itemsFromFlightAnchor(anchor({
+      arrivalDate: '2026-10-02', arrivalTime: '20:15', arrivalAirport: '金海國際機場',
+    }));
+    const landing = items.find(item => item.title === '航班抵達');
+    expect(landing).toMatchObject({ time: '20:15', date: '2026-10-02', location: '金海國際機場', type: 'FLIGHT' });
+  });
+
+  it('dates it by the arrival, not the departure', () => {
+    // An overnight flight lands on a different day, and putting it on the
+    // take-off day would show the traveller arriving before they left.
+    const items = itemsFromFlightAnchor(anchor({
+      departureTime: '23:40', arrivalDate: '2026-10-03', arrivalTime: '03:15',
+    }));
+    expect(items.find(item => item.title === '航班抵達')?.date).toBe('2026-10-03');
+  });
+
+  it('is absent when the flight does not say when it lands', () => {
+    // A landing card at a guessed hour is worse than none: the transfer and
+    // the check-in would both be derived from it.
+    expect(itemsFromFlightAnchor(anchor()).find(item => item.title === '航班抵達')).toBeUndefined();
+  });
+
+  it('falls back to the IATA code when the airport has no name', () => {
+    const items = itemsFromFlightAnchor(anchor({
+      arrivalTime: '20:15', arrivalAirport: undefined, arrivalAirportIata: 'PUS',
+    }));
+    expect(items.find(item => item.title === '航班抵達')?.location).toBe('PUS');
+  });
+
+  it('keeps a stable id, so re-deriving updates rather than duplicates', () => {
+    const once = itemsFromFlightAnchor(anchor({ arrivalTime: '20:15' }));
+    const twice = itemsFromFlightAnchor(anchor({ arrivalTime: '21:00' }));
+    expect(once.find(i => i.title === '航班抵達')?.id).toBe(twice.find(i => i.title === '航班抵達')?.id);
+  });
+
+  it('is reconciled away with the rest when its anchor goes', () => {
+    const items = itemsFromFlightAnchor(anchor({ arrivalTime: '20:15' }));
+    expect(items).toHaveLength(3);
+    const result = reconcileFlightDerivedItems(items, [], new Set(['anchor-out']));
+    expect(result).toEqual([]);
   });
 });

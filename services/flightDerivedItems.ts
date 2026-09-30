@@ -42,11 +42,12 @@ const shiftClock = (time: string, minutesEarlier: number): string => {
 export const derivedItemIdsFor = (anchorId: string): string[] => [
   `flight-arrival-${anchorId}`,
   `flight-departure-${anchorId}`,
+  `flight-landing-${anchorId}`,
 ];
 
 export const itemsFromFlightAnchor = (anchor: FlightAnchor): ItineraryItem[] => {
   if (!anchor.departureDate || !anchor.departureTime || !anchor.departureAirport) return [];
-  const [arrivalId, departureId] = derivedItemIdsFor(anchor.id);
+  const [arrivalId, departureId, landingId] = derivedItemIdsFor(anchor.id);
   return [
     {
       id: arrivalId,
@@ -70,6 +71,25 @@ export const itemsFromFlightAnchor = (anchor: FlightAnchor): ItineraryItem[] => 
       isCompleted: false,
       derivedFromFlightAnchorId: anchor.id,
     },
+    // Landing, when the flight says when.
+    //
+    // The timeline held the two steps before take-off and then nothing until
+    // the hotel — the moment the traveller actually reaches the country was
+    // absent from the day it happens on. It also gives the transfer card
+    // something to follow: land, clear the airport, ride in, check in.
+    //
+    // Dated by the arrival, which is not always the departure day.
+    ...(anchor.arrivalTime ? [{
+      id: landingId,
+      time: anchor.arrivalTime,
+      title: '航班抵達',
+      location: anchor.arrivalAirport || anchor.arrivalAirportIata || '目的地機場',
+      notes: '由已保存航班錨點產生，於「航班資訊」修改',
+      type: 'FLIGHT' as const,
+      date: anchor.arrivalDate || anchor.departureDate,
+      isCompleted: false,
+      derivedFromFlightAnchorId: anchor.id,
+    }] : []),
   ];
 };
 
