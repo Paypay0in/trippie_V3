@@ -160,25 +160,32 @@ export const useTripSync = ({
 };
 
 /**
- * Dev-only badge, attached straight to the document.
+ * The sync status banner, attached straight to the document.
  *
  * Rendering it as JSX put it on exactly one of App's fourteen return paths, so
  * it was invisible on the very screen it was meant to report on. Living outside
  * the component tree means it cannot be missed off a branch again.
+ *
+ * A failure shows in production too. It was dev-only, which meant a traveller
+ * whose writes were being rejected saw an app that looked entirely normal —
+ * and so did anyone they asked for help. A ledger silently not saving is the
+ * one thing this app must never do quietly.
+ *
+ * The off state stays dev-only: signed out is an ordinary way to use this, and
+ * a permanent grey bar is a cost paid on every screen for a fact that matters
+ * on almost none.
  */
 const useSyncBadge = (
   state: TripSyncState,
   { tripId, signedIn, failure, note }: { tripId: string | null; signedIn: boolean; failure: string; note?: string },
 ) => {
   useEffect(() => {
-    if (!import.meta.env.DEV || typeof document === 'undefined') return;
+    if (typeof document === 'undefined') return;
 
-    // Only while something is wrong. The banner existed to find a sync bug that
-    // is now fixed, and a permanent green bar across every screen is a cost the
-    // reader pays on every page for information they need on almost none.
     const id = 'trippie-sync-badge';
     const existing = document.getElementById(id);
-    const quiet = state === 'synced' || state === 'loading';
+    // Errors everywhere; the rest only while developing.
+    const quiet = state === 'synced' || state === 'loading' || (state !== 'error' && !import.meta.env.DEV);
     if (quiet) {
       existing?.remove();
       return;

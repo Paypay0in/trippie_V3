@@ -229,6 +229,7 @@ import CommunityPostDetail from "./components/CommunityPostDetail";
 import { fetchPlacePhoto } from "./services/placePhotoService";
 import SavedTravelDestinationDetail from "./components/SavedTravelDestinationDetail";
 import AccountScreen from "./components/AccountScreen";
+import CloudSyncStatus from "./components/CloudSyncStatus";
 import CreatorCenterScreen from "./components/CreatorCenterScreen";
 import AuthScreen from "./components/AuthScreen";
 import AuthLandingScreen from "./components/AuthLandingScreen";
@@ -4594,6 +4595,13 @@ const App: React.FC = () => {
               pipelineDebug={savePipelineDebug}
               migrationDebug={ownershipMigrationDebug}
             />
+            <div className="mx-auto w-full max-w-2xl px-5 pt-5">
+              <CloudSyncStatus
+                signedIn={authStatus === "authenticated"}
+                email={authUser?.email}
+                localTripCount={drafts.length}
+              />
+            </div>
             <AccountScreen
               authStatus={authStatus}
               profile={authProfile}
