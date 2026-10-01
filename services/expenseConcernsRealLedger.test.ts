@@ -71,6 +71,36 @@ describe('the live Busan ledger, as the owner sees it', () => {
   });
 
   /**
+   * The row that produced 33,388, and the reason it took four rounds to see.
+   *
+   * Correcting the payer by hand moved `payer_id`, `beneficiaries` and
+   * `created_by_member_id` to the second traveller and left `payer_allocations`
+   * reading `{owner: 888}`. Every field anyone looked at named her; the one
+   * nobody printed said he had put the money down, so the rule — correctly —
+   * kept her 888 in his ledger.
+   */
+  it('reads a stale prepaid map back to the payer rather than the old one', () => {
+    const corrected = row({
+      id: 'e-888', description: '哈哈❤️', amount: 888,
+      payer_id: GINA, beneficiaries: [GINA], created_by_member_id: GINA,
+      payer_allocations: { [OWNER]: 888 },
+    });
+
+    expect(corrected.payerAllocations).toEqual({ [GINA]: 888 });
+    expect(expenseConcernsMember(corrected, OWNER)).toBe(false);
+  });
+
+  it('never rewrites a map with more than one payer in it', () => {
+    const genuinelySplit = row({
+      id: 'e-share', amount: 1000, payer_id: OWNER,
+      payer_allocations: { [OWNER]: 600, [GINA]: 400 },
+    });
+
+    expect(genuinelySplit.payerAllocations).toEqual({ [OWNER]: 600, [GINA]: 400 });
+    expect(expenseConcernsMember(genuinelySplit, GINA)).toBe(true);
+  });
+
+  /**
    * The failure mode that produced 33,388 on his screen: with no identity, the
    * rule deliberately shows everything rather than guess. Nothing downstream
    * can distinguish that from a filter that simply did not work.

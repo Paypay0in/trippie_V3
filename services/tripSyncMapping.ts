@@ -81,6 +81,26 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
  * split fields are undefined — the calculator would then quietly treat it as
  * shared by nobody.
  */
+/**
+ * Who actually put the money down, when the record disagrees with itself.
+ *
+ * An expense carries both a payer and a map of what each person prepaid. They
+ * are written together and cannot normally diverge — but a row corrected by
+ * hand had its payer moved to the second traveller while the map still read
+ * `{owner: 888}`, so the ledger said she paid it and that he had prepaid it.
+ * The share calculation reads the map, so 888 of her own money stayed in his
+ * total on a screen where every other field named her.
+ *
+ * One stale entry is repaired from the payer; anything with two or more is a
+ * genuine split and is left exactly as written.
+ */
+const reconcilePrepaid = (row: ExpenseRow): Record<string, number> => {
+  const prepaid = (row.payer_allocations ?? {}) as Record<string, number>;
+  const keys = Object.keys(prepaid);
+  if (!row.payer_id || keys.length !== 1 || keys[0] === row.payer_id) return prepaid;
+  return { [row.payer_id]: Number(row.amount) || 0 };
+};
+
 export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   id: row.id,
   description: row.description ?? '',
@@ -95,7 +115,7 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   date: row.date ?? '',
   createdByMemberId: row.created_by_member_id ?? undefined,
   payerId: row.payer_id ?? '',
-  payerAllocations: row.payer_allocations ?? {},
+  payerAllocations: reconcilePrepaid(row),
   beneficiaries: Array.isArray(row.beneficiaries) ? row.beneficiaries : [],
   splitMethod: (row.split_method as SplitMethod) ?? 'EQUAL',
   splitAllocations: row.split_allocations ?? {},
