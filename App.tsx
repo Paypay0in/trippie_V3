@@ -5765,8 +5765,8 @@ const App: React.FC = () => {
               companions={companions}
               members={buildTripMembers(
                 activeDraftId || currentLoadedTripId || "active",
-                userId,
-                authProfile?.displayName || userProfile.name || "我",
+                settlementOwnerUserId,
+                ownerDisplayName,
                 companions,
                 friends,
               )}
@@ -6068,7 +6068,7 @@ const App: React.FC = () => {
               existingExpenses={expenses}
               companions={companions}
               ownerMemberId={activeOwnerMemberId}
-              ownerName={authProfile?.displayName || userProfile.name || "我"}
+              ownerName={ownerDisplayName}
               viewerMemberId={viewerMemberId}
               viewerIdentified={viewerResolution.isResolved}
               proposalMode={isProposalMode}
@@ -6089,7 +6089,7 @@ const App: React.FC = () => {
           {isCompanionsOpen && (
             <CompanionsModal
               companions={companions}
-              ownerName={authProfile?.displayName || userProfile.name || "我"}
+              ownerName={ownerDisplayName}
               friends={friends}
               onAdd={handleAddCompanion}
               onAddFriendToTrip={handleAddFriendToTrip}
@@ -6209,8 +6209,8 @@ const App: React.FC = () => {
                   outstandingExpenses={outstandingExpenses}
                   members={buildTripMembers(
                     settlementTripId,
-                    userId,
-                    authProfile?.displayName || userProfile.name || "我",
+                    settlementOwnerUserId,
+                    ownerDisplayName,
                     companions,
                     friends,
                   )}
@@ -6487,8 +6487,8 @@ const App: React.FC = () => {
                 <Dashboard
                   members={buildTripMembers(
                     activeDraftId || currentLoadedTripId || "active",
-                    userId,
-                    authProfile?.displayName || userProfile.name || "我",
+                    settlementOwnerUserId,
+                    ownerDisplayName,
                     companions,
                     friends,
                   )}
@@ -6622,7 +6622,7 @@ const App: React.FC = () => {
           existingExpenses={expenses}
           companions={companions}
           ownerMemberId={activeOwnerMemberId}
-              ownerName={authProfile?.displayName || userProfile.name || "我"}
+              ownerName={ownerDisplayName}
               viewerMemberId={viewerMemberId}
           viewerIdentified={viewerResolution.isResolved}
               proposalMode={isProposalMode}
@@ -6649,8 +6649,8 @@ const App: React.FC = () => {
               outstandingExpenses={outstandingExpenses}
               members={buildTripMembers(
                 settlementTripId,
-                userId,
-                authProfile?.displayName || userProfile.name || "我",
+                settlementOwnerUserId,
+                ownerDisplayName,
                 companions,
                 friends,
               )}
@@ -6671,7 +6671,7 @@ const App: React.FC = () => {
       {isCompanionsOpen && (
         <CompanionsModal
           companions={companions}
-          ownerName={authProfile?.displayName || userProfile.name || "我"}
+          ownerName={ownerDisplayName}
           friends={friends}
           onAdd={handleAddCompanion}
           onAddFriendToTrip={handleAddFriendToTrip}
