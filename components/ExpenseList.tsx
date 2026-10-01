@@ -6,6 +6,7 @@ import { Trash2, Pencil, Tag, ArrowDownLeft, AlertTriangle, Users } from 'lucide
 import { MessageCircleQuestion } from 'lucide-react';
 import { canDeleteExpense, canEditExpense } from '../services/expensePermissions';
 import { canRaiseDispute, getOpenDisputes } from '../services/expenseDisputes';
+import { partitionByConcern } from '../services/expenseConcernsMember';
 
 interface Props {
   expenses: Expense[];
@@ -32,6 +33,7 @@ const ExpenseList: React.FC<Props> = ({
   tripOwnerMemberId,
   onOpenDisputes,
 }) => {
+  const [othersShown, setOthersShown] = React.useState(false);
   // Without an identity pair we cannot decide ownership, so we keep the
   // existing single-user behavior. The handler in App enforces permission
   // regardless of what is rendered here.
@@ -72,6 +74,23 @@ const ExpenseList: React.FC<Props> = ({
     mayRaiseDispute(expense) ||
     (Boolean(onOpenDisputes) && openDisputeCount(expense) > 0);
 
+  /**
+   * A shared ledger is not a shared feed.
+   *
+   * 「這個帳若不是我花費的，根本不需要出現在我的帳上」，and sharper: 「我也沒有
+   * 想看到他的帳啊」. What the traveller has to settle belongs here; what the
+   * other person bought for themselves does not, and putting it in this list
+   * only makes their own ledger harder to read.
+   *
+   * It is folded away rather than dropped. An earlier version of this filtered
+   * the list outright and a bill the other traveller had explicitly split
+   * vanished the night before they flew — hiding money is the one failure this
+   * app cannot afford. Everything is still one tap away, and every total on
+   * every screen still counts all of it.
+   */
+  const { mine, others } = partitionByConcern(expenses, viewerMemberId);
+  const visible = othersShown ? expenses : mine;
+
   if (expenses.length === 0) {
     return (
       <div className="text-center py-10 text-gray-400">
@@ -82,7 +101,7 @@ const ExpenseList: React.FC<Props> = ({
   }
 
   // 1. Group expenses by Date
-  const groupedByDate = expenses.reduce((acc, expense) => {
+  const groupedByDate = visible.reduce((acc, expense) => {
     const dateKey = expense.date; // "YYYY-MM-DD"
     if (!acc[dateKey]) {
       acc[dateKey] = [];
@@ -282,6 +301,20 @@ const ExpenseList: React.FC<Props> = ({
           </div>
         );
       })}
+      {/* Folded away, never dropped: one tap brings the rest back. */}
+      {others.length > 0 && (
+        <button
+          type="button"
+          data-testid="others-ledger-toggle"
+          onClick={() => setOthersShown(shown => !shown)}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500 transition hover:bg-slate-100"
+        >
+          <Users size={14} />
+          {othersShown
+            ? `收起旅伴自己的帳（${others.length} 筆）`
+            : `旅伴自己的帳 ${others.length} 筆 · 不用你分攤`}
+        </button>
+      )}
     </div>
   );
 };
