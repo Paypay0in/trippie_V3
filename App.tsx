@@ -1318,6 +1318,8 @@ const App: React.FC = () => {
   // with a completely different set and would otherwise never find the shared
   // ledger at all. Listed as empty shells; opening one pulls its expenses.
   const [cloudTripNote, setCloudTripNote] = useState<string>("");
+  /** The owner's name as the server stores it, for devices that are not theirs. */
+  const [remoteOwnerName, setRemoteOwnerName] = useState<string>("");
   // Latest drafts for the merge below. Comparing inside a setDrafts updater
   // would mean deriving the banner text from inside a function React may run
   // twice or discard — the merge looked broken when only the report was.
@@ -2957,10 +2959,21 @@ const App: React.FC = () => {
    * because every permission question answered 「you are the owner」.
    */
   const settlementOwnerUserId = drafts.find(draft => draft.id === settlementTripId)?.ownerId || userId;
+  /**
+   * What to call the owner on a device that is not theirs.
+   *
+   * The local profile answers 「who am I」, never 「whose trip is this」, so using
+   * it for the owner seat put the reader's own nickname on the row naming the
+   * person they owe.
+   */
+  const viewerIsTripOwner = !settlementOwnerUserId || settlementOwnerUserId === userId;
+  const ownerDisplayName = viewerIsTripOwner
+    ? (authProfile?.displayName || userProfile.name || "我")
+    : (remoteOwnerName || "旅程建立者");
   const settlementMembers = buildTripMembers(
     settlementTripId,
     settlementOwnerUserId,
-    authProfile?.displayName || userProfile.name || "我",
+    ownerDisplayName,
     companions,
     friends,
   );
@@ -3061,6 +3074,17 @@ const App: React.FC = () => {
           ...(member.type === "member" || member.type === "guest" ? { type: member.type } : {}),
         }));
       if (remoteCompanions.length) setCompanions(remoteCompanions);
+      /*
+        The owner's name, which only the server knows.
+
+        The owner seat was discarded on read and then relabelled from whatever
+        profile this device was signed in as, so the second traveller's
+        settlement read 「應付給 諮 NT$ 16,000」 — her own nickname on the row
+        naming who she owes. The amount and the direction were finally right and
+        the person was still wrong.
+      */
+      const remoteOwner = snapshot.members.find((member) => member.type === "owner");
+      if (remoteOwner?.name) setRemoteOwnerName(remoteOwner.name);
     },
   });
 
@@ -5789,6 +5813,8 @@ const App: React.FC = () => {
             variant="embedded"
             initialTripName={currentTripName}
             allowArchive={!currentLoadedTripId}
+            viewerMemberId={viewerMemberId}
+            ownerMemberId={activeOwnerMemberId}
           />
         )}
         {import.meta.env.DEV && (
@@ -6379,6 +6405,8 @@ const App: React.FC = () => {
                   variant="embedded"
                   initialTripName={currentTripName}
                   allowArchive={!currentLoadedTripId}
+                  viewerMemberId={viewerMemberId}
+                  ownerMemberId={activeOwnerMemberId}
                 />
                 <button
                   onClick={handleGenerateTravelBook}

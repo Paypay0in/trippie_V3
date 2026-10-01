@@ -3,6 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { calculateExpenseLedger } from '../services/splitCalculator';
 import { X, Trophy, Wallet, Receipt, CreditCard, Printer, Archive, Save, List, PieChart as PieIcon, Tag, CheckCircle, HandHelping, Calculator, CheckSquare, Square, Share, MousePointerClick, Percent } from 'lucide-react';
 
 interface Props {
@@ -11,13 +12,30 @@ interface Props {
   onArchive: (name: string, total: number) => void;
   taxRule?: TaxRule | null;
   variant?: 'modal' | 'embedded';
+  /**
+   * Who is reading the report, and who owns the trip.
+   *
+   * 「這個總結算並不是他的總額啊」 — the report had no notion of a reader at all.
+   * It summed the whole trip and called it 「您的旅費總分析」, so the second
+   * traveller's own report opened on 33,388 she had not spent.
+   */
+  viewerMemberId?: string;
+  ownerMemberId?: string;
   initialTripName?: string;
   allowArchive?: boolean;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#84cc16'];
 
-const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true }) => {
+const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true, viewerMemberId, ownerMemberId }) => {
+  /** What this reader is actually responsible for, out of the trip's total. */
+  const viewerShare = React.useMemo(() => {
+    if (!viewerMemberId) return undefined;
+    return expenses.reduce((sum, expense) => {
+      const { responsibility } = calculateExpenseLedger(expense, ownerMemberId);
+      return sum + (responsibility[viewerMemberId] || 0);
+    }, 0);
+  }, [expenses, viewerMemberId, ownerMemberId]);
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [tripName, setTripName] = useState(initialTripName);
 
@@ -386,6 +404,12 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                     ${Math.round(totalExpense).toLocaleString()}
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1 relative z-10">* 已排除代買費用</div>
+                {/* The reader's own figure, where the trip's is not theirs. */}
+                {viewerShare !== undefined && Math.round(viewerShare) !== Math.round(totalExpense) && (
+                  <div data-testid="viewer-share" className="relative z-10 mt-3 border-t border-gray-100 pt-3 text-sm font-black text-brand-700">
+                    你要負擔的部分 ${Math.round(viewerShare).toLocaleString()}
+                  </div>
+                )}
                 <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-brand-400 to-brand-600"></div>
             </div>
 
