@@ -163,6 +163,8 @@ export interface RemoteTripSummary {
   startDate: string;
   endDate: string;
   currency?: string;
+  /** The account that owns the trip, which is not always the one reading it. */
+  ownerId?: string;
 }
 
 /**
@@ -177,7 +179,16 @@ export const fetchMyTrips = async (): Promise<SyncResult<RemoteTripSummary[]>> =
   try {
     const { data, error } = await supabase
       .from('trips')
-      .select('id,name,destination,start_date,end_date,currency');
+      /*
+        `owner_id` is read because whose trip it is cannot be inferred locally.
+
+        Without it a trip pulled from the cloud arrived ownerless, and the app
+        filled the gap with the account doing the pulling — so on the second
+        traveller's phone she was the owner of his 釜山. Her settlement then had
+        nobody to owe, and his bills offered her an edit button, because every
+        permission question answered 「you are the owner」.
+      */
+      .select('id,name,destination,start_date,end_date,currency,owner_id');
     if (error) throw error;
     return {
       status: 'ok',
@@ -188,6 +199,7 @@ export const fetchMyTrips = async (): Promise<SyncResult<RemoteTripSummary[]>> =
         startDate: (row.start_date as string) ?? '',
         endDate: (row.end_date as string) ?? '',
         currency: (row.currency as string) ?? undefined,
+        ownerId: (row.owner_id as string) ?? undefined,
       })),
     };
   } catch (error) {

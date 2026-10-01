@@ -1351,7 +1351,8 @@ const App: React.FC = () => {
           startDate: trip.startDate,
           endDate: trip.endDate,
           currency: trip.currency,
-          ownerId: authUser.id,
+          // The account that actually owns it, never the one merging it in.
+          ownerId: trip.ownerId || undefined,
           expenses: [],
           companions: [],
           shoppingList: [],
@@ -2920,9 +2921,18 @@ const App: React.FC = () => {
   // Named apart from the imported ownerMemberIdForTrip() migration helper:
   // an identically named local would shadow it for the whole component body.
   const activeOwnerMemberId = `${settlementTripId}:owner`;
+  /**
+   * Whose trip this is, which is not 「whoever is holding the phone」.
+   *
+   * The roster was built with the local account in the owner seat on every
+   * device, so the second traveller resolved as the owner of his 釜山: her
+   * settlement had nobody to owe, and his bills offered her an edit button,
+   * because every permission question answered 「you are the owner」.
+   */
+  const settlementOwnerUserId = drafts.find(draft => draft.id === settlementTripId)?.ownerId || userId;
   const settlementMembers = buildTripMembers(
     settlementTripId,
-    userId,
+    settlementOwnerUserId,
     authProfile?.displayName || userProfile.name || "我",
     companions,
     friends,
