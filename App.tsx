@@ -1367,6 +1367,33 @@ const App: React.FC = () => {
       );
       if (missing.length) setDrafts((current) => [...current, ...missing]);
 
+      /*
+        Correct the owner on trips this device already had.
+
+        The merge only ever added what was absent, so a trip pulled down before
+        the server was asked for `owner_id` kept the owner it had been given
+        locally — the account that pulled it. Reading the column fixed trips
+        arriving from now on and left the ones already on the phone saying the
+        second traveller owned his 釜山, which is what her settlement screen was
+        still reporting: 「應向 Gina 收取 NT$ 16,000」, the right sum owed by the
+        wrong person to the wrong person.
+      */
+      const cloudOwnerById = new Map(
+        result.data.filter((trip) => trip.ownerId).map((trip) => [trip.id, trip.ownerId as string]),
+      );
+      const misowned = draftsRef.current.filter((draft) => {
+        const owner = cloudOwnerById.get(draft.id);
+        return Boolean(owner) && draft.ownerId !== owner;
+      });
+      if (misowned.length) {
+        setDrafts((current) =>
+          current.map((draft) => {
+            const owner = cloudOwnerById.get(draft.id);
+            return owner && draft.ownerId !== owner ? { ...draft, ownerId: owner } : draft;
+          }),
+        );
+      }
+
       /**
        * Open the trip that was just joined.
        *
