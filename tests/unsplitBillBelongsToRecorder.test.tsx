@@ -21,7 +21,7 @@ const HER_SEAT = 'muoal9czpaxkzw1l';
 
 afterEach(cleanup);
 
-const saveOnHerPhone = async (): Promise<Expense> => {
+const saveOnHerPhone = async (withSplit = false): Promise<Expense> => {
   const onSubmit = vi.fn();
   const user = userEvent.setup();
 
@@ -44,6 +44,7 @@ const saveOnHerPhone = async (): Promise<Expense> => {
 
   await user.type(screen.getByPlaceholderText('例如：東京地鐵三日券'), '哈哈');
   await user.type(screen.getByPlaceholderText('500'), '888');
+  if (withSplit) await user.click(screen.getByText('此筆支出需要分帳'));
   await user.click(screen.getByRole('button', { name: /新增這筆支出/ }));
 
   expect(onSubmit).toHaveBeenCalled();
@@ -67,6 +68,18 @@ describe('a bill recorded with no split', () => {
    * Two people each putting money down is two bills; one bill has one payer,
    * and the prepaid amount follows from it rather than being entered beside it.
    */
+  /**
+   * Turning 分帳 on pre-selected the trip owner as payer whoever was holding the
+   * phone, so she split a bill she had paid and it saved as his — the same
+   * assumption the unsplit path had just been taught not to make, now
+   * disagreeing with it one toggle away.
+   */
+  it('opens the split on the person entering it, not the trip owner', async () => {
+    const saved = await saveOnHerPhone(true);
+
+    expect(saved.payerId).toBe(HER_SEAT);
+  });
+
   it('records exactly one payer, and the prepaid amount follows from it', async () => {
     const saved = await saveOnHerPhone();
 

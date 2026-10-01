@@ -135,7 +135,15 @@ const ExpenseForm: React.FC<Props> = ({
     id === effectiveViewerMemberId && !viewerIsOwner ? `${name}（我）` : name;
   const memberOptions: TripMember[] = [{ id: effectiveOwnerMemberId, name: ownerLabel, type: 'owner' }, ...companions.map(c => ({ ...c, name: labelForMember(c.id, c.name), type: 'guest' as const }))];
   const [payerAllocations, setPayerAllocations] = useState<Record<string, string>>(() => {
-    if (!initialData) return { [effectiveOwnerMemberId]: '' };
+    /*
+      A new bill opens on the person entering it.
+
+      Turning 分帳 on pre-selected the trip owner as payer whoever was holding
+      the phone, so the second traveller splitting a bill she had paid saved it
+      as his — the same owner assumption the unsplit path had just been taught
+      not to make, and the two then disagreed with each other.
+    */
+    if (!initialData) return { [effectiveViewerMemberId]: '' };
     return Object.fromEntries(
       Object.entries(hydratedPayerAllocations.values).map(([id, value]) => [id, String(value)])
     );
