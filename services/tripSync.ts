@@ -309,9 +309,23 @@ export const pushMembers = async (
   if (!supabase) return { status: 'unavailable' };
   try {
     if (members.length) {
+      // `defaultToNull: false` is what keeps the seat's account attached.
+      //
+      // The roster this device holds is the one it was given when the trip was
+      // created; it does not know that an invite has since been claimed. Writing
+      // it back with the usual upsert set every unsent column to NULL, so each
+      // push quietly cleared `user_id` on the seat that had just been linked —
+      // and `user_id` is the whole of what RLS checks. She lost the trip again
+      // within minutes of every invite, four times, with nothing to see.
+      //
+      // Columns this device has no opinion about now keep whatever the server
+      // already holds.
       const { error } = await supabase
         .from('trip_members')
-        .upsert(members.map(member => toMemberRow(member, tripId)), { onConflict: 'id' });
+        .upsert(members.map(member => toMemberRow(member, tripId)), {
+          onConflict: 'id',
+          defaultToNull: false,
+        });
       if (error) throw error;
     }
     return { status: 'ok', data: null };

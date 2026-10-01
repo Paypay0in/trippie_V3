@@ -20,10 +20,15 @@ const owner: TripMember = { id: 'trip-1:owner', name: 'Ann', type: 'owner', user
 /** Records what the push actually asked the database to do. */
 const deletes: string[][] = [];
 const upserts: unknown[][] = [];
+const upsertOptions: Record<string, unknown>[] = [];
 
 vi.mock('../services/supabaseClient', () => {
   const builder = (table: string) => ({
-    upsert: (rows: unknown[]) => { upserts.push(rows); return Promise.resolve({ error: null }); },
+    upsert: (rows: unknown[], options: Record<string, unknown>) => {
+      upserts.push(rows);
+      upsertOptions.push(options || {});
+      return Promise.resolve({ error: null });
+    },
     delete: () => ({
       eq: () => ({
         in: (_column: string, ids: string[]) => { deletes.push(ids); return Promise.resolve({ error: null }); },
@@ -38,6 +43,7 @@ vi.mock('../services/supabaseClient', () => {
 afterEach(() => {
   deletes.length = 0;
   upserts.length = 0;
+  upsertOptions.length = 0;
 });
 
 describe('pushing the roster', () => {
@@ -49,6 +55,18 @@ describe('pushing the roster', () => {
     expect(result.status).toBe('ok');
     expect(deletes).toEqual([]);
     expect(upserts).toHaveLength(1);
+  });
+
+  it('leaves the account on a seat it does not know has been claimed', async () => {
+    // The owner's roster still calls her a guest with no account, because this
+    // device has never read the row the claim wrote. Writing that back must not
+    // clear the link: `user_id` is the whole of what row-level security checks.
+    const staleGuest: TripMember = { id: 'member-gina', name: 'Gina', type: 'guest' };
+
+    await pushMembers([owner, staleGuest], 'trip-1', []);
+
+    expect((upserts[0] as Array<Record<string, unknown>>)[1]).not.toHaveProperty('user_id');
+    expect(upsertOptions[0]).toMatchObject({ defaultToNull: false });
   });
 
   it('still writes the roster it is holding', async () => {
