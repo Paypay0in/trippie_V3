@@ -327,6 +327,8 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
    * lookup had said.
    */
   const alreadyLooked = Boolean(entrySummary) || Boolean(travelRules?.generatedAt);
+  /** The day the rules were written, so a stale list cannot pass for a current one. */
+  const lookedUpOn = travelRules?.generatedAt ? String(travelRules.generatedAt).slice(0, 10) : '';
   const entrySources = travelRules?.entry?.sources ?? [];
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
   const expandedLink = expandedTask ? officialLinkFor(expandedTask, destinationCountry || destination) : null;
@@ -442,6 +444,40 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
             <div>
               <h2 className="text-base font-black text-[#11183d]">入境規定</h2>
               <p className="mt-0.5 text-xs text-slate-500">確認並完成以下入境相關事項，確保旅程順利。</p>
+              {/*
+                When this was looked up, and a way to look it up again.
+
+                Entry rules are kept once generated, and once a trip had any the
+                panel showed only 收合 — so a checklist written against last
+                year's K-ETA rules could not be refreshed from the screen at all.
+                Nothing said how old it was either, so it read as current.
+              */}
+              {entryRules.length > 0 && lookedUpOn && (
+                <p data-testid="entry-rules-age" className="mt-1 text-[11px] font-bold text-slate-400">
+                  查詢於 {lookedUpOn}
+                  <button
+                    type="button"
+                    disabled={researching}
+                    onClick={async () => {
+                      setResearching(true);
+                      setResearchError('');
+                      try {
+                        await onResearchEntryRules();
+                      } catch (error) {
+                        setResearchError(error instanceof Error ? error.message : '查詢失敗，稍後再試');
+                      } finally {
+                        setResearching(false);
+                      }
+                    }}
+                    className="ml-2 font-black text-violet-600 disabled:opacity-40"
+                  >
+                    {researching ? '查詢中…' : '重新查詢'}
+                  </button>
+                </p>
+              )}
+              {entryRules.length > 0 && researchError && (
+                <p className="mt-1 text-[11px] font-bold text-rose-600">{researchError}</p>
+              )}
             </div>
           </div>
           {entryRules.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-xs font-black text-violet-600">{showAllRules ? '收合' : '查看完整規定'}<ChevronRight size={14} /></button>}

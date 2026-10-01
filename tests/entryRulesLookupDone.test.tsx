@@ -45,6 +45,19 @@ const lookedUpAndFoundNothing = {
   generatedAt: '2026-10-01T16:55:00.000Z',
 } as never;
 
+/** Korea as it was actually stored: four formalities, written against last year. */
+const staleChecklist = {
+  entry: {
+    summary: '台灣旅客入境韓國短期觀光享免簽證待遇。',
+    actionableItems: [
+      { actionType: 'visa_or_eta', title: '申請 K-ETA', description: '免 K-ETA 申請至 2024 年底…' },
+      { actionType: 'health_declaration', title: '填寫 Q-Code', description: '…' },
+    ],
+    sources: [],
+  },
+  generatedAt: '2026-09-28T04:00:00.000Z',
+} as never;
+
 afterEach(cleanup);
 
 describe('the entry-rules panel after a lookup that found nothing', () => {
@@ -59,6 +72,26 @@ describe('the entry-rules panel after a lookup that found nothing', () => {
 
     expect(screen.getByRole('button', { name: '重新查詢' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: '查詢入境規定' })).toBeNull();
+  });
+
+  /**
+   * 「結果並無改變」. The checklist was kept once generated, and a trip that had
+   * any showed only 收合 — so a list written against last year's K-ETA rules
+   * could not be refreshed from the screen at all, and nothing said how old it
+   * was, so it read as current.
+   */
+  it('says when a stored checklist was written, and offers to redo it', () => {
+    // The formalities live in the shopping list, tagged as travel rules.
+    const storedRules = [
+      { id: 'r-keta', name: '申請 K-ETA', isPurchased: false, phase: 'pre', sourceType: 'travel_rules', description: '免 K-ETA 申請至 2024 年底…' },
+      { id: 'r-qcode', name: '填寫 Q-Code', isPurchased: false, phase: 'pre', sourceType: 'travel_rules', description: '…' },
+    ] as never;
+
+    render(<TripPlanOverview {...baseProps} shoppingList={storedRules} travelRules={staleChecklist} />);
+
+    const age = screen.getByTestId('entry-rules-age');
+    expect(age.textContent).toContain('2026-09-28');
+    expect(screen.getByRole('button', { name: '重新查詢' })).toBeTruthy();
   });
 
   it('still asks on a trip nobody has looked up', () => {
