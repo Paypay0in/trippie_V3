@@ -317,6 +317,16 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
   // to carry it. Deciding this by wording was tried and does not work: two
   // phrasings of one rule share barely more text than two unrelated rules.
   const entrySummary = (travelRules?.entry?.summary || travelRules?.entry?.guidance || '').trim();
+  /**
+   * Whether this trip has been looked up at all, which is not the same as
+   * whether the lookup found anything.
+   *
+   * 「產出之後不該再能夠按查詢」 — a search that returned no required formalities
+   * rendered the first-time call to action above its own result, so the one
+   * screen said both 「nothing has been looked up」 and, underneath, what the
+   * lookup had said.
+   */
+  const alreadyLooked = Boolean(entrySummary) || Boolean(travelRules?.generatedAt);
   const entrySources = travelRules?.entry?.sources ?? [];
   const expandedTask = shoppingPreTasks.find(task => task.id === expandedTaskId);
   const expandedLink = expandedTask ? officialLinkFor(expandedTask, destinationCountry || destination) : null;
@@ -476,6 +486,20 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                 <span className="mt-0.5 block truncate text-[11px] text-slate-400">{hasPassport ? '查詢會用這本' : '選一本才能查詢'}</span>
               </label>
             </div>
+            {/*
+              A lookup that has already run does not ask to be run again.
+
+              A search returning no required formalities left this panel looking
+              untouched — the full-width 查詢入境規定 call to action back on top
+              of its own result, which sat underneath as 注意事項. Pressing it
+              produced the same nothing, so the screen read as broken rather
+              than as 「there is nothing you must do」.
+            */}
+            {alreadyLooked && (
+              <p data-testid="entry-rules-empty" className="mt-3 rounded-xl bg-white px-3 py-2.5 text-xs font-bold leading-5 text-slate-600">
+                這趟沒有查到必須事先辦理的手續。詳細說明在下方「注意事項」。
+              </p>
+            )}
             <button
               type="button"
               disabled={!destinationCountry || !hasPassport || researching}
@@ -490,9 +514,11 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                   setResearching(false);
                 }
               }}
-              className="mt-3 flex min-h-11 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 text-sm font-black text-white disabled:opacity-40"
+              className={alreadyLooked
+                ? 'mt-2 flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-black text-slate-500 disabled:opacity-40'
+                : 'mt-3 flex min-h-11 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 text-sm font-black text-white disabled:opacity-40'}
             >
-              {researching ? '查詢中…' : '查詢入境規定'}
+              {researching ? '查詢中…' : alreadyLooked ? '重新查詢' : '查詢入境規定'}
             </button>
             {researchError && <p className="mt-2 text-xs font-bold text-rose-600">{researchError}</p>}
             {!hasPassport && <p className="mt-2 text-xs text-slate-500">先在「更改」裡選擇護照，才能查這本護照的入境規定。</p>}

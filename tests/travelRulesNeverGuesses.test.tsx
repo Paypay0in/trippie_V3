@@ -40,6 +40,17 @@ describe('the entry-rules research prompt', () => {
     expect(prompt).toMatch(/可能.*預計.*屆時/);
   });
 
+  /**
+   * The checklist offered 「填寫入國申報書（Arrival Card）」 as a paper form handed
+   * out on the plane. Korea runs K-EAC, a free official site that takes the
+   * same declaration from three days before arrival — so the traveller could
+   * have finished it at home and was never told.
+   */
+  it('requires naming the official online system where one exists', () => {
+    expect(prompt).toContain('官方線上系統');
+    expect(prompt).toContain('不要只說「在飛機上填紙本」');
+  });
+
   it('asks for rules that depend on each other to say so', () => {
     // Skipping K-ETA is exactly what makes the paper arrival card compulsory,
     // and the checklist listed both without connecting them.
