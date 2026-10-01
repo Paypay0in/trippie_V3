@@ -12,6 +12,7 @@ import { shouldHydrateInitialSnapshot } from '../services/tripSnapshotApply';
 import { nextKnownIds } from '../services/syncPrune';
 import { mergeWithUnpushed } from '../services/syncMerge';
 import { BUILD_ID } from '../services/buildStamp';
+import { expenseConcernsMember } from '../services/expenseConcernsMember';
 
 /**
  * Keeps one open trip in step with the shared tables.
@@ -127,7 +128,17 @@ const ledgerOwnership = (expenses: Expense[], viewerMemberId?: string): string =
     .slice(0, 6)
     .map(expense => {
       const who = (expense.beneficiaries || []).map(seat).join('+') || '—';
-      return `${(expense.description || '?').slice(0, 4)} 付${seat(expense.payerId)} 分${who} 記${seat(expense.createdByMemberId)}`;
+      const shares = Object.entries(expense.splitAllocations || {})
+        .map(([id, value]) => `${seat(id)}:${value}`)
+        .join(',') || '—';
+      const paid = Object.entries(expense.payerAllocations || {})
+        .map(([id, value]) => `${seat(id)}:${value}`)
+        .join(',') || '—';
+      // The rule's own answer, beside its inputs. Everything upstream had been
+      // proven and the screen still disagreed; this is what tells a wrong
+      // verdict apart from a verdict nothing is listening to.
+      const verdict = expenseConcernsMember(expense, viewerMemberId) ? '◉我的' : '○別人';
+      return `${(expense.description || '?').slice(0, 4)} ${verdict} 付${seat(expense.payerId)} 分${who} 記${seat(expense.createdByMemberId)} 份${shares} 墊${paid}`;
     })
     .join('\n');
 };
