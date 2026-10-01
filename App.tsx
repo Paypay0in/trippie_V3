@@ -2943,6 +2943,21 @@ const App: React.FC = () => {
   // every permission check still runs against the selected member.
   const viewerMemberId =
     (import.meta.env.DEV && devViewerOverride) || viewerResolution.memberId;
+  /**
+   * Who an expense belongs to when nobody has said otherwise.
+   *
+   * It used to be the trip owner, flatly — so every bill the second traveller
+   * recorded on her own phone was filed as his. 「哈哈❤️ 這筆帳是 gina 新增的
+   * 看來被判斷成我新增的帳」: 888 of her own money sitting in his ledger, and
+   * no screen anywhere disagreed.
+   *
+   * The person holding the phone is the one spending, whenever the app knows
+   * who that is. The owner stays the fallback only while the viewer is
+   * unresolved, which is the signed-out and single-user case.
+   */
+  const defaultPayerMemberId = viewerResolution.isResolved
+    ? viewerMemberId
+    : activeOwnerMemberId;
   // Settlement is consumed per Expense x Member. An expense leaves the
   // outstanding set only when every non-owner participant is settled, so
   // settling Gina can no longer take V's share with it. Legacy unmarked
@@ -3109,8 +3124,8 @@ const App: React.FC = () => {
       category: Category.OTHER,
       paymentMethod: method,
       phase: "post",
-      payerId: activeOwnerMemberId,
-      beneficiaries: [activeOwnerMemberId],
+      payerId: defaultPayerMemberId,
+      beneficiaries: [defaultPayerMemberId],
       splitMethod: "EQUAL",
       splitAllocations: {},
       handlingFee: 0,
@@ -4299,8 +4314,8 @@ const App: React.FC = () => {
               paymentMethod: parsedPayment,
               phase: inferredPhase,
               date: parsedDate,
-              payerId: activeOwnerMemberId,
-              beneficiaries: [activeOwnerMemberId],
+              payerId: defaultPayerMemberId,
+              beneficiaries: [defaultPayerMemberId],
               splitMethod: "EQUAL",
               splitAllocations: {},
               handlingFee: 0,
@@ -4328,12 +4343,12 @@ const App: React.FC = () => {
               paymentMethod: parsedPayment,
               phase: inferredPhase,
               date: parsedDate,
-              payerId: activeOwnerMemberId,
+              payerId: defaultPayerMemberId,
               // If current companions exist, include them, otherwise just me
               beneficiaries:
                 companions.length > 0
-                  ? [activeOwnerMemberId, ...companions.map((c) => c.id)]
-                  : [activeOwnerMemberId],
+                  ? Array.from(new Set([defaultPayerMemberId, activeOwnerMemberId, ...companions.map((c) => c.id)]))
+                  : [defaultPayerMemberId],
               splitMethod: "EQUAL",
               splitAllocations: {},
               handlingFee: 0,
