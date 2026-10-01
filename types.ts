@@ -42,6 +42,18 @@ export type SplitMethod = 'EQUAL' | 'PERCENT' | 'EXACT';
 export interface Companion {
   id: string;
   name: string;
+  /**
+   * The account this seat belongs to, once an invite has been claimed.
+   *
+   * It had nowhere to live. The server knew the seat was linked, the local
+   * roster could only hold a name, and every screen that asked "which of these
+   * people is using this device" therefore answered "the owner" — on both
+   * phones. The same gap sent the stale roster back and unlinked the seat
+   * server-side on the next push.
+   */
+  userId?: string;
+  /** 'member' once an account holds the seat; 'guest' is a name on a list. */
+  type?: 'member' | 'guest';
 }
 
 export interface TripMember {

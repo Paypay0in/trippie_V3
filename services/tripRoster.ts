@@ -77,12 +77,16 @@ export const buildTripRoster = ({
     if (seen.has(companion.id)) return;
     seen.add(companion.id);
 
-    const linkedUserId = friendIds.has(companion.id) ? companion.id : undefined;
+    // The seat's own account wins. `friends` is a different idea — a companion
+    // whose id happens to be an account id — and it was the only way a seat
+    // could be linked at all, so a seat linked by claiming an invite looked
+    // exactly like a name somebody typed.
+    const linkedUserId = companion.userId || (friendIds.has(companion.id) ? companion.id : undefined);
     roster.push({
       id: companion.id,
       name: companion.name,
       userId: linkedUserId,
-      type: linkedUserId ? 'member' : 'guest',
+      type: companion.type || (linkedUserId ? 'member' : 'guest'),
     });
   });
 

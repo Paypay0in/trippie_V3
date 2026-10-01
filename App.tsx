@@ -2972,9 +2972,20 @@ const App: React.FC = () => {
       }
       // The owner is derived locally from the account, not stored as a
       // companion, so only the others come back into the companion list.
+      //
+      // Carrying the account and the kind of seat, not just the name. Dropping
+      // them is what left the owner's phone calling a joined traveller 「訪客」,
+      // what made every device answer "the owner" when asked who was using it,
+      // and what sent an unlinked roster back to the server on the next push —
+      // removing her from the trip minutes after each invite she accepted.
       const remoteCompanions = snapshot.members
         .filter((member) => member.type !== "owner")
-        .map((member) => ({ id: member.id, name: member.name }));
+        .map((member) => ({
+          id: member.id,
+          name: member.name,
+          ...(member.userId ? { userId: member.userId } : {}),
+          ...(member.type === "member" || member.type === "guest" ? { type: member.type } : {}),
+        }));
       if (remoteCompanions.length) setCompanions(remoteCompanions);
     },
   });
