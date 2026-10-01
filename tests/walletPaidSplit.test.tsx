@@ -64,7 +64,7 @@ describe('the pre-trip spend summary', () => {
   it('separates what you paid from what the trip spent', () => {
     renderWallet(ledger);
 
-    expect(screen.getByText('與你有關的支出')).toBeTruthy();
+    expect(screen.getByText('旅程總支出')).toBeTruthy();
     expect(screen.getByText('NT$ 13,388')).toBeTruthy();
     expect(screen.getByText('NT$ 12,500')).toBeTruthy();
     expect(screen.getByText('NT$ 888')).toBeTruthy();
@@ -85,15 +85,14 @@ describe('the pre-trip spend summary', () => {
     expect(screen.getByText('已支出')).toBeTruthy();
   });
 
-  it('leaves out what she bought for herself, without remarking on it', () => {
+  it('never drops a bill it cannot confidently place', () => {
+    // The judgement that one of these was 「hers alone」 removed an expense she
+    // had explicitly split with him, the night before they flew. Hiding money
+    // is the one failure this ledger cannot afford.
     const hers = expense({ id: 'd', amount: 2000, category: Category.SHOPPING, payerId: GINA, beneficiaries: [GINA] });
 
     renderWallet([...ledger, hers]);
 
-    // 500 + 12000 + 888, and not her 2000.
-    expect(screen.getByText('NT$ 13,388')).toBeTruthy();
-    // Her own shopping is not a gap in his ledger; it was never in it.
-    expect(screen.queryByTestId('others-own-note')).toBeNull();
-    expect(document.body.textContent).not.toContain('旅伴自己的支出');
+    expect(screen.getByText('NT$ 15,388')).toBeTruthy();
   });
 });

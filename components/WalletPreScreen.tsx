@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { ChevronRight, Pencil, Plus, WalletCards } from 'lucide-react';
 import { Category, Expense } from '../types';
 import { totalPaidByMember } from '../services/expensePaidBy';
-import { partitionByConcern } from '../services/expenseConcernsMember';
 import ExpenseList from './ExpenseList';
 
 interface Props {
@@ -36,23 +35,20 @@ const money = (value: number, currency: string) => `${currency === 'TWD' ? 'NT$'
 
 const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBudget, onQuickAdd, onDeleteExpense, onEditExpense, taxRule, viewerMemberId, tripOwnerMemberId, onOpenDisputes }) => {
   const normalizedCurrency = currency?.trim().toUpperCase();
-  const allPreExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'pre'), [expenses]);
-  /**
-   * The ledger this traveller is actually part of.
-   *
-   * A shared trip is not a shared feed. A bill she paid and is splitting with
-   * him belongs here — they have to settle it. Something she bought for herself
-   * does not: it was being added to his total and making his own number wrong.
-   *
-   * Founder decision, asked twice and answered twice: what is left out is not
-   * mentioned either. A travelling companion's own shopping is not a gap in
-   * this ledger, it is simply not in it — and a footnote counting her receipts
-   * would be the app being clever about somebody else's money.
-   */
-  const preExpenses = useMemo(
-    () => partitionByConcern(allPreExpenses, viewerMemberId).mine,
-    [allPreExpenses, viewerMemberId],
-  );
+  const preExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'pre'), [expenses]);
+  /*
+    Everything on the trip is shown again, deliberately.
+
+    This screen briefly left out expenses it judged to be somebody else's, on
+    the Founder's rule that he only needs the ones he has to settle. The rule is
+    right. The judgement was not: a bill the second traveller had explicitly
+    split with him vanished from his ledger, the night before they flew.
+
+    Hiding money is the one failure this app cannot afford, and it is worse than
+    showing a line he did not need. The filter comes back when it can be tested
+    against two real devices rather than reasoned about at one in the morning —
+    the split below already answers most of what he wanted from it.
+  */
   const actualSpent = useMemo(() => {
     if (!normalizedCurrency) return undefined;
     const included = preExpenses.filter(expense => expense.category !== Category.HELP_BUY && expense.amount >= 0);
@@ -99,7 +95,7 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-1">
           <div className="rounded-[1.35rem] bg-white p-4 shadow-sm ring-1 ring-slate-100">
-            <p className="text-xs font-bold text-slate-400">{othersPaid && othersPaid > 0 ? '與你有關的支出' : '已支出'}</p>
+            <p className="text-xs font-bold text-slate-400">{othersPaid && othersPaid > 0 ? '旅程總支出' : '已支出'}</p>
             <p className="mt-2 text-lg font-black text-[#11183d]">{actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</p>
             {/* Said only when it changes the meaning of the number above it. */}
             {othersPaid !== undefined && othersPaid > 0 && (
