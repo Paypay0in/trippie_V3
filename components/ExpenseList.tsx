@@ -7,6 +7,7 @@ import { MessageCircleQuestion } from 'lucide-react';
 import { canDeleteExpense, canEditExpense } from '../services/expensePermissions';
 import { canRaiseDispute, getOpenDisputes } from '../services/expenseDisputes';
 import { partitionByConcern } from '../services/expenseConcernsMember';
+import { calculateExpenseLedger } from '../services/splitCalculator';
 
 interface Props {
   expenses: Expense[];
@@ -34,6 +35,24 @@ const ExpenseList: React.FC<Props> = ({
   onOpenDisputes,
 }) => {
   const [othersShown, setOthersShown] = React.useState(false);
+  /**
+   * What this bill cost the viewer, where the app knows who they are.
+   *
+   * 「分帳完 我只出一半 所以 12000 我只花 6000」 — the row showed the whole bill
+   * and the day subtotalled all of it, both of them money that passed through
+   * the reader rather than money they spent.
+   *
+   * Guarded on both ends. A bill with no TWD amount drove the split calculator
+   * into a loop that pinned a core until it was killed, and an unsplit bill has
+   * no share to state — asking is pure cost.
+   */
+  const shareOf = (expense: Expense): number | undefined => {
+    if (!viewerMemberId) return undefined;
+    if (!Number.isFinite(expense.twdAmount)) return undefined;
+    const { responsibility } = calculateExpenseLedger(expense, tripOwnerMemberId);
+    const share = responsibility[viewerMemberId];
+    return Number.isFinite(share) ? share : undefined;
+  };
   // Without an identity pair we cannot decide ownership, so we keep the
   // existing single-user behavior. The handler in App enforces permission
   // regardless of what is rendered here.
@@ -129,6 +148,7 @@ const ExpenseList: React.FC<Props> = ({
         const dayExpenses = groupedByDate[date];
         // Calculate daily total for easier checking (Net total)
         const dailyTotal = dayExpenses.reduce((sum, item) => sum + item.twdAmount, 0);
+        const dailyShare = dayExpenses.reduce((sum, item) => sum + (shareOf(item) ?? item.twdAmount), 0);
 
         return (
           <div key={date} className="animate-fade-in-up">
@@ -142,7 +162,7 @@ const ExpenseList: React.FC<Props> = ({
                 </div>
                 <div className="flex-1 border-b-2 border-dotted border-gray-200 ml-2"></div>
                 <div className="text-xs font-bold text-gray-400">
-                    單日小計 <span className="text-gray-600 text-sm ml-1">${Math.round(dailyTotal).toLocaleString()}</span>
+                    {Math.round(dailyShare) === Math.round(dailyTotal) ? '單日小計' : '你的單日小計'} <span className="text-gray-600 text-sm ml-1">${Math.round(dailyShare).toLocaleString()}</span>
                 </div>
             </div>
 
@@ -212,7 +232,14 @@ const ExpenseList: React.FC<Props> = ({
                                 )}
                                 {(item.beneficiaries.length > 1 || Object.keys(item.splitAllocations || {}).length > 1 || Object.keys(item.payerAllocations || {}).length > 1) && (
                                     <span className="flex items-center gap-0.5 bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded border border-violet-100 whitespace-nowrap font-bold">
-                                        <Users size={10} /> 分帳
+                                        {/*
+                                          A split bill says what it cost you, not only what it cost.
+
+                                          「分帳完 我只出一半 所以 12000 我只花 6000」 — the row showed
+                                          12,000 and the day subtotalled 32,500, both of them money
+                                          that passed through him rather than money he spent.
+                                        */}
+                                        <Users size={10} /> 分帳{shareOf(item) !== undefined && `・你 $${Math.round(shareOf(item) as number).toLocaleString()}`}
                                     </span>
                                 )}
                             </div>

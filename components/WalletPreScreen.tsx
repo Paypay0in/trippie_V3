@@ -3,6 +3,7 @@ import { ChevronRight, Pencil, Plus, WalletCards } from 'lucide-react';
 import { Category, Expense } from '../types';
 import { totalPaidByMember } from '../services/expensePaidBy';
 import { partitionByConcern } from '../services/expenseConcernsMember';
+import { calculateExpenseLedger } from '../services/splitCalculator';
 import ExpenseList from './ExpenseList';
 
 interface Props {
@@ -67,6 +68,23 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
     () => spendOf(partitionByConcern(preExpenses, viewerMemberId).mine),
     [normalizedCurrency, preExpenses, viewerMemberId],
   );
+  /**
+   * What the trip has cost this traveller, as against what they have fronted.
+   *
+   * 「分帳完 我只出一半 所以 12000 我只花 6000」. The headline summed the bills
+   * that concern him — 32,500 passing through his hands — on a trip costing him
+   * 16,500, because half of the flights and half of the hotel are hers.
+   */
+  const borneByViewer = useMemo(() => {
+    if (!viewerMemberId || !normalizedCurrency) return undefined;
+    const total = preExpenses.reduce((sum, expense) => {
+      if (!Number.isFinite(expense.twdAmount)) return sum;
+      const { responsibility } = calculateExpenseLedger(expense, tripOwnerMemberId);
+      const share = responsibility[viewerMemberId];
+      return sum + (Number.isFinite(share) ? share : 0);
+    }, 0);
+    return Math.round(total);
+  }, [preExpenses, viewerMemberId, tripOwnerMemberId, normalizedCurrency]);
   const tripWideSpent = useMemo(() => spendOf(preExpenses), [normalizedCurrency, preExpenses]);
   /**
    * What this traveller paid, as against what the trip spent.
@@ -134,8 +152,14 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-1">
           <div className="rounded-[1.35rem] bg-white p-4 shadow-sm ring-1 ring-slate-100">
-            <p className="text-xs font-bold text-slate-400">與你有關的支出</p>
-            <p className="mt-2 text-lg font-black text-[#11183d]">{actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</p>
+            <p className="text-xs font-bold text-slate-400">{borneByViewer === undefined ? '與你有關的支出' : '你的實際支出'}</p>
+            <p className="mt-2 text-lg font-black text-[#11183d]">{(borneByViewer ?? actualSpent) === undefined ? '—' : money((borneByViewer ?? actualSpent) as number, normalizedCurrency || 'TWD')}</p>
+            {/* Money that left this traveller's pocket, not bills that concern them. */}
+            {borneByViewer !== undefined && paidByViewer !== undefined && Math.round(paidByViewer) !== borneByViewer && (
+              <p data-testid="fronted" className="mt-1 text-[11px] font-bold text-slate-400">
+                你先付出去 {money(paidByViewer, normalizedCurrency || 'TWD')}
+              </p>
+            )}
             {/* Stated whenever the trip has spent more than this traveller has,
                 so the difference is visible rather than quietly absent. */}
             {tripWideSpent !== undefined && actualSpent !== undefined && tripWideSpent > actualSpent && (
