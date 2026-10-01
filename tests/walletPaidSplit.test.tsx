@@ -85,19 +85,15 @@ describe('the pre-trip spend summary', () => {
     expect(screen.getByText('已支出')).toBeTruthy();
   });
 
-  it('leaves out what she bought for herself, and says that it did', () => {
+  it('leaves out what she bought for herself, without remarking on it', () => {
     const hers = expense({ id: 'd', amount: 2000, category: Category.SHOPPING, payerId: GINA, beneficiaries: [GINA] });
 
     renderWallet([...ledger, hers]);
 
     // 500 + 12000 + 888, and not her 2000.
     expect(screen.getByText('NT$ 13,388')).toBeTruthy();
-    expect(screen.getByTestId('others-own-note').textContent).toContain('1 筆');
-  });
-
-  it('says nothing about the other traveller when everything is shared', () => {
-    renderWallet(ledger);
-
+    // Her own shopping is not a gap in his ledger; it was never in it.
     expect(screen.queryByTestId('others-own-note')).toBeNull();
+    expect(document.body.textContent).not.toContain('旅伴自己的支出');
   });
 });

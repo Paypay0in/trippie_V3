@@ -44,10 +44,13 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
    * him belongs here — they have to settle it. Something she bought for herself
    * does not: it was being added to his total and making his own number wrong.
    *
-   * What is left out is counted and said, never silently dropped.
+   * Founder decision, asked twice and answered twice: what is left out is not
+   * mentioned either. A travelling companion's own shopping is not a gap in
+   * this ledger, it is simply not in it — and a footnote counting her receipts
+   * would be the app being clever about somebody else's money.
    */
-  const { mine: preExpenses, others: othersOwnExpenses } = useMemo(
-    () => partitionByConcern(allPreExpenses, viewerMemberId),
+  const preExpenses = useMemo(
+    () => partitionByConcern(allPreExpenses, viewerMemberId).mine,
     [allPreExpenses, viewerMemberId],
   );
   const actualSpent = useMemo(() => {
@@ -105,13 +108,7 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
                 <p className="text-slate-400">旅伴先付的 <span className="text-slate-500">{money(othersPaid, normalizedCurrency || 'TWD')}</span></p>
               </div>
             )}
-            {/* Counted, not hidden: a number that silently drops rows is the
-                thing that cost three days of 「為什麼對不起來」. */}
-            {othersOwnExpenses.length > 0 && (
-              <p data-testid="others-own-note" className="mt-2 text-[10px] font-bold leading-4 text-slate-400">
-                另有 {othersOwnExpenses.length} 筆是旅伴自己的支出，沒有跟你分攤，不計入上面的金額。
-              </p>
-            )}
+
           </div>
           <div className="rounded-[1.35rem] bg-[#f0efff] p-4"><p className="text-xs font-bold text-indigo-500">剩餘預算</p><p className={`mt-2 text-lg font-black ${actualSpent !== undefined && hasBudget && budget - actualSpent < 0 ? 'text-rose-600' : 'text-[#11183d]'}`}>{actualSpent === undefined || !hasBudget ? '—' : money(budget - actualSpent, normalizedCurrency || 'TWD')}</p></div>
         </div>
