@@ -54,6 +54,23 @@ describe('the live Busan ledger, as the owner sees it', () => {
   });
 
   /**
+   * 「誰新增那就是她新增的 要綁定用戶ID」.
+   *
+   * A bill you wrote stays yours to see even when you left yourself out of the
+   * split — otherwise recording an expense makes it disappear from the screen
+   * of the person who just recorded it.
+   */
+  it('keeps a bill with its author, even when the split names somebody else', () => {
+    const wroteItForHer = row({
+      id: 'e-gift', description: '幫她買的', amount: 300,
+      payer_id: GINA, beneficiaries: [GINA], created_by_member_id: OWNER,
+    });
+
+    expect(expenseConcernsMember(wroteItForHer, OWNER)).toBe(true);
+    expect(partitionByConcern([wroteItForHer], OWNER).others).toEqual([]);
+  });
+
+  /**
    * The failure mode that produced 33,388 on his screen: with no identity, the
    * rule deliberately shows everything rather than guess. Nothing downstream
    * can distinguish that from a filter that simply did not work.

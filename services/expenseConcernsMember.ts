@@ -18,6 +18,11 @@ import { Expense } from '../types';
 export const expenseConcernsMember = (expense: Expense, memberId: string | undefined): boolean => {
   if (!memberId) return true;
 
+  // 「誰新增那就是她新增的」. A bill you wrote is yours to see, even if you left
+  // yourself out of the split — otherwise recording an expense makes it vanish
+  // from the screen of the person who recorded it.
+  if (expense.createdByMemberId === memberId) return true;
+
   if (expense.payerId === memberId) return true;
 
   const paid = expense.payerAllocations?.[memberId];
