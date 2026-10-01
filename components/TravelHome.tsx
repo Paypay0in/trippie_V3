@@ -14,9 +14,11 @@ import {
   Search,
   Sparkles,
   Trash2,
+  Users,
 } from "lucide-react";
 import { CommunityPost, SavedTravelInspiration, Trip } from "../types";
 import { TripDraft } from "../services/tripPersistence";
+import { tripShelfBadgeText } from "../services/tripShelfBadge";
 import {
   DestinationImage,
   fetchDestinationImage,
@@ -342,6 +344,13 @@ const TravelHome: React.FC<Props> = ({
                       {tripDurationText}
                     </span>
                   )}
+                  <span
+                    data-testid={`trip-shelf-badge-${activeDraft.id}`}
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    <Users className="h-4 w-4" />
+                    {tripShelfBadgeText(activeDraft)}
+                  </span>
                 </div>
               </div>
               <button
@@ -462,6 +471,13 @@ const TravelHome: React.FC<Props> = ({
                       </b>
                       <small className="mt-1 block text-xs text-white/75">
                         {formatDates(draft.startDate, draft.endDate)}
+                      </small>
+                      {/* The line that tells two identically-named trips apart. */}
+                      <small
+                        data-testid={`trip-shelf-badge-${draft.id}`}
+                        className="mt-1 block text-[11px] font-bold text-white/90"
+                      >
+                        {tripShelfBadgeText(draft)}
                       </small>
                     </div>
                   </button>
