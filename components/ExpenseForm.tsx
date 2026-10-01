@@ -482,12 +482,17 @@ const ExpenseForm: React.FC<Props> = ({
       : 0;
   const percentAllocationExceedsTotal = splitMethod === 'PERCENT' && getPercentManualTotal() > 100.0001;
   const payerIds = Object.keys(payerAllocations).filter(id => memberOptions.some(m => m.id === id));
-  const payerManualIds = payerIds.length > 1 ? payerIds.slice(0, -1) : [];
-  const payerManualTotal = payerManualIds.reduce((sum, id) => sum + Math.max(0, parseFloat(payerAllocations[id] || '0') || 0), 0);
-  const resolvedPayerAllocations = payerIds.length > 1
-    ? Object.fromEntries(payerIds.map((id, index) => [id, index === payerIds.length - 1 ? Math.max(0, currentTotalTwd - payerManualTotal) : Math.max(0, parseFloat(payerAllocations[id] || '0') || 0)]))
-    : { [payerIds[0] || effectiveOwnerMemberId]: currentTotalTwd };
-  const payerAllocationExceedsTotal = payerIds.length > 1 && payerManualTotal > currentTotalTwd + 0.0001;
+  /*
+    Who put the money down, derived rather than entered.
+
+    The ledger holds three facts — who recorded it, who paid, who shares it —
+    and an amount-per-payer map restates the second of them. A restatement can
+    disagree with the fact it restates, and did: a payer corrected to the second
+    traveller left the map reading {owner: 888}, so her own spending counted
+    against his budget while every field anyone inspected named her.
+  */
+  const resolvedPayerAllocations = { [payerIds[0] || effectiveViewerMemberId]: currentTotalTwd };
+  const payerAllocationExceedsTotal = false;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -593,9 +598,7 @@ const ExpenseForm: React.FC<Props> = ({
         phone when nobody says otherwise.
       */
       payerId: normalizeMemberId(splitEnabled ? (payerIds[0] || payerId) : effectiveViewerMemberId),
-      payerAllocations: splitEnabled
-        ? submittedPayerAllocations.values
-        : { [effectiveViewerMemberId]: totalTwd },
+      payerAllocations: { [normalizeMemberId(splitEnabled ? (payerIds[0] || payerId) : effectiveViewerMemberId)]: totalTwd },
       beneficiaries: splitEnabled
         ? normalizeMemberIds(beneficiaries, effectiveOwnerMemberId)
         : [effectiveViewerMemberId],
@@ -937,16 +940,16 @@ const ExpenseForm: React.FC<Props> = ({
                       </div>
                       {!locked && (
                         <div className="space-y-3">
-                          <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">1</span><div><div className="text-sm font-bold text-[#11183d]">付款者</div><div className="text-[11px] text-slate-500">選擇實際付款的人（可複選）</div></div></div>
+                          <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">1</span><div><div className="text-sm font-bold text-[#11183d]">付款者</div><div className="text-[11px] text-slate-500">選擇實際付款的人</div></div></div>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           {memberOptions.map(member => {
                             const selected = payerIds.includes(member.id);
                             return <label key={member.id} className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 transition-colors${lockedStyle} ${selected ? 'border-violet-400 bg-violet-50' : 'border-slate-200 bg-white'}`}>
-                              <input type="checkbox" checked={selected} disabled={locked} onChange={() => setPayerAllocations(prev => {
-                                if (selected && payerIds.length <= 1) return prev;
-                                if (selected) { const next = { ...prev }; delete next[member.id]; return next; }
-                                return { ...prev, [member.id]: '' };
-                              })} />
+                              {/* One payer, always. 「誰付款 與 誰分擔 這件事本身
+                                  就已經做完墊付這件事了」 — two people each putting
+                                  money down is two bills, and a second way to say
+                                  who paid is a second thing to go stale. */}
+                              <input type="radio" name="expense-payer" checked={selected} disabled={locked} onChange={() => setPayerAllocations({ [member.id]: '' })} />
                               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${selected ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{member.name.charAt(0)}</span>
                               <span className="flex-1 truncate text-xs font-bold text-[#11183d]">{member.name}</span>
                             </label>;

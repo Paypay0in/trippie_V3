@@ -58,4 +58,19 @@ describe('a bill recorded with no split', () => {
     expect(saved.beneficiaries).toEqual([HER_SEAT]);
     expect(saved.payerAllocations).toEqual({ [HER_SEAT]: saved.twdAmount });
   });
+
+  /**
+   * 「誰付款 與 誰分擔 這件事本身就已經做完墊付這件事了」.
+   *
+   * The form let several people be ticked as payers and carried an amount for
+   * each — a second way of saying who paid, free to disagree with the first.
+   * Two people each putting money down is two bills; one bill has one payer,
+   * and the prepaid amount follows from it rather than being entered beside it.
+   */
+  it('records exactly one payer, and the prepaid amount follows from it', async () => {
+    const saved = await saveOnHerPhone();
+
+    expect(Object.keys(saved.payerAllocations || {})).toEqual([saved.payerId]);
+    expect(saved.payerAllocations?.[saved.payerId]).toBe(saved.twdAmount);
+  });
 });
