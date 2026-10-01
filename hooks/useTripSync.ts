@@ -8,9 +8,10 @@ import {
   isSyncAvailable,
   pushTripSnapshot,
 } from '../services/tripSync';
-import { hasRemoteContent } from '../services/tripSnapshotApply';
+import { shouldHydrateInitialSnapshot } from '../services/tripSnapshotApply';
 import { nextKnownIds } from '../services/syncPrune';
 import { mergeWithUnpushed } from '../services/syncMerge';
+import { BUILD_ID } from '../services/buildStamp';
 
 /**
  * Keeps one open trip in step with the shared tables.
@@ -115,12 +116,13 @@ export const useTripSync = ({
   // The failure text, kept so the badge can show it. A red badge that will not
   // say why costs another round trip with someone who cannot open a console.
   const [failure, setFailure] = useState('');
-  /** Bumped to force a push that no content change would have triggered. */
-  const [publishRevision, setPublishRevision] = useState(0);
   // What the panel shows under `?sync=1`: which trip and account this device is
   // on, and what the last read and the last write actually carried. Two phones
   // showing 「正常」 while sharing nothing differ somewhere in these numbers.
   const [detail, setDetail] = useState('');
+  // A newly-created cloud row starts empty by definition. Bump this after the
+  // guarded first read so the unchanged local draft still gets its first push.
+  const [publishRevision, setPublishRevision] = useState(0);
   // The trip whose first read has completed. Pushes are refused for any other
   // trip, which covers both "not read yet" and "the user switched trips
   // mid-flight and the debounce is still holding the old list".
@@ -176,12 +178,15 @@ export const useTripSync = ({
     }
 
     let cancelled = false;
+    let inFlight = false;
     setState('loading');
 
-    (async () => {
-      // Claimed by whoever opens it first; a member who is not the owner is
-      // refused here and simply reads what the owner created.
-      await ensureTripRow({
+    const bootstrap = async () => {
+      if (cancelled || inFlight || readyTripIdRef.current === tripId) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      inFlight = true;
+
+      const ensured = await ensureTripRow({
         tripId,
         ownerUserId: authUserId,
         name: tripName,
@@ -190,49 +195,73 @@ export const useTripSync = ({
         endDate,
         currency,
       });
+      if (cancelled) return;
+      if (ensured.status !== 'ok') {
+        const message = ensured.status === 'error' ? ensured.message : 'Supabase unavailable';
+        if (import.meta.env.DEV) console.warn('[tripSync] trip bootstrap failed', message);
+        setFailure(`讀取：${message}`);
+        lastReadRef.current = `${clockNow()} 失敗 — ${message}`;
+        refreshDetail();
+        setState('error');
+        inFlight = false;
+        return;
+      }
 
       const remote = await fetchTripSnapshot(tripId);
       if (cancelled) return;
 
-      if (remote.status === 'error') {
+      if (remote.status !== 'ok') {
         // Silent failure is the trap here: the local ledger keeps working, so
         // nothing looks wrong while nothing is being shared.
-        if (import.meta.env.DEV) console.warn('[tripSync] read failed', remote.message);
-        setFailure(`讀取：${remote.message}`);
-        lastReadRef.current = `${clockNow()} 失敗 — ${remote.message}`;
+        const message = remote.status === 'error' ? remote.message : 'Supabase unavailable';
+        if (import.meta.env.DEV) console.warn('[tripSync] read failed', message);
+        setFailure(`讀取：${message}`);
+        lastReadRef.current = `${clockNow()} 失敗 — ${message}`;
         refreshDetail();
         setState('error');
+        inFlight = false;
         return;
       }
-      if (remote.status === 'ok' && hasRemoteContent(remote.data)) {
+      if (shouldHydrateInitialSnapshot(ensured.data.created)) {
         onRemoteSnapshotRef.current(remote.data);
       }
-      if (remote.status === 'ok') {
-        rememberRemote(remote.data);
-        lastReadRef.current = `${clockNow()} 開啟時 ${countsOf(remote.data)}`;
-        refreshDetail();
-      }
+      rememberRemote(remote.data);
+      lastReadRef.current = `${clockNow()} 開啟時 ${countsOf(remote.data)}`;
+      refreshDetail();
 
       readyTripIdRef.current = tripId;
+      setFailure('');
       /*
-        Publish once on every open.
+        Publish once on every open, not only when the cloud row was created.
 
         A push fires when the ledger changes, which leaves a record whose first
         push failed with nothing to ride on: the content is already local, the
         re-read merges it back unchanged, and the signature never moves again.
         The expense she recorded while the server was refusing her writes sat on
-        her phone for an hour that way, and the only way out was to go and edit
-        it until something looked different.
+        her phone for an hour that way, and would have stayed there — the only
+        way out was to go and edit it so something looked different.
 
         This is an upsert of what this device is already holding, against a
         snapshot it has just read, so it adds nothing and prunes nothing.
       */
       setPublishRevision(current => current + 1);
       setState('synced');
-    })();
+      inFlight = false;
+    };
+
+    void bootstrap();
+    const retryTimer = window.setInterval(bootstrap, REREAD_INTERVAL_MS);
+    const retryWhenVisible = () => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'hidden') void bootstrap();
+    };
+    window.addEventListener('focus', retryWhenVisible);
+    document.addEventListener('visibilitychange', retryWhenVisible);
 
     return () => {
       cancelled = true;
+      window.clearInterval(retryTimer);
+      window.removeEventListener('focus', retryWhenVisible);
+      document.removeEventListener('visibilitychange', retryWhenVisible);
     };
     // Trip identity and account only. Renaming a trip should not re-read it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -303,7 +332,7 @@ export const useTripSync = ({
       try {
         const remote = await fetchTripSnapshot(tripId);
         if (readyTripIdRef.current !== tripId) return;
-        if (remote.status === 'ok' && hasRemoteContent(remote.data)) {
+        if (remote.status === 'ok') {
           // Merged, not applied. Applying a snapshot replaces the local list,
           // and this one arrives while the trip is being edited — a read
           // landing between a new record and the push that carries it would
@@ -407,7 +436,9 @@ const useSyncBadge = (
     const [background, color, label] = look[state] ?? ['#e2e8f0', '#475569', state];
     node.style.background = background;
     node.style.color = color;
-    node.textContent = `雲端同步：${label}${note ? ` ｜ ${note}` : ''}${forced && detail ? `\n${detail}` : ''}`;
+    // The build goes first under `?sync=1`. Every other number on this panel is
+    // worthless until both devices are known to be running the same code.
+    node.textContent = `雲端同步：${label}${note ? ` ｜ ${note}` : ''}${forced ? `\n版本 ${BUILD_ID}` : ''}${forced && detail ? `\n${detail}` : ''}`;
 
     if (!node.isConnected) document.body.appendChild(node);
     return () => node.remove();

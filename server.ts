@@ -1993,6 +1993,20 @@ ${MODE_RULES[mode]}
     }
   });
 
+  /**
+   * Which commit is live, answerable without a browser.
+   *
+   * Pairs with the 版本 line on the sync panel: when a traveller reports a
+   * build, it can be checked against the deploy instead of against a guess at
+   * which piece of UI copy a commit was supposed to add.
+   */
+  app.get("/api/version", (_req, res) => {
+    res.json({
+      commit: (process.env.RENDER_GIT_COMMIT || "dev").slice(0, 7),
+      startedAt: new Date(Date.now() - Math.round(process.uptime() * 1000)).toISOString(),
+    });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
