@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChevronRight, Pencil, Plus, WalletCards } from 'lucide-react';
 import { Category, Expense } from '../types';
+import { totalPaidByMember } from '../services/expensePaidBy';
 import ExpenseList from './ExpenseList';
 
 interface Props {
@@ -42,6 +43,23 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
     if (currencies.size > 1 || (currencies.size === 1 && !currencies.has(normalizedCurrency))) return undefined;
     return included.reduce((sum, expense) => sum + (expense.category === Category.EXCHANGE ? (expense.handlingFee || 0) : expense.amount), 0);
   }, [normalizedCurrency, preExpenses]);
+  /**
+   * What this traveller paid, as against what the trip spent.
+   *
+   * A shared ledger shows everybody — you cannot settle against one that hides
+   * half the bills. What it must not do is hand one person the other's total:
+   * 「已支出 NT$ 13,388」 on the screen of someone who had paid 12,500 of it,
+   * the remaining 888 belonging to the traveller beside him.
+   */
+  const paidByViewer = useMemo(() => {
+    if (!normalizedCurrency || actualSpent === undefined || !viewerMemberId) return undefined;
+    const included = preExpenses.filter(expense => expense.category !== Category.HELP_BUY && expense.amount >= 0 && expense.category !== Category.EXCHANGE);
+    return totalPaidByMember(included, viewerMemberId);
+  }, [normalizedCurrency, actualSpent, viewerMemberId, preExpenses]);
+  /** Only worth splitting out when somebody else actually paid for something. */
+  const othersPaid = paidByViewer !== undefined && actualSpent !== undefined
+    ? Math.round(actualSpent - paidByViewer)
+    : undefined;
   const hasBudget = typeof budget === 'number' && Number.isFinite(budget) && budget >= 0;
   const percent = hasBudget && budget > 0 && actualSpent !== undefined ? Math.round((actualSpent / budget) * 100) : undefined;
   const plannedRows = useMemo(() => {
@@ -63,7 +81,17 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
           {hasBudget ? <><div className="mt-5 h-3 overflow-hidden rounded-full bg-indigo-50"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${Math.min(percent || 0, 100)}%` }} /></div><div className="mt-2 flex justify-between text-xs font-bold text-slate-500"><span>已使用 {actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</span><span className="text-sm font-black text-indigo-600">{percent === undefined ? '—' : `${percent}%`}</span></div></> : <button type="button" onClick={onEditBudget} className="mt-5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white">設定預算</button>}
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-1">
-          <div className="rounded-[1.35rem] bg-white p-4 shadow-sm ring-1 ring-slate-100"><p className="text-xs font-bold text-slate-400">已支出</p><p className="mt-2 text-lg font-black text-[#11183d]">{actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</p></div>
+          <div className="rounded-[1.35rem] bg-white p-4 shadow-sm ring-1 ring-slate-100">
+            <p className="text-xs font-bold text-slate-400">{othersPaid && othersPaid > 0 ? '旅程總支出' : '已支出'}</p>
+            <p className="mt-2 text-lg font-black text-[#11183d]">{actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</p>
+            {/* Said only when it changes the meaning of the number above it. */}
+            {othersPaid !== undefined && othersPaid > 0 && (
+              <div data-testid="paid-split" className="mt-2 space-y-0.5 border-t border-slate-100 pt-2 text-[11px] font-bold">
+                <p className="text-slate-500">你付的 <span className="text-[#11183d]">{money(paidByViewer || 0, normalizedCurrency || 'TWD')}</span></p>
+                <p className="text-slate-400">旅伴付的 <span className="text-slate-500">{money(othersPaid, normalizedCurrency || 'TWD')}</span></p>
+              </div>
+            )}
+          </div>
           <div className="rounded-[1.35rem] bg-[#f0efff] p-4"><p className="text-xs font-bold text-indigo-500">剩餘預算</p><p className={`mt-2 text-lg font-black ${actualSpent !== undefined && hasBudget && budget - actualSpent < 0 ? 'text-rose-600' : 'text-[#11183d]'}`}>{actualSpent === undefined || !hasBudget ? '—' : money(budget - actualSpent, normalizedCurrency || 'TWD')}</p></div>
         </div>
       </section>
