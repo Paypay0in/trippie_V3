@@ -197,7 +197,15 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
             )}
 
             {companions.map(c => {
-              const isLinked = friends.some(f => f.id === c.id);
+              /*
+                Three states, and they were showing as two. A seat whose invite
+                has been accepted said 「訪客」 beside an 「邀請」 button — the
+                same thing it said before she joined — so the one screen that
+                could have answered 「她到底有沒有加入？」 answered no, four
+                times, while she was in fact a member each time.
+              */
+              const hasJoined = Boolean(c.userId) || c.type === 'member';
+              const isLinked = hasJoined || friends.some(f => f.id === c.id);
               return (
                 <div
                   key={c.id}
@@ -206,9 +214,10 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                   <Avatar name={c.name} tone={isLinked ? 'member' : 'guest'} />
                   <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#11183d]">{c.name}</span>
                   <RoleChip tone={isLinked ? 'member' : 'guest'}>
-                    {isLinked ? '已連結好友' : '訪客'}
+                    {hasJoined ? '已加入' : isLinked ? '已連結好友' : '訪客'}
                   </RoleChip>
-                  {onInvite && (
+                  {/* Nobody needs inviting to a trip they are already in. */}
+                  {onInvite && !hasJoined && (
                     <button
                       onClick={() => onInvite(c)}
                       disabled={invitingId === c.id}
