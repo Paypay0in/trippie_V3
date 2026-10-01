@@ -40,7 +40,7 @@ beforeEach(() => {
   window.sessionStorage.clear();
   setSearch('');
   vi.spyOn(tripSync, 'isSyncAvailable').mockReturnValue(true);
-  vi.spyOn(tripSync, 'ensureTripRow').mockResolvedValue({ status: 'ok' } as never);
+  vi.spyOn(tripSync, 'ensureTripRow').mockResolvedValue({ status: 'ok', data: { created: false } });
   vi.spyOn(tripSync, 'fetchTripSnapshot').mockResolvedValue({
     status: 'ok',
     data: {

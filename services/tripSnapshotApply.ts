@@ -1,21 +1,10 @@
-import { TripSyncSnapshot } from './tripSync';
-
 /**
- * Whether a snapshot read from the cloud is worth applying.
+ * Whether the first successful cloud snapshot is authoritative locally.
  *
- * A second device opens a trip holding an empty local shell, so applying an
- * empty snapshot over it changes nothing — but *discarding* a non-empty one
- * leaves the traveller looking at an empty trip while the data sits in the
- * database. That is indistinguishable from sync being broken, and it is what
- * happened to flights: `flightAnchors` was left out of this check, so a trip
- * whose cloud copy held only flights had its whole snapshot thrown away.
- *
- * Kept as a named function rather than a condition inline in the hook so the
- * next field added to a snapshot has an obvious place to be remembered, and a
- * test that says what happens when it is forgotten.
+ * A row created by this device has no cloud contents yet: its local draft is
+ * the data that must be published. Every pre-existing row is the opposite —
+ * even an empty expenses or itinerary array is meaningful and must clear stale
+ * local state. Looking at array lengths cannot tell those cases apart.
  */
-export const hasRemoteContent = (snapshot: TripSyncSnapshot): boolean =>
-  snapshot.expenses.length > 0
-  || snapshot.members.length > 0
-  || snapshot.itinerary.length > 0
-  || snapshot.flightAnchors.length > 0;
+export const shouldHydrateInitialSnapshot = (createdRemoteTrip: boolean): boolean =>
+  !createdRemoteTrip;

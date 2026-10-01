@@ -3,6 +3,7 @@ import { applicableBroadcastFields, cloudOwnsSharedState } from './sharedStateOw
 
 const broadcast = {
   expenses: [{ id: 'e1' }],
+  itinerary: [{ id: 'i1' }],
   companions: [{ id: 'c1' }],
   shoppingList: [{ id: 's1' }],
   startDate: '2026-10-02',
@@ -34,6 +35,7 @@ describe('what a broadcast may still write', () => {
 
     expect(applied.expenses).toBeUndefined();
     expect(applied.companions).toBeUndefined();
+    expect(applied.itinerary).toBeUndefined();
   });
 
   it('still carries what has no table behind it', () => {
