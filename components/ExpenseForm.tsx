@@ -583,13 +583,22 @@ const ExpenseForm: React.FC<Props> = ({
       phase: initialData ? initialData.phase : currentPhase,
       date,
       // Saved state is canonical-only: no legacy 'me', no foreign owner id.
-      payerId: normalizeMemberId(splitEnabled ? (payerIds[0] || payerId) : effectiveOwnerMemberId),
+      /*
+        A bill with no split is the recorder's own, not the trip owner's.
+
+        Both of these named the owner outright, so every expense the second
+        traveller entered on her own phone was filed and prepaid in his name —
+        the same owner-assumption that put 888 of hers in his total, hiding one
+        field deeper. 「誰付款的、誰分擔」 is answered by whoever is holding the
+        phone when nobody says otherwise.
+      */
+      payerId: normalizeMemberId(splitEnabled ? (payerIds[0] || payerId) : effectiveViewerMemberId),
       payerAllocations: splitEnabled
         ? submittedPayerAllocations.values
-        : { [effectiveOwnerMemberId]: totalTwd },
+        : { [effectiveViewerMemberId]: totalTwd },
       beneficiaries: splitEnabled
         ? normalizeMemberIds(beneficiaries, effectiveOwnerMemberId)
-        : [effectiveOwnerMemberId],
+        : [effectiveViewerMemberId],
       splitMethod: splitEnabled ? splitMethod : 'EQUAL',
       splitAllocations: splitEnabled ? submittedSplitAllocations.values : {},
       needsReview: false // Manual entry assumes review is done
