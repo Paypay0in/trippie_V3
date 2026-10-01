@@ -20,6 +20,7 @@ const Harness: React.FC = () => {
     tripId: TRIP_ID,
     authUserId: USER_ID,
     tripName: '釜山',
+    viewerMemberId: `${TRIP_ID}:owner`,
     members: [],
     expenses: [],
     itinerary: [],
@@ -73,6 +74,10 @@ describe('sync panel', () => {
     // look fine, so they must be on screen before anything else.
     expect(panelText()).toContain('旅程 trip-abc…');
     expect(panelText()).toContain('帳號 user-987…');
+    // Who this device thinks is using it. 「其他 888」 stayed in the owner's
+    // ledger on a build whose filter was provably right against the same data,
+    // and this id — everything's input — had never been on screen.
+    expect(panelText()).toContain(`身分 ${TRIP_ID}:owner`);
     await waitFor(() => expect(panelText()).toContain('成員2・帳1・行程3・航班0'));
   });
 

@@ -34,6 +34,15 @@ interface Options {
   tripId: string | null;
   authUserId?: string;
   tripName: string;
+  /**
+   * Who this device believes is using it, for the `?sync=1` panel.
+   *
+   * 「其他 888」 stayed in the owner's ledger and in his total after a read that
+   * carried the corrected payer, on a build whose filter was provably right
+   * against the same data. Everything downstream of this id was verified; the
+   * id itself had never been on screen, so it could only be reasoned about.
+   */
+  viewerMemberId?: string;
   destination?: string;
   startDate?: string;
   endDate?: string;
@@ -101,6 +110,7 @@ export const useTripSync = ({
   tripId,
   authUserId,
   tripName,
+  viewerMemberId,
   destination,
   startDate,
   endDate,
@@ -155,6 +165,7 @@ export const useTripSync = ({
     setDetail(
       [
         `旅程 ${shortId(tripId)}｜帳號 ${shortId(authUserId)}`,
+        `身分 ${viewerMemberId || '（未判定）'}`,
         `讀取 ${lastReadRef.current}`,
         `寫入 ${lastWriteRef.current}`,
       ].join('\n'),

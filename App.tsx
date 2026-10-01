@@ -2976,6 +2976,7 @@ const App: React.FC = () => {
     tripId: activeDraftId || currentLoadedTripId,
     authUserId: authUser?.id,
     tripName: draftName,
+    viewerMemberId,
     destination: tripDestination || undefined,
     startDate: tripStartDate,
     endDate: tripEndDate,
