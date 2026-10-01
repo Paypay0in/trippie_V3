@@ -69,10 +69,37 @@ export type SyncResult<T> =
 /** Sync needs both a configured project and a signed-in user; RLS sees no one otherwise. */
 export const isSyncAvailable = (): boolean => supabaseConfigured && supabase !== null;
 
+/**
+ * What went wrong, in words.
+ *
+ * A PostgrestError is a plain object, not an Error, so `String(error)` on it
+ * produced 「寫入：[object Object]」 — which is what the traveller whose expenses
+ * were being refused actually saw, on the one screen built to tell her why.
+ * Supabase puts the useful part in `message`, with `code`/`details` behind it.
+ */
+const describeError = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    const fields = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const parts = [fields.message, fields.details, fields.hint]
+      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0);
+    const code = typeof fields.code === 'string' && fields.code.trim() ? `（${fields.code}）` : '';
+    if (parts.length > 0) return `${parts.join(' · ')}${code}`;
+    if (code) return `資料庫錯誤${code}`;
+    try { return JSON.stringify(error); } catch { return '未知錯誤'; }
+  }
+  return String(error);
+};
+
 const failed = (error: unknown): SyncResult<never> => ({
   status: 'error',
-  message: error instanceof Error ? error.message : String(error),
+  message: describeError(error),
 });
+
+export interface TripRowBootstrap {
+  /** True only when this call inserted the trip row for the first time. */
+  created: boolean;
+}
 
 /**
  * Create the trip row if this user has never pushed it.
@@ -96,10 +123,22 @@ export const ensureTripRow = async ({
   startDate?: string;
   endDate?: string;
   currency?: string;
-}): Promise<SyncResult<null>> => {
+}): Promise<SyncResult<TripRowBootstrap>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
-    const { error } = await supabase.from('trips').upsert(
+    // Read before inserting so the caller can tell two very different empty
+    // snapshots apart: a brand-new cloud row must publish the local draft,
+    // while an existing cloud trip whose lists are empty must clear stale
+    // local data. Upsert cannot report that distinction reliably.
+    const { data: existing, error: readError } = await supabase
+      .from('trips')
+      .select('id')
+      .eq('id', tripId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (existing) return { status: 'ok', data: { created: false } };
+
+    const { error } = await supabase.from('trips').insert(
       {
         id: tripId,
         owner_id: ownerUserId,
@@ -109,10 +148,9 @@ export const ensureTripRow = async ({
         end_date: endDate ?? null,
         currency: currency ?? null,
       },
-      { onConflict: 'id' },
     );
     if (error) throw error;
-    return { status: 'ok', data: null };
+    return { status: 'ok', data: { created: true } };
   } catch (error) {
     return failed(error);
   }
@@ -250,8 +288,23 @@ export const deleteExpense = async (expenseId: string): Promise<SyncResult<null>
 export const pushMembers = async (
   members: TripMember[],
   tripId: string,
-  /** Seats this device knows about. Only these may be removed. */
-  knownMemberIds?: Iterable<string>,
+  /**
+   * Accepted and ignored.
+   *
+   * A push no longer removes anybody from a trip. The roster is not a list this
+   * device owns: a seat is created on the server when an invite is claimed, and
+   * the device that holds the trip has not read it yet. Pruning "seats I know
+   * about but am not holding" therefore deleted the person who had just joined
+   * — from the owner's device, minutes later, silently, which is the one role
+   * the policy lets do it.
+   *
+   * It happened on a real trip two days before departure: she accepted the
+   * invite at 10:34, the owner's device pushed at 10:36, and from then on every
+   * expense she recorded was refused by the server and lived only on her phone.
+   * Losing someone's access is not a sync detail; taking a traveller off a trip
+   * has to be something a person does on purpose.
+   */
+  _knownMemberIds?: Iterable<string>,
 ): Promise<SyncResult<null>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
@@ -260,18 +313,6 @@ export const pushMembers = async (
         .from('trip_members')
         .upsert(members.map(member => toMemberRow(member, tripId)), { onConflict: 'id' });
       if (error) throw error;
-    }
-    // Same rule as the ledger, and the stakes are higher: deleting a seat this
-    // device simply had not read about removes that person's access to the
-    // entire trip, not one record.
-    const removed = idsToPrune(knownMemberIds ?? [], members.map(member => member.id));
-    if (removed.length) {
-      const { error: pruneError } = await supabase
-        .from('trip_members')
-        .delete()
-        .eq('trip_id', tripId)
-        .in('id', removed);
-      if (pruneError) throw pruneError;
     }
     return { status: 'ok', data: null };
   } catch (error) {
