@@ -25,8 +25,24 @@ export const expenseConcernsMember = (expense: Expense, memberId: string | undef
 
   if (expense.payerId === memberId) return true;
 
-  const paid = expense.payerAllocations?.[memberId];
-  if (typeof paid === 'number' && paid !== 0) return true;
+  /*
+    The prepaid map counts only when it describes something the three facts
+    cannot: more than one person actually putting money down.
+
+    With a single entry it is a restatement of the payer, and a restatement is
+    free to go stale — which is exactly what happened. A hand-applied correction
+    moved payer, beneficiaries and author to the second traveller and left this
+    map reading {owner: 888}, so her own spending stayed in his total while
+    every field anyone inspected named her.
+
+    「誰新增的、誰付款的、誰分擔」 is the whole model. A fourth input that merely
+    echoes one of them can only ever disagree with it.
+  */
+  const prepaid = expense.payerAllocations || {};
+  if (Object.keys(prepaid).length > 1) {
+    const paid = prepaid[memberId];
+    if (typeof paid === 'number' && paid !== 0) return true;
+  }
 
   if (Array.isArray(expense.beneficiaries) && expense.beneficiaries.includes(memberId)) return true;
 

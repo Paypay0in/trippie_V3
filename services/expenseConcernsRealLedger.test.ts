@@ -90,6 +90,26 @@ describe('the live Busan ledger, as the owner sees it', () => {
     expect(expenseConcernsMember(corrected, OWNER)).toBe(false);
   });
 
+  it('ignores a lone prepaid entry that contradicts the payer', () => {
+    // 「誰新增的、誰付款的、誰分擔」 is the whole model; a fourth input that only
+    // restates the payer can do nothing but disagree with it one day.
+    const stale = {
+      ...row({ id: 'e-888', amount: 888, payer_id: GINA, beneficiaries: [GINA], created_by_member_id: GINA }),
+      payerAllocations: { [OWNER]: 888 },
+    };
+
+    expect(expenseConcernsMember(stale, OWNER)).toBe(false);
+  });
+
+  it('still counts a real second payer who chipped in', () => {
+    const bothPaid = row({
+      id: 'e-both', amount: 1000, payer_id: GINA, beneficiaries: [GINA],
+      payer_allocations: { [GINA]: 600, [OWNER]: 400 },
+    });
+
+    expect(expenseConcernsMember(bothPaid, OWNER)).toBe(true);
+  });
+
   it('never rewrites a map with more than one payer in it', () => {
     const genuinelySplit = row({
       id: 'e-share', amount: 1000, payer_id: OWNER,
