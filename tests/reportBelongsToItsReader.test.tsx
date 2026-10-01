@@ -42,7 +42,7 @@ const ledger = [
 afterEach(cleanup);
 
 describe('the settlement report', () => {
-  it('names what this reader owes out of the trip total', () => {
+  it('leads with what the trip cost this reader, not what passed through them', () => {
     render(
       <TripSummaryModal
         expenses={ledger}
@@ -53,9 +53,10 @@ describe('the settlement report', () => {
       />,
     );
 
-    // Her own ledger: the two bills split with her, and her own 888.
-    // 6,000 + 10,000 + 888 of responsibility out of 32,888 that concerns her.
-    expect(screen.getByTestId('viewer-share').textContent).toContain('16,888');
+    // She bears 6,000 + 10,000 + her own 888, out of 32,888 passing through her.
+    expect(screen.getByText(/\$16,888/)).toBeTruthy();
+    // And she fronted 888 of it, so she is owed nothing and owes the rest.
+    expect(screen.getByTestId('viewer-share').textContent).toContain('32,888');
     // His Esim, which concerns nobody but him, is not in her report at all.
     expect(screen.queryByText('Esim')).toBeNull();
     expect(screen.queryAllByText(/33,388/)).toEqual([]);
@@ -81,6 +82,32 @@ describe('the settlement report', () => {
     expect(screen.queryByText('哈哈')).toBeNull();
     expect(screen.getAllByText('機票').length).toBeGreaterThan(0);
     expect(screen.queryAllByText(/33,388/)).toEqual([]);
+  });
+
+  /**
+   * 「機票與住宿 我們是除二的話 雖然我付 12000 但我實際支出是 6000」.
+   *
+   * He fronted 32,500 and bears 16,500 of it: 500 of his own, half of 12,000,
+   * half of 20,000. The 16,000 between those two figures is what the
+   * settlement screen already told the other traveller she owes him, so the
+   * two screens finally agree.
+   */
+  it('separates what he fronted from what it cost him', () => {
+    render(
+      <TripSummaryModal
+        expenses={ledger}
+        onArchive={() => undefined}
+        variant="embedded"
+        viewerMemberId={OWNER_SEAT}
+        ownerMemberId={OWNER_SEAT}
+      />,
+    );
+
+    expect(screen.getByText(/\$16,500/)).toBeTruthy();
+    const split = screen.getByTestId('viewer-share');
+    expect(split.textContent).toContain('32,500');
+    expect(split.textContent).toContain('待收回');
+    expect(split.textContent).toContain('16,000');
   });
 
   it('says nothing extra on the screen of someone who owes the lot', () => {

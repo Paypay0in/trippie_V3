@@ -412,16 +412,27 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             {/* Summary Cards */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-brand-100 text-center relative overflow-hidden">
                  <div className="flex items-center justify-center gap-2 text-gray-500 text-xs font-bold uppercase tracking-wider mb-2 relative z-10">
-                    <Receipt size={14} /> {viewerMemberId ? '與你有關的支出' : '旅程總支出成本'}
+                    <Receipt size={14} /> {viewerShare === undefined ? '旅程總支出成本' : '你的實際支出'}
                 </div>
+                {/*
+                  What this trip cost the reader, which is not what passed
+                  through their hands.
+
+                  「機票與住宿 我們是除二的話 雖然我付 12000 但我實際支出是 6000」.
+                  The headline was the sum of the bills that concerned him —
+                  money he fronted, not money he spent — so a trip he was owed
+                  half of read as twice its cost to him.
+                */}
                 <div className="text-4xl font-black text-brand-900 tracking-tight relative z-10">
-                    ${Math.round(totalExpense).toLocaleString()}
+                    ${Math.round(viewerShare ?? totalExpense).toLocaleString()}
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1 relative z-10">* 已排除代買費用</div>
-                {/* The reader's own figure, where the trip's is not theirs. */}
-                {viewerShare !== undefined && Math.round(viewerShare) !== Math.round(totalExpense) && (
-                  <div data-testid="viewer-share" className="relative z-10 mt-3 border-t border-gray-100 pt-3 text-sm font-black text-brand-700">
-                    你要負擔的部分 ${Math.round(viewerShare).toLocaleString()}
+                {viewerShare !== undefined && Math.round(totalExpense - viewerShare) !== 0 && (
+                  <div data-testid="viewer-share" className="relative z-10 mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs font-bold">
+                    <p className="text-gray-500">你先付出去 <span className="text-brand-900">${Math.round(totalExpense).toLocaleString()}</span></p>
+                    <p className={Math.round(totalExpense - viewerShare) > 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                      {Math.round(totalExpense - viewerShare) > 0 ? '待收回' : '待補付'} ${Math.abs(Math.round(totalExpense - viewerShare)).toLocaleString()}
+                    </p>
                   </div>
                 )}
                 <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-brand-400 to-brand-600"></div>
