@@ -56,6 +56,17 @@ describe('the entry-rules research prompt', () => {
     expect(prompt).toContain('不要只說「在飛機上填紙本」');
   });
 
+  /**
+   * The live lookup answered with a 10% refund rate and, in its own summary,
+   * 「扣除手續費後實際退費額度通常在 6% 至 8% 之間」. Ten per cent is the VAT rate;
+   * the traveller never sees it. A refund estimate built on it overstates the
+   * money coming back.
+   */
+  it('refuses to pass the VAT rate off as the refund rate', () => {
+    expect(prompt).toContain('實際拿得回來的比例');
+    expect(prompt).toContain('不要拿稅率充當退稅率');
+  });
+
   it('asks for rules that depend on each other to say so', () => {
     // Skipping K-ETA is exactly what makes the paper arrival card compulsory,
     // and the checklist listed both without connecting them.
