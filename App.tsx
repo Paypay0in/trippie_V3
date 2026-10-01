@@ -85,6 +85,7 @@ import {
   detectDestinationFromTripName,
 } from "./services/destinationFromTripName";
 import { fetchMyTrips, isSyncAvailable } from "./services/tripSync";
+import { strandedLocalTripEscape } from "./services/strandedLocalTrip";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
 import {
@@ -1376,7 +1377,27 @@ const App: React.FC = () => {
        * known to exist locally, so it is the moment to open it.
        */
       const joinedId = readJoinedTripId(window.localStorage);
-      if (!joinedId) return;
+      if (!joinedId) {
+        /**
+         * Nobody just joined, but someone may still be stranded.
+         *
+         * Her device reopened an empty, device-only 釜山 on every reload while
+         * the shared one holding 23 plans sat beside it under the same name.
+         * Telling her to pick the right one asks her to know what the shelf
+         * never said; when there is exactly one cloud trip and the open one is
+         * empty, there is nothing to pick.
+         */
+        const everyDraft = [...draftsRef.current, ...missing] as TripDraft[];
+        const open = everyDraft.find((draft) => draft.id === activeDraftIdRef.current);
+        const escape = strandedLocalTripEscape(open, result.data);
+        if (!escape) return;
+        const target = everyDraft.find((draft) => draft.id === escape.id);
+        if (!target) return;
+        hydrateDraft(target);
+        setViewMode("trip");
+        showToast(`已開啟共用旅程：${target.name || "共用旅程"}`);
+        return;
+      }
       const joined = [...draftsRef.current, ...missing].find(
         (draft) => draft.id === joinedId,
       );
