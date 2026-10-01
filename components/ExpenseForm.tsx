@@ -6,7 +6,7 @@ import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCate
 import { CustomCategories, categoriesForPhase } from '../services/customCategories';
 import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
-import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown } from 'lucide-react';
+import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle } from 'lucide-react';
 import { localToday } from '../services/localDate';
 
 interface Props {
@@ -31,6 +31,15 @@ interface Props {
   ownerName?: string;
   /** TripMember viewing the form; decides who gets called 我. */
   viewerMemberId?: string;
+  /**
+   * False when the app could not tell which member is using it.
+   *
+   * It used to answer "the trip owner" and say nothing, so a second traveller's
+   * expenses were filed under the first one's name — the one person the ledger
+   * would then say to repay. Now the record is left unattributed and the form
+   * says so, because a gap gets fixed and a confident mistake does not.
+   */
+  viewerIdentified?: boolean;
   /**
    * Opened by someone who may not edit this record: the same form, but the
    * result is submitted as a proposal for the creator to approve rather than
@@ -70,7 +79,7 @@ const ExpenseForm: React.FC<Props> = ({
   linkedItemId,
   taxRule,
   travelRules
-  ,ownerMemberId, ownerName, viewerMemberId, proposalMode, onRequestDelete, onManageMembers
+  ,ownerMemberId, ownerName, viewerMemberId, viewerIdentified, proposalMode, onRequestDelete, onManageMembers
 }) => {
   const effectiveOwnerMemberId = ownerMemberId || LEGACY_OWNER_ID;
   // Compatibility boundary: every historical owner encoding ('me', an owner id
@@ -659,6 +668,20 @@ const ExpenseForm: React.FC<Props> = ({
 
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
           <div className="px-5 py-5 space-y-5 overflow-y-auto flex-1">
+            {/*
+              Said out loud rather than guessed. Until this, an unidentified
+              viewer was quietly treated as the trip owner and their expenses
+              were filed under that name — on a shared ledger, under the name of
+              the person everyone else would then be told to repay.
+            */}
+            {viewerIdentified === false && !isEditing && (
+              <div data-testid="viewer-unidentified" className="flex items-start gap-2 rounded-2xl bg-amber-50 px-3 py-2.5 text-[11px] font-bold leading-5 text-amber-700">
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  目前無法確認你是這趟旅程的哪一位成員，這筆支出不會標記建立者。請稍後在旅伴名單確認你的帳號後補上。
+                </span>
+              </div>
+            )}
             {/* Hidden File Input */}
             <input 
                 type="file" 
