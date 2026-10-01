@@ -27,7 +27,22 @@ const draft = (over: Partial<TripDraft>): TripDraft => ({
 } as TripDraft);
 
 const herEmpty = draft({ id: HER_EMPTY });
-const sharedRef = { id: SHARED, name: '釜山' };
+const sharedRef = { id: SHARED, name: '釜山', startDate: '2026-10-02', endDate: '2026-10-07' };
+
+/**
+ * The owner's own account, six trips deep, and the duplicate his computer made
+ * on signing in: 釜山 10/02–10/07 with nothing in it, born at the minute he
+ * logged in, beside the shared 釜山 holding 23 plans.
+ */
+const HIS_DUPLICATE = 'muo53su5v6prsj5r';
+const hisDuplicate = draft({ id: HIS_DUPLICATE, name: '釜山', startDate: '2026-10-02', endDate: '2026-10-07' });
+const hisCloudTrips = [
+  { id: 'mtgzcmpvth9img76', name: '韓國釜山之旅' },
+  { id: 'mtgx4he5fsi7n9y9', name: '釜山五日遊', startDate: '2026-09-02', endDate: '2026-10-07' },
+  { id: 'mu3jprg965ermor7', name: '釜山五日遊', startDate: '2026-09-02', endDate: '2026-10-07' },
+  { id: 'mu3jzty8jz2b8b1n', name: '日本東京', startDate: '2026-10-22', endDate: '2026-10-31' },
+  sharedRef,
+];
 
 describe('stranded on an empty local trip', () => {
   it('opens the one cloud trip instead', () => {
@@ -40,9 +55,21 @@ describe('stranded on an empty local trip', () => {
 
     const withBills = draft({ id: HER_EMPTY, expenses: [{ id: 'e-1' }] as never });
     expect(strandedLocalTripEscape(withBills, [sharedRef])).toBeNull();
+  });
 
-    const dated = draft({ id: HER_EMPTY, startDate: '2026-10-02', endDate: '2026-10-07' });
-    expect(strandedLocalTripEscape(dated, [sharedRef])).toBeNull();
+  it('catches the duplicate his computer made, among six trips', () => {
+    expect(strandedLocalTripEscape(hisDuplicate, hisCloudTrips)).toEqual(sharedRef);
+  });
+
+  it('will not choose between two trips that look alike', () => {
+    // 釜山五日遊 exists twice on his account with identical dates.
+    const twinOfTwins = draft({ id: 'local-copy', name: '釜山五日遊', startDate: '2026-09-02', endDate: '2026-10-07' });
+    expect(strandedLocalTripEscape(twinOfTwins, hisCloudTrips)).toBeNull();
+  });
+
+  it('will not move an empty trip that resembles nothing on the server', () => {
+    const unrelated = draft({ id: 'local-new', name: '沖繩', startDate: '2026-12-01', endDate: '2026-12-05' });
+    expect(strandedLocalTripEscape(unrelated, hisCloudTrips)).toBeNull();
   });
 
   it('does not move anyone who is already on a cloud trip', () => {
@@ -50,7 +77,7 @@ describe('stranded on an empty local trip', () => {
     expect(strandedLocalTripEscape(emptyButShared, [sharedRef])).toBeNull();
   });
 
-  it('refuses to guess when there is more than one cloud trip', () => {
+  it('refuses to guess when more than one cloud trip and none is a twin', () => {
     const two = [sharedRef, { id: 'another', name: '東京' }];
     expect(strandedLocalTripEscape(herEmpty, two)).toBeNull();
   });

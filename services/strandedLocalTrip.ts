@@ -19,13 +19,28 @@ import { TripDraft } from './tripPersistence';
 export interface CloudTripRef {
   id: string;
   name?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
+const sameName = (a?: string, b?: string) =>
+  Boolean(a?.trim()) && a?.trim() === b?.trim();
+
+const sameDates = (draft: TripDraft, trip: CloudTripRef) =>
+  (draft.startDate || '') === (trip.startDate || '')
+  && (draft.endDate || '') === (trip.endDate || '');
+
+/**
+ * Empty means nothing has been put in it — not that it has no dates.
+ *
+ * The duplicate the owner's computer produced on signing in carried the right
+ * name and the right dates and nothing else: 釜山 10/02–10/07 with 0 plans, born
+ * at the minute he logged in, beside the shared 釜山 holding 23. Requiring blank
+ * dates would have excused exactly the trip that needed catching.
+ */
 const isEmpty = (draft: TripDraft): boolean =>
   (draft.itinerary || []).length === 0
-  && (draft.expenses || []).length === 0
-  && !draft.startDate
-  && !draft.endDate;
+  && (draft.expenses || []).length === 0;
 
 /**
  * The cloud trip to open instead, or null to leave the traveller where they are.
@@ -41,7 +56,19 @@ export const strandedLocalTripEscape = (
   // Already a cloud trip: being empty is then a fact about the trip, not a
   // sign of being on the wrong one.
   if (cloudTrips.some(trip => trip.id === openDraft.id)) return null;
-  // Ambiguous as soon as there is a choice; guessing is what caused this.
-  if (cloudTrips.length !== 1) return null;
-  return cloudTrips[0];
+  if (cloudTrips.length === 1) return cloudTrips[0];
+
+  /**
+   * More than one cloud trip, so the single-trip shortcut cannot answer it —
+   * and that is the owner's own account, which holds six. The duplicate his
+   * computer made is not ambiguous, though: it is a copy, carrying the same
+   * name and the same dates as exactly one trip on the server.
+   *
+   * One match is an answer. Two would be a guess, and guessing is what put
+   * both travellers in the wrong 釜山 for three days.
+   */
+  const twins = cloudTrips.filter(
+    trip => sameName(openDraft.name, trip.name) && sameDates(openDraft, trip),
+  );
+  return twins.length === 1 ? twins[0] : null;
 };
