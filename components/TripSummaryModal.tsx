@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { calculateExpenseLedger } from '../services/splitCalculator';
+import { partitionByConcern } from '../services/expenseConcernsMember';
 import { X, Trophy, Wallet, Receipt, CreditCard, Printer, Archive, Save, List, PieChart as PieIcon, Tag, CheckCircle, HandHelping, Calculator, CheckSquare, Square, Share, MousePointerClick, Percent } from 'lucide-react';
 
 interface Props {
@@ -45,6 +46,19 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
   const [showBillPreview, setShowBillPreview] = useState(false);
   const [handlingFeePercent, setHandlingFeePercent] = useState<string>('0');
 
+  /**
+     What this report is about, which is this reader's money.
+
+     Only the headline figure had learned to ask who was looking; the lists,
+     the chart and the per-phase subtotals below it still summed the whole
+     trip, so 「哈哈❤️ $888」 — the other traveller's own spending — appeared in
+     his 準備清單 and in his pie, under a subtotal of 33,388.
+  */
+  const reportExpenses = React.useMemo(
+    () => (viewerMemberId ? partitionByConcern(expenses, viewerMemberId).mine : expenses),
+    [expenses, viewerMemberId],
+  );
+
   const { 
     totalExpense, 
     creditCardBill, 
@@ -60,7 +74,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
     totalHelpBuyTwd
   } = useMemo(() => {
     // 0. Pre-check for Refund Record
-    const hasRefund = expenses.some(e => e.description === '退稅入帳 (Tax Refund)' && e.phase === 'post');
+    const hasRefund = reportExpenses.some(e => e.description === '退稅入帳 (Tax Refund)' && e.phase === 'post');
 
     let total = 0;
     let ccBill = 0;
@@ -82,7 +96,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
     const refundItems: { date: string; desc: string; spend: number; refund: number; currency: string }[] = [];
     let totalRefundTwd = 0;
 
-    expenses.forEach(e => {
+    reportExpenses.forEach(e => {
       // 1. Calculate Expenses (Real Cost)
       let realCost = 0;
       if (e.category === Category.EXCHANGE) {
@@ -220,7 +234,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
       helpBuyList: helpBuy.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       totalHelpBuyTwd: helpBuySum
     };
-  }, [expenses, taxRule]);
+  }, [reportExpenses, taxRule]);
 
   const totalResidueValue = walletResidue.reduce((acc, curr) => acc + curr.valueTwd, 0);
 
@@ -398,7 +412,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             {/* Summary Cards */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-brand-100 text-center relative overflow-hidden">
                  <div className="flex items-center justify-center gap-2 text-gray-500 text-xs font-bold uppercase tracking-wider mb-2 relative z-10">
-                    <Receipt size={14} /> 旅程總支出成本
+                    <Receipt size={14} /> {viewerMemberId ? '與你有關的支出' : '旅程總支出成本'}
                 </div>
                 <div className="text-4xl font-black text-brand-900 tracking-tight relative z-10">
                     ${Math.round(totalExpense).toLocaleString()}

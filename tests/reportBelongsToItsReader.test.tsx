@@ -53,10 +53,34 @@ describe('the settlement report', () => {
       />,
     );
 
-    // 6,000 + 10,000 + her own 888.
+    // Her own ledger: the two bills split with her, and her own 888.
+    // 6,000 + 10,000 + 888 of responsibility out of 32,888 that concerns her.
     expect(screen.getByTestId('viewer-share').textContent).toContain('16,888');
-    // The trip's own figure is still there, and still says what it is.
-    expect(screen.getAllByText(/33,388/).length).toBeGreaterThan(0);
+    // His Esim, which concerns nobody but him, is not in her report at all.
+    expect(screen.queryByText('Esim')).toBeNull();
+    expect(screen.queryAllByText(/33,388/)).toEqual([]);
+  });
+
+  /**
+   * 「我的總結算又加到她的帳」. His 準備清單 listed 哈哈❤️ $888 — her own spending —
+   * and subtotalled 33,388, because only the headline figure had learned to
+   * ask who was reading. The lists, the chart and the per-phase subtotals had
+   * not.
+   */
+  it('keeps the other traveller’s own spending out of the itemised list', () => {
+    render(
+      <TripSummaryModal
+        expenses={ledger}
+        onArchive={() => undefined}
+        variant="embedded"
+        viewerMemberId={OWNER_SEAT}
+        ownerMemberId={OWNER_SEAT}
+      />,
+    );
+
+    expect(screen.queryByText('哈哈')).toBeNull();
+    expect(screen.getAllByText('機票').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(/33,388/)).toEqual([]);
   });
 
   it('says nothing extra on the screen of someone who owes the lot', () => {
