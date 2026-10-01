@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ChevronRight, Pencil, Plus, WalletCards } from 'lucide-react';
 import { Category, Expense } from '../types';
 import { totalPaidByMember } from '../services/expensePaidBy';
+import { partitionByConcern } from '../services/expenseConcernsMember';
 import ExpenseList from './ExpenseList';
 
 interface Props {
@@ -35,7 +36,20 @@ const money = (value: number, currency: string) => `${currency === 'TWD' ? 'NT$'
 
 const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBudget, onQuickAdd, onDeleteExpense, onEditExpense, taxRule, viewerMemberId, tripOwnerMemberId, onOpenDisputes }) => {
   const normalizedCurrency = currency?.trim().toUpperCase();
-  const preExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'pre'), [expenses]);
+  const allPreExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'pre'), [expenses]);
+  /**
+   * The ledger this traveller is actually part of.
+   *
+   * A shared trip is not a shared feed. A bill she paid and is splitting with
+   * him belongs here — they have to settle it. Something she bought for herself
+   * does not: it was being added to his total and making his own number wrong.
+   *
+   * What is left out is counted and said, never silently dropped.
+   */
+  const { mine: preExpenses, others: othersOwnExpenses } = useMemo(
+    () => partitionByConcern(allPreExpenses, viewerMemberId),
+    [allPreExpenses, viewerMemberId],
+  );
   const actualSpent = useMemo(() => {
     if (!normalizedCurrency) return undefined;
     const included = preExpenses.filter(expense => expense.category !== Category.HELP_BUY && expense.amount >= 0);
@@ -82,14 +96,21 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-1">
           <div className="rounded-[1.35rem] bg-white p-4 shadow-sm ring-1 ring-slate-100">
-            <p className="text-xs font-bold text-slate-400">{othersPaid && othersPaid > 0 ? '旅程總支出' : '已支出'}</p>
+            <p className="text-xs font-bold text-slate-400">{othersPaid && othersPaid > 0 ? '與你有關的支出' : '已支出'}</p>
             <p className="mt-2 text-lg font-black text-[#11183d]">{actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</p>
             {/* Said only when it changes the meaning of the number above it. */}
             {othersPaid !== undefined && othersPaid > 0 && (
               <div data-testid="paid-split" className="mt-2 space-y-0.5 border-t border-slate-100 pt-2 text-[11px] font-bold">
                 <p className="text-slate-500">你付的 <span className="text-[#11183d]">{money(paidByViewer || 0, normalizedCurrency || 'TWD')}</span></p>
-                <p className="text-slate-400">旅伴付的 <span className="text-slate-500">{money(othersPaid, normalizedCurrency || 'TWD')}</span></p>
+                <p className="text-slate-400">旅伴先付的 <span className="text-slate-500">{money(othersPaid, normalizedCurrency || 'TWD')}</span></p>
               </div>
+            )}
+            {/* Counted, not hidden: a number that silently drops rows is the
+                thing that cost three days of 「為什麼對不起來」. */}
+            {othersOwnExpenses.length > 0 && (
+              <p data-testid="others-own-note" className="mt-2 text-[10px] font-bold leading-4 text-slate-400">
+                另有 {othersOwnExpenses.length} 筆是旅伴自己的支出，沒有跟你分攤，不計入上面的金額。
+              </p>
             )}
           </div>
           <div className="rounded-[1.35rem] bg-[#f0efff] p-4"><p className="text-xs font-bold text-indigo-500">剩餘預算</p><p className={`mt-2 text-lg font-black ${actualSpent !== undefined && hasBudget && budget - actualSpent < 0 ? 'text-rose-600' : 'text-[#11183d]'}`}>{actualSpent === undefined || !hasBudget ? '—' : money(budget - actualSpent, normalizedCurrency || 'TWD')}</p></div>

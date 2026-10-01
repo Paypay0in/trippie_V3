@@ -37,10 +37,11 @@ const expense = (fields: Partial<Expense>): Expense => ({
   ...fields,
 });
 
+/** Two of his, and one she paid that they are splitting. */
 const ledger = [
-  expense({ id: 'a', amount: 500, category: Category.SIM_WIFI, payerId: ANN }),
-  expense({ id: 'b', amount: 12000, category: Category.FLIGHT, payerId: ANN }),
-  expense({ id: 'c', amount: 888, category: Category.OTHER, payerId: GINA }),
+  expense({ id: 'a', amount: 500, category: Category.SIM_WIFI, payerId: ANN, beneficiaries: [ANN] }),
+  expense({ id: 'b', amount: 12000, category: Category.FLIGHT, payerId: ANN, beneficiaries: [ANN, GINA] }),
+  expense({ id: 'c', amount: 888, category: Category.OTHER, payerId: GINA, beneficiaries: [ANN, GINA] }),
 ];
 
 const renderWallet = (expenses: Expense[], viewerMemberId = ANN) =>
@@ -63,7 +64,7 @@ describe('the pre-trip spend summary', () => {
   it('separates what you paid from what the trip spent', () => {
     renderWallet(ledger);
 
-    expect(screen.getByText('旅程總支出')).toBeTruthy();
+    expect(screen.getByText('與你有關的支出')).toBeTruthy();
     expect(screen.getByText('NT$ 13,388')).toBeTruthy();
     expect(screen.getByText('NT$ 12,500')).toBeTruthy();
     expect(screen.getByText('NT$ 888')).toBeTruthy();
@@ -82,5 +83,21 @@ describe('the pre-trip spend summary', () => {
 
     expect(screen.queryByTestId('paid-split')).toBeNull();
     expect(screen.getByText('已支出')).toBeTruthy();
+  });
+
+  it('leaves out what she bought for herself, and says that it did', () => {
+    const hers = expense({ id: 'd', amount: 2000, category: Category.SHOPPING, payerId: GINA, beneficiaries: [GINA] });
+
+    renderWallet([...ledger, hers]);
+
+    // 500 + 12000 + 888, and not her 2000.
+    expect(screen.getByText('NT$ 13,388')).toBeTruthy();
+    expect(screen.getByTestId('others-own-note').textContent).toContain('1 筆');
+  });
+
+  it('says nothing about the other traveller when everything is shared', () => {
+    renderWallet(ledger);
+
+    expect(screen.queryByTestId('others-own-note')).toBeNull();
   });
 });
