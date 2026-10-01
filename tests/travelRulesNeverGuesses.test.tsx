@@ -25,8 +25,13 @@ const prompt = server.slice(
 );
 
 describe('the entry-rules research prompt', () => {
-  it('tells the model what today is, rather than letting it infer one', () => {
-    expect(prompt).toContain('今天是 ${new Date().toISOString().slice(0, 10)}');
+  /**
+   * The date moved into the shared preamble once it turned out twelve other
+   * prompts had never had one; `promptsKnowWhatDayItIs` guards its contents.
+   * This only asserts that this prompt takes it.
+   */
+  it('takes the shared preamble, so it knows what today is', () => {
+    expect(prompt).toContain('${factsPreamble()}');
   });
 
   it('forbids predicting a current rule from an expired one', () => {

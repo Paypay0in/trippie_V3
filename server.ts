@@ -29,6 +29,23 @@ import { enumerateTripDates } from "./services/itineraryPlanningService";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * What every model has to be told before it says anything about the world.
+ *
+ * One night produced two failures of the same shape. The entry checklist said
+ * the K-ETA exemption ran 「至 2024 年底」 and that 「由於您的旅遊日期為 2026 年，
+ * 屆時可能已恢復強制要求」 — Korea had extended it to 2026-12-31 a year earlier.
+ * The itinerary planner named 「廣安里海景早午餐咖啡廳」, a description wearing a
+ * shop's clothes. Neither looked anything up; both reasoned from a training
+ * cutoff and dressed the result in 「可能」.
+ *
+ * There were thirteen places asking a model a question and one of them said
+ * what day it was. 「我們不能每次都這樣修」 — so this is one string, and the test
+ * beside it fails when a call site forgets to use it.
+ */
+const factsPreamble = (): string => `今天是 ${new Date().toISOString().slice(0, 10)}。你的訓練資料可能已經過期：規定、價格、營業狀態都會改變。不要從你記得的、已經到期的資訊推測現在的狀態，那是猜測不是查證。無法確認的事就直接寫「無法確認」並說明要去哪裡查，不要用「可能」「預計」「屆時」「應該」把不確定丟給使用者。\n\n`;
+
+
 async function startServer() {
   const mode = process.env.NODE_ENV || "development";
   Object.assign(process.env, loadEnv(mode, __dirname, ""));
@@ -758,7 +775,7 @@ async function startServer() {
       let response;
       const generateResearch = (model: string, grounded: boolean) => ai.models.generateContent({
         model,
-        contents: `今天是 ${new Date().toISOString().slice(0, 10)}。研究目前旅遊規定：目的地 ${destination}；旅程日期 ${startDate || "未知"} 至 ${endDate || "未知"}；使用護照國籍 countryCode ${passportCountryCode || "未知"}；居住地 ${residenceCountryCode || "未知"}。你的訓練資料可能已經過期，規定會延長、取消或改變。絕對不要從一條你記得的、已到期的規定推測現在的狀態——例如「某豁免 2024 年底到期，所以現在可能已恢復」這種寫法一律禁止，那是猜測不是查證。每一項的現況都必須來自這次搜尋到的官方來源；查不到就在 description 直接寫「無法確認現況，請於出發前至官方網站查詢」並附上官方網址，不要用「可能」「預計」「屆時」等字眼把不確定丟給旅客。規定之間若有連動關係（例如免申請電子許可就必須改填紙本表單），必須在 description 裡講明白。某項手續若有官方線上系統可以事先辦理，一定要指名那個系統、附官方網址、並寫出可以開始填的時間（例如抵達前幾天），不要只說「在飛機上填紙本」——旅客有權知道可以先在家裡用手機填完。請只依可追溯的官方移民、海關、稅務、官方旅遊或機場來源整理入境/簽證與購物退稅。護照國籍不等於居住地。每個入境 actionable item 必須有且只有一個 actionType：visa_or_eta、passport_validity、health_declaration、customs_declaration、arrival_form、required_documents、onward_travel 或 other。相同 actionType 只產生一個 canonical action。若退稅規則有官方且可計算的數值，除 user-facing guidance 外回傳 taxRefund.numericRule，且只使用 thresholdScope per_transaction；提供 currency、minSpend 與 refundMethod { type: rate, rate }，無法安全計算時使用 refundMethod { type: not_calculable }。不要自行決定 numericCalculationAvailable。model_knowledge fallback 可提供 guidance，但不得提供可信 numericRule。每個 grounded source URL 必須來自 Google Search grounding 結果，不可捏造。**所有給使用者看的文字一律使用繁體中文**（title、description、timingText、summary、guidance 等），來源是英文或日文官網時要翻譯，不要照抄原文。唯一例外是官方系統、表單與服務的專有名稱（例如 Visit Japan Web、ESTA、K-ETA），這些保留原名，因為旅客到現場要認得出來。`,
+        contents: `${factsPreamble()}研究目前旅遊規定：目的地 ${destination}；旅程日期 ${startDate || "未知"} 至 ${endDate || "未知"}；使用護照國籍 countryCode ${passportCountryCode || "未知"}；居住地 ${residenceCountryCode || "未知"}。你的訓練資料可能已經過期，規定會延長、取消或改變。絕對不要從一條你記得的、已到期的規定推測現在的狀態——例如「某豁免 2024 年底到期，所以現在可能已恢復」這種寫法一律禁止，那是猜測不是查證。每一項的現況都必須來自這次搜尋到的官方來源；查不到就在 description 直接寫「無法確認現況，請於出發前至官方網站查詢」並附上官方網址，不要用「可能」「預計」「屆時」等字眼把不確定丟給旅客。規定之間若有連動關係（例如免申請電子許可就必須改填紙本表單），必須在 description 裡講明白。某項手續若有官方線上系統可以事先辦理，一定要指名那個系統、附官方網址、並寫出可以開始填的時間（例如抵達前幾天），不要只說「在飛機上填紙本」——旅客有權知道可以先在家裡用手機填完。請只依可追溯的官方移民、海關、稅務、官方旅遊或機場來源整理入境/簽證與購物退稅。護照國籍不等於居住地。每個入境 actionable item 必須有且只有一個 actionType：visa_or_eta、passport_validity、health_declaration、customs_declaration、arrival_form、required_documents、onward_travel 或 other。相同 actionType 只產生一個 canonical action。若退稅規則有官方且可計算的數值，除 user-facing guidance 外回傳 taxRefund.numericRule，且只使用 thresholdScope per_transaction；提供 currency、minSpend 與 refundMethod { type: rate, rate }，無法安全計算時使用 refundMethod { type: not_calculable }。不要自行決定 numericCalculationAvailable。model_knowledge fallback 可提供 guidance，但不得提供可信 numericRule。每個 grounded source URL 必須來自 Google Search grounding 結果，不可捏造。**所有給使用者看的文字一律使用繁體中文**（title、description、timingText、summary、guidance 等），來源是英文或日文官網時要翻譯，不要照抄原文。唯一例外是官方系統、表單與服務的專有名稱（例如 Visit Japan Web、ESTA、K-ETA），這些保留原名，因為旅客到現場要認得出來。`,
         config: {
           ...(grounded ? { tools: [{ googleSearch: {} }] } : {}),
           responseMimeType: "application/json",
@@ -863,7 +880,7 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "AI 分析目前無法使用。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: `從這篇旅行貼文找出可重複使用的旅行實體，並在每個實體底下整理具體、可執行的作者經驗或建議。不要一個句子切成一個 slice；把同一個地點的經驗放在同一個 slice。只保留 place、food、hotel、activity、transport、tip；排除「很好玩」等無法行動的一般 filler。不要捏造 placeId、address、座標。貼文標題：${title}\n貼文內容：${content}\n地點：${country}・${city}\n只回傳 JSON。`, config: { responseMimeType: "application/json", responseSchema: { type: Type.OBJECT, properties: { slices: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['place', 'food', 'hotel', 'activity', 'transport', 'tip'] }, title: { type: Type.STRING }, summary: { type: Type.STRING }, placeName: { type: Type.STRING }, sourceText: { type: Type.STRING }, notes: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['recommendation', 'warning', 'timing', 'queue', 'packing', 'facility', 'price', 'order', 'transport', 'practical', 'other'] }, text: { type: Type.STRING }, sourceText: { type: Type.STRING } }, required: ['type', 'text'] } } }, required: ['type', 'title', 'notes'] } } }, required: ['slices'] } } });
+      const response = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: `${factsPreamble()}從這篇旅行貼文找出可重複使用的旅行實體，並在每個實體底下整理具體、可執行的作者經驗或建議。不要一個句子切成一個 slice；把同一個地點的經驗放在同一個 slice。只保留 place、food、hotel、activity、transport、tip；排除「很好玩」等無法行動的一般 filler。不要捏造 placeId、address、座標。貼文標題：${title}\n貼文內容：${content}\n地點：${country}・${city}\n只回傳 JSON。`, config: { responseMimeType: "application/json", responseSchema: { type: Type.OBJECT, properties: { slices: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['place', 'food', 'hotel', 'activity', 'transport', 'tip'] }, title: { type: Type.STRING }, summary: { type: Type.STRING }, placeName: { type: Type.STRING }, sourceText: { type: Type.STRING }, notes: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['recommendation', 'warning', 'timing', 'queue', 'packing', 'facility', 'price', 'order', 'transport', 'practical', 'other'] }, text: { type: Type.STRING }, sourceText: { type: Type.STRING } }, required: ['type', 'text'] } } }, required: ['type', 'title', 'notes'] } } }, required: ['slices'] } } });
       const parsed = JSON.parse(response.text?.trim() || '{"slices":[]}');
       const slices = Array.isArray(parsed.slices) ? parsed.slices.map((slice: any) => ({ type: slice.type, title: typeof slice.title === 'string' ? slice.title.trim() : '', summary: typeof slice.summary === 'string' ? slice.summary.trim() || undefined : undefined, placeName: typeof slice.placeName === 'string' ? slice.placeName.trim() || undefined : undefined, sourceText: typeof slice.sourceText === 'string' ? slice.sourceText.trim() || undefined : undefined, notes: Array.isArray(slice.notes) ? slice.notes.map((note: any) => ({ type: note.type, text: typeof note.text === 'string' ? note.text.trim() : '', sourceText: typeof note.sourceText === 'string' ? note.sourceText.trim() || undefined : undefined })).filter((note: any) => note.text && ['recommendation', 'warning', 'timing', 'queue', 'packing', 'facility', 'price', 'order', 'transport', 'practical', 'other'].includes(note.type)) : [] })).filter((slice: any) => slice.title && ['place', 'food', 'hotel', 'activity', 'transport', 'tip'].includes(slice.type) && slice.notes.length > 0) : [];
       console.info('Community post slicing result', { postId, success: true, sliceCount: slices.length });
@@ -1064,7 +1081,7 @@ async function startServer() {
     try {
       const ai = new GoogleGenAI({ apiKey });
       const generationConfig = {
-        contents: `${revisionBlock}一位旅人正在規劃${destination ? `${destination}的` : ""}旅程，他說：「${intent}」。\n${daysBrief}\n${budgetBrief}\n\n請先查資料，判斷從${destination || "他的目的地"}出發做這件事實際上是什麼樣子，然後提出 **2 到 3 個彼此明顯不同的方案**，幫他做決定。\n\n方案之間要有意義的差異（最省事／最適合這趟／完整體驗／較省錢／舒適便利／過夜），不要三張幾乎一樣的卡。**資料只支持一到兩個好方案時，就只給一到兩個**，不要湊數。\n\n每個方案：\n- title：看得出差異的名稱\n- whyItFits：為什麼這個方案適合「這一趟」，兩句話\n- tradeoff：這個方案的代價是什麼（時間、金錢、體力、彈性），一句話\n- durationDays：**這個方案本身**需要幾天（不是整趟旅程的天數）\n- characteristics：從 easiest / best_fit / fuller / lower_budget / premium / overnight 選 1 到 2 個\n- mainPlaceName：這個方案最主要的場所名稱，要真實存在、你在搜尋結果中看到的\n- budget：**只有查到實際價格時才填** min / max / currency，查不到就整個省略。不要用印象中的數字。\n- preparation：這個方案需要先準備的事，2 到 4 項，每項有 name 與 canBeHumanAssisted（是否適合請當地人代勞，例如打電話預約、現場陪同）。**行程裡出現的每一項需要事先安排的東西都必須在這裡**——行程寫了租車就要有預約租車，寫了渡輪就要有訂船票。行程做得到、但準備清單沒寫的事，使用者到現場才會發現。\n- items：逐時段行程，每項 time（HH:MM）、title、placeName、type（ACTIVITY/FOOD/TRANSPORT/HOTEL）、dayOffset（從 0 開始）、durationMinutes、notes\n\n另外給 intro：一句話說明你怎麼看這個需求，例如「從釜山安排滑雪，建議至少留 1 天」。\n\n嚴格規則：\n- 地點必須真實存在。不要編場館名稱。\n- **不要輸出任何網址**，連結由地圖服務提供。\n- **不要自己估交通時間**，交通由路線服務計算。\n- 不要宣稱有空位、可預約、已開放，除非查到的資料明確寫了。\n- 不確定的事寫進 notes 說需再確認，不要寫成事實。
+        contents: `${factsPreamble()}${revisionBlock}一位旅人正在規劃${destination ? `${destination}的` : ""}旅程，他說：「${intent}」。\n${daysBrief}\n${budgetBrief}\n\n請先查資料，判斷從${destination || "他的目的地"}出發做這件事實際上是什麼樣子，然後提出 **2 到 3 個彼此明顯不同的方案**，幫他做決定。\n\n方案之間要有意義的差異（最省事／最適合這趟／完整體驗／較省錢／舒適便利／過夜），不要三張幾乎一樣的卡。**資料只支持一到兩個好方案時，就只給一到兩個**，不要湊數。\n\n每個方案：\n- title：看得出差異的名稱\n- whyItFits：為什麼這個方案適合「這一趟」，兩句話\n- tradeoff：這個方案的代價是什麼（時間、金錢、體力、彈性），一句話\n- durationDays：**這個方案本身**需要幾天（不是整趟旅程的天數）\n- characteristics：從 easiest / best_fit / fuller / lower_budget / premium / overnight 選 1 到 2 個\n- mainPlaceName：這個方案最主要的場所名稱，要真實存在、你在搜尋結果中看到的\n- budget：**只有查到實際價格時才填** min / max / currency，查不到就整個省略。不要用印象中的數字。\n- preparation：這個方案需要先準備的事，2 到 4 項，每項有 name 與 canBeHumanAssisted（是否適合請當地人代勞，例如打電話預約、現場陪同）。**行程裡出現的每一項需要事先安排的東西都必須在這裡**——行程寫了租車就要有預約租車，寫了渡輪就要有訂船票。行程做得到、但準備清單沒寫的事，使用者到現場才會發現。\n- items：逐時段行程，每項 time（HH:MM）、title、placeName、type（ACTIVITY/FOOD/TRANSPORT/HOTEL）、dayOffset（從 0 開始）、durationMinutes、notes\n\n另外給 intro：一句話說明你怎麼看這個需求，例如「從釜山安排滑雪，建議至少留 1 天」。\n\n嚴格規則：\n- 地點必須真實存在。不要編場館名稱。\n- **不要輸出任何網址**，連結由地圖服務提供。\n- **不要自己估交通時間**，交通由路線服務計算。\n- 不要宣稱有空位、可預約、已開放，除非查到的資料明確寫了。\n- 不確定的事寫進 notes 說需再確認，不要寫成事實。
 - **沒有查到價格時，任何文字裡都不准出現金額**——intro、whyItFits、tradeoff 都一樣。不要寫「建議預算提高到 X 元」「門票約 X」。使用者不會分辨數字在欄位裡還是在句子裡，他會照著編預算。\n- **不要評論或形容這位旅人本身**（他的消費習慣、個性、經濟狀況）。預算數字只用來挑選合適的方案，不要寫成對他的描述。\n- 使用繁體中文。\n\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
@@ -1357,7 +1374,7 @@ async function startServer() {
           // category returned the same nine-item starter list whatever was
           // asked — someone who says 「非常怕冷」 got told to buy travel
           // insurance and apply for a visa, and stopped trusting the feature.
-          contents: `以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 使用繁體中文，每則是可加入 checklist 的簡短待辦。\n- 若旅人分享區塊有內容，可以引用其中與問題相關的經驗，並把用到的貼文編號放進 postRefs。旅人的經驗是個人見聞，不等於官方規定；與官方資訊衝突時以官方為準，也不要把單一貼文的說法寫成通則。\n- 如果使用者的問題需要在當地買或租東西，另外給 placeQueries：0 到 3 句地圖搜尋用的字串，格式是「城市 店家類型」，例如「釜山 滑雪用品店」。不要在 placeQueries 裡寫店名——實際店家由地圖服務提供，不要自己想。\n\n只回傳 JSON。`,
+          contents: `${factsPreamble()}以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 使用繁體中文，每則是可加入 checklist 的簡短待辦。\n- 若旅人分享區塊有內容，可以引用其中與問題相關的經驗，並把用到的貼文編號放進 postRefs。旅人的經驗是個人見聞，不等於官方規定；與官方資訊衝突時以官方為準，也不要把單一貼文的說法寫成通則。\n- 如果使用者的問題需要在當地買或租東西，另外給 placeQueries：0 到 3 句地圖搜尋用的字串，格式是「城市 店家類型」，例如「釜山 滑雪用品店」。不要在 placeQueries 裡寫店名——實際店家由地圖服務提供，不要自己想。\n\n只回傳 JSON。`,
           config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -1534,7 +1551,7 @@ async function startServer() {
         ? `\n\n【0. 這次只規劃這一天：${focusDate}】\n只回傳 toDate 等於 ${focusDate} 的 add，其他日子這次完全不要碰。把這一天排成完整的一天：3 到 5 個地點，含用餐。${alreadyBlock}`
         : "";
       return {
-        contents: `使用者這趟旅程「已經有正式行程」了。請先讀懂目前的安排，再提出調整建議。不要當成空白行程重排。${focusBlock}
+        contents: `${factsPreamble()}使用者這趟旅程「已經有正式行程」了。請先讀懂目前的安排，再提出調整建議。不要當成空白行程重排。${focusBlock}
 
 【1. 旅程事實】
 只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。
@@ -1763,7 +1780,7 @@ ${MODE_RULES[mode]}
         ? `\n\n【3. 使用者的規劃偏好（使用者自己輸入的自由文字）】\n"""\n${planningPreferences}\n"""\n這段文字是高優先度的排程指示，優先於一般預設排法。請照著調整出發時間、每天的行程密度、交通方式與活動類型。\n但它仍必須服從旅程日期、地理位置、已確定的地點識別與合理的作息；不合理或做不到的要求就盡力接近，並在 warnings 說明，不要假裝已經滿足。\n這段文字「不會」賦予任何地點收藏靈感的身分：因為這段話而加入的地點，sourceInspirationIds 一律是空陣列。`
         : "";
       const generationConfig = {
-        contents: `為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。\n\n【2. 使用者已收藏並挑選的地點與原作者經驗筆記】\n${JSON.stringify(selections)}${preferenceBlock}\n\n規則：\n1. 每個被挑選的地點都要排進去，而且整份提案中只能出現一次。\n2. 回傳 sourceInspirationIds 時，必須原封不動使用上面每個地點提供的 inspirationIds。\n3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. 你可以加入少量未被收藏的建議地點來補完一天（包含使用者在規劃偏好裡指名想做的活動），但那些項目的 sourceInspirationIds 必須是空陣列。\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n只回傳 JSON。`,
+        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。\n\n【2. 使用者已收藏並挑選的地點與原作者經驗筆記】\n${JSON.stringify(selections)}${preferenceBlock}\n\n規則：\n1. 每個被挑選的地點都要排進去，而且整份提案中只能出現一次。\n2. 回傳 sourceInspirationIds 時，必須原封不動使用上面每個地點提供的 inspirationIds。\n3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. 你可以加入少量未被收藏的建議地點來補完一天（包含使用者在規劃偏好裡指名想做的活動），但那些項目的 sourceInspirationIds 必須是空陣列。\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {

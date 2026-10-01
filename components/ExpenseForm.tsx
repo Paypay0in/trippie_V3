@@ -116,7 +116,7 @@ const ExpenseForm: React.FC<Props> = ({
   const [beneficiaryDebug, setBeneficiaryDebug] = useState({ clickedMemberId: '', previous: [] as string[], next: [] as string[] });
   
   // Split Bill State
-  const [payerId, setPayerId] = useState(normalizeMemberId(initialData?.payerId || effectiveOwnerMemberId));
+  const [payerId, setPayerId] = useState(normalizeMemberId(initialData?.payerId || viewerMemberId || effectiveOwnerMemberId));
   // "我" is whoever is looking, not whoever owns the trip. Labelling the owner
   // as 我 for a different viewer makes them pick the wrong payer and the wrong
   // share — a wrong ledger entry, not just a wrong caption.
@@ -334,9 +334,16 @@ const ExpenseForm: React.FC<Props> = ({
                       twdAmount: twdVal,
                       handlingFee: 0,
                       phase: currentPhase,
-                      // Default Split
-                      payerId: effectiveOwnerMemberId,
-                      beneficiaries: [effectiveOwnerMemberId, ...companions.map(c => c.id)],
+                      /*
+                        The quick AI capture, filed to whoever captured it.
+
+                        The same owner assumption as the manual save, one screen
+                        over and found a day later: a photographed receipt on the
+                        second traveller's phone was recorded as the owner's.
+                      */
+                      payerId: effectiveViewerMemberId,
+                      beneficiaries: [effectiveViewerMemberId],
+                      payerAllocations: { [effectiveViewerMemberId]: twdVal },
                       splitMethod: 'EQUAL',
                       splitAllocations: {},
                       needsReview: result.isUncertain
