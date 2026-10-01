@@ -63,6 +63,14 @@ interface Props {
   dateRange: string;
   onContinuePlanning: () => void;
   onEnterTripMode: () => void;
+  /**
+   * Opens the traveller list from the 旅行成員 tile.
+   *
+   * The tile was the only place the count appeared and it led nowhere, so
+   * 「2 人」 was a number with no way to ask who. On a trip where one of the two
+   * had silently lost her seat four times, that was the question.
+   */
+  onManageMembers?: () => void;
   onExploreInspiration: () => void;
   destination?: string;
   destinationCountry?: string;
@@ -167,7 +175,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -781,7 +789,25 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <h2 className="mb-4 font-black">快速總覽</h2>
         <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
-          {[[CalendarDays, dateRange || '未設定', '旅行日期'], [MapPinned, `${itinerary.length} 項`, '行程項目'], [Users, `${companionCount + 1} 人`, '旅行成員'], [ShoppingBag, `NT$ ${Math.round(total).toLocaleString()}`, '已記錄行前支出']].map(([Icon, value, label]) => <div key={label as string} className="rounded-2xl bg-slate-50 p-3"><div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white text-violet-600">{React.createElement(Icon as React.ElementType, { size: 17 })}</div><div className="truncate text-sm font-black">{value as string}</div><div className="mt-1 text-[10px] font-bold text-slate-400">{label as string}</div></div>)}
+          {[[CalendarDays, dateRange || '未設定', '旅行日期'], [MapPinned, `${itinerary.length} 項`, '行程項目'], [Users, `${companionCount + 1} 人`, '旅行成員'], [ShoppingBag, `NT$ ${Math.round(total).toLocaleString()}`, '已記錄行前支出']].map(([Icon, value, label]) => {
+            // The member count opens the list. Everything else here is a figure;
+            // this one is a question — who is on this trip, and are they in.
+            const opensMembers = label === '旅行成員' && Boolean(onManageMembers);
+            const body = (
+              <>
+                <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white text-violet-600">{React.createElement(Icon as React.ElementType, { size: 17 })}</div>
+                <div className="truncate text-sm font-black">{value as string}</div>
+                <div className="mt-1 text-[10px] font-bold text-slate-400">{label as string}{opensMembers ? ' ›' : ''}</div>
+              </>
+            );
+            return opensMembers ? (
+              <button key={label as string} type="button" onClick={onManageMembers} aria-label="查看旅行成員" className="rounded-2xl bg-slate-50 p-3 text-center transition hover:bg-violet-50">
+                {body}
+              </button>
+            ) : (
+              <div key={label as string} className="rounded-2xl bg-slate-50 p-3">{body}</div>
+            );
+          })}
         </div>
       </section>
 

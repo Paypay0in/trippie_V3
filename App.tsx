@@ -5833,6 +5833,7 @@ const App: React.FC = () => {
           {workspaceSection === "overview" && currentPhase === "pre" && (
             <>
               <TripPlanOverview
+                onManageMembers={() => setIsCompanionsOpen(true)}
                 onRequestHumanHelp={handleRequestHumanHelp}
                 onApplyPlanOption={handleApplyItineraryProposal}
                 originLatitude={tripDestinationCoordinates?.latitude}
@@ -5905,6 +5906,7 @@ const App: React.FC = () => {
                leaving them on the pre-trip screen alone would hide them exactly
                when they matter. */
             <TripPlanOverview
+              onManageMembers={() => setIsCompanionsOpen(true)}
               onRequestHumanHelp={handleRequestHumanHelp}
               onApplyPlanOption={handleApplyItineraryProposal}
               originLatitude={tripDestinationCoordinates?.latitude}
