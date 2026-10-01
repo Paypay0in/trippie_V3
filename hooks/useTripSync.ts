@@ -106,6 +106,32 @@ const shortId = (value?: string | null): string => (value ? `${value.slice(0, 8)
 
 const clockNow = (): string => new Date().toLocaleTimeString('zh-TW', { hour12: false });
 
+/**
+ * What this device holds for each bill, in the three fields that decide whose
+ * it is.
+ *
+ * The owner's screen kept 「其他 888」 in his ledger while the server row named
+ * the other traveller as payer, as sole beneficiary and as author, on a build
+ * whose rule is pinned to those exact rows by test, with the viewer identity
+ * now proven correct on screen. Every input had been verified except the one
+ * nobody could see: the copy the device was actually reading.
+ */
+const ledgerOwnership = (expenses: Expense[], viewerMemberId?: string): string => {
+  if (!expenses.length) return '帳本 空';
+  const seat = (id?: string) => {
+    if (!id) return '—';
+    if (id === viewerMemberId) return '我';
+    return id.endsWith(':owner') ? '擁有者' : id.slice(0, 6);
+  };
+  return expenses
+    .slice(0, 6)
+    .map(expense => {
+      const who = (expense.beneficiaries || []).map(seat).join('+') || '—';
+      return `${(expense.description || '?').slice(0, 4)} 付${seat(expense.payerId)} 分${who} 記${seat(expense.createdByMemberId)}`;
+    })
+    .join('\n');
+};
+
 export const useTripSync = ({
   tripId,
   authUserId,
@@ -166,6 +192,7 @@ export const useTripSync = ({
       [
         `旅程 ${shortId(tripId)}｜帳號 ${shortId(authUserId)}`,
         `身分 ${viewerMemberId || '（未判定）'}`,
+        ledgerOwnership(expenses, viewerMemberId),
         `讀取 ${lastReadRef.current}`,
         `寫入 ${lastWriteRef.current}`,
       ].join('\n'),
