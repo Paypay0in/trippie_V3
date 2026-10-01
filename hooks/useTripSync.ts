@@ -115,6 +115,8 @@ export const useTripSync = ({
   // The failure text, kept so the badge can show it. A red badge that will not
   // say why costs another round trip with someone who cannot open a console.
   const [failure, setFailure] = useState('');
+  /** Bumped to force a push that no content change would have triggered. */
+  const [publishRevision, setPublishRevision] = useState(0);
   // What the panel shows under `?sync=1`: which trip and account this device is
   // on, and what the last read and the last write actually carried. Two phones
   // showing 「正常」 while sharing nothing differ somewhere in these numbers.
@@ -212,6 +214,20 @@ export const useTripSync = ({
       }
 
       readyTripIdRef.current = tripId;
+      /*
+        Publish once on every open.
+
+        A push fires when the ledger changes, which leaves a record whose first
+        push failed with nothing to ride on: the content is already local, the
+        re-read merges it back unchanged, and the signature never moves again.
+        The expense she recorded while the server was refusing her writes sat on
+        her phone for an hour that way, and the only way out was to go and edit
+        it until something looked different.
+
+        This is an upsert of what this device is already holding, against a
+        snapshot it has just read, so it adds nothing and prunes nothing.
+      */
+      setPublishRevision(current => current + 1);
       setState('synced');
     })();
 
@@ -260,7 +276,7 @@ export const useTripSync = ({
     }, PUSH_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [enabled, tripId, payloadSignature]);
+  }, [enabled, tripId, payloadSignature, publishRevision]);
 
   /**
    * Re-read while the trip is open, so the other person's records arrive.
