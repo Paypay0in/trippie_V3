@@ -52,6 +52,29 @@ export const clearPendingInvite = (storage: Storage | undefined) => {
   try { storage?.removeItem(PENDING_KEY); } catch { /* private mode */ }
 };
 
+/**
+ * The trip just joined, left for the app to open after the reload.
+ *
+ * Accepting an invite used to end in a reload and nothing else. The membership
+ * was written, the trip appeared in the bookshelf, and the traveller was
+ * returned to whatever she had open before — in the case this was found in,
+ * her own empty 釜山, beside the shared 釜山 she had just been let into. Two
+ * trips, one name, and nothing on screen saying anything had happened. She
+ * spent three days believing sync was broken.
+ *
+ * localStorage, not sessionStorage: the reload is the point, and a claim that
+ * completes in a tab opened from a messaging app must survive it.
+ */
+export const JOINED_KEY = 'trippie_joined_trip_id';
+
+export const readJoinedTripId = (storage: Storage | undefined): string | null => {
+  try { return storage?.getItem(JOINED_KEY) || null; } catch { return null; }
+};
+
+export const clearJoinedTripId = (storage: Storage | undefined) => {
+  try { storage?.removeItem(JOINED_KEY); } catch { /* private mode */ }
+};
+
 /** Takes the invite out of the address bar without reloading or losing history. */
 export const stripInviteFromUrl = () => {
   if (typeof window === 'undefined') return;
@@ -119,6 +142,12 @@ const JoinTripSheet: React.FC = () => {
     void claimInvite(token).then(result => {
       if (result.status === 'ok') {
         clearPendingInvite(window.sessionStorage);
+        // The one thing the claim knows and the app did not: which trip.
+        try {
+          if (typeof result.data === 'string' && result.data.trim()) {
+            window.localStorage.setItem(JOINED_KEY, result.data.trim());
+          }
+        } catch { /* private mode: the reload still lands in the bookshelf */ }
         setState('done');
         // A reload rather than threading a refresh back into App. The trip
         // only becomes visible once row-level security sees a membership

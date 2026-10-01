@@ -49,7 +49,12 @@ import { useTripSync } from "./hooks/useTripSync";
 import { createInviteLink, inviteLinkFor } from "./services/tripInvites";
 import { inviteFailureMessage } from "./services/inviteFailure";
 import { applicableBroadcastFields, cloudOwnsSharedState } from "./services/sharedStateOwnership";
-import JoinTripSheet, { OPEN_SIGN_IN_EVENT } from "./components/JoinTripSheet";
+import { createSharedTripBroadcastState, optionalBroadcastList } from "./services/sharedTripBroadcast";
+import JoinTripSheet, {
+  OPEN_SIGN_IN_EVENT,
+  clearJoinedTripId,
+  readJoinedTripId,
+} from "./components/JoinTripSheet";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
 import { PASSPORT_OPTIONS } from "./services/passportOptions";
 import { countSaversForPost, saverCountsByPost } from "./services/postSaveCounts";
@@ -1025,6 +1030,7 @@ const App: React.FC = () => {
               ? {
                   ...draft,
                   expenses: newState.expenses || draft.expenses,
+                  itinerary: optionalBroadcastList<ItineraryItem>(newState.itinerary) ?? draft.itinerary,
                   companions: newState.companions || draft.companions,
                   shoppingList: newState.shoppingList || draft.shoppingList,
                   startDate: newState.startDate ?? draft.startDate,
@@ -1059,6 +1065,8 @@ const App: React.FC = () => {
       ) as typeof newState;
 
       if (shared.expenses) setExpenses(shared.expenses);
+      const sharedItinerary = optionalBroadcastList<ItineraryItem>(shared.itinerary);
+      if (sharedItinerary) setItinerary(sharedItinerary);
       if (shared.companions) setCompanions(shared.companions);
       if (shared.shoppingList) setShoppingList(shared.shoppingList);
       if (shared.startDate) setTripStartDate(shared.startDate);
@@ -1087,19 +1095,21 @@ const App: React.FC = () => {
     if (socket && syncTripId) {
       socket.emit("update-trip", {
         tripId: syncTripId,
-        state: {
+        state: createSharedTripBroadcastState({
           expenses,
+          itinerary,
           companions,
           shoppingList,
           startDate: tripStartDate,
           endDate: tripEndDate,
           name: draftName,
           destination: tripDestination,
-        },
+        }),
       });
     }
   }, [
     expenses,
+    itinerary,
     companions,
     shoppingList,
     tripStartDate,
@@ -1354,6 +1364,27 @@ const App: React.FC = () => {
         `雲端旅程 ${result.data.length} 趟（本機新增 ${missing.length}，共 ${draftsRef.current.length + missing.length}）`,
       );
       if (missing.length) setDrafts((current) => [...current, ...missing]);
+
+      /**
+       * Open the trip that was just joined.
+       *
+       * Accepting an invite ended in a reload and nothing else: the membership
+       * was written and the trip appeared in the bookshelf, but the traveller
+       * was returned to whatever she had open before. Two trips named 釜山, one
+       * hers and empty, one shared with 23 items in it — and nothing on screen
+       * said which had happened. This is the first moment the joined trip is
+       * known to exist locally, so it is the moment to open it.
+       */
+      const joinedId = readJoinedTripId(window.localStorage);
+      if (!joinedId) return;
+      const joined = [...draftsRef.current, ...missing].find(
+        (draft) => draft.id === joinedId,
+      );
+      if (!joined) return;
+      clearJoinedTripId(window.localStorage);
+      hydrateDraft(joined as TripDraft);
+      setViewMode("trip");
+      showToast(`已加入：${joined.name || "共用旅程"}`);
     });
     return () => {
       cancelled = true;
@@ -2825,7 +2856,17 @@ const App: React.FC = () => {
         // The viewer creating the record owns it. In single-user mode the
         // viewer is the trip owner, so this is the canonical owner member id
         // rather than the legacy "me" alias.
-        createdByMemberId: data.createdByMemberId || viewerMemberId,
+        //
+        // Only when the viewer was actually identified. `resolveViewer` answers
+        // with the trip owner when it cannot match the signed-in account to
+        // anyone on the roster, and that guess was being written onto other
+        // people's money: the eSIM the second traveller bought and recorded on
+        // her own phone is stored as the owner's, which is who the ledger would
+        // have said to repay. An unattributed expense is a gap someone can fix;
+        // a confidently wrong one is not, because nobody goes looking.
+        createdByMemberId:
+          data.createdByMemberId
+          || (viewerResolution.isResolved ? viewerMemberId : undefined),
         linkedShoppingItemId: linkedItemId, // Link expense to shopping item
       };
       setExpenses((prev) => [...prev, expense]);
@@ -2911,16 +2952,11 @@ const App: React.FC = () => {
     onRemoteSnapshot: (snapshot) => {
       // The remote copy wins on open. Someone else may have added an expense
       // since this device last looked, and the local copy has no way to know.
-      if (snapshot.expenses.length) {
-        isHydratingTripRef.current = false;
-        setExpenses(snapshot.expenses);
-      }
+      isHydratingTripRef.current = false;
+      setExpenses(snapshot.expenses);
       // Same rule as the ledger: whoever else is on this trip may have moved
       // a day since this device last looked, and the local copy cannot tell.
-      if (snapshot.itinerary.length) {
-        isHydratingTripRef.current = false;
-        setItinerary(snapshot.itinerary);
-      }
+      setItinerary(snapshot.itinerary);
       // Flights arrive with the rest of the trip now. Every remote anchor id
       // is registered as known before the list is applied, so the
       // reconciliation treats them as this device's own from here on — without
@@ -5921,6 +5957,7 @@ const App: React.FC = () => {
               ownerMemberId={activeOwnerMemberId}
               ownerName={authProfile?.displayName || userProfile.name || "我"}
               viewerMemberId={viewerMemberId}
+              viewerIdentified={viewerResolution.isResolved}
               proposalMode={isProposalMode}
               initialCategory={initialFormCategory}
               initialDescription={initialFormDescription}
@@ -6472,6 +6509,7 @@ const App: React.FC = () => {
           ownerMemberId={activeOwnerMemberId}
               ownerName={authProfile?.displayName || userProfile.name || "我"}
               viewerMemberId={viewerMemberId}
+          viewerIdentified={viewerResolution.isResolved}
               proposalMode={isProposalMode}
           initialCategory={initialFormCategory}
           initialDescription={initialFormDescription}
