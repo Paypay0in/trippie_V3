@@ -13,8 +13,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 
-const TRIP_START = '2026-10-01';
-const TRIP_END = '2026-10-02';
+/*
+  Dated relative to today, not pinned.
+
+  These were fixed at 2026-10-01 and 10-02, which made the test a clock: at
+  midnight on the first the trip stopped being 「旅行前」, the screen under
+  assertion became the during-trip one, and the suite went red on a change that
+  had nothing to do with it.
+*/
+const daysFromToday = (days: number): string => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+const TRIP_START = daysFromToday(30);
+const TRIP_END = daysFromToday(31);
 const DRAFT_ID = 'draft-lane-l';
 
 vi.mock('../services/itineraryPlanningService', async (importOriginal) => {
