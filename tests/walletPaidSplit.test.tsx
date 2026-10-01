@@ -3,11 +3,15 @@
  *
  * 「這個帳若不是我花費的，根本不需要出現在我的帳上」.
  *
- * Half right. A shared ledger has to show everybody's bills — there is nothing
- * to settle against one that hides them. What it must not do is hand one
- * person the other's total: 「已支出 NT$ 13,388」 stood on the screen of
- * somebody who had paid 12,500 of it, the remaining 888 recorded by the
- * traveller beside him, with nothing saying so.
+ * 「已支出 NT$ 13,388」 stood on the screen of somebody who had paid 12,500 of
+ * it, the remaining 888 recorded by the traveller beside him, with nothing
+ * saying so.
+ *
+ * The rule the Founder settled on afterwards: 「旅伴的 888 是他自己的帳 沒有指給
+ * 我 那就跟我無關！」 — a bill nobody has asked him to settle is not his
+ * spending and must not count against his budget. A bill she paid and split
+ * with him is, and still does. The trip-wide figure is named underneath either
+ * way, because hiding money is the one failure this ledger cannot afford.
  */
 import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -61,13 +65,16 @@ const renderWallet = (expenses: Expense[], viewerMemberId = ANN) =>
 afterEach(() => cleanup());
 
 describe('the pre-trip spend summary', () => {
-  it('separates what you paid from what the trip spent', () => {
+  it('separates what you paid from what you are settling', () => {
     renderWallet(ledger);
 
-    expect(screen.getByText('旅程總支出')).toBeTruthy();
+    // Every bill here concerns him, so his figure is the whole 13,388.
+    expect(screen.getByText('與你有關的支出')).toBeTruthy();
     expect(screen.getByText('NT$ 13,388')).toBeTruthy();
     expect(screen.getByText('NT$ 12,500')).toBeTruthy();
     expect(screen.getByText('NT$ 888')).toBeTruthy();
+    // Nothing is owed to a trip-wide line when the two figures agree.
+    expect(screen.queryByTestId('trip-wide-spent')).toBeNull();
   });
 
   it('answers from the other side too', () => {
@@ -82,17 +89,24 @@ describe('the pre-trip spend summary', () => {
     renderWallet(ledger.filter(item => item.payerId === ANN));
 
     expect(screen.queryByTestId('paid-split')).toBeNull();
-    expect(screen.getByText('已支出')).toBeTruthy();
+    expect(screen.getByText('與你有關的支出')).toBeTruthy();
   });
 
-  it('never drops a bill it cannot confidently place', () => {
-    // The judgement that one of these was 「hers alone」 removed an expense she
-    // had explicitly split with him, the night before they flew. Hiding money
-    // is the one failure this ledger cannot afford.
+  it('leaves her own spending out of his figure, and still names it', () => {
+    // 2,000 she paid for herself and never split with him.
     const hers = expense({ id: 'd', amount: 2000, category: Category.SHOPPING, payerId: GINA, beneficiaries: [GINA] });
 
     renderWallet([...ledger, hers]);
 
-    expect(screen.getByText('NT$ 15,388')).toBeTruthy();
+    // His own spending is unchanged by money he was never asked to settle.
+    expect(screen.getByText('NT$ 13,388')).toBeTruthy();
+    // And the trip's own figure still says where the rest went.
+    expect(screen.getByTestId('trip-wide-spent').textContent).toContain('15,388');
+  });
+
+  it('keeps a bill she paid and split with him inside his figure', () => {
+    // The one that vanished the night before they flew.
+    renderWallet(ledger);
+    expect(screen.getByText('NT$ 13,388')).toBeTruthy();
   });
 });

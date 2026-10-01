@@ -46,13 +46,28 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
     now folded inside the list rather than dropped, and every total below is
     still computed from every record.
   */
-  const actualSpent = useMemo(() => {
+  const spendOf = (ledger: Expense[]) => {
     if (!normalizedCurrency) return undefined;
-    const included = preExpenses.filter(expense => expense.category !== Category.HELP_BUY && expense.amount >= 0);
+    const included = ledger.filter(expense => expense.category !== Category.HELP_BUY && expense.amount >= 0);
     const currencies = new Set(included.map(expense => expense.currency.toUpperCase()));
     if (currencies.size > 1 || (currencies.size === 1 && !currencies.has(normalizedCurrency))) return undefined;
     return included.reduce((sum, expense) => sum + (expense.category === Category.EXCHANGE ? (expense.handlingFee || 0) : expense.amount), 0);
-  }, [normalizedCurrency, preExpenses]);
+  };
+  /**
+   * What this traveller has spent, which is not what the trip has spent.
+   *
+   * 「旅伴的 888 是他自己的帳 沒有指給我 那就跟我無關！」 — and it was in his
+   * total, and therefore in his budget bar. Money nobody has asked him to
+   * settle cannot count against a budget he set for himself.
+   *
+   * The trip-wide figure is still stated below, so nothing disappears; it is
+   * simply no longer the number presented as his.
+   */
+  const actualSpent = useMemo(
+    () => spendOf(partitionByConcern(preExpenses, viewerMemberId).mine),
+    [normalizedCurrency, preExpenses, viewerMemberId],
+  );
+  const tripWideSpent = useMemo(() => spendOf(preExpenses), [normalizedCurrency, preExpenses]);
   /**
    * What this traveller paid, as against what the trip spent.
    *
@@ -63,7 +78,8 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
    */
   const paidByViewer = useMemo(() => {
     if (!normalizedCurrency || actualSpent === undefined || !viewerMemberId) return undefined;
-    const included = preExpenses.filter(expense => expense.category !== Category.HELP_BUY && expense.amount >= 0 && expense.category !== Category.EXCHANGE);
+    const included = partitionByConcern(preExpenses, viewerMemberId).mine
+      .filter(expense => expense.category !== Category.HELP_BUY && expense.amount >= 0 && expense.category !== Category.EXCHANGE);
     return totalPaidByMember(included, viewerMemberId);
   }, [normalizedCurrency, actualSpent, viewerMemberId, preExpenses]);
   /** Only worth splitting out when somebody else actually paid for something. */
@@ -118,8 +134,15 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-1">
           <div className="rounded-[1.35rem] bg-white p-4 shadow-sm ring-1 ring-slate-100">
-            <p className="text-xs font-bold text-slate-400">{othersPaid && othersPaid > 0 ? '旅程總支出' : '已支出'}</p>
+            <p className="text-xs font-bold text-slate-400">與你有關的支出</p>
             <p className="mt-2 text-lg font-black text-[#11183d]">{actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</p>
+            {/* Stated whenever the trip has spent more than this traveller has,
+                so the difference is visible rather than quietly absent. */}
+            {tripWideSpent !== undefined && actualSpent !== undefined && tripWideSpent > actualSpent && (
+              <p data-testid="trip-wide-spent" className="mt-1 text-[11px] font-bold text-slate-400">
+                旅程總支出 {money(tripWideSpent, normalizedCurrency || 'TWD')}
+              </p>
+            )}
             {/* Said only when it changes the meaning of the number above it. */}
             {othersPaid !== undefined && othersPaid > 0 && (
               <div data-testid="paid-split" className="mt-2 space-y-0.5 border-t border-slate-100 pt-2 text-[11px] font-bold">

@@ -71,16 +71,20 @@ describe('the pre-trip wallet', () => {
     expect(screen.getAllByText('機票').length).toBeGreaterThan(0);
   });
 
-  it('still counts every record in the trip total', () => {
+  /**
+   * 「旅伴的 888 是他自己的帳 沒有指給我 那就跟我無關！」
+   *
+   * Her own 888 was inside his headline figure and therefore inside his budget
+   * bar. Money nobody has asked him to settle cannot count against a budget he
+   * set for himself — but it is still named underneath, so none of it vanishes.
+   */
+  it('counts only what he has to settle as his own spending', () => {
     mount();
-    // 500 + 12000 + 888 + 20000 — the money is folded away, never dropped.
-    expect(screen.getAllByText(/NT\$ 33,388/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/NT\$ 32,500/).length).toBeGreaterThan(0);
   });
 
-  it('says what he paid apart from what she paid first', () => {
+  it('still names the trip-wide figure, so nothing disappears', () => {
     mount();
-    const split = screen.getByTestId('paid-split');
-    expect(split.textContent).toContain('32,500');
-    expect(split.textContent).toContain('888');
+    expect(screen.getByTestId('trip-wide-spent').textContent).toContain('33,388');
   });
 });
