@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { createServer as createViteServer, loadEnv } from "vite";
 import path from "path";
+import { extractReadableText, officialUrlsFromAnswer } from "./services/officialPageText";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
@@ -200,6 +201,7 @@ async function startServer() {
     if (!apiKey) { res.status(503).json({ error: "現在無法辨識收據，請手動輸入。" }); return; }
     try {
       const ai = new GoogleGenAI({ apiKey });
+
       const response = await withModelFallback(model => ai.models.generateContent({
         model,
         contents: { parts: [{ inlineData: { mimeType: imageMime, data: base64Data } }, { text: imageExpensePrompt() }] },
@@ -771,7 +773,18 @@ async function startServer() {
     const fetchedAt = new Date().toISOString();
     try {
       const ai = new GoogleGenAI({ apiKey });
+      /** One schema, used by the first answer and by the official-page correction. */
+      const RESEARCH_SCHEMA = {
+            type: Type.OBJECT,
+            properties: {
+              entry: { type: Type.OBJECT, properties: { summary: { type: Type.STRING }, actionableItems: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { actionType: { type: Type.STRING, enum: ['visa_or_eta', 'passport_validity', 'health_declaration', 'customs_declaration', 'arrival_form', 'required_documents', 'onward_travel', 'other'] }, title: { type: Type.STRING }, description: { type: Type.STRING }, timingText: { type: Type.STRING }, source: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, url: { type: Type.STRING }, publisher: { type: Type.STRING } } } }, required: ['actionType', 'title'] } }, sources: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, url: { type: Type.STRING }, publisher: { type: Type.STRING } } } } } },
+              taxRefund: { type: Type.OBJECT, properties: { summary: { type: Type.STRING }, merchantRequirements: { type: Type.ARRAY, items: { type: Type.STRING } }, documentRequirements: { type: Type.ARRAY, items: { type: Type.STRING } }, processNotes: { type: Type.ARRAY, items: { type: Type.STRING } }, numericRule: { type: Type.OBJECT, properties: { currency: { type: Type.STRING }, minSpend: { type: Type.NUMBER }, thresholdScope: { type: Type.STRING, enum: ['per_transaction', 'per_receipt', 'same_day_same_merchant', 'same_merchant', 'unknown'] }, refundMethod: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['rate', 'not_calculable'] }, rate: { type: Type.NUMBER } }, required: ['type'] }, eligibleCategories: { type: Type.ARRAY, items: { type: Type.STRING } }, excludedCategories: { type: Type.ARRAY, items: { type: Type.STRING } } }, required: ['currency', 'minSpend', 'thresholdScope', 'refundMethod'] }, disclaimer: { type: Type.STRING }, sources: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, url: { type: Type.STRING }, publisher: { type: Type.STRING } } } } } },
+            },
+            required: ["entry", "taxRefund"],
+          };
       let researchMode: "grounded" | "model_knowledge" = "grounded";
+      /** True once an official page has been read and applied to the answer. */
+      let officialPageVerified = false;
       let response;
       const generateResearch = (model: string, grounded: boolean) => ai.models.generateContent({
         model,
@@ -779,14 +792,7 @@ async function startServer() {
         config: {
           ...(grounded ? { tools: [{ googleSearch: {} }] } : {}),
           responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              entry: { type: Type.OBJECT, properties: { summary: { type: Type.STRING }, actionableItems: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { actionType: { type: Type.STRING, enum: ['visa_or_eta', 'passport_validity', 'health_declaration', 'customs_declaration', 'arrival_form', 'required_documents', 'onward_travel', 'other'] }, title: { type: Type.STRING }, description: { type: Type.STRING }, timingText: { type: Type.STRING }, source: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, url: { type: Type.STRING }, publisher: { type: Type.STRING } } } }, required: ['actionType', 'title'] } }, sources: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, url: { type: Type.STRING }, publisher: { type: Type.STRING } } } } } },
-              taxRefund: { type: Type.OBJECT, properties: { summary: { type: Type.STRING }, merchantRequirements: { type: Type.ARRAY, items: { type: Type.STRING } }, documentRequirements: { type: Type.ARRAY, items: { type: Type.STRING } }, processNotes: { type: Type.ARRAY, items: { type: Type.STRING } }, numericRule: { type: Type.OBJECT, properties: { currency: { type: Type.STRING }, minSpend: { type: Type.NUMBER }, thresholdScope: { type: Type.STRING, enum: ['per_transaction', 'per_receipt', 'same_day_same_merchant', 'same_merchant', 'unknown'] }, refundMethod: { type: Type.OBJECT, properties: { type: { type: Type.STRING, enum: ['rate', 'not_calculable'] }, rate: { type: Type.NUMBER } }, required: ['type'] }, eligibleCategories: { type: Type.ARRAY, items: { type: Type.STRING } }, excludedCategories: { type: Type.ARRAY, items: { type: Type.STRING } } }, required: ['currency', 'minSpend', 'thresholdScope', 'refundMethod'] }, disclaimer: { type: Type.STRING }, sources: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, url: { type: Type.STRING }, publisher: { type: Type.STRING } } } } } },
-            },
-            required: ["entry", "taxRefund"],
-          },
+          responseSchema: RESEARCH_SCHEMA,
         },
       });
       /**
@@ -856,11 +862,57 @@ async function startServer() {
         seenActionTypes.add(action.actionType);
         return true;
       }) : [];
+      /*
+        Read the official pages the answer points at, where search could not.
+
+        Google Search grounding has its own quota, and on the day before this
+        trip every model answered 429 to it. The lookup fell back to memory and
+        wrote 「無法確認現況」 against K-ETA — while Korea's own notice board had
+        said since 2025-12-23 that the exemption runs to 2026-12-31. 「這是不專業
+        的回答」. The page was one request away, and it costs no quota to read.
+
+        Strictly additive: any failure leaves the first answer exactly as it was.
+      */
+      if (researchMode !== "grounded") {
+        const urls = officialUrlsFromAnswer(parsed, 3);
+        const pages: string[] = [];
+        for (const url of urls) {
+          try {
+            const page = await fetch(url, {
+              redirect: "follow",
+              headers: { "user-agent": "Mozilla/5.0 (compatible; Trippie/1.0)" },
+              signal: AbortSignal.timeout(12000),
+            });
+            if (!page.ok) continue;
+            const text = extractReadableText(await page.text());
+            if (text.length > 200) pages.push(`【${url}】\n${text}`);
+          } catch {
+            // An unreachable page is simply not evidence; the answer stands.
+          }
+        }
+        if (pages.length) {
+          try {
+            const verified = await withModelFallback(model => ai.models.generateContent({
+              model,
+              contents: `${factsPreamble()}下面是官方網站的實際內容，請用它修正這份入境與退稅整理。只要官方內容講得出現況，就不准再寫「無法確認現況」——直接寫清楚現在的規定、適用到什麼時候。官方內容沒提到的項目保持原樣。所有文字一律繁體中文。\n\n【目前的整理】\n${JSON.stringify(parsed)}\n\n【官方網站內容】\n${pages.join("\n\n")}`,
+              config: { responseMimeType: "application/json", responseSchema: RESEARCH_SCHEMA },
+            }));
+            const corrected = JSON.parse(verified.text?.trim() || "null");
+            if (corrected && typeof corrected === "object" && corrected.entry) {
+              Object.assign(parsed, corrected);
+              officialPageVerified = true;
+            }
+          } catch {
+            // Verification is a bonus, never a gate.
+          }
+        }
+      }
+
       const groundedSources = sources(parsed.taxRefund?.sources);
       const numericRule = normalizeNumericRule(parsed.taxRefund?.numericRule, researchMode === "grounded" && groundedSources.length > 0);
       const numericRuleSource = numericRule ? researchMode : undefined;
       const numericCalculationAvailable = Boolean(numericRule);
-      res.json({ travelRules: { context: { tripId, destination, passportCountryCode, residenceCountryCode, residenceStatus: residenceCountryCode ? "known" : "unknown", startDate, endDate }, destination, passportCountryCode, residenceStatus: residenceCountryCode ? "known" : "unknown", entry: { guidance: typeof parsed.entry?.summary === "string" ? parsed.entry.summary : "", summary: typeof parsed.entry?.summary === "string" ? parsed.entry.summary : "", actionableItems: actions, sources: researchMode === "grounded" ? sources(parsed.entry?.sources) : [], fetchedAt }, taxRefund: { guidance: typeof parsed.taxRefund?.summary === "string" ? parsed.taxRefund.summary : "", summary: typeof parsed.taxRefund?.summary === "string" ? parsed.taxRefund.summary : "", merchantRequirements: Array.isArray(parsed.taxRefund?.merchantRequirements) ? parsed.taxRefund.merchantRequirements : [], documentRequirements: Array.isArray(parsed.taxRefund?.documentRequirements) ? parsed.taxRefund.documentRequirements : [], processNotes: Array.isArray(parsed.taxRefund?.processNotes) ? parsed.taxRefund.processNotes : [], numericRule, numericRuleSource, sources: researchMode === "grounded" ? groundedSources : [], fetchedAt, numericCalculationAvailable, disclaimer: typeof parsed.taxRefund?.disclaimer === "string" ? parsed.taxRefund.disclaimer : "退稅資訊僅供行前參考，資格仍取決於居住地與官方規定。" }, generatedAt: fetchedAt, source: "AI_PREPARATION", researchMode, disclaimer: researchMode === "grounded" ? "資料來自搜尋研究結果，請於出發前向官方來源確認。" : "此為 AI 行前整理，未經即時官方來源驗證，請於出發前再次確認最新規定。" } });
+      res.json({ travelRules: { context: { tripId, destination, passportCountryCode, residenceCountryCode, residenceStatus: residenceCountryCode ? "known" : "unknown", startDate, endDate }, destination, passportCountryCode, residenceStatus: residenceCountryCode ? "known" : "unknown", entry: { guidance: typeof parsed.entry?.summary === "string" ? parsed.entry.summary : "", summary: typeof parsed.entry?.summary === "string" ? parsed.entry.summary : "", actionableItems: actions, sources: researchMode === "grounded" ? sources(parsed.entry?.sources) : [], fetchedAt }, taxRefund: { guidance: typeof parsed.taxRefund?.summary === "string" ? parsed.taxRefund.summary : "", summary: typeof parsed.taxRefund?.summary === "string" ? parsed.taxRefund.summary : "", merchantRequirements: Array.isArray(parsed.taxRefund?.merchantRequirements) ? parsed.taxRefund.merchantRequirements : [], documentRequirements: Array.isArray(parsed.taxRefund?.documentRequirements) ? parsed.taxRefund.documentRequirements : [], processNotes: Array.isArray(parsed.taxRefund?.processNotes) ? parsed.taxRefund.processNotes : [], numericRule, numericRuleSource, sources: researchMode === "grounded" ? groundedSources : [], fetchedAt, numericCalculationAvailable, disclaimer: typeof parsed.taxRefund?.disclaimer === "string" ? parsed.taxRefund.disclaimer : "退稅資訊僅供行前參考，資格仍取決於居住地與官方規定。" }, generatedAt: fetchedAt, source: "AI_PREPARATION", researchMode, disclaimer: researchMode === "grounded" ? "資料來自搜尋研究結果，請於出發前向官方來源確認。" : officialPageVerified ? "已比對官方網站內容整理，仍建議出發前再確認一次。" : "此為 AI 行前整理，未經即時官方來源驗證，請於出發前再次確認最新規定。" } });
     } catch (error) {
       // Silent before: the traveller got one English sentence and we got
       // nothing, so a quota limit and a real bug looked identical.
