@@ -16,6 +16,27 @@ import { ItineraryItem } from '../types';
 
 const timeKey = (item: ItineraryItem): string => item.time || '99:99';
 
+/*
+  Which card goes first when two share a minute.
+
+  「先離開機場才會去旅館入住」. A journey and the arrival it produces can land on
+  the same clock value, and the clock alone cannot separate them — so the day
+  showed 入住 above 前往飯店, which reads as checking in before the car. Getting
+  somewhere comes before being there, whatever the times say.
+*/
+const SAME_MINUTE_RANK: Partial<Record<ItineraryItem['type'], number>> = {
+  FLIGHT: 0,
+  TRANSPORT: 1,
+  HOTEL: 2,
+};
+
+const rankOf = (item: ItineraryItem): number => SAME_MINUTE_RANK[item.type] ?? 1.5;
+
+const byTimeThenArrivalLast = (left: ItineraryItem, right: ItineraryItem): number => {
+  const byTime = timeKey(left).localeCompare(timeKey(right));
+  return byTime !== 0 ? byTime : rankOf(left) - rankOf(right);
+};
+
 /** Items belonging to one day. An undated day is the "no date" bucket. */
 export const itemsForDay = (itinerary: ItineraryItem[], date?: string): ItineraryItem[] =>
   itinerary.filter(item => (date ? item.date === date : !item.date));
@@ -36,7 +57,7 @@ export const itemsForDay = (itinerary: ItineraryItem[], date?: string): Itinerar
 export const orderItemsForDay = (items: ItineraryItem[]): ItineraryItem[] => {
   const hasExplicitOrder = items.some(item => typeof item.sortOrder === 'number');
   if (!hasExplicitOrder) {
-    return [...items].sort((left, right) => timeKey(left).localeCompare(timeKey(right)));
+    return [...items].sort(byTimeThenArrivalLast);
   }
   return [...items]
     .map((item, index) => ({ item, index }))
@@ -44,7 +65,7 @@ export const orderItemsForDay = (items: ItineraryItem[]): ItineraryItem[] => {
       const leftOrder = typeof left.item.sortOrder === 'number' ? left.item.sortOrder : Number.POSITIVE_INFINITY;
       const rightOrder = typeof right.item.sortOrder === 'number' ? right.item.sortOrder : Number.POSITIVE_INFINITY;
       if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-      const byTime = timeKey(left.item).localeCompare(timeKey(right.item));
+      const byTime = byTimeThenArrivalLast(left.item, right.item);
       return byTime !== 0 ? byTime : left.index - right.index;
     })
     .map(entry => entry.item);

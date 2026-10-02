@@ -102,7 +102,26 @@ export const checkInTimeFromArrival = (
   arrivalTime: string,
   travelSeconds?: number,
 ): string | undefined => {
-  if (currentTime !== UNINFORMED_CHECK_IN_TIME) return undefined;
+  /*
+    Two times are not decisions, and both get corrected.
+
+    The first is 15:00, the hour a booking lands on when nothing is known about
+    the flight. The second is the minute the traveller walks out of the terminal
+    — which the previous rule used as the check-in time, so an itinerary entered
+    before that was fixed still reads 「入住 21:55」 above 「前往飯店 21:55」:
+    「新版本的時間序依然是錯誤的 邏輯要正確啊 先離開機場才會去旅館入住」.
+
+    Nobody types the exact minute a landing plus two hours happens to produce;
+    it is the old rule's fingerprint, and recognising it is what lets a trip
+    already on a phone come right without being re-entered.
+
+    Any other time is the traveller's own and is left alone — these cards are
+    deliberately movable, and re-deriving one on every flight edit would quietly
+    undo a decision they made on purpose.
+  */
+  const leftAirport = departAirportTime(arrivalTime);
+  const machineSet = currentTime === UNINFORMED_CHECK_IN_TIME || currentTime === leftAirport;
+  if (!machineSet) return undefined;
   const reached = reachHotelTime(arrivalTime, travelSeconds);
   return reached && reached !== currentTime ? reached : undefined;
 };
