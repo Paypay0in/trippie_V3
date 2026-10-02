@@ -1,4 +1,4 @@
-import { Category, Expense, FlightAnchor, ItineraryItem, PaymentMethod, SplitMethod, TripFlightMode, TripMember } from '../types';
+import { Category, Expense, FlightAnchor, ItineraryItem, PaymentMethod, SplitMethod, SavedTravelInspiration, TripFlightMode, TripMember } from '../types';
 
 /**
  * Translation between the app's objects and the shared tables.
@@ -355,3 +355,76 @@ export const fromFlightAnchorRow = (row: FlightAnchorRow): FlightAnchor => ({
  */
 export const flightModeFromAnchors = (anchors: FlightAnchor[]): TripFlightMode =>
   anchors.some(anchor => anchor.direction === 'RETURN') ? 'ROUND_TRIP' : 'ONE_WAY';
+
+/* ------------------------------------------------------------------ *
+ * Trip inspirations: the want-to-go list both travellers build
+ * ------------------------------------------------------------------ */
+
+export interface TripInspirationRow {
+  id: string;
+  trip_id: string;
+  saved_by_user_id: string;
+  place_name: string;
+  country: string;
+  city: string;
+  place_id: string | null;
+  resolved_place_name: string | null;
+  formatted_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  place_photo_url: string | null;
+  source_post_id: string;
+  source_slice_id: string;
+  source_creator_id: string;
+  source_note_ids: unknown;
+  notes: unknown;
+  saved_at: string;
+}
+
+export const toTripInspirationRow = (
+  inspiration: SavedTravelInspiration,
+  tripId: string,
+): TripInspirationRow => ({
+  id: inspiration.id,
+  trip_id: tripId,
+  saved_by_user_id: inspiration.savedByUserId ?? '',
+  place_name: inspiration.placeName,
+  country: inspiration.country ?? '',
+  city: inspiration.city ?? '',
+  place_id: inspiration.placeId ?? null,
+  resolved_place_name: inspiration.resolvedPlaceName ?? null,
+  formatted_address: inspiration.formattedAddress ?? null,
+  latitude: inspiration.latitude ?? null,
+  longitude: inspiration.longitude ?? null,
+  place_photo_url: inspiration.placePhotoUrl ?? null,
+  source_post_id: inspiration.sourcePostId ?? '',
+  source_slice_id: inspiration.sourceSliceId ?? '',
+  source_creator_id: inspiration.sourceCreatorId ?? '',
+  source_note_ids: inspiration.sourceNoteIds ?? [],
+  notes: inspiration.notes ?? [],
+  saved_at: inspiration.savedAt || new Date().toISOString(),
+});
+
+export const fromTripInspirationRow = (row: TripInspirationRow): SavedTravelInspiration => ({
+  id: row.id,
+  savedByUserId: row.saved_by_user_id ?? '',
+  placeName: row.place_name,
+  country: row.country ?? '',
+  city: row.city ?? '',
+  placeId: row.place_id ?? undefined,
+  resolvedPlaceName: row.resolved_place_name ?? undefined,
+  formattedAddress: row.formatted_address ?? undefined,
+  latitude: row.latitude ?? undefined,
+  longitude: row.longitude ?? undefined,
+  placePhotoUrl: row.place_photo_url ?? undefined,
+  sourcePostId: row.source_post_id ?? '',
+  sourceSliceId: row.source_slice_id ?? '',
+  sourceCreatorId: row.source_creator_id ?? '',
+  sourceNoteIds: Array.isArray(row.source_note_ids)
+    ? (row.source_note_ids as unknown[]).filter((id): id is string => typeof id === 'string')
+    : [],
+  notes: Array.isArray(row.notes)
+    ? (row.notes as SavedTravelInspiration['notes']).filter(note => note && typeof note.text === 'string')
+    : [],
+  savedAt: row.saved_at ?? new Date().toISOString(),
+});

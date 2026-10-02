@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Expense, FlightAnchor, ItineraryItem, TripMember } from '../types';
+import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMember } from '../types';
 import {
   KnownRemoteIds,
   TripSyncSnapshot,
@@ -62,6 +62,11 @@ interface Options {
   note?: string;
   /** Called when the trip already exists remotely and the remote copy wins. */
   onRemoteSnapshot: (snapshot: TripSyncSnapshot) => void;
+  /**
+   * The trip's want-to-go list. Shared because that is what it is for:
+   * 「跟朋友會先把想去的地方列一個表單」.
+   */
+  inspirations?: SavedTravelInspiration[];
 }
 
 const PUSH_DEBOUNCE_MS = 900;
@@ -156,6 +161,7 @@ export const useTripSync = ({
   expenses,
   itinerary,
   flightAnchors,
+  inspirations = [],
   note,
   onRemoteSnapshot,
 }: Options): TripSyncState => {
@@ -216,6 +222,11 @@ export const useTripSync = ({
       expenses: new Set(snapshot.expenses.map(expense => expense.id)),
       itinerary: new Set(snapshot.itinerary.map(item => item.id)),
       flightAnchors: new Set(snapshot.flightAnchors.map(anchor => anchor.id)),
+      // Left untouched when the server said nothing about them: a table that
+      // does not exist yet has not told this device the list is empty.
+      inspirations: snapshot.inspirations
+        ? new Set(snapshot.inspirations.map(entry => entry.id))
+        : knownRef.current?.inspirations,
     };
   };
 
@@ -319,16 +330,16 @@ export const useTripSync = ({
   // The roster and the expense list are rebuilt on every render, so depending
   // on the arrays themselves would restart the debounce forever and never
   // write. Comparing content also means an idle re-render costs no request.
-  const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors });
-  const payloadRef = useRef({ members, expenses, itinerary, flightAnchors });
-  payloadRef.current = { members, expenses, itinerary, flightAnchors };
+  const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors, inspirations });
+  const payloadRef = useRef({ members, expenses, itinerary, flightAnchors, inspirations });
+  payloadRef.current = { members, expenses, itinerary, flightAnchors, inspirations };
 
   useEffect(() => {
     if (!enabled || !tripId || readyTripIdRef.current !== tripId) return;
 
     const timer = window.setTimeout(() => {
-      const { members: m, expenses: e, itinerary: i, flightAnchors: f } = payloadRef.current;
-      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f }, tripId, knownRef.current).then(result => {
+      const { members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s } = payloadRef.current;
+      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s }, tripId, knownRef.current).then(result => {
         if (readyTripIdRef.current !== tripId) return;
         if (result.status !== 'error') {
           // What was just written is now known, and what was deleted stops
@@ -339,6 +350,7 @@ export const useTripSync = ({
             expenses: nextKnownIds(knownRef.current.expenses, e.map(expense => expense.id)),
             itinerary: nextKnownIds(knownRef.current.itinerary, i.map(item => item.id)),
             flightAnchors: nextKnownIds(knownRef.current.flightAnchors, f.map(anchor => anchor.id)),
+            inspirations: nextKnownIds(knownRef.current.inspirations ?? [], s.map(entry => entry.id)),
           };
         }
         if (result.status === 'error') {

@@ -164,6 +164,8 @@ import {
   mergeScreenshotInspirations,
   slicesToSavedInspirations,
 } from "./services/screenshotInspiration";
+import { mergeTripInspirations } from "./services/inspirationMerge";
+import { matchesTripDestination } from "./services/tripInspirationSelection";
 import { flightModeFromAnchors } from "./services/tripSyncMapping";
 import ItineraryPlanningAssistant from "./components/ItineraryPlanningAssistant";
 import TravelBookView from "./components/TravelBookView";
@@ -1001,6 +1003,20 @@ const App: React.FC = () => {
       tripStartDate,
       tripEndDate,
     ],
+  );
+
+  /**
+   * The saved places that belong to the trip being synced.
+   *
+   * The store is one list across every trip this traveller has ever planned,
+   * and only this trip's places may be written to this trip's shared table —
+   * pushing the whole store would put last year's Tokyo list on Gina's phone.
+   * The same destination match the planner uses decides which are which.
+   */
+  const tripScopedInspirations = useMemo(
+    () => savedTravelInspirations.filter((item) =>
+      matchesTripDestination(item, tripInspirationContext).matched),
+    [savedTravelInspirations, tripInspirationContext],
   );
 
 
@@ -3108,6 +3124,10 @@ const App: React.FC = () => {
     expenses,
     itinerary,
     flightAnchors,
+    // The want-to-go list, now shared: 「跟朋友會先把想去的地方列一個表單」. Only
+    // the places that belong to this trip's destination travel with it — the
+    // store is one list across every trip the traveller has ever planned.
+    inspirations: tripScopedInspirations,
     note: cloudTripNote,
     onRemoteSnapshot: (snapshot) => {
       // The remote copy wins on open. Someone else may have added an expense
@@ -3129,6 +3149,22 @@ const App: React.FC = () => {
         }
         setFlightAnchors(snapshot.flightAnchors);
         setFlightMode(flightModeFromAnchors(snapshot.flightAnchors));
+      }
+      /*
+        The shared want-to-go list, folded into the local one.
+
+        Merged rather than replaced: this store holds every trip the traveller
+        has ever saved a place for, and the snapshot only knows about this one.
+        Duplicates fold together on the way in — 「也要可以檢查是否重複」 — so the
+        same restaurant saved by both phones is one entry carrying both sets of
+        notes, not two sitting on top of each other.
+
+        `undefined` means the server has not got the table yet and has said
+        nothing, which is not the same as saying the list is empty.
+      */
+      if (snapshot.inspirations) {
+        setSavedTravelInspirations((current) =>
+          mergeTripInspirations(current, snapshot.inspirations ?? []));
       }
       // The owner is derived locally from the account, not stored as a
       // companion, so only the others come back into the companion list.

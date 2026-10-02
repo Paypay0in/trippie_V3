@@ -1,17 +1,20 @@
-import { Expense, FlightAnchor, ItineraryItem, TripMember } from '../types';
+import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMember } from '../types';
 import { idsToPrune } from './syncPrune';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import {
   ExpenseRow,
   FlightAnchorRow,
+  TripInspirationRow,
   ItineraryItemRow,
   TripMemberRow,
   fromExpenseRow,
   fromFlightAnchorRow,
+  fromTripInspirationRow,
   fromItineraryRow,
   fromMemberRow,
   toExpenseRow,
   toFlightAnchorRow,
+  toTripInspirationRow,
   toItineraryRow,
   toMemberRow,
 } from './tripSyncMapping';
@@ -35,6 +38,8 @@ export interface KnownRemoteIds {
   expenses: Iterable<string>;
   itinerary: Iterable<string>;
   flightAnchors: Iterable<string>;
+  /** Optional while the table is newer than some deployed clients. */
+  inspirations?: Iterable<string>;
 }
 
 export interface TripSyncSnapshot {
@@ -50,6 +55,15 @@ export interface TripSyncSnapshot {
    * it.
    */
   itinerary: ItineraryItem[];
+  /**
+   * The trip's want-to-go list, shared like everything else on it.
+   *
+   * 「跟朋友會先把想去的地方列一個表單」 — it lived in one browser's localStorage,
+   * so the one thing it was for was the one thing it could not do. Optional
+   * because a client built before migration 0011 sends a snapshot without it,
+   * and a missing list must never be read as an emptied one.
+   */
+  inspirations?: SavedTravelInspiration[];
   /**
    * The flights the trip is arranged around.
    *
@@ -225,11 +239,12 @@ export const fetchTripSnapshot = async (
     // any update — so a re-read handed the app the same trip in a new order
     // every twenty seconds, and anything watching the list for changes saw one
     // that had not happened.
-    const [members, expenses, itinerary, flights] = await Promise.all([
+    const [members, expenses, itinerary, flights, inspirations] = await Promise.all([
       supabase.from('trip_members').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('expenses').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('flight_anchors').select('*').eq('trip_id', tripId).order('id'),
+      supabase.from('trip_inspirations').select('*').eq('trip_id', tripId).order('id'),
     ]);
     if (members.error) throw members.error;
     if (expenses.error) throw expenses.error;
@@ -246,6 +261,10 @@ export const fetchTripSnapshot = async (
     if (flights.error && import.meta.env.DEV) {
       console.warn('[tripSync] flight anchors unavailable', flights.error.message);
     }
+    // Same reasoning for the want-to-go list, which arrives in migration 0011.
+    if (inspirations.error && import.meta.env.DEV) {
+      console.warn('[tripSync] trip inspirations unavailable', inspirations.error.message);
+    }
 
     return {
       status: 'ok',
@@ -256,6 +275,11 @@ export const fetchTripSnapshot = async (
         flightAnchors: flights.error
           ? []
           : (flights.data as FlightAnchorRow[]).map(fromFlightAnchorRow),
+        // Undefined, not empty: a table that is not there yet has said nothing
+        // about this trip's list, and the caller must not treat that as 「清空」.
+        inspirations: inspirations.error
+          ? undefined
+          : (inspirations.data as TripInspirationRow[]).map(fromTripInspirationRow),
       },
     };
   } catch (error) {
@@ -355,7 +379,7 @@ export const pushMembers = async (
  * because nobody is looking for it.
  */
 export const pushTripSnapshot = async (
-  { members, expenses, itinerary, flightAnchors }: TripSyncSnapshot,
+  { members, expenses, itinerary, flightAnchors, inspirations }: TripSyncSnapshot,
   tripId: string,
   /**
    * What this device knows exists on the server: everything it has read or
@@ -443,6 +467,49 @@ export const pushTripSnapshot = async (
         .in('id', removedAnchors);
       if (flightPruneError && import.meta.env.DEV) {
         console.warn('[tripSync] flight anchors not pruned', flightPruneError.message);
+      }
+    }
+
+    /*
+      The want-to-go list.
+
+      Written only when the caller actually sent one: `undefined` means a client
+      that predates this table, and treating that as an empty list would have it
+      prune the other traveller's saves on every push.
+
+      Upsert on the place rather than the id, matching the unique index. Two
+      phones minting their own ids for the same restaurant is the normal case
+      — 「也要可以檢查是否重複」 — and keying on id alone would leave both on the
+      shared list.
+
+      Allowed to fail on its own for the same reason the flights are: until 0011
+      is applied there is nowhere to put these, and that must not mark a write
+      as failed when the ledger and the itinerary both landed.
+    */
+    if (inspirations?.length) {
+      const { error } = await supabase
+        .from('trip_inspirations')
+        .upsert(inspirations.map(entry => toTripInspirationRow(entry, tripId)), {
+          onConflict: 'id',
+          ignoreDuplicates: false,
+        });
+      if (error) {
+        if (import.meta.env.DEV) console.warn('[tripSync] inspirations not written', error.message);
+        return { status: 'ok', data: null };
+      }
+    }
+
+    if (inspirations) {
+      const removedInspirations = idsToPrune(known?.inspirations ?? [], inspirations.map(entry => entry.id));
+      if (removedInspirations.length) {
+        const { error: inspirationPruneError } = await supabase
+          .from('trip_inspirations')
+          .delete()
+          .eq('trip_id', tripId)
+          .in('id', removedInspirations);
+        if (inspirationPruneError && import.meta.env.DEV) {
+          console.warn('[tripSync] inspirations not pruned', inspirationPruneError.message);
+        }
       }
     }
 
