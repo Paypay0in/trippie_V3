@@ -936,6 +936,67 @@ const ExpenseForm: React.FC<Props> = ({
                     </select>
                     <input required type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} className="min-w-0 flex-1 px-4 outline-none font-mono text-base" placeholder="500" />
                   </div>
+                  {/*
+                    The rate belongs under the amount it converts.
+
+                    「匯率欄位要放在金額下面 才會直觀」 — it sat three sections lower,
+                    inside 付款資訊, so entering 150000 KRW and reading what that
+                    costs in TWD meant scrolling past the split settings and the
+                    payment method to find the number doing the work.
+                  */}
+              {!locked && currency !== 'TWD' && (
+                  <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
+                          匯率 (1 {currency} = ? TWD)
+                          <button 
+                            type="button" 
+                            onClick={handleRefreshRate}
+                            disabled={isFetchingRate}
+                            className="ml-1 px-2 py-1 hover:bg-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 border border-orange-200 bg-white shadow-sm"
+                            title="使用 AI 抓取最新匯率"
+                          >
+                            {isFetchingRate ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            <span className="text-[10px] font-bold whitespace-nowrap">
+                              {localToday().replace(/-/g, '/')} Google 當日匯率
+                            </span>
+                          </button>
+                      </label>
+                      <input 
+                        type="number" 
+                        step="0.0001"
+                        value={exchangeRate}
+                        disabled={locked}
+                        onChange={e => {
+                            setExchangeRate(e.target.value);
+                            setAutoRateApplied(true);
+                        }}
+                        className="w-24 border border-orange-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-orange-500 outline-none text-right"
+                      />
+                    </div>
+                    
+                    {isExchange && (
+                      <div className="flex items-center justify-between border-t border-orange-200 pt-2">
+                        <label className="text-xs font-medium text-orange-700">手續費 (TWD)</label>
+                        <input 
+                          type="number" 
+                          step="1"
+                          value={handlingFee}
+                          disabled={locked}
+                          onChange={e => setHandlingFee(e.target.value)}
+                          className="w-24 border border-orange-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-orange-500 outline-none text-right"
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="text-right text-xs text-gray-500 pt-1 border-t border-orange-200 mt-2">
+                      成本計算: <span className="font-mono font-bold text-orange-800 text-sm">
+                        {Math.round(currentTotalTwd).toLocaleString()}
+                      </span> TWD
+                    </div>
+                  </div>
+              )}
                 </div>
                 {!locked && (
                   <div>
@@ -1150,60 +1211,6 @@ const ExpenseForm: React.FC<Props> = ({
                      })}
                    </div>
                 </div>
-              )}
-
-              {!locked && currency !== 'TWD' && (
-                  <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
-                          匯率 (1 {currency} = ? TWD)
-                          <button 
-                            type="button" 
-                            onClick={handleRefreshRate}
-                            disabled={isFetchingRate}
-                            className="ml-1 px-2 py-1 hover:bg-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 border border-orange-200 bg-white shadow-sm"
-                            title="使用 AI 抓取最新匯率"
-                          >
-                            {isFetchingRate ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                            <span className="text-[10px] font-bold whitespace-nowrap">
-                              {localToday().replace(/-/g, '/')} Google 當日匯率
-                            </span>
-                          </button>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.0001"
-                        value={exchangeRate}
-                        disabled={locked}
-                        onChange={e => {
-                            setExchangeRate(e.target.value);
-                            setAutoRateApplied(true);
-                        }}
-                        className="w-24 border border-orange-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-orange-500 outline-none text-right"
-                      />
-                    </div>
-                    
-                    {isExchange && (
-                      <div className="flex items-center justify-between border-t border-orange-200 pt-2">
-                        <label className="text-xs font-medium text-orange-700">手續費 (TWD)</label>
-                        <input 
-                          type="number" 
-                          step="1"
-                          value={handlingFee}
-                          disabled={locked}
-                          onChange={e => setHandlingFee(e.target.value)}
-                          className="w-24 border border-orange-200 rounded px-2 py-1 text-sm focus:ring-1 focus:ring-orange-500 outline-none text-right"
-                          placeholder="0"
-                        />
-                      </div>
-                    )}
-                    
-                    <div className="text-right text-xs text-gray-500 pt-1 border-t border-orange-200 mt-2">
-                      成本計算: <span className="font-mono font-bold text-orange-800 text-sm">
-                        {Math.round(currentTotalTwd).toLocaleString()}
-                      </span> TWD
-                    </div>
-                  </div>
               )}
 
               {!locked && (

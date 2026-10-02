@@ -58,6 +58,45 @@ const saveOnHerPhone = async (withSplit = false): Promise<Expense> => {
  * live and answered nothing. A receipt is the evidence behind a split two
  * people settle from, so it belongs on the expense.
  */
+/**
+ * 「匯率欄位要放在金額下面 才會直觀」.
+ *
+ * The rate sat three sections lower, inside 付款資訊, so entering 150000 KRW and
+ * reading what it costs in TWD meant scrolling past the split settings and the
+ * payment method to reach the number doing the work.
+ */
+describe('the exchange rate', () => {
+  it('sits with the amount it converts, ahead of the split settings', async () => {
+    const user = userEvent.setup();
+    render(
+      <ExpenseForm
+        currentPhase="during"
+        customCategories={{ pre: [], during: [], post: [], summary: [] } as never}
+        onAddCustomCategory={() => undefined}
+        onRemoveCustomCategory={() => undefined}
+        existingExpenses={[]}
+        companions={[]}
+        onSubmit={() => undefined}
+        onClose={() => undefined}
+        ownerMemberId={OWNER}
+        ownerName="Ann"
+        viewerMemberId={OWNER}
+        viewerIdentified
+      />,
+    );
+
+    await user.selectOptions(screen.getByDisplayValue('TWD'), 'KRW');
+
+    const body = document.body.textContent || '';
+    const rateAt = body.indexOf('匯率 (1 KRW');
+    const splitAt = body.indexOf('此筆支出需要分帳');
+
+    expect(rateAt).toBeGreaterThan(-1);
+    expect(splitAt).toBeGreaterThan(-1);
+    expect(rateAt).toBeLessThan(splitAt);
+  });
+});
+
 describe('attaching a receipt', () => {
   it('opens a picker rather than doing nothing', async () => {
     const user = userEvent.setup();
