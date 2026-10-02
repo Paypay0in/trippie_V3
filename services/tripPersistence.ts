@@ -118,7 +118,10 @@ const normalizeItinerary = (value: unknown): ItineraryItem[] | undefined => {
     // brought them there. Clearing it on read means an itinerary saved before
     // that changed stops being wrong the next time it is opened, rather than
     // only for stays added afterwards.
-    scheduleFlexibility: item.scheduleFlexibility === 'fixed' && item.fixedEventKind !== 'accommodation'
+    // Only a flight is fixed by default; see isFixedItem. Stored items that
+    // were marked otherwise stop being wrong the next time they are opened.
+    scheduleFlexibility: item.scheduleFlexibility === 'fixed'
+      && (item.fixedEventKind === 'flight' || item.type === 'FLIGHT')
       ? 'fixed'
       : undefined,
     isPinned: item.isPinned === true ? true : undefined,

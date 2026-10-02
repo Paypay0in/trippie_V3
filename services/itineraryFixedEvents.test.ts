@@ -58,12 +58,33 @@ describe('the flexibility model', () => {
     expect(isFixedItem(item({ id: 'it-a' }))).toBe(false);
   });
 
-  it('treats an explicitly fixed event as fixed', () => {
+  /**
+   * 「除了班機之外的行程都預設不固定」.
+   *
+   * A flight is fixed by nature: miss it and it leaves without you. A booking
+   * the planner decided to call fixed is a decision made on the traveller's
+   * behalf — and it showed as 「住宿 · 固定」 on a hotel check-in, which then
+   * reported a conflict with the flight bringing them there.
+   */
+  it('treats a flight as fixed, and a planner-marked booking as movable', () => {
     expect(isFixedItem(flight())).toBe(true);
     expect(fixedKindOf(flight())).toBe('flight');
+
     const booking = item({ id: 'it-r', scheduleFlexibility: 'fixed', fixedEventKind: 'reservation' });
-    expect(isFixedItem(booking)).toBe(true);
-    expect(fixedKindOf(booking)).toBe('reservation');
+    expect(isFixedItem(booking)).toBe(false);
+  });
+
+  it('fixes anything the traveller pins themselves', () => {
+    const pinned = item({ id: 'it-r', scheduleFlexibility: 'fixed', fixedEventKind: 'reservation', isPinned: true });
+
+    expect(isFixedItem(pinned)).toBe(true);
+    expect(fixedKindOf(pinned)).toBe('reservation');
+  });
+
+  it('leaves a hotel check-in free to move', () => {
+    const stay = item({ id: 'it-h', scheduleFlexibility: 'fixed', fixedEventKind: 'accommodation' });
+
+    expect(isFixedItem(stay)).toBe(false);
   });
 
   it('treats a flight-anchor item as fixed even without the flag', () => {
@@ -73,9 +94,9 @@ describe('the flexibility model', () => {
     expect(fixedKindOf(anchor)).toBe('flight');
   });
 
-  it('supports kinds beyond flights, without flight-specific logic', () => {
+  it('still names the kind of anything the traveller has pinned', () => {
     (['train', 'reservation', 'ticketed_event'] as const).forEach(kind => {
-      expect(fixedKindOf(item({ id: `it-${kind}`, scheduleFlexibility: 'fixed', fixedEventKind: kind }))).toBe(kind);
+      expect(fixedKindOf(item({ id: `it-${kind}`, scheduleFlexibility: 'fixed', fixedEventKind: kind, isPinned: true }))).toBe(kind);
     });
   });
 });
@@ -141,6 +162,8 @@ describe('detectFixedEventConflicts', () => {
     const reservation = item({
       id: 'it-res', time: '16:30', durationMinutes: 90,
       scheduleFlexibility: 'fixed', fixedEventKind: 'reservation', location: '餐廳訂位',
+      // Pinned by the traveller: only that, or a flight, is fixed now.
+      isPinned: true,
     });
     const conflicts = detectFixedEventConflicts([reservation, flight()], boundaryContext);
     expect(conflicts).toHaveLength(1);
@@ -155,7 +178,7 @@ describe('detectFixedEventConflicts', () => {
     // No check-in or travel is subtracted from a booked table.
     const reservation = item({
       id: 'it-res', time: '19:00', durationMinutes: 90,
-      scheduleFlexibility: 'fixed', fixedEventKind: 'reservation',
+      scheduleFlexibility: 'fixed', fixedEventKind: 'reservation', isPinned: true,
     });
     const before = item({ id: 'it-a', time: '17:00', durationMinutes: 90 });
     expect(detectFixedEventConflicts([before, reservation])).toEqual([]);
@@ -230,7 +253,7 @@ describe('buildFixedEventAdjustment — other shapes', () => {
   it('reports a fixed-versus-fixed clash and proposes nothing', () => {
     const reservation = item({
       id: 'it-res', time: '16:30', durationMinutes: 90,
-      scheduleFlexibility: 'fixed', fixedEventKind: 'reservation',
+      scheduleFlexibility: 'fixed', fixedEventKind: 'reservation', isPinned: true,
     });
     const adjustment = buildFixedEventAdjustment([reservation, flight()], boundaryContext);
     expect(adjustment.changes).toEqual([]);
@@ -382,6 +405,8 @@ describe('a flight anchor pair is one journey, not a conflict', () => {
       isCompleted: false,
       scheduleFlexibility: 'fixed',
       fixedEventKind: 'reservation',
+      // Pinned by the traveller; a planner-marked booking is movable now.
+      isPinned: true,
     };
     const conflicts = detectFixedEventConflicts([reservation, departure]);
     expect(conflicts.some(entry => entry.kind === 'fixed-vs-fixed')).toBe(true);

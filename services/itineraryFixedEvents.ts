@@ -40,8 +40,23 @@ export const DAY_START_FLOOR_MINUTES = 8 * 60;
  * model. Absence of the flag otherwise means flexible, which keeps every
  * existing itinerary behaving exactly as it did.
  */
-export const isFixedItem = (item: ItineraryItem): boolean =>
-  item.scheduleFlexibility === 'fixed' || Boolean(item.derivedFromFlightAnchorId);
+export const isFixedItem = (item: ItineraryItem): boolean => {
+  /*
+    「除了班機之外的行程都預設不固定」.
+
+    A flight is fixed by nature: miss it and it leaves without you. Everything
+    else on a trip can move, and marking it otherwise takes the plan out of the
+    traveller's hands — a hotel check-in showed 「住宿 · 固定」 and then reported
+    a conflict with the flight that was bringing them there.
+
+    The traveller's own pin still fixes anything they choose. What this refuses
+    to do is decide on their behalf for anything but a flight.
+  */
+  if (item.isPinned === true) return true;
+  if (item.derivedFromFlightAnchorId) return true;
+  return item.scheduleFlexibility === 'fixed'
+    && (item.fixedEventKind === 'flight' || item.type === 'FLIGHT');
+};
 
 export const isFlexibleItem = (item: ItineraryItem): boolean => !isFixedItem(item);
 
