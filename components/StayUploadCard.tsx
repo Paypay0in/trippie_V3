@@ -4,6 +4,7 @@ import { ItineraryItem } from '../types';
 import { ParsedStay, normalizeParsedStay, stayToItineraryItems } from '../services/stayIntake';
 import { FlightArrivalPoint } from '../services/flightDerivedItems';
 import { linkStayItems, stayPlaceQuery } from '../services/stayPlaceLink';
+import { findStayConflicts, idsToDropAsCopies, idsToDropForChoice, stayPropertyName } from '../services/stayConflicts';
 import { resolvePlace } from '../services/placeService';
 
 interface Props {
@@ -51,6 +52,30 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
       .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.time.localeCompare(b.time)),
     [itinerary],
   );
+
+  /*
+    One hotel, uploaded twice under two different names, becomes four cards for
+    one room. 「住房資訊重複了好幾個，要自動 pop up 詢問用戶哪個是正確的」.
+
+    Dismissable, because a traveller really can change hotel mid-trip and the
+    question would otherwise block the card forever.
+  */
+  const conflicts = useMemo(() => findStayConflicts(itinerary), [itinerary]);
+  const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>([]);
+  const openConflicts = conflicts.filter(conflict => !dismissedConflictIds.includes(conflict.id));
+  const conflictChoices = useMemo(
+    () => Array.from(new Set(openConflicts.flatMap(conflict => conflict.items.map(stayPropertyName)))).filter(Boolean),
+    [openConflicts],
+  );
+
+  /** Keeps one property, drops the cards of the others and any duplicate copies. */
+  const resolveConflicts = (keptName: string) => {
+    [
+      ...idsToDropForChoice(openConflicts, keptName),
+      ...idsToDropAsCopies(openConflicts, keptName),
+    ].forEach(onRemoveItem);
+    setDismissedConflictIds([]);
+  };
 
 
   /**
@@ -174,6 +199,39 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           {error}
         </p>
+      )}
+
+      {openConflicts.length > 0 && (
+        <div data-testid="stay-conflict-prompt" className="mt-3 rounded-[22px] border border-amber-200 bg-amber-50 p-4">
+          <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            同一天有多筆住宿，哪一個才對？
+          </p>
+          <p className="mt-1 pl-5 text-[11px] font-medium leading-relaxed text-amber-700">
+            {openConflicts.map(conflict => `${conflict.date.slice(5).replace('-', '/')} ${conflict.role === 'check_in' ? '入住' : '退房'}`).join('、')}
+            {' '}各有不只一筆。選一個保留，其他會被刪掉。
+          </p>
+          <div className="mt-3 space-y-2">
+            {conflictChoices.map(name => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => resolveConflicts(name)}
+                className="flex w-full items-center justify-between gap-2 rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-left"
+              >
+                <span className="min-w-0 truncate text-xs font-black text-[#111A4A]">{name}</span>
+                <span className="shrink-0 text-[10px] font-black text-[#5b3df5]">保留這個</span>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setDismissedConflictIds(conflicts.map(conflict => conflict.id))}
+            className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-black text-amber-700"
+          >
+            兩間都要住，全部保留
+          </button>
+        </div>
       )}
 
       {manual ? (
