@@ -64,7 +64,20 @@ describe('the entry-rules research prompt', () => {
    */
   it('refuses to pass the VAT rate off as the refund rate', () => {
     expect(prompt).toContain('實際拿得回來的比例');
-    expect(prompt).toContain('不要拿稅率充當退稅率');
+    expect(prompt).toContain('高估旅客能拿到的錢');
+  });
+
+  /**
+   * 「我覺得預估退稅不需如此精準 只要預估即可」.
+   *
+   * Demanding a precise after-fee rate pushed the answer to not_calculable,
+   * which is the 「目前無法安全估算退稅金額」 card he had just complained about.
+   * A conservative estimate, labelled as one, is the useful answer.
+   */
+  it('takes a conservative estimate rather than refusing to estimate', () => {
+    expect(prompt).toContain('這個數字是概估，不需要精準');
+    expect(prompt).toContain('偏保守的一端');
+    expect(prompt).toContain('只有在連大概能拿回多少都說不出來時');
   });
 
   it('asks for rules that depend on each other to say so', () => {
