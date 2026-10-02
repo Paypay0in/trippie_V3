@@ -2,9 +2,9 @@ import { Category, Expense, TravelRules } from '../types';
 
 export type DuringRefundState =
   | { status: 'no_rule' }
-  | { status: 'below_threshold'; currency: string; threshold: number; shoppingSpend: number; belowThresholdExpenses: Expense[]; ruleSource: 'grounded' | 'model_knowledge' }
-  | { status: 'threshold_met'; currency: string; eligibleExpenses: Expense[]; eligibleSpend: number; ruleSource: 'grounded' | 'model_knowledge' }
-  | { status: 'estimate_available'; currency: string; eligibleExpenses: Expense[]; eligibleSpend: number; estimatedRefund: number; ruleSource: 'grounded' | 'model_knowledge' };
+  | { status: 'below_threshold'; currency: string; threshold: number; shoppingSpend: number; belowThresholdExpenses: Expense[]; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
+  | { status: 'threshold_met'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleSpend: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
+  | { status: 'estimate_available'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleSpend: number; estimatedRefund: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number };
 
 type ValidRule = { currency: string; minSpend: number; rate?: number; ruleSource: 'grounded' | 'model_knowledge' };
 
@@ -39,7 +39,7 @@ export const deriveDuringRefundState = ({ expenses, travelRules }: { expenses: E
   const eligible = normalized.filter(item => item.amount >= rule.minSpend);
   const belowThreshold = normalized.filter(item => item.amount < rule.minSpend);
   const eligibleSpend = eligible.reduce((sum, item) => sum + item.amount, 0);
-  if (eligible.length === 0) return { status: 'below_threshold', currency: rule.currency, threshold: rule.minSpend, shoppingSpend: normalized.reduce((sum, item) => sum + item.amount, 0), belowThresholdExpenses: belowThreshold.map(item => item.expense), ruleSource: rule.ruleSource };
-  if (rule.rate === undefined) return { status: 'threshold_met', currency: rule.currency, eligibleExpenses: eligible.map(item => item.expense), eligibleSpend, ruleSource: rule.ruleSource };
-  return { status: 'estimate_available', currency: rule.currency, eligibleExpenses: eligible.map(item => item.expense), eligibleSpend, estimatedRefund: eligibleSpend * rule.rate, ruleSource: rule.ruleSource };
+  if (eligible.length === 0) return { status: 'below_threshold', currency: rule.currency, threshold: rule.minSpend, shoppingSpend: normalized.reduce((sum, item) => sum + item.amount, 0), belowThresholdExpenses: belowThreshold.map(item => item.expense), ruleSource: rule.ruleSource, refundRate: rule.rate };
+  if (rule.rate === undefined) return { status: 'threshold_met', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleSpend, ruleSource: rule.ruleSource };
+  return { status: 'estimate_available', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleSpend, estimatedRefund: eligibleSpend * rule.rate, ruleSource: rule.ruleSource, refundRate: rule.rate };
 };
