@@ -770,7 +770,7 @@ describe('the airport transfer follows the flight', () => {
       by dragging in 30-minute steps. A value is not text content.
     */
     // Landing 13:05, out of the airport around 15:05.
-    expect((within(card).getByLabelText(/前往 海雲台格蘭飯店 的時間/) as HTMLInputElement).value).toBe('15:05');
+    expect((within(card).getByLabelText(/前往 海雲台格蘭飯店 的開始時間/) as HTMLInputElement).value).toBe('15:05');
     expect(within(card).getByText(/入境與提領行李/)).toBeTruthy();
   });
 

@@ -8,7 +8,9 @@ import { itemsForDay, orderItemsForDay, hasTimeOrderConflict } from '../services
 import {
   detectCollisions,
   describeCollision,
+  durationFromEnd,
   durationOf,
+  endTimeOf,
   hasLateItem,
   isTimedItem,
   minutesToTime,
@@ -39,7 +41,7 @@ interface Props {
   startDate?: string;
   endDate?: string;
   /** `time` joins date and completion so the card can edit the hour in place. */
-  onUpdateItem?: (id: string, updates: Partial<Pick<ItineraryItem, 'date' | 'isCompleted' | 'time'>>) => void;
+  onUpdateItem?: (id: string, updates: Partial<Pick<ItineraryItem, 'date' | 'isCompleted' | 'time' | 'durationMinutes'>>) => void;
   onAdd?: (date?: string) => void;
   onEdit?: (item: ItineraryItem) => void;
   /** Takes the traveller to the stay card, for a night with no room booked. */
@@ -68,6 +70,11 @@ interface Props {
     itemId: string,
     newStartMinutes: number,
   ) => { ok: boolean; pushedLate?: boolean; startTime?: string };
+  /**
+   * An activity's length changed. Anything it would now run into moves later.
+   * Falls back to a plain write when the caller does not provide it.
+   */
+  onChangeDuration?: (itemId: string, durationMinutes: number) => boolean;
   /** Writes a confirmed fixed-event adjustment. Never called before confirmation. */
   onApplyFixedAdjustment?: (adjustment: FixedEventAdjustment) => boolean;
   /**
@@ -117,7 +124,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -429,14 +436,57 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     {item.derivedFromFlightAnchorId ? (
                       <span className="font-mono text-xs font-black text-[#6b4df6]">{item.time}</span>
                     ) : (
-                      <input
-                        type="time"
-                        value={item.time || ''}
-                        aria-label={`${item.title} 的時間`}
-                        data-testid={`time-input-${item.id}`}
-                        onChange={event => onUpdateItem(item.id, { time: event.target.value })}
-                        className="w-[4.6rem] rounded-lg bg-transparent px-1 py-0.5 font-mono text-xs font-black text-[#6b4df6] outline-none hover:bg-[#f3f0ff] focus:bg-[#f3f0ff]"
-                      />
+                      <span className="flex items-center gap-0.5">
+                        <input
+                          type="time"
+                          value={item.time || ''}
+                          aria-label={`${item.title} 的開始時間`}
+                          data-testid={`time-input-${item.id}`}
+                          onChange={event => {
+                            /*
+                              Through the same path a drag takes.
+
+                              「後面行程就需要回避掉已經被 book 的時間」 — dragging a
+                              card has always carried the rest of the day with it,
+                              preserving the gaps. Writing the time straight onto
+                              the item would have made the picker the one way to
+                              create an overlap, which is the opposite of the point.
+                            */
+                            const next = timeToMinutes(event.target.value);
+                            if (next === undefined) return;
+                            if (onRescheduleItem) onRescheduleItem(item.id, next);
+                            else onUpdateItem(item.id, { time: event.target.value });
+                          }}
+                          className="w-[4.6rem] rounded-lg bg-transparent px-1 py-0.5 font-mono text-xs font-black text-[#6b4df6] outline-none hover:bg-[#f3f0ff] focus:bg-[#f3f0ff]"
+                        />
+                        <span className="text-[10px] font-bold text-slate-300">–</span>
+                        {/*
+                          The end, which is the duration said in the way people
+                          think about it. 「每個行程起訖時間都要可以填寫 目前只有起的
+                          時間 若沒有填寫訖的時間一律以 60 分鐘為主」 — the 60 was
+                          already the assumption; it was simply never shown, so a
+                          day could not be read and the overlap warnings came out
+                          of nowhere.
+                        */}
+                        <input
+                          type="time"
+                          value={endTimeOf(item)}
+                          aria-label={`${item.title} 的結束時間`}
+                          data-testid={`end-time-input-${item.id}`}
+                          onChange={event => {
+                            const minutes = durationFromEnd(item.time, event.target.value);
+                            if (minutes === undefined) return;
+                            // Later cards get out of the way of the longer span.
+                            if (onChangeDuration) onChangeDuration(item.id, minutes);
+                            else onUpdateItem(item.id, { durationMinutes: minutes });
+                          }}
+                          className={`w-[4.6rem] rounded-lg bg-transparent px-1 py-0.5 font-mono text-xs font-black outline-none hover:bg-[#f3f0ff] focus:bg-[#f3f0ff] ${
+                            typeof item.durationMinutes === 'number' && item.durationMinutes > 0
+                              ? 'text-[#6b4df6]'
+                              : 'text-slate-400'
+                          }`}
+                        />
+                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5">

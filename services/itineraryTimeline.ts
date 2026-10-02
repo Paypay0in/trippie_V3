@@ -45,6 +45,37 @@ export const durationOf = (item: Pick<ItineraryItem, 'durationMinutes'>): number
 
 
 /**
+ * When an activity ends: its start plus however long it takes.
+ *
+ * 「每個行程起訖時間都要可以填寫 目前只有起的時間 若沒有填寫訖的時間一律以 60 分鐘
+ * 為主」. The hour was already the assumption everywhere — collisions, travel
+ * gaps, the AI scheduler — it was simply never shown, so a day could not be read
+ * and the overlap warnings arrived out of nowhere.
+ *
+ * Empty for an item with no start: an end time without a beginning is not a
+ * span, and showing one would invite a duration that means nothing.
+ */
+export const endTimeOf = (item: Pick<ItineraryItem, 'time' | 'durationMinutes'>): string => {
+  const start = timeToMinutes(item.time || '');
+  if (start === undefined) return '';
+  return minutesToTime(Math.min(start + durationOf(item), MINUTES_IN_DAY - 1));
+};
+
+/**
+ * The duration implied by an end time, or nothing when it cannot be one.
+ *
+ * An end before the start is the common slip — picking 09:00 when 21:00 was
+ * meant — and the honest response is to leave the item alone rather than store
+ * a negative length or silently roll it over midnight.
+ */
+export const durationFromEnd = (startTime?: string, endTime?: string): number | undefined => {
+  const start = timeToMinutes(startTime || '');
+  const end = timeToMinutes(endTime || '');
+  if (start === undefined || end === undefined || end <= start) return undefined;
+  return end - start;
+};
+
+/**
  * Ids of items whose scheduled span overlaps another's.
  *
  * Overlap is half-open — an activity ending at 13:00 does not collide with one
@@ -279,6 +310,89 @@ export const rescheduleFromItem = (
   });
 
   return { items, changed, startTime: minutesToTime(clampedStart), pushedLate, blockedByFixed };
+};
+
+/**
+ * Changes how long an activity takes, and moves what it would now run into.
+ *
+ * 「後面行程就需要回避掉已經被 book 的時間」. Stretching a 10:00 brunch from an
+ * hour to three is a statement about the morning, and the 10:15 after it cannot
+ * simply stay where it was.
+ *
+ * Only later items move, and only the ones actually in the way, by the least
+ * that clears them plus the usual transit buffer. Shortening a visit pulls
+ * nothing forward: a gap someone left may be a gap they wanted, and recovering
+ * half an hour is not worth rearranging a day nobody asked to rearrange.
+ *
+ * A fixed event stops the cascade exactly as it does for a drag — a flight does
+ * not move because a museum ran long — and the caller is told rather than having
+ * the clash quietly papered over.
+ */
+export const applyDurationChange = (
+  orderedDayItems: ItineraryItem[],
+  itemId: string,
+  durationMinutes: number,
+  options: { isFixed?: (item: ItineraryItem) => boolean } = {},
+): RescheduleResult => {
+  const isFixed = options.isFixed ?? (() => false);
+  const unchanged: RescheduleResult = { items: orderedDayItems, changed: false, pushedLate: false, blockedByFixed: false };
+  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return unchanged;
+
+  const target = orderedDayItems.find(entry => entry.id === itemId);
+  if (!target || !isTimedItem(target) || target.durationMinutes === durationMinutes) return unchanged;
+
+  const timed = orderedDayItems.filter(isTimedItem);
+  const index = timed.findIndex(entry => entry.id === itemId);
+  if (index === -1) return unchanged;
+
+  const start = timeToMinutes(target.time)!;
+  const nextStarts = new Map<string, number>();
+  let cursor = start + durationMinutes;
+
+  /*
+    Only a longer activity pushes anything.
+
+    Shortening one leaves the day alone even when something after it still
+    overlaps: that clash was there before this edit, it is already marked in
+    red, and repairing it is a different decision from the one being made here.
+    Nothing is ever pulled earlier — a gap someone left may be a gap they wanted.
+  */
+  const grew = durationMinutes > durationOf(target);
+  let pushedLate = false;
+  let blockedByFixed = false;
+
+  for (let position = index + 1; grew && position < timed.length; position += 1) {
+    const current = timed[position];
+    if (isFixed(current)) { blockedByFixed = true; break; }
+
+    // Out of the way already: everything after it is too, so the cascade ends.
+    if (timeToMinutes(current.time)! >= cursor) break;
+
+    const moved = Math.min(
+      snapMinutes(cursor + DEFAULT_TRANSIT_BUFFER_MINUTES),
+      MINUTES_IN_DAY - SNAP_MINUTES,
+    );
+    nextStarts.set(current.id, moved);
+    if (moved > LATE_DAY_BOUNDARY_MINUTES) pushedLate = true;
+    cursor = moved + cascadeDurationOf(current);
+  }
+
+  let changed = false;
+  const items = orderedDayItems.map(entry => {
+    if (entry.id === itemId) {
+      changed = true;
+      return { ...entry, durationMinutes };
+    }
+    const start = nextStarts.get(entry.id);
+    if (start === undefined) return entry;
+    const time = minutesToTime(start);
+    if (time === entry.time) return entry;
+    changed = true;
+    const { sortOrder: _dropped, ...rest } = entry;
+    return { ...rest, time };
+  });
+
+  return { items, changed, pushedLate, blockedByFixed };
 };
 
 /**

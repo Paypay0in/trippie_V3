@@ -25,7 +25,11 @@ const dayItems = [
   item({ id: 'panier', time: '10:15', title: 'Panier' }),
 ];
 
-const calendar = (items = dayItems, onUpdateItem = vi.fn()) => {
+const calendar = (
+  items = dayItems,
+  onUpdateItem = vi.fn(),
+  extra: Record<string, unknown> = {},
+) => {
   render(
     <ItineraryCalendar
       items={items}
@@ -36,6 +40,7 @@ const calendar = (items = dayItems, onUpdateItem = vi.fn()) => {
       onEdit={vi.fn()}
       onDelete={vi.fn()}
       destination="釜山"
+      {...(extra as never)}
     />,
   );
   return onUpdateItem;
@@ -52,6 +57,35 @@ describe('卡片上的時間', () => {
     expect(input.value).toBe('10:00');
   });
 
+  /**
+   * 「每個行程起訖時間都要可以填寫 目前只有起的時間 若沒有填寫訖的時間一律以 60
+   * 分鐘為主」. The hour was already the assumption everywhere; it was just
+   * never shown, so the day could not be read.
+   */
+  it('結束時間也在卡片上，沒填就顯示開始加一小時', () => {
+    calendar();
+
+    expect((screen.getByTestId('end-time-input-brunch') as HTMLInputElement).value).toBe('11:00');
+  });
+
+  it('填了結束時間就換算成停留時間', () => {
+    const onChangeDuration = vi.fn(() => true);
+    calendar(dayItems, vi.fn(), { onChangeDuration });
+
+    fireEvent.change(screen.getByTestId('end-time-input-brunch'), { target: { value: '12:30' } });
+
+    expect(onChangeDuration).toHaveBeenCalledWith('brunch', 150);
+  });
+
+  it('結束早於開始時不接受，什麼都不改', () => {
+    const onChangeDuration = vi.fn(() => true);
+    calendar(dayItems, vi.fn(), { onChangeDuration });
+
+    fireEvent.change(screen.getByTestId('end-time-input-brunch'), { target: { value: '08:00' } });
+
+    expect(onChangeDuration).not.toHaveBeenCalled();
+  });
+
   it('改了就直接寫回那個項目', () => {
     const onUpdateItem = calendar();
 
@@ -61,6 +95,20 @@ describe('卡片上的時間', () => {
     fireEvent.change(screen.getByTestId('time-input-brunch'), { target: { value: '11:20' } });
 
     expect(onUpdateItem).toHaveBeenLastCalledWith('brunch', { time: '11:20' });
+  });
+
+  /**
+   * 「後面行程就需要回避掉已經被 book 的時間」. Dragging a card has always carried
+   * the rest of the day with it; writing the time straight onto the item would
+   * have made the picker the one way to create an overlap.
+   */
+  it('改開始時間走的是和拖曳同一條路，後面的行程會跟著讓開', () => {
+    const onRescheduleItem = vi.fn(() => ({ ok: true }));
+    calendar(dayItems, vi.fn(), { onRescheduleItem });
+
+    fireEvent.change(screen.getByTestId('time-input-brunch'), { target: { value: '11:20' } });
+
+    expect(onRescheduleItem).toHaveBeenCalledWith('brunch', 11 * 60 + 20);
   });
 
   it('航班產生的卡片仍然唯讀——它的時間來自航班資訊', () => {

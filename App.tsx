@@ -237,7 +237,7 @@ import {
   orderItemsForDay,
   reorderWithinDay,
 } from "./services/itineraryOrdering";
-import { rescheduleFromItem, resequenceDayTimes } from "./services/itineraryTimeline";
+import { applyDurationChange, rescheduleFromItem, resequenceDayTimes } from "./services/itineraryTimeline";
 import {
   applyFixedEventAdjustment,
   FixedEventAdjustment,
@@ -2320,7 +2320,7 @@ const App: React.FC = () => {
 
   const handleUpdateItineraryItem = (
     id: string,
-    updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time">>,
+    updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time" | "durationMinutes">>,
   ) => {
     setItinerary((current) => {
       const nextItinerary = current.map((item) =>
@@ -2875,6 +2875,22 @@ const App: React.FC = () => {
    * Writes a fixed-event adjustment the user confirmed. A fixed event is never
    * moved by it — `applyFixedEventAdjustment` refuses that even if asked.
    */
+  /**
+   * Changes how long an activity takes, moving what it would now run into.
+   *
+   * 「後面行程就需要回避掉已經被 book 的時間」 — a brunch stretched from one hour
+   * to three cannot leave the 10:15 after it sitting inside the new span.
+   */
+  const handleChangeItemDuration = (itemId: string, durationMinutes: number): boolean => {
+    if (!activeDraftId) return false;
+    const moved = itinerary.find((entry) => entry.id === itemId);
+    const ordered = orderItemsForDay(itemsForDay(itinerary, moved?.date));
+    const result = applyDurationChange(ordered, itemId, durationMinutes, { isFixed: isFixedItem });
+    if (!result.changed) return false;
+    const byId = new Map(result.items.map((entry) => [entry.id, entry]));
+    return commitItinerary(itinerary.map((entry) => byId.get(entry.id) || entry));
+  };
+
   const handleApplyFixedAdjustment = (adjustment: FixedEventAdjustment): boolean => {
     if (!activeDraftId) return false;
     const result = applyFixedEventAdjustment(itinerary, adjustment);
@@ -5674,6 +5690,7 @@ const App: React.FC = () => {
           onReorder={handleReorderItinerary}
           onResequenceTimes={handleResequenceDayTimes}
           onRescheduleItem={handleRescheduleItem}
+          onChangeDuration={handleChangeItemDuration}
           onApplyFixedAdjustment={handleApplyFixedAdjustment}
           onTogglePin={handleTogglePin}
           onUpdateItem={handleUpdateItineraryItem}
@@ -6496,6 +6513,7 @@ const App: React.FC = () => {
                   onReorder={handleReorderItinerary}
                   onResequenceTimes={handleResequenceDayTimes}
                   onRescheduleItem={handleRescheduleItem}
+                  onChangeDuration={handleChangeItemDuration}
                   onApplyFixedAdjustment={handleApplyFixedAdjustment}
                   onTogglePin={handleTogglePin}
                   onUpdateItem={handleUpdateItineraryItem}
