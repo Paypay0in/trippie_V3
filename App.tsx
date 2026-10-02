@@ -6225,6 +6225,8 @@ const App: React.FC = () => {
                   onDeleteBatch={handleDeleteSettlementBatch}
                   onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
                   viewerMemberId={viewerMemberId}
+                  tripName={currentTripName}
+                  tripDateRange={tripStartDate && tripEndDate ? `${tripStartDate.replace(/-/g, "/")} - ${tripEndDate.replace(/-/g, "/")}` : ""}
                   onClose={() => setIsSettlementOpen(false)}
                 />
               </div>
@@ -6665,6 +6667,8 @@ const App: React.FC = () => {
               onDeleteBatch={handleDeleteSettlementBatch}
               onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
               viewerMemberId={viewerMemberId}
+              tripName={currentTripName}
+              tripDateRange={tripStartDate && tripEndDate ? `${tripStartDate.replace(/-/g, "/")} - ${tripEndDate.replace(/-/g, "/")}` : ""}
               onClose={() => setIsSettlementOpen(false)}
             />
           </div>

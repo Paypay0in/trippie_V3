@@ -40,6 +40,7 @@ import {
   sumReceivable,
 } from "../services/viewerBalances";
 import { getCategoryIcon } from "../constants";
+import MemberSettlementDetail from "./MemberSettlementDetail";
 import {
   EXPENSE_SELECTION_MODES,
   DateFilter,
@@ -70,6 +71,10 @@ type Props = {
    * they are owed money they actually owe.
    */
   viewerMemberId?: string;
+  /** Named on 成員結算明細, so a shared screenshot carries its own context. */
+  tripName?: string;
+  tripDateRange?: string;
+  tripCoverImage?: string;
 };
 const money = (n: number) => `NT$ ${Math.round(Math.abs(n)).toLocaleString()}`;
 const avatar = (name: string) => (
@@ -118,6 +123,9 @@ const SettlementFlow: React.FC<Props> = ({
   onClose,
   onOpenDisputes,
   viewerMemberId,
+  tripName,
+  tripDateRange,
+  tripCoverImage,
 }) => {
   const [screen, setScreen] = useState<"overview" | "create" | "confirm" | "member" | "minimum">(
     "overview",
@@ -669,91 +677,29 @@ const SettlementFlow: React.FC<Props> = ({
         )}
       </section>
     );
-  if (screen === "member" && memberDetail)
+  /*
+    成員結算明細, rebuilt to the design the Founder sent.
+
+    It used to open on one member at a time, which is the shape that lets two
+    travellers read two mirror-image screens and disagree about who owes whom.
+    One table naming everybody, with the bills that produced it underneath,
+    cannot be read two ways.
+  */
+  if (screen === "member")
     return (
-      <section className="space-y-4 rounded-[28px] bg-gray-50 p-5 text-[#11183d]">
-        <header className="flex items-center gap-2">
-          <button onClick={() => setScreen("overview")} aria-label="返回" className="rounded-full p-2 hover:bg-white">
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="text-2xl font-black tracking-tight">成員結算明細</h1>
-        </header>
-
-        {/* The counterpart's name beside "應付" reads as if THEY owe. The arrow
-            states the direction outright, so it cannot be read backwards. */}
-        <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-          {memberNet === 0 ? (
-            <>
-              {avatar(memberDetail.name)}
-              <span className="min-w-0 flex-1 truncate font-black">{memberDetail.name}</span>
-              <strong className="shrink-0 whitespace-nowrap font-black text-slate-400">
-                已結清
-              </strong>
-            </>
-          ) : (
-            <>
-              {memberNet > 0
-                ? transferFlow(viewerName, memberDetail.name)
-                : transferFlow(memberDetail.name, viewerName)}
-              <span className="min-w-0 flex-1 text-right">
-                <span
-                  className={`block whitespace-nowrap font-black ${
-                    memberNet < 0 ? "text-emerald-600" : "text-rose-500"
-                  }`}
-                >
-                  {money(memberNet)}
-                </span>
-                <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
-                  {memberNet < 0 ? "應收" : "應付"}
-                </span>
-              </span>
-            </>
-          )}
-        </div>
-
-        <div>
-          <h2 className="mb-2 text-lg font-black tracking-tight">相關支出</h2>
-          <div className="space-y-2">
-            {memberExpenses.map((expense) => {
-              const CategoryIcon = getCategoryIcon(expense.category);
-              return (
-                // Opens the expense thread: it carries the full split
-                // breakdown and, for whoever may edit it, a way in. Reusing it
-                // keeps one destination for "show me this record".
-                <button
-                  key={expense.id}
-                  type="button"
-                  onClick={() => onOpenDisputes?.(expense)}
-                  disabled={!onOpenDisputes}
-                  className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-[0_6px_18px_rgba(17,24,61,.05)] transition-colors enabled:hover:bg-slate-50 disabled:cursor-default"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-500">
-                    <CategoryIcon size={18} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-bold">{expense.description || "這筆支出"}</div>
-                    <div className="mt-0.5 text-xs font-medium text-slate-400">
-                      {expense.date.replace(/-/g, "/")}
-                    </div>
-                  </div>
-                  <strong className="shrink-0 whitespace-nowrap text-sm font-black">
-                    {money(expense.twdAmount)}
-                  </strong>
-                  {onOpenDisputes && (
-                    <ChevronRight size={18} className="shrink-0 text-slate-300" />
-                  )}
-                </button>
-              );
-            })}
-            {!memberExpenses.length && (
-              <p className="rounded-2xl bg-white p-5 text-center text-sm font-bold text-slate-400 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-                目前沒有與這位成員相關的待結算支出
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
+      <MemberSettlementDetail
+        tripName={tripName || "這趟旅程"}
+        dateRange={tripDateRange || ""}
+        coverImage={tripCoverImage}
+        expenses={expenses}
+        members={members}
+        ownerMemberId={ownerId}
+        onBack={() => setScreen("overview")}
+        onClose={onClose}
+        onOpenExpense={onOpenDisputes}
+      />
     );
+
   if (screen === "minimum")
     return (
       <section className="space-y-4 rounded-[28px] bg-gray-50 p-5 text-[#11183d]">
