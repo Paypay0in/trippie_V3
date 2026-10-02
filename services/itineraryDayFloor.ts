@@ -15,12 +15,23 @@ import { ItineraryItem } from '../types';
  * a day is planned around rather than over.
  */
 
+/**
+ * What an unmovable item does to the day around it.
+ *
+ * `to_airport` and `departure` close a day down: after them the traveller is
+ * leaving. `landing` and `checkin` open one up: before them they have not
+ * arrived. Which one it is decides whether the free time is before or after,
+ * and getting that backwards pushes the whole last day to after the flight home.
+ */
+export type FixedScheduleRole = 'to_airport' | 'departure' | 'landing' | 'checkin' | 'other';
+
 /** A fixed item the planner must schedule around, in a shape safe to send over the wire. */
 export interface FixedScheduleEntry {
   date: string;
   time: string;
   durationMinutes?: number;
   label: string;
+  role?: FixedScheduleRole;
 }
 
 const toMinutes = (clock: string): number => {
@@ -36,11 +47,36 @@ const toClock = (minutes: number): string => {
 const isValidClock = (value?: string): value is string => Boolean(value && /^\d{2}:\d{2}$/.test(value));
 
 /**
- * A flight, or anything the app derived from one — the airport arrival it
- * generates before the flight and the hotel check-in it generates after.
+ * A flight, anything derived from one, or a check-in.
+ *
+ * Check-in is not a flight and is deliberately not fixed — the hour you walk
+ * into a hotel is movable. It is here because on arrival day it is where the
+ * ride from the airport ends, and that hour is not sightseeing time. It only
+ * ever extends a floor a landing already opened; a mid-trip hotel change on a
+ * day with no flight constrains nothing.
  */
 const isAnchorBound = (item: ItineraryItem): boolean =>
-  Boolean(item.derivedFromFlightAnchorId) || item.type === 'FLIGHT' || item.fixedEventKind === 'flight';
+  Boolean(item.derivedFromFlightAnchorId)
+  || item.type === 'FLIGHT'
+  || item.fixedEventKind === 'flight'
+  || item.fixedEventKind === 'accommodation';
+
+/*
+  Which kind of anchor an item is.
+
+  Read from the derived-item id, which flightDerivedItems builds as
+  `flight-arrival-<anchor>` (be at the airport), `flight-departure-<anchor>`
+  (take-off) and `flight-landing-<anchor>` (touch down). The id is the one part
+  of these items that is generated rather than typed, so it is the only part
+  that cannot be renamed out from under this.
+*/
+const roleOf = (item: ItineraryItem): FixedScheduleRole => {
+  if (item.id.startsWith('flight-arrival-')) return 'to_airport';
+  if (item.id.startsWith('flight-departure-')) return 'departure';
+  if (item.id.startsWith('flight-landing-')) return 'landing';
+  if (item.fixedEventKind === 'accommodation') return 'checkin';
+  return 'other';
+};
 
 /**
  * The unmovable travel already on the itinerary, as plain data.
@@ -56,31 +92,119 @@ export const fixedAnchorSchedule = (existingItems: ItineraryItem[]): FixedSchedu
       time: item.time as string,
       durationMinutes: Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : undefined,
       label: item.title?.trim() || '航班',
+      role: roleOf(item),
     }))
     .sort((left, right) => (left.date === right.date ? left.time.localeCompare(right.time) : left.date.localeCompare(right.date)));
 
 /**
+ * The same thing, from the lossy snapshot the AI adjustment route receives.
+ *
+ * That payload has already dropped `type` and `fixedEventKind`, keeping
+ * `fixedEvent` / `accommodation` flags — but it keeps the id, which is where
+ * the role actually lives.
+ */
+export const fixedAnchorScheduleFromSnapshot = (
+  items: Array<{ id?: unknown; date?: unknown; startTime?: unknown; durationMinutes?: unknown; placeName?: unknown; fixedEvent?: unknown; accommodation?: unknown }>,
+): FixedScheduleEntry[] =>
+  items
+    .filter(item => typeof item?.id === 'string' && typeof item?.date === 'string' && isValidClock(item?.startTime as string)
+      && (item.fixedEvent === true || item.accommodation === true))
+    .map(item => ({
+      date: item.date as string,
+      time: item.startTime as string,
+      durationMinutes: typeof item.durationMinutes === 'number' && Number.isFinite(item.durationMinutes) ? item.durationMinutes : undefined,
+      label: typeof item.placeName === 'string' && item.placeName.trim() ? item.placeName.trim() : '航班',
+      role: item.accommodation === true && !(item.id as string).startsWith('flight-')
+        ? ('checkin' as FixedScheduleRole)
+        : roleOf({ id: item.id as string } as ItineraryItem),
+    }))
+    .sort((left, right) => (left.date === right.date ? left.time.localeCompare(right.time) : left.date.localeCompare(right.date)));
+
+const endOf = (entry: FixedScheduleEntry): number =>
+  toMinutes(entry.time) + (Number.isFinite(entry.durationMinutes) ? Number(entry.durationMinutes) : 0);
+
+const byDate = (entries: FixedScheduleEntry[]): Map<string, FixedScheduleEntry[]> => {
+  const grouped = new Map<string, FixedScheduleEntry[]>();
+  entries.forEach(entry => {
+    if (!entry.date || !isValidClock(entry.time)) return;
+    const day = grouped.get(entry.date) || [];
+    day.push(entry);
+    grouped.set(entry.date, day.sort((left, right) => left.time.localeCompare(right.time)));
+  });
+  return grouped;
+};
+
+const isLeaving = (entry: FixedScheduleEntry): boolean =>
+  entry.role === 'to_airport' || entry.role === 'departure';
+
+/*
+  Arrival day and the day home have the identical shape — be at the airport,
+  take off, land — so the roles alone cannot tell them apart. What separates
+  them is where in the trip they fall: the first flight takes you there, the
+  last one brings you home.
+*/
+const goingHomeDate = (entries: FixedScheduleEntry[]): string | undefined => {
+  const lastLeavingDate = entries.filter(isLeaving).map(entry => entry.date).sort().pop();
+  if (!lastLeavingDate) return undefined;
+  // A flight is only the way back if they arrived somewhere first. A trip with
+  // one flight entered so far is an outbound, and its landing still counts.
+  const arrivedEarlier = entries.some(entry => entry.role === 'landing' && entry.date < lastLeavingDate);
+  return arrivedEarlier ? lastLeavingDate : undefined;
+};
+
+/**
  * Per day, the earliest time a planned activity may start.
  *
- * A day's floor is the end of its last unmovable travel item — on an arrival day
- * that is the hotel check-in, not the landing, because the hour in between is
- * spent getting there. Days with no flight are absent: the planner is free,
- * which is the normal case.
+ * Only arriving creates a floor: the landing, and whatever unmovable thing
+ * follows it that same day, which on arrival day is the hotel check-in — the
+ * hour in between is spent getting there.
+ *
+ * Flying home creates none. The last day is free until they leave for the
+ * airport, and a floor there would push that whole morning to after the plane
+ * had gone — the same absurdity, pointing the other way.
  */
 export const earliestFreeStartByDate = (
   entries: FixedScheduleEntry[],
 ): Record<string, string> => {
-  const floors: Record<string, number> = {};
+  const floors: Record<string, string> = {};
+  const homeward = goingHomeDate(entries);
 
-  entries.forEach(entry => {
-    if (!entry.date || !isValidClock(entry.time)) return;
-    const end = toMinutes(entry.time) + (Number.isFinite(entry.durationMinutes) ? Number(entry.durationMinutes) : 0);
-    floors[entry.date] = Math.max(floors[entry.date] ?? 0, end);
+  byDate(entries).forEach((day, date) => {
+    const lastLanding = day.filter(entry => entry.role === 'landing').pop();
+    if (!lastLanding) return;
+    // The landing at the end of the day they fly home is the one back in
+    // Taiwan. It ends the trip; it does not open a window.
+    if (date === homeward && day.some(entry => isLeaving(entry) && entry.time < lastLanding.time)) return;
+
+    // The landing, plus anything unmovable still to come before they leave again.
+    const leavingAfter = day.find(entry => isLeaving(entry) && entry.time > lastLanding.time);
+    const floor = day
+      .filter(entry => entry.time >= lastLanding.time && (!leavingAfter || entry.time < leavingAfter.time))
+      .reduce((latest, entry) => Math.max(latest, endOf(entry)), 0);
+    floors[date] = toClock(floor);
   });
 
-  return Object.fromEntries(
-    Object.entries(floors).map(([date, minutes]) => [date, toClock(minutes)]),
-  );
+  return floors;
+};
+
+/**
+ * Per day, the latest time a planned activity may still start.
+ *
+ * Set by the trip to the airport: once they have to be at the gate the day is
+ * over. Absent on days nobody flies out, which is most of them.
+ */
+export const latestFreeStartByDate = (
+  entries: FixedScheduleEntry[],
+): Record<string, string> => {
+  const ceilings: Record<string, string> = {};
+  const floors = earliestFreeStartByDate(entries);
+
+  byDate(entries).forEach((day, date) => {
+    const leaving = day.find(entry => isLeaving(entry) && (!floors[date] || entry.time > floors[date]));
+    if (leaving) ceilings[date] = leaving.time;
+  });
+
+  return ceilings;
 };
 
 /*

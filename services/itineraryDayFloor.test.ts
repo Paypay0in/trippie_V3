@@ -18,7 +18,7 @@
  * already said.
  */
 import { describe, expect, it } from 'vitest';
-import { earliestFreeStartByDate, fixedAnchorSchedule, isCoveredByFixedSchedule } from './itineraryDayFloor';
+import { earliestFreeStartByDate, fixedAnchorSchedule, isCoveredByFixedSchedule, latestFreeStartByDate } from './itineraryDayFloor';
 import { normalizeTripInspirationProposal } from './itineraryPlanningService';
 import { TripPlanningInput } from './tripInspirationSelection';
 import { ItineraryItem } from '../types';
@@ -29,12 +29,17 @@ const item = (over: Partial<ItineraryItem>): ItineraryItem => ({
   id: 'i', time: '09:00', title: '', location: '', notes: '', type: 'ACTIVITY', date: DAY_ONE, ...over,
 });
 
-/** Day 1 exactly as his phone showed it. */
+/*
+  Day 1 exactly as his phone showed it, built the way the app builds it: the ids
+  are the ones flightDerivedItems generates, and check-in is a HOTEL item marked
+  `accommodation` with an id of its own — it is not derived from the anchor.
+  A fixture that invents those details proves nothing about the real itinerary.
+*/
 const anchors: ItineraryItem[] = [
-  item({ id: 'a-depart-airport', time: '14:35', title: '抵達機場（桃園）', type: 'FLIGHT', derivedFromFlightAnchorId: 'f1', durationMinutes: 0 }),
-  item({ id: 'a-takeoff', time: '16:35', title: '航班起飛（桃園）', type: 'FLIGHT', derivedFromFlightAnchorId: 'f1', durationMinutes: 0 }),
-  item({ id: 'a-land', time: '19:55', title: '航班抵達（金海）', type: 'FLIGHT', derivedFromFlightAnchorId: 'f1', durationMinutes: 0 }),
-  item({ id: 'a-hotel', time: '21:55', title: '入住 廣安里凱星頓特酒店', type: 'HOTEL', derivedFromFlightAnchorId: 'f1' }),
+  item({ id: 'flight-arrival-f1', time: '14:35', title: '抵達機場', location: '桃園國際機場', type: 'TRANSPORT', derivedFromFlightAnchorId: 'f1', durationMinutes: 0 }),
+  item({ id: 'flight-departure-f1', time: '16:35', title: '航班起飛', location: '桃園國際機場', type: 'FLIGHT', derivedFromFlightAnchorId: 'f1', durationMinutes: 0 }),
+  item({ id: 'flight-landing-f1', time: '19:55', title: '航班抵達', location: '金海國際機場', type: 'FLIGHT', derivedFromFlightAnchorId: 'f1', durationMinutes: 0 }),
+  item({ id: 'stay-1', time: '21:55', title: '入住 廣安里凱星頓特酒店', type: 'HOTEL', fixedEventKind: 'accommodation' }),
 ];
 
 describe('一天最早能開始的時間', () => {
@@ -43,7 +48,7 @@ describe('一天最早能開始的時間', () => {
   });
 
   it('航班有飛行時間時，floor 要算到降落為止', () => {
-    const inFlight = [item({ id: 'a', time: '16:35', title: '台北 → 釜山', type: 'FLIGHT', durationMinutes: 200 })];
+    const inFlight = [item({ id: 'flight-landing-f9', time: '16:35', title: '台北 → 釜山', type: 'FLIGHT', derivedFromFlightAnchorId: 'f9', durationMinutes: 200 })];
 
     expect(earliestFreeStartByDate(fixedAnchorSchedule(inFlight))[DAY_ONE]).toBe('19:55');
   });
@@ -56,6 +61,51 @@ describe('一天最早能開始的時間', () => {
 
   it('只看航班與航班衍生項目，一般行程不構成下限', () => {
     expect(fixedAnchorSchedule([item({ id: 'a', time: '20:00', title: '晚餐', type: 'FOOD' })])).toEqual([]);
+  });
+});
+
+/**
+ * The day home has the same shape as the day out — be at the airport, take off,
+ * land — so a floor built from "the last unmovable thing that day" pushed the
+ * entire last morning to after the plane had gone. Same absurdity, other
+ * direction. The free window on that day is before they leave, not after.
+ */
+describe('回程那天', () => {
+  const RETURN_DAY = '2026-10-07';
+  const roundTrip = [
+    ...anchors,
+    item({ id: 'flight-arrival-f2', date: RETURN_DAY, time: '07:00', title: '抵達機場（金海）', type: 'TRANSPORT', derivedFromFlightAnchorId: 'f2' }),
+    item({ id: 'flight-departure-f2', date: RETURN_DAY, time: '09:00', title: '航班起飛（金海）', type: 'FLIGHT', derivedFromFlightAnchorId: 'f2' }),
+    item({ id: 'flight-landing-f2', date: RETURN_DAY, time: '10:40', title: '航班抵達（桃園）', type: 'FLIGHT', derivedFromFlightAnchorId: 'f2' }),
+  ];
+
+  it('回程不產生下限，不會把最後一個早上推到飛機飛走之後', () => {
+    expect(earliestFreeStartByDate(fixedAnchorSchedule(roundTrip))[RETURN_DAY]).toBeUndefined();
+  });
+
+  it('回程改成上限：要到機場之前才有時間', () => {
+    expect(latestFreeStartByDate(fixedAnchorSchedule(roundTrip))[RETURN_DAY]).toBe('07:00');
+  });
+
+  it('去程那天的下限不受回程影響', () => {
+    expect(earliestFreeStartByDate(fixedAnchorSchedule(roundTrip))[DAY_ONE]).toBe('21:55');
+  });
+
+  it('去程那天沒有上限——落地之後的晚上是自由的', () => {
+    expect(latestFreeStartByDate(fixedAnchorSchedule(roundTrip))[DAY_ONE]).toBeUndefined();
+  });
+
+  it('中途轉機那天同時有下限與上限', () => {
+    const transit = [
+      item({ id: 'flight-landing-f3', date: '2026-10-04', time: '11:00', title: '航班抵達（濟州）', type: 'FLIGHT', derivedFromFlightAnchorId: 'f3' }),
+      item({ id: 'flight-arrival-f4', date: '2026-10-04', time: '18:00', title: '抵達機場（濟州）', type: 'TRANSPORT', derivedFromFlightAnchorId: 'f4' }),
+      item({ id: 'flight-departure-f4', date: '2026-10-04', time: '20:00', title: '航班起飛（濟州）', type: 'FLIGHT', derivedFromFlightAnchorId: 'f4' }),
+      ...roundTrip,
+    ];
+    const schedule = fixedAnchorSchedule(transit);
+
+    expect(earliestFreeStartByDate(schedule)['2026-10-04']).toBe('11:00');
+    expect(latestFreeStartByDate(schedule)['2026-10-04']).toBe('18:00');
   });
 });
 
@@ -117,5 +167,39 @@ describe('第一天的提案', () => {
     const { days } = normalizeTripInspirationProposal(raw, { ...input, fixedSchedule: undefined });
 
     expect(days[0].items).toHaveLength(4);
+  });
+});
+
+describe('回程那天的提案', () => {
+  const RETURN_DAY = '2026-10-07';
+  const roundTrip: ItineraryItem[] = [
+    ...anchors,
+    item({ id: 'flight-arrival-f2', date: RETURN_DAY, time: '07:00', title: '抵達機場', location: '金海國際機場', type: 'TRANSPORT', derivedFromFlightAnchorId: 'f2' }),
+    item({ id: 'flight-departure-f2', date: RETURN_DAY, time: '09:00', title: '航班起飛', location: '金海國際機場', type: 'FLIGHT', derivedFromFlightAnchorId: 'f2' }),
+    item({ id: 'flight-landing-f2', date: RETURN_DAY, time: '10:40', title: '航班抵達', location: '桃園國際機場', type: 'FLIGHT', derivedFromFlightAnchorId: 'f2' }),
+  ];
+
+  const input: TripPlanningInput = {
+    destination: '釜山', startDate: DAY_ONE, endDate: RETURN_DAY, durationDays: 6,
+    selections: [], fixedSchedule: fixedAnchorSchedule(roundTrip),
+  };
+
+  it('早上那個空檔照樣排得進去，而不是被推到飛機飛走之後', () => {
+    const { days } = normalizeTripInspirationProposal(
+      { days: [{ date: RETURN_DAY, items: [{ placeName: '西面市場買伴手禮', suggestedStartTime: '05:30', durationMinutes: 60, sourceInspirationIds: [] }] }] },
+      input,
+    );
+
+    expect(days[0]?.items[0]?.suggestedStartTime).toBe('05:30');
+  });
+
+  it('排在出發去機場之後的，整天都不留', () => {
+    const { days, warnings } = normalizeTripInspirationProposal(
+      { days: [{ date: RETURN_DAY, items: [{ placeName: '甘川洞文化村', suggestedStartTime: '13:00', durationMinutes: 90, sourceInspirationIds: [] }] }] },
+      input,
+    );
+
+    expect(days).toEqual([]);
+    expect(warnings.some(warning => warning.includes('出發去機場'))).toBe(true);
   });
 });

@@ -25,7 +25,7 @@ import {
 import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
 import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
 import { checkProposedChanges } from "./services/adjustmentChanges";
-import { earliestFreeStartByDate } from "./services/itineraryDayFloor";
+import { earliestFreeStartByDate, fixedAnchorScheduleFromSnapshot, latestFreeStartByDate } from "./services/itineraryDayFloor";
 import { enumerateTripDates } from "./services/itineraryPlanningService";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1535,18 +1535,17 @@ async function startServer() {
         「當我輸入航班資訊時 行程表就應該先錨定」. A day's floor is the end of its
         last hard-timed travel item, which on arrival day is the flight.
       */
-      const dayFloors = earliestFreeStartByDate(
-        (existingItinerary as Array<Record<string, any>>)
-          .filter(item => item?.fixedEvent === true && typeof item?.date === "string" && typeof item?.startTime === "string")
-          .map(item => ({
-            date: item.date as string,
-            time: item.startTime as string,
-            durationMinutes: typeof item.durationMinutes === "number" ? item.durationMinutes : undefined,
-            label: typeof item.placeName === "string" ? item.placeName : "航班",
-          })),
-      );
-      const floorBlock = Object.keys(dayFloors).length > 0
-        ? `\n\n【1b. 每一天最早可以開始安排的時間（由當天航班推算，不可違反）】\n${Object.entries(dayFloors).map(([date, time]) => `${date}：${time} 之後`).join("\n")}\n這幾天在那個時間之前都還在機場或飛機上。絕對不要在那之前安排任何行程，也不要重複產生抵達機場、入境通關、領行李、辦理入住這類項目——系統已經依航班自動放進去了。`
+      const anchorSchedule = fixedAnchorScheduleFromSnapshot(existingItinerary as Array<Record<string, any>>);
+      const dayFloors = earliestFreeStartByDate(anchorSchedule);
+      // The day they fly home ends when they leave for the airport, so that day
+      // gets a ceiling rather than a floor.
+      const dayCeilings = latestFreeStartByDate(anchorSchedule);
+      const windowLines = [
+        ...Object.entries(dayFloors).map(([date, time]) => `${date}：${time} 之後才有空（當天航班到那時才結束）`),
+        ...Object.entries(dayCeilings).map(([date, time]) => `${date}：${time} 之前，那個時間就要出發去機場了`),
+      ].sort();
+      const floorBlock = windowLines.length > 0
+        ? `\n\n【1b. 每一天可以安排行程的時間範圍（由當天航班推算，不可違反）】\n${windowLines.join("\n")}\n範圍以外的時間都還在機場、飛機上或已經離境。絕對不要在那些時段安排行程，也不要重複產生抵達機場、入境通關、領行李、辦理入住這類項目——系統已經依航班自動放進去了。`
         : "";
       const selections = Array.isArray(input.selections) ? input.selections : [];
       const model = "gemini-3-flash-preview";
@@ -1808,6 +1807,7 @@ ${MODE_RULES[mode]}
           succeeded.flatMap(entry => (Array.isArray(entry.data.changes) ? entry.data.changes : [])),
           tripDates,
           dayFloors,
+          dayCeilings,
         );
         const failedDates = results
           .filter(entry => "failed" in entry)

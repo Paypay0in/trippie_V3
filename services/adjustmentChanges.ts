@@ -68,6 +68,11 @@ export const checkProposedChanges = (
    * wrong.
    */
   dayFloors: Record<string, string> = {},
+  /**
+   * Per date, the time the day stops — when they leave for the airport. Dropped
+   * rather than retimed: a ceiling has nowhere to move an item to.
+   */
+  dayCeilings: Record<string, string> = {},
 ): CheckedChanges => {
   const changes = Array.isArray(raw) ? (raw as ProposedChange[]) : [];
   const withinTrip = new Set(tripDates);
@@ -135,5 +140,16 @@ export const checkProposedChanges = (
     return { ...change, toTime: floor };
   });
 
-  return { changes: floored, warnings };
+  // And nothing after they have left for the airport.
+  const withinDay = floored.filter(change => {
+    if (change?.type !== 'add' && change?.type !== 'move') return true;
+    const date = typeof change.toDate === 'string' ? change.toDate.trim() : '';
+    const ceiling = dayCeilings[date];
+    const time = typeof change.toTime === 'string' ? change.toTime.trim() : '';
+    if (!ceiling || !CLOCK.test(time) || time < ceiling) return true;
+    warnings.push(`${nameOf(change)} 被排在 ${time}，但 ${date} 當天 ${ceiling} 就要出發去機場了，已略過。`);
+    return false;
+  });
+
+  return { changes: withinDay, warnings };
 };

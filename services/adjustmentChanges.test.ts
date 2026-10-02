@@ -180,3 +180,38 @@ describe('當天的航班是下限', () => {
     expect(checkProposedChanges([other], TRIP, FLOORS)).toEqual({ changes: [other], warnings: [] });
   });
 });
+
+/**
+ * The mirror image of the floor, and the reason the floor alone was not enough:
+ * arrival day and the day home have the same shape, so a rule built only from
+ * "the day's flights" would have pushed the entire last morning to after the
+ * plane home had gone.
+ */
+describe('回程那天的上限', () => {
+  const CEILINGS = { '2026-10-04': '07:00' };
+
+  it('出發去機場之後的建議被略過，並說出原因', () => {
+    const result = checkProposedChanges(
+      [add({ toDate: '2026-10-04', toTime: '14:00' })],
+      TRIP,
+      {},
+      CEILINGS,
+    );
+
+    expect(result.changes).toEqual([]);
+    expect(result.warnings[0]).toContain('07:00');
+    expect(result.warnings[0]).toContain('機場');
+  });
+
+  it('出發之前的早上照樣可以排', () => {
+    const early = add({ toDate: '2026-10-04', toTime: '06:00' });
+
+    expect(checkProposedChanges([early], TRIP, {}, CEILINGS)).toEqual({ changes: [early], warnings: [] });
+  });
+
+  it('沒有上限的日子不受影響', () => {
+    const other = add({ toDate: '2026-10-03', toTime: '14:00' });
+
+    expect(checkProposedChanges([other], TRIP, {}, CEILINGS)).toEqual({ changes: [other], warnings: [] });
+  });
+});

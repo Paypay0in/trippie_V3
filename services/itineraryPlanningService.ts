@@ -1,7 +1,7 @@
 import { FlightAnchor, ItineraryItem, SavedExperienceNote, SavedInspiration } from '../types';
 import { PlaceCoordinates, TripPlanningInput, TripPlanningInspirationSelection } from './tripInspirationSelection';
 import { scheduleProposalDay } from './itineraryScheduling';
-import { earliestFreeStartByDate, isCoveredByFixedSchedule } from './itineraryDayFloor';
+import { earliestFreeStartByDate, isCoveredByFixedSchedule, latestFreeStartByDate } from './itineraryDayFloor';
 
 export type ItineraryProposal = { days: Array<{ date: string; items: ItineraryItem[] }>; conflicts: Array<{ type: string; message: string; existingItemId?: string; proposedItemId?: string }>; warnings: string[] };
 
@@ -198,7 +198,10 @@ export const normalizeTripInspirationProposal = (
   // The arrival day cannot begin before the plane lands, and the landing, the
   // immigration queue and the hotel check-in are already on it.
   const dayFloors = earliestFreeStartByDate(input.fixedSchedule || []);
+  // And on the day they fly home, nothing after they leave for the airport.
+  const dayCeilings = latestFreeStartByDate(input.fixedSchedule || []);
   let droppedRestatedAnchors = 0;
+  let droppedAfterDeparture = 0;
 
   const usedPlaceKeys = new Set<string>();
   const placedInspirationIds = new Set<string>();
@@ -297,13 +300,32 @@ export const normalizeTripInspirationProposal = (
       earliestStart: dayFloors[date],
     });
     if (repaired) repairedDays += 1;
-    days.push({ date, items: scheduledItems });
+
+    /*
+      On the day they fly home the day ends when they leave for the airport.
+
+      This is a drop rather than a retime: a floor has somewhere to move an item
+      to, a ceiling does not — pulling a 14:00 suggestion back before a 07:00
+      departure would just be inventing a different wrong time.
+    */
+    const ceiling = dayCeilings[date];
+    const withinDay = ceiling
+      ? scheduledItems.filter(entry => {
+          const keep = !entry.suggestedStartTime || entry.suggestedStartTime < ceiling;
+          if (!keep) droppedAfterDeparture += 1;
+          return keep;
+        })
+      : scheduledItems;
+
+    if (withinDay.length === 0) return;
+    days.push({ date, items: withinDay });
   });
 
   days.sort((left, right) => left.date.localeCompare(right.date));
 
   if (droppedOutOfRange > 0) warnings.push(`AI 提案有 ${droppedOutOfRange} 天不在旅程日期範圍內，已略過。`);
   if (droppedRestatedAnchors > 0) warnings.push(`AI 把航班與入住又寫成了 ${droppedRestatedAnchors} 個行程項目，已略過，這些時段照你的航班資料走。`);
+  if (droppedAfterDeparture > 0) warnings.push(`AI 把 ${droppedAfterDeparture} 個行程排在你出發去機場之後，已略過。回程那天只到你離開飯店為止。`);
   if (droppedDuplicates > 0) warnings.push(`AI 提案重複安排了 ${droppedDuplicates} 個地點，已只保留第一次。`);
   if (repairedDays > 0) warnings.push(`AI 提案有 ${repairedDays} 天的時間重複或前後衝突，已依停留時間與移動時間重新排出可行的時段。`);
 
