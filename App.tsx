@@ -5680,6 +5680,7 @@ const App: React.FC = () => {
           onAcceptProposal={handleAcceptAiProposal}
           onApplyAdjustment={handleApplyItineraryAdjustment}
           onProposeToItinerary={handleProposeSuggestions}
+          onAddItineraryItems={handleAddStayItems}
           onProposalAccepted={() => setWorkspaceSection("overview")}
         />
         {/*

@@ -219,8 +219,16 @@ describe('server route registration order', () => {
     const server = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
     const inline = [...server.matchAll(/app\.(?:post|put|patch)\("([^"]+)",\s*express\.json\(/g)].map(m => m[1]);
     // Photos are the only bodies this server accepts above 16kb.
-    // Widening that to another route is a decision, not a detail.
-    expect(inline).toEqual(['/api/expenses/parse-image', '/api/stays/parse-image', '/api/flights/parse-image']);
+    // Widening that to another route is a decision, not a detail — and
+    // /api/itinerary/parse-image is that decision, taken knowingly: it reads a
+    // screenshot of someone's travel plans, which is the same kind of body as
+    // the three beside it.
+    expect(inline).toEqual([
+      '/api/expenses/parse-image',
+      '/api/stays/parse-image',
+      '/api/itinerary/parse-image',
+      '/api/flights/parse-image',
+    ]);
   });
 });
 

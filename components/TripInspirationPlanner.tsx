@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Compass, MapPin, Sparkles, Check, AlertTriangle, ArrowRight, Clock3, RotateCcw, CalendarDays, CheckCircle2, Wand2, MoveRight, Trash2, Plus, PencilLine } from 'lucide-react';
 import { CommunityPost, ExperienceNoteType, ItineraryItem, SavedTravelInspiration } from '../types';
+import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
 import { PlacePreview, previewPlaceResolution } from '../services/itineraryPlaceEnrichment';
 import {
   analyzeExistingItinerary,
@@ -20,6 +21,7 @@ import {
   TripDestinationContext,
 } from '../services/tripInspirationSelection';
 import {
+  enumerateTripDates,
   generateTripInspirationProposal,
   ItineraryProposalRequestError,
   TripInspirationProposal,
@@ -72,6 +74,11 @@ interface Props {
    * here: this only moves the pending suggestions to where the plan is read.
    */
   onProposeToItinerary?: (proposal: ItineraryAdjustmentProposal) => void;
+  /**
+   * Appends cards the traveller picked out of a screenshot. Omit to hide the
+   * upload block entirely — nothing here writes without a destination for it.
+   */
+  onAddItineraryItems?: (items: ItineraryItem[]) => void;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -106,7 +113,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,6 +143,11 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [forwardedCount, setForwardedCount] = useState(0);
 
   const hasExistingItinerary = existingItinerary.length > 0;
+  /** The days a screenshot's places can be dropped onto. */
+  const tripDates = useMemo(
+    () => enumerateTripDates(trip.startDate, trip.endDate),
+    [trip.startDate, trip.endDate],
+  );
   const existingById = useMemo(
     () => new Map(existingItinerary.map(item => [item.id, item])),
     [existingItinerary],
@@ -571,6 +583,26 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   )}
                 </li>
               </ul>
+            </div>
+          )}
+
+          {/*
+            A screenshot is a plan too.
+
+            「這邊加一個可以上傳截圖的區塊」 — above the four AI modes, because
+            moving something the traveller already decided on is a different
+            job from asking the AI to decide. This one needs no model opinion
+            about their trip, only a reading of what they saved.
+          */}
+          {onAddItineraryItems && (
+            <div className="mt-3">
+              <ScreenshotItineraryIntake
+                dates={tripDates}
+                defaultDate={tripDates[0]}
+                destination={trip.destination}
+                destinationCountry={trip.destinationCountry || trip.travelCountry}
+                onAddItems={onAddItineraryItems}
+              />
             </div>
           )}
 

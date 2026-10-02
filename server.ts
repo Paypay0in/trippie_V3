@@ -25,6 +25,7 @@ import {
 import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
 import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
 import { checkProposedChanges } from "./services/adjustmentChanges";
+import { normalizeItinerarySlices } from "./services/itineraryImageSlices";
 import { earliestFreeStartByDate, fixedAnchorScheduleFromSnapshot, latestFreeStartByDate } from "./services/itineraryDayFloor";
 import { enumerateTripDates } from "./services/itineraryPlanningService";
 
@@ -275,6 +276,86 @@ async function startServer() {
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
       res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識訂房截圖，請手動輸入。" });
+    }
+  });
+
+  /**
+   * Travel plans arriving as a screenshot.
+   *
+   * 「讓他讀取截圖中的旅行資訊，切片之後讓用戶可以加入行程」. Trips get planned in
+   * other people's apps — a saved Instagram post, a blog, a friend's list in a
+   * chat — and the work of getting them into Trippie is retyping, which is why
+   * it does not happen.
+   *
+   * Cut into the same slices the community posts already use, so a screenshot
+   * and a post produce the same kind of thing. The model reads; it does not
+   * supply identity: a picture of the words 「甘川洞文化村」 is not a Google
+   * place, and a placeId or an address invented here would send somebody to an
+   * address that was never there.
+   */
+  app.post("/api/itinerary/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
+    const { base64Data, mimeType, destination, destinationCountry } = req.body ?? {};
+    const imageMime = typeof base64Data === "string" && base64Data ? resolveImageMime(mimeType, base64Data) : null;
+    if (!imageMime) { res.status(400).json({ error: "需要一張截圖。" }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在無法辨識截圖，請稍後再試。" }); return; }
+
+    const where = [typeof destination === "string" ? destination.trim() : "", typeof destinationCountry === "string" ? destinationCountry.trim() : ""]
+      .filter(Boolean).join("・");
+    const prompt = `${factsPreamble()}這是一張使用者存下來的旅行截圖：可能是社群貼文、部落格、聊天訊息、行程表或景點列表。`
+      + `\n\n把裡面「可以排進行程的東西」切成幾個項目，每個項目是一個地點或一件事。`
+      + (where ? `\n這趟旅程的目的地是 ${where}，和這趟無關的地點不要列出來。` : "")
+      + `\n\n規則：`
+      + `\n1. type 只能是 place、food、hotel、activity、transport、tip。`
+      + `\n2. title 用截圖裡實際出現的名稱，不要改寫成更漂亮的說法，也不要翻譯成其他語言。`
+      + `\n3. placeName 填店名或景點名；截圖沒有寫出名稱就不要填。`
+      + `\n4. 絕對不要產生 placeId、地址或座標——截圖上沒有這些，系統會自己去查。`
+      + `\n5. suggestedStartTime 只有在截圖明確寫了時間時才填，格式 HH:mm；沒寫就不要填。`
+      + `\n6. notes 放截圖裡真正有用的資訊：要排隊、幾點公休、必點什麼、怎麼去、多少錢。`
+      + `\n   「很好玩」「推薦」這種沒有內容的句子不要放。截圖沒提到的事一律不要補。`
+      + `\n7. 同一個地點只切一個項目，不要一句話切一個。`
+      + `\n只回傳 JSON。`;
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
+        contents: { parts: [{ inlineData: { mimeType: imageMime, data: base64Data } }, { text: prompt }] },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              slices: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    type: { type: Type.STRING, enum: ["place", "food", "hotel", "activity", "transport", "tip"] },
+                    title: { type: Type.STRING },
+                    placeName: { type: Type.STRING },
+                    summary: { type: Type.STRING },
+                    suggestedStartTime: { type: Type.STRING, description: "HH:mm, only if the screenshot states one" },
+                    durationMinutes: { type: Type.NUMBER },
+                    notes: {
+                      type: Type.ARRAY,
+                      items: { type: Type.OBJECT, properties: { text: { type: Type.STRING } }, required: ["text"] },
+                    },
+                  },
+                  required: ["type", "title"],
+                },
+              },
+            },
+            required: ["slices"],
+          },
+        },
+      }));
+      const slices = normalizeItinerarySlices(JSON.parse(cleanModelJson(response.text ?? "")));
+      if (slices.length === 0) { res.status(422).json({ error: "這張截圖看不出可以排進行程的地點，換一張再試試。" }); return; }
+      res.json({ slices });
+    } catch (error) {
+      const status = quotaStatusOf(error) ?? 502;
+      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識截圖，請稍後再試。" });
     }
   });
 
