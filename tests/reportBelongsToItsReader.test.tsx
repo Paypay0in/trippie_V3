@@ -53,10 +53,13 @@ describe('the settlement report', () => {
       />,
     );
 
-    // She bears 6,000 + 10,000 + her own 888, out of 32,888 passing through her.
-    expect(screen.getByText(/\$16,888/)).toBeTruthy();
-    // And she fronted 888 of it, so she is owed nothing and owes the rest.
-    expect(screen.getByTestId('viewer-share').textContent).toContain('32,888');
+    // She bears 6,000 + 10,000 + her own 888, and the list subtotals the same.
+    expect(screen.getAllByText(/\$16,888/).length).toBeGreaterThan(0);
+    // She fronted only her own 888, so the rest is hers to pay.
+    const split = screen.getByTestId('viewer-share');
+    expect(split.textContent).toContain('888');
+    expect(split.textContent).toContain('待補付');
+    expect(split.textContent).toContain('16,000');
     // His Esim, which concerns nobody but him, is not in her report at all.
     expect(screen.queryByText('Esim')).toBeNull();
     expect(screen.queryAllByText(/33,388/)).toEqual([]);
@@ -68,6 +71,27 @@ describe('the settlement report', () => {
    * ask who was reading. The lists, the chart and the per-phase subtotals had
    * not.
    */
+  /**
+   * 「總結算頁面又讓 Gina 的帳也加在我的上面 分帳的應該被扣掉」. The list carried
+   * 機票 $12,500 and 住宿 $20,000 in full and subtotalled 33,726 — money he
+   * fronted rather than money he spent. Half of each is hers.
+   */
+  it('lists each bill at what it cost this reader', () => {
+    render(
+      <TripSummaryModal
+        expenses={ledger}
+        onArchive={() => undefined}
+        variant="embedded"
+        viewerMemberId={OWNER_SEAT}
+        ownerMemberId={OWNER_SEAT}
+      />,
+    );
+
+    // 機票 12,000 split two ways reads 6,000 on his copy.
+    expect(screen.getAllByText(/\$6,000/).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(/\$12,000/)).toEqual([]);
+  });
+
   it('keeps the other traveller’s own spending out of the itemised list', () => {
     render(
       <TripSummaryModal
@@ -103,7 +127,7 @@ describe('the settlement report', () => {
       />,
     );
 
-    expect(screen.getByText(/\$16,500/)).toBeTruthy();
+    expect(screen.getAllByText(/\$16,500/).length).toBeGreaterThan(0);
     const split = screen.getByTestId('viewer-share');
     expect(split.textContent).toContain('32,500');
     expect(split.textContent).toContain('待收回');

@@ -37,6 +37,20 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
       return sum + (responsibility[viewerMemberId] || 0);
     }, 0);
   }, [expenses, viewerMemberId, ownerMemberId]);
+  /**
+   * Money that actually left this traveller's pocket.
+   *
+   * Distinct from both the bills that concern them and the share they bear:
+   * fronting 32,500 for a trip costing you 16,500 is the whole reason the
+   * other traveller owes you 16,000, and no other figure says it.
+   */
+  const frontedByViewer = React.useMemo(() => {
+    if (!viewerMemberId) return undefined;
+    return expenses.reduce((sum, expense) => {
+      const { paid } = calculateExpenseLedger(expense, ownerMemberId);
+      return sum + (paid[viewerMemberId] || 0);
+    }, 0);
+  }, [expenses, viewerMemberId, ownerMemberId]);
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [tripName, setTripName] = useState(initialTripName);
 
@@ -54,6 +68,14 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
      trip, so 「哈哈❤️ $888」 — the other traveller's own spending — appeared in
      his 準備清單 and in his pie, under a subtotal of 33,388.
   */
+  /** This reader's share of one bill, falling back to the bill where unknown. */
+  const shareOfExpense = React.useCallback((expense: Expense): number => {
+    if (!viewerMemberId || !Number.isFinite(expense.twdAmount)) return expense.twdAmount;
+    const { responsibility } = calculateExpenseLedger(expense, ownerMemberId);
+    const share = responsibility[viewerMemberId];
+    return Number.isFinite(share) ? share : expense.twdAmount;
+  }, [viewerMemberId, ownerMemberId]);
+
   const reportExpenses = React.useMemo(
     () => (viewerMemberId ? partitionByConcern(expenses, viewerMemberId).mine : expenses),
     [expenses, viewerMemberId],
@@ -98,11 +120,18 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
 
     reportExpenses.forEach(e => {
       // 1. Calculate Expenses (Real Cost)
+      /*
+        What the bill cost this reader, not what the bill was.
+
+        「總結算頁面又讓 Gina 的帳也加在我的上面 分帳的應該被扣掉」: the list
+        carried 機票 $12,500 and 住宿 $20,000 in full and subtotalled 33,726,
+        money he had fronted rather than money he spent. Half of each is hers.
+      */
       let realCost = 0;
       if (e.category === Category.EXCHANGE) {
         realCost = e.handlingFee || 0; 
       } else {
-        realCost = e.twdAmount;
+        realCost = shareOfExpense(e);
       }
 
       // Check for Refund Eligibility (Applicable to both Own Expense and Help Buy)
@@ -234,7 +263,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
       helpBuyList: helpBuy.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       totalHelpBuyTwd: helpBuySum
     };
-  }, [reportExpenses, taxRule]);
+  }, [reportExpenses, taxRule, shareOfExpense]);
 
   const totalResidueValue = walletResidue.reduce((acc, curr) => acc + curr.valueTwd, 0);
 
@@ -427,11 +456,11 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                     ${Math.round(viewerShare ?? totalExpense).toLocaleString()}
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1 relative z-10">* 已排除代買費用</div>
-                {viewerShare !== undefined && Math.round(totalExpense - viewerShare) !== 0 && (
+                {viewerShare !== undefined && frontedByViewer !== undefined && Math.round(frontedByViewer - viewerShare) !== 0 && (
                   <div data-testid="viewer-share" className="relative z-10 mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs font-bold">
-                    <p className="text-gray-500">你先付出去 <span className="text-brand-900">${Math.round(totalExpense).toLocaleString()}</span></p>
-                    <p className={Math.round(totalExpense - viewerShare) > 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                      {Math.round(totalExpense - viewerShare) > 0 ? '待收回' : '待補付'} ${Math.abs(Math.round(totalExpense - viewerShare)).toLocaleString()}
+                    <p className="text-gray-500">你先付出去 <span className="text-brand-900">${Math.round(frontedByViewer).toLocaleString()}</span></p>
+                    <p className={Math.round(frontedByViewer - viewerShare) > 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                      {Math.round(frontedByViewer - viewerShare) > 0 ? '待收回' : '待補付'} ${Math.abs(Math.round(frontedByViewer - viewerShare)).toLocaleString()}
                     </p>
                   </div>
                 )}
