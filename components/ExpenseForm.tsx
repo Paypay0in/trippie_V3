@@ -8,6 +8,7 @@ import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchan
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
 import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle } from 'lucide-react';
 import { localToday } from '../services/localDate';
+import { readAndDownscale } from '../services/postPhotos';
 
 interface Props {
   currentPhase: Phase;
@@ -182,6 +183,40 @@ const ExpenseForm: React.FC<Props> = ({
   
   // Image Upload Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Receipts kept with the expense.
+   *
+   * 「帳目中可以新增照片 剛點擊沒有反應」 — the button was rendered disabled, with
+   * the title 照片功能尚未開放, so it read as broken rather than as absent. A
+   * receipt is the evidence behind a split two people settle from; it belongs
+   * beside the number.
+   *
+   * Downscaled in the browser, exactly as community post photos already are, so
+   * a phone photo of three megabytes does not become three megabytes of row.
+   */
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [receiptPhotos, setReceiptPhotos] = useState<string[]>(initialData?.receiptPhotos || []);
+  const [receiptError, setReceiptError] = useState('');
+  const MAX_RECEIPTS = 4;
+
+  const handleReceiptFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setReceiptError('');
+    const room = MAX_RECEIPTS - receiptPhotos.length;
+    if (room <= 0) {
+      setReceiptError(`最多 ${MAX_RECEIPTS} 張`);
+      return;
+    }
+    const chosen = Array.from(files).slice(0, room);
+    try {
+      const downscaled = await Promise.all(chosen.map(readAndDownscale));
+      setReceiptPhotos(current => [...current, ...downscaled]);
+      if (files.length > room) setReceiptError(`最多 ${MAX_RECEIPTS} 張，其餘未加入`);
+    } catch {
+      setReceiptError('這張照片讀不進來，換一張試試');
+    }
+    if (receiptInputRef.current) receiptInputRef.current.value = '';
+  };
 
   // Sync category if initialCategory changes prop, but only if not editing
   useEffect(() => {
@@ -619,6 +654,7 @@ const ExpenseForm: React.FC<Props> = ({
         : [effectiveViewerMemberId],
       splitMethod: splitEnabled ? splitMethod : 'EQUAL',
       splitAllocations: splitEnabled ? submittedSplitAllocations.values : {},
+      receiptPhotos,
       needsReview: false // Manual entry assumes review is done
     };
     setExpenseSaveDebug(current => ({ ...current, formValid: true, expenseObjectCreated: true, onSubmitCalled: true }));
@@ -1180,15 +1216,42 @@ const ExpenseForm: React.FC<Props> = ({
                       placeholder="輸入備註..."
                       className="min-h-[92px] flex-1 resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 outline-none placeholder:text-slate-300"
                     />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      ref={receiptInputRef}
+                      onChange={event => { void handleReceiptFiles(event.target.files); }}
+                      className="hidden"
+                      data-testid="receipt-input"
+                    />
                     <button
                       type="button"
-                      disabled
-                      className="flex h-12 shrink-0 items-center gap-1 self-end rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-400"
-                      title="照片功能尚未開放"
+                      onClick={() => receiptInputRef.current?.click()}
+                      className="flex h-12 shrink-0 items-center gap-1 self-end rounded-xl border border-violet-200 bg-violet-50 px-3 text-xs font-bold text-violet-700"
                     >
                       <Camera size={15} /> 新增照片
                     </button>
                   </div>
+                  {receiptError && <p className="mt-2 text-xs font-bold text-rose-600">{receiptError}</p>}
+                  {/* What was attached, where it can be checked and taken back. */}
+                  {receiptPhotos.length > 0 && (
+                    <div data-testid="receipt-thumbs" className="mt-3 flex flex-wrap gap-2">
+                      {receiptPhotos.map((photo, index) => (
+                        <div key={`${index}-${photo.slice(-24)}`} className="relative">
+                          <img src={photo} alt={`收據 ${index + 1}`} className="h-20 w-20 rounded-xl border border-slate-200 object-cover" />
+                          <button
+                            type="button"
+                            aria-label={`移除收據 ${index + 1}`}
+                            onClick={() => setReceiptPhotos(current => current.filter((_, at) => at !== index))}
+                            className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/80 text-white"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

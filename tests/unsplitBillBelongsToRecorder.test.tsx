@@ -51,6 +51,78 @@ const saveOnHerPhone = async (withSplit = false): Promise<Expense> => {
   return onSubmit.mock.calls[0][0] as Expense;
 };
 
+/**
+ * 「帳目中可以新增照片 剛點擊沒有反應」.
+ *
+ * 新增照片 was rendered disabled, titled 照片功能尚未開放 — a control that looked
+ * live and answered nothing. A receipt is the evidence behind a split two
+ * people settle from, so it belongs on the expense.
+ */
+describe('attaching a receipt', () => {
+  it('opens a picker rather than doing nothing', async () => {
+    const user = userEvent.setup();
+    render(
+      <ExpenseForm
+        currentPhase="pre"
+        customCategories={{ pre: [], during: [], post: [], summary: [] } as never}
+        onAddCustomCategory={() => undefined}
+        onRemoveCustomCategory={() => undefined}
+        existingExpenses={[]}
+        companions={[]}
+        onSubmit={() => undefined}
+        onClose={() => undefined}
+        ownerMemberId={OWNER}
+        ownerName="Ann"
+        viewerMemberId={OWNER}
+        viewerIdentified
+      />,
+    );
+
+    const button = screen.getByRole('button', { name: /新增照片/ });
+    expect(button.hasAttribute('disabled')).toBe(false);
+
+    const input = screen.getByTestId('receipt-input') as HTMLInputElement;
+    const clicked = vi.fn();
+    input.addEventListener('click', clicked);
+    await user.click(button);
+
+    expect(clicked).toHaveBeenCalled();
+    expect(input.accept).toBe('image/*');
+  });
+
+  it('shows a receipt the expense already carries, and lets it be taken back', async () => {
+    const user = userEvent.setup();
+    render(
+      <ExpenseForm
+        currentPhase="pre"
+        customCategories={{ pre: [], during: [], post: [], summary: [] } as never}
+        onAddCustomCategory={() => undefined}
+        onRemoveCustomCategory={() => undefined}
+        existingExpenses={[]}
+        companions={[]}
+        onSubmit={() => undefined}
+        onClose={() => undefined}
+        ownerMemberId={OWNER}
+        ownerName="Ann"
+        viewerMemberId={OWNER}
+        viewerIdentified
+        initialData={{
+          id: 'e-1', description: '晚餐', amount: 500, twdAmount: 500, currency: 'TWD',
+          exchangeRate: 1, category: '其他', paymentMethod: 'CASH_TWD', phase: 'pre',
+          date: '2026-10-03', payerId: OWNER, beneficiaries: [OWNER],
+          splitMethod: 'EQUAL', splitAllocations: {},
+          receiptPhotos: ['data:image/jpeg;base64,AAAA'],
+        } as never}
+      />,
+    );
+
+    expect(screen.getByAltText('收據 1')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: '移除收據 1' }));
+    expect(screen.queryByAltText('收據 1')).toBeNull();
+  });
+});
+
 describe('a bill recorded with no split', () => {
   it('belongs to whoever recorded it, in all three facts', async () => {
     const saved = await saveOnHerPhone();

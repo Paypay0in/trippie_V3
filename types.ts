@@ -173,6 +173,14 @@ export interface Expense {
   disputes?: ExpenseDispute[];
   needsReview?: boolean; // New field to flag uncertain AI results
   linkedShoppingItemId?: string; // New: To track which shopping item created this expense
+  /**
+   * Receipts photographed for this expense, downscaled in the browser.
+   *
+   * 「帳目中可以新增照片 剛點擊沒有反應」 — the button existed, disabled, titled
+   * 照片功能尚未開放. A receipt is the evidence behind a split that two people
+   * settle from, and it is worth keeping where the number is.
+   */
+  receiptPhotos?: string[];
 }
 
 /**

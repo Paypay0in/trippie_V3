@@ -42,7 +42,20 @@ const expense: Expense = {
 describe('expense mapping', () => {
   it('survives a round trip without losing a field', () => {
     const restored = fromExpenseRow(toExpenseRow(expense, TRIP));
-    expect(restored).toEqual({ ...expense, linkedShoppingItemId: undefined });
+    // Receipts default to none rather than undefined, so a row written before
+    // the column existed reads back as an expense with no photos.
+    expect(restored).toEqual({ ...expense, linkedShoppingItemId: undefined, receiptPhotos: [] });
+  });
+
+  /**
+   * 「帳目中可以新增照片 剛點擊沒有反應」. The receipt has to reach the other phone;
+   * a photo that only exists on the device that took it is not evidence either
+   * traveller can settle from.
+   */
+  it('carries receipts to the other traveller', () => {
+    const withReceipt: Expense = { ...expense, receiptPhotos: ['data:image/jpeg;base64,AAAA'] };
+
+    expect(fromExpenseRow(toExpenseRow(withReceipt, TRIP)).receiptPhotos).toEqual(['data:image/jpeg;base64,AAAA']);
   });
 
   it('carries the split intact, including a dispute thread', () => {

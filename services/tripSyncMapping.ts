@@ -31,6 +31,8 @@ export interface ExpenseRow {
   disputes: unknown[];
   needs_review: boolean;
   linked_shopping_item_id: string | null;
+  /** Receipts, as downscaled data URLs, the same shape community posts use. */
+  receipt_photos?: unknown;
 }
 
 export interface TripMemberRow {
@@ -71,6 +73,7 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   disputes: expense.disputes ?? [],
   needs_review: Boolean(expense.needsReview),
   linked_shopping_item_id: expense.linkedShoppingItemId ?? null,
+  receipt_photos: expense.receiptPhotos ?? [],
 });
 
 /**
@@ -122,6 +125,9 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   disputes: Array.isArray(row.disputes) ? (row.disputes as Expense['disputes']) : [],
   needsReview: Boolean(row.needs_review),
   linkedShoppingItemId: row.linked_shopping_item_id ?? undefined,
+  receiptPhotos: Array.isArray(row.receipt_photos)
+    ? (row.receipt_photos as unknown[]).filter((photo): photo is string => typeof photo === 'string')
+    : [],
 });
 
 /**
