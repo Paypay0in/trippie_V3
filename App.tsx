@@ -5662,6 +5662,7 @@ const App: React.FC = () => {
         <StayUploadCard
           itinerary={itinerary}
           flightArrivals={flightArrivals(flightAnchors)}
+          destinationCountry={tripInspirationContext.destinationCountry || travelCountry}
           onAddItems={handleAddStayItems}
           onRemoveItem={handleDeleteItineraryItem}
         />
@@ -6476,6 +6477,7 @@ const App: React.FC = () => {
                 <StayUploadCard
                   itinerary={itinerary}
                   flightArrivals={flightArrivals(flightAnchors)}
+                  destinationCountry={tripInspirationContext.destinationCountry || travelCountry}
                   onAddItems={handleAddStayItems}
                   onRemoveItem={handleDeleteItineraryItem}
                 />

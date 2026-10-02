@@ -3,11 +3,15 @@ import { BedDouble, Camera, Loader2, Trash2, AlertTriangle } from 'lucide-react'
 import { ItineraryItem } from '../types';
 import { ParsedStay, normalizeParsedStay, stayToItineraryItems } from '../services/stayIntake';
 import { FlightArrivalPoint } from '../services/flightDerivedItems';
+import { linkStayItems, stayPlaceQuery } from '../services/stayPlaceLink';
+import { resolvePlace } from '../services/placeService';
 
 interface Props {
   itinerary: ItineraryItem[];
   /** Landing times, so a check-in defaults to when they are actually there. */
   flightArrivals?: FlightArrivalPoint[];
+  /** Biases the hotel lookup to the country they are travelling to. */
+  destinationCountry?: string;
   /** Appends the parsed stay's items; the caller owns persistence and sync. */
   onAddItems: (items: ItineraryItem[]) => void;
   onRemoveItem: (itemId: string) => void;
@@ -34,7 +38,7 @@ const makeId = () => `stay-${Date.now().toString(36)}-${Math.random().toString(3
  * because the itinerary syncs between travellers and the trip object does not
  * — a companion can see the room booking, which is the point of entering it.
  */
-const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], onAddItems, onRemoveItem }) => {
+const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], destinationCountry, onAddItems, onRemoveItem }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -56,8 +60,28 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], onAdd
    * once and never again: a landing time entered afterwards changed nothing.
    * It is derived from the flights and the stays instead, so it follows both.
    */
-  const addStay = (stay: ParsedStay) => {
-    onAddItems(stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[]);
+  const addStay = async (stay: ParsedStay) => {
+    const items = stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[];
+
+    /*
+      Link the booking to the place it is, before it lands on the itinerary.
+
+      A hotel card with an address but no `placeId` is invisible to everything
+      downstream — no photo, no map, and no travel time into or out of the place
+      they sleep, which made every leg touching it read 「其中一個地點還沒連結
+      地圖，無法計算交通時間」.
+
+      Best effort by design: if the lookup fails the booking is still added,
+      unlinked, exactly as before. A room booking that does not reach the
+      itinerary is a worse outcome than one without a photo.
+    */
+    const query = stayPlaceQuery(stay.hotelName, stay.address);
+    if (!query) { onAddItems(items); return; }
+    try {
+      onAddItems(linkStayItems(items, await resolvePlace(query, destinationCountry)));
+    } catch {
+      onAddItems(items);
+    }
   };
 
   const handleFile = async (file: File) => {
@@ -85,7 +109,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], onAdd
         return;
       }
 
-      addStay(await response.json() as ParsedStay);
+      await addStay(await response.json() as ParsedStay);
     } catch {
       setError('辨識失敗，請手動新增住宿。');
     } finally {
@@ -166,7 +190,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], onAdd
               return;
             }
             setError('');
-            addStay(stay);
+            void addStay(stay);
             setForm(EMPTY_FORM);
             setManual(false);
           }}
