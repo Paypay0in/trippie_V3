@@ -28,6 +28,16 @@ interface Props {
   onAddCash: () => void;
   onAddExpense: (expense: Omit<Expense, 'id'>) => void;
   currentPhase: Phase;
+  /**
+   * The whole trip's ledger, for the debt block alone.
+   *
+   * 「旅行中這邊這個欄位也有結算功能 但沒有顯示帳目狀況」: every other figure on
+   * this screen is about one phase, so the screen is handed one phase — and
+   * the settlement block inherited that slice and reported nothing, while the
+   * other traveller owed 16,613 from flights and a hotel booked before they
+   * left. A debt does not belong to a tab.
+   */
+  allExpenses?: Expense[];
   taxRule?: TaxRule | null;
   travelRules?: TravelRules | null;
   visaInfo?: VisaInfo | null; // Added prop
@@ -43,7 +53,7 @@ interface Props {
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
 
-const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund, onOpenSettlement, viewerMemberId, settlementOnly }) => {
+const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund, onOpenSettlement, viewerMemberId, settlementOnly }) => {
   const [isRefundListExpanded, setIsRefundListExpanded] = useState(false);
   
   // Wallet History State
@@ -101,7 +111,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
     const accountingMembers = members || companions.map((companion, index) => ({ ...companion, type: index === 0 ? 'owner' as const : 'guest' as const }));
     // Same outstanding accounting the settlement screens use, so a partly
     // settled expense reports the same remaining balance everywhere.
-    Object.assign(d, calculateOutstandingDebts(expenses, accountingMembers, batches || []));
+    Object.assign(d, calculateOutstandingDebts(allExpenses || expenses, accountingMembers, batches || []));
 
     const refundItems: Expense[] = [];
     let totalEstimatedRefundTWD = 0;
@@ -213,7 +223,7 @@ const Dashboard: React.FC<Props> = ({ expenses, companions, members, batches, on
         helpBuyTotal: helpBuyTWD,
         helpBuyPotentialRefund
     };
-  }, [expenses, companions, members, batches, taxRule, currentPhase]);
+  }, [expenses, allExpenses, companions, members, batches, taxRule, currentPhase]);
 
   // Helper functions to keep useMemo clean
   function ccBillAccumulation(cc: any, e: Expense) {

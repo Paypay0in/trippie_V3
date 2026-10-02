@@ -5764,6 +5764,8 @@ const App: React.FC = () => {
                   ? selectSpendingExpenses(expenses)
                   : selectSpendingExpenses(walletExpenses)
               }
+              // Spending is read a phase at a time; a debt is not.
+              allExpenses={selectSpendingExpenses(expenses)}
               companions={companions}
               members={buildTripMembers(
                 activeDraftId || currentLoadedTripId || "active",
