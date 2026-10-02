@@ -159,6 +159,11 @@ import {
   reconcileTransfers,
   transferPairs,
 } from "./services/airportTransfer";
+import type { ItinerarySlice } from "./services/itineraryImageSlices";
+import {
+  mergeScreenshotInspirations,
+  slicesToSavedInspirations,
+} from "./services/screenshotInspiration";
 import { flightModeFromAnchors } from "./services/tripSyncMapping";
 import ItineraryPlanningAssistant from "./components/ItineraryPlanningAssistant";
 import TravelBookView from "./components/TravelBookView";
@@ -2261,6 +2266,56 @@ const App: React.FC = () => {
         item.id === id ? { ...item, isPurchased: !item.isPurchased } : item,
       ),
     );
+  };
+
+  /**
+   * Saves a screenshot's places into the trip's collection.
+   *
+   * 「跟朋友會先把想去的地方列一個表單 … 最後一鍵讓 AI 閱讀目前行程後 再根據收藏
+   * 行程的地址去安排行程表排進去」. The second half of that already exists:
+   * 補充行程 reads the official itinerary and fits selected saved places into
+   * it. What was missing was a way for a screenshot to become one of those
+   * saved places, which is all this does.
+   *
+   * Each place is resolved to a real address here rather than at scheduling
+   * time, because 「根據收藏行程的地址」 is the whole point — a collection of bare
+   * names cannot be arranged by geography. A name that resolves to nothing is
+   * still saved; it simply waits to be linked like any other unlinked place.
+   */
+  const handleSaveScreenshotPlaces = async (slices: ItinerarySlice[]): Promise<number> => {
+    const persistedAnonymousUserId =
+      localStorage.getItem("trippie_user_id") || anonymousUserId;
+    const saveUserId = authUser?.id || persistedAnonymousUserId;
+    const country = tripInspirationContext.destinationCountry || travelCountry || "";
+    const city = tripDestination || "";
+
+    const resolvedEntries = await Promise.all(
+      slices.map(async (slice) => {
+        const query = [slice.placeName || slice.title, city, country]
+          .filter(Boolean)
+          .join(" ");
+        const place = query ? await resolvePlace(query, country || undefined).catch(() => null) : null;
+        const photo = place?.placeId ? await fetchPlacePhoto(place.placeId).catch(() => null) : null;
+        return [slice.id, {
+          placeId: place?.placeId,
+          address: place?.address,
+          latitude: place?.latitude,
+          longitude: place?.longitude,
+          photoUrl: photo?.imageUrl,
+        }] as const;
+      }),
+    );
+
+    const saved = slicesToSavedInspirations(slices, {
+      savedByUserId: saveUserId,
+      country,
+      city,
+      makeId: generateId,
+      resolved: Object.fromEntries(resolvedEntries),
+    });
+
+    setSavedTravelInspirations((current) => mergeScreenshotInspirations(current, saved));
+    return saved.length;
   };
 
   const handleUpdateItineraryItem = (
@@ -5681,6 +5736,7 @@ const App: React.FC = () => {
           onApplyAdjustment={handleApplyItineraryAdjustment}
           onProposeToItinerary={handleProposeSuggestions}
           onAddItineraryItems={handleAddStayItems}
+          onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
           onProposalAccepted={() => setWorkspaceSection("overview")}
         />
         {/*

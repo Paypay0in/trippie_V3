@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { AlertTriangle, Camera, Check, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { AlertTriangle, Bookmark, Camera, Check, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { ItinerarySlice, sliceToItineraryItem } from '../services/itineraryImageSlices';
 import { readItinerarySlicesFromImage } from '../services/itineraryImageIntake';
@@ -25,6 +25,15 @@ interface Props {
   destinationCountry?: string;
   /** Appends the chosen cards; the caller owns persistence and sync. */
   onAddItems: (items: ItineraryItem[]) => void;
+  /**
+   * Saves the chosen slices into the trip's collection instead of onto a day.
+   *
+   * 「跟朋友會先把想去的地方列一個表單 … 最後一鍵讓 AI 閱讀目前行程後 再根據收藏
+   * 行程的地址去安排」 — a list of maybes is not an itinerary yet, and forcing
+   * each place onto a day as it arrives is the step that makes collecting feel
+   * like planning. Omit to offer only the direct add.
+   */
+  onSaveToCollection?: (slices: ItinerarySlice[]) => Promise<number> | number;
 }
 
 const TYPE_LABELS: Record<ItinerarySlice['type'], string> = {
@@ -44,6 +53,7 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
   destination,
   destinationCountry,
   onAddItems,
+  onSaveToCollection,
 }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -52,10 +62,13 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
   const [chosen, setChosen] = useState<string[]>([]);
   const [date, setDate] = useState(defaultDate || dates[0] || '');
   const [added, setAdded] = useState(0);
+  const [saved, setSaved] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   const handleFile = async (file: File) => {
     setError('');
     setAdded(0);
+    setSaved(0);
     setBusy(true);
     try {
       const base64Data = await new Promise<string>((resolve, reject) => {
@@ -86,13 +99,32 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
     }
   };
 
+  const picked = () => slices.filter(slice => chosen.includes(slice.id));
+
   const add = () => {
-    const picked = slices.filter(slice => chosen.includes(slice.id));
-    if (picked.length === 0) return;
-    onAddItems(picked.map(slice => sliceToItineraryItem(slice, makeId, date || undefined)));
-    setAdded(picked.length);
+    const chosenSlices = picked();
+    if (chosenSlices.length === 0) return;
+    onAddItems(chosenSlices.map(slice => sliceToItineraryItem(slice, makeId, date || undefined)));
+    setAdded(chosenSlices.length);
     setSlices([]);
     setChosen([]);
+  };
+
+  /** Into the collection, where the AI can later fit them around the flights. */
+  const collect = async () => {
+    const chosenSlices = picked();
+    if (chosenSlices.length === 0 || !onSaveToCollection) return;
+    setSaving(true);
+    setError('');
+    try {
+      setSaved(await onSaveToCollection(chosenSlices));
+      setSlices([]);
+      setChosen([]);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '收藏時出了點問題，請再試一次。');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -142,6 +174,13 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
       {added > 0 && (
         <p className="mt-3 flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
           <Check size={14} /> 已加入 {added} 個行程，可以到時間軸調整時間與順序。
+        </p>
+      )}
+
+      {saved > 0 && (
+        <p data-testid="screenshot-saved-note" className="mt-3 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-bold leading-5 text-[#5b3df5]">
+          <Check size={14} className="mr-1 inline" />
+          已收藏 {saved} 個地點。想一次排進行程的話，到下面選「補充行程」——AI 會先讀過你目前的安排，再把收藏的地點依地址排進合適的空檔。
         </p>
       )}
 
@@ -222,13 +261,37 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
             })}
           </ul>
 
+          {/*
+            Two destinations, because they are two different intentions.
+
+            A place you know you are going on Thursday belongs on Thursday. A
+            place a friend sent you belongs in the collection until the day it
+            fits — 「先把想去的地方列一個表單」 — and the AI fits it later, around
+            the flights that are already there.
+          */}
+          {onSaveToCollection && (
+            <button
+              type="button"
+              onClick={() => void collect()}
+              disabled={chosen.length === 0 || saving}
+              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 py-3 text-sm font-black text-white disabled:opacity-40"
+            >
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Bookmark size={15} />}
+              {saving ? '收藏中…' : `收藏 ${chosen.length} 個，稍後讓 AI 排`}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={add}
             disabled={chosen.length === 0}
-            className="mt-3 w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 py-3 text-sm font-black text-white disabled:opacity-40"
+            className={`w-full rounded-xl py-3 text-sm font-black disabled:opacity-40 ${
+              onSaveToCollection
+                ? 'mt-2 border border-[#d9d5f5] bg-white text-[#5b3df5]'
+                : 'mt-3 bg-gradient-to-r from-blue-600 to-violet-600 text-white'
+            }`}
           >
-            加入 {chosen.length} 個到行程
+            直接加到{date ? '這一天' : '行程'}（{chosen.length}）
           </button>
           <p className="mt-1.5 text-center text-[10px] font-medium text-slate-400">
             截圖讀到的是名稱與筆記，地圖位置會在行程裡再連結

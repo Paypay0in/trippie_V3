@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Compass, MapPin, Sparkles, Check, AlertTriangle, ArrowRight, Clock3, RotateCcw, CalendarDays, CheckCircle2, Wand2, MoveRight, Trash2, Plus, PencilLine } from 'lucide-react';
 import { CommunityPost, ExperienceNoteType, ItineraryItem, SavedTravelInspiration } from '../types';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
+import type { ItinerarySlice } from '../services/itineraryImageSlices';
 import { PlacePreview, previewPlaceResolution } from '../services/itineraryPlaceEnrichment';
 import {
   analyzeExistingItinerary,
@@ -79,6 +80,12 @@ interface Props {
    * upload block entirely — nothing here writes without a destination for it.
    */
   onAddItineraryItems?: (items: ItineraryItem[]) => void;
+  /**
+   * Saves a screenshot's places into the trip's collection, returning how many
+   * were kept. They then appear in the picker above like any saved inspiration,
+   * and 補充行程 fits them around the itinerary that already exists.
+   */
+  onSaveScreenshotPlaces?: (slices: ItinerarySlice[]) => Promise<number> | number;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -113,7 +120,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -602,6 +609,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                 destination={trip.destination}
                 destinationCountry={trip.destinationCountry || trip.travelCountry}
                 onAddItems={onAddItineraryItems}
+                onSaveToCollection={onSaveScreenshotPlaces}
               />
             </div>
           )}

@@ -32,8 +32,16 @@ const upload = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.upload(screen.getByLabelText('上傳旅行截圖'), file);
 };
 
-const panel = (onAddItems = vi.fn()) => {
-  render(<ScreenshotItineraryIntake dates={DATES} defaultDate={DATES[0]} destination="釜山" onAddItems={onAddItems} />);
+const panel = (onAddItems = vi.fn(), onSaveToCollection?: ReturnType<typeof vi.fn>) => {
+  render(
+    <ScreenshotItineraryIntake
+      dates={DATES}
+      defaultDate={DATES[0]}
+      destination="釜山"
+      onAddItems={onAddItems}
+      onSaveToCollection={onSaveToCollection}
+    />,
+  );
   return onAddItems;
 };
 
@@ -82,7 +90,7 @@ describe('上傳截圖之後', () => {
     await waitFor(() => expect(screen.getByText('大師兄牛肉麵')).toBeTruthy());
     // Everything starts ticked; untick the second one.
     await user.click(screen.getByText('甘川洞文化村'));
-    await user.click(screen.getByText(/加入 1 個到行程/));
+    await user.click(screen.getByText(/直接加到這一天（1）/));
 
     expect(onAddItems).toHaveBeenCalledTimes(1);
     const added = onAddItems.mock.calls[0][0];
@@ -99,7 +107,8 @@ describe('上傳截圖之後', () => {
     await upload(user);
     await waitFor(() => expect(screen.getByText('大師兄牛肉麵')).toBeTruthy());
     await user.selectOptions(screen.getByLabelText('加入哪一天'), '');
-    await user.click(screen.getByText(/加入 2 個到行程/));
+    // With no day chosen the button says so rather than 「這一天」.
+    await user.click(screen.getByText(/直接加到行程（2）/));
 
     expect(onAddItems.mock.calls[0][0][0].date).toBeUndefined();
   });
@@ -111,7 +120,7 @@ describe('上傳截圖之後', () => {
 
     await upload(user);
     await waitFor(() => expect(screen.getByText('大師兄牛肉麵')).toBeTruthy());
-    await user.click(screen.getByText(/加入 2 個到行程/));
+    await user.click(screen.getByText(/直接加到這一天（2）/));
 
     expect(screen.getByText(/已加入 2 個行程/)).toBeTruthy();
     expect(screen.queryByText('大師兄牛肉麵')).toBeNull();
@@ -128,5 +137,59 @@ describe('讀不出來的時候', () => {
 
     await waitFor(() => expect(screen.getByText('這張截圖看不出可以排進行程的地點，換一張再試試。')).toBeTruthy());
     expect(onAddItems).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 「我感覺這個截圖上傳可以變成一個收藏的 list 最後一鍵讓 AI 閱讀目前行程後 再根據
+ *   收藏行程的地址去安排行程表排進去」.
+ *
+ * A place a friend sent you is not an appointment. Forcing it onto a day as it
+ * arrives is the step that makes collecting feel like planning — so the same
+ * slices can go into the trip's collection instead, where 補充行程 picks them up
+ * and fits them around the flights already on the itinerary.
+ */
+describe('收藏起來，之後再讓 AI 排', () => {
+  it('收藏按鈕把選到的地點交出去，而不是寫進某一天', async () => {
+    vi.stubGlobal('fetch', respondWith(slices));
+    const onSaveToCollection = vi.fn(async () => 2);
+    const user = userEvent.setup();
+    const onAddItems = panel(vi.fn(), onSaveToCollection);
+
+    const file = new File(['x'], 'shot.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('上傳旅行截圖'), file);
+    await waitFor(() => expect(screen.getByText('大師兄牛肉麵')).toBeTruthy());
+    await user.click(screen.getByText(/收藏 2 個，稍後讓 AI 排/));
+
+    await waitFor(() => expect(onSaveToCollection).toHaveBeenCalledTimes(1));
+    expect(onSaveToCollection.mock.calls[0][0].map((entry: { title: string }) => entry.title))
+      .toEqual(['大師兄牛肉麵', '甘川洞文化村']);
+    expect(onAddItems).not.toHaveBeenCalled();
+  });
+
+  it('收藏完之後告訴他下一步在哪裡', async () => {
+    vi.stubGlobal('fetch', respondWith(slices));
+    const user = userEvent.setup();
+    panel(vi.fn(), vi.fn(async () => 2));
+
+    const file = new File(['x'], 'shot.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('上傳旅行截圖'), file);
+    await waitFor(() => expect(screen.getByText('大師兄牛肉麵')).toBeTruthy());
+    await user.click(screen.getByText(/收藏 2 個，稍後讓 AI 排/));
+
+    await waitFor(() => expect(screen.getByTestId('screenshot-saved-note')).toBeTruthy());
+    expect(screen.getByTestId('screenshot-saved-note').textContent).toContain('補充行程');
+  });
+
+  it('沒有提供收藏功能時，只出現直接加入', async () => {
+    vi.stubGlobal('fetch', respondWith(slices));
+    const user = userEvent.setup();
+    panel();
+
+    const file = new File(['x'], 'shot.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('上傳旅行截圖'), file);
+    await waitFor(() => expect(screen.getByText('大師兄牛肉麵')).toBeTruthy());
+
+    expect(screen.queryByText(/收藏 2 個/)).toBeNull();
   });
 });
