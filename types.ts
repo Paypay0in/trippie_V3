@@ -79,6 +79,7 @@ export interface ShoppingItem {
   };
   sourceType?: 'travel_rules';
   travelRuleActionType?: EntryActionType;
+  travelRuleNecessity?: EntryNecessity;
 }
 
 export type ExpenseDisputeStatus = 'open' | 'resolved' | 'withdrawn';
@@ -262,8 +263,19 @@ export interface TravelRuleSource {
   publisher?: string;
 }
 
+/**
+ * Whether a formality is compulsory or merely a good idea.
+ *
+ * 「入境規定 必要的只有我的打勾項」 — K-ETA, Q-Code, the customs form and the
+ * arrival card were listed as one flat run of chores, and only the last was
+ * actually required of them. A checklist that cannot say which is which makes
+ * the traveller rank it themselves, two days before flying.
+ */
+export type EntryNecessity = 'required' | 'recommended' | 'optional';
+
 export interface EntryActionableItem {
   actionType: EntryActionType;
+  necessity?: EntryNecessity;
   title: string;
   description?: string;
   timingText?: string;

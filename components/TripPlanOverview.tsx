@@ -580,7 +580,26 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
                       <span className="min-w-0 flex-1 truncate text-sm font-black text-[#11183d]">{ruleLabels.parts[index] || task.name}</span>
                       {!task.isPurchased && <ChevronRight size={14} className="shrink-0 text-slate-300" />}
                     </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-slate-400">{task.timingText || '入境前'}</span>
+                    <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+                      {/*
+                        Which of these you actually have to do.
+
+                        「入境規定 必要的只有我的打勾項」 — K-ETA, Q-Code, the customs
+                        form and the arrival card sat in one flat run of chores,
+                        and only the last was required of them. Ranking it was
+                        left to the traveller, two days before flying.
+                      */}
+                      {task.travelRuleNecessity === 'required' && (
+                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700">必要</span>
+                      )}
+                      {task.travelRuleNecessity === 'recommended' && (
+                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">建議</span>
+                      )}
+                      {task.travelRuleNecessity === 'optional' && (
+                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-400">視情況</span>
+                      )}
+                      <span className="min-w-0 truncate">{task.timingText || '入境前'}</span>
+                    </span>
                   </span>
                 </div>
                 <p className="mt-2.5 truncate text-[11px] leading-4 text-slate-400">{RULE_SUMMARIES[task.travelRuleActionType ?? 'other'] ?? RULE_SUMMARIES.other}</p>

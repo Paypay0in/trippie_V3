@@ -259,6 +259,7 @@ const normalizeShoppingList = (value: unknown): ShoppingItem[] => Array.isArray(
     source: url && typeof sourceValue?.title === 'string' && sourceValue.title.trim() ? { title: sourceValue.title.trim(), url, publisher: typeof sourceValue.publisher === 'string' && sourceValue.publisher.trim() ? sourceValue.publisher.trim() : undefined } : undefined,
     sourceType: source.sourceType === 'travel_rules' ? ('travel_rules' as const) : undefined,
     travelRuleActionType: allowedActionTypes.includes(String(source.travelRuleActionType)) ? source.travelRuleActionType as ShoppingItem['travelRuleActionType'] : undefined,
+    travelRuleNecessity: ['required', 'recommended', 'optional'].includes(String(source.travelRuleNecessity)) ? source.travelRuleNecessity as ShoppingItem['travelRuleNecessity'] : undefined,
   };
 }).filter(item => item.id && item.name) : [];
 

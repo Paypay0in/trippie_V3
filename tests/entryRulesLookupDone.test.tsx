@@ -94,6 +94,27 @@ describe('the entry-rules panel after a lookup that found nothing', () => {
     expect(screen.getByRole('button', { name: '重新查詢' })).toBeTruthy();
   });
 
+  /**
+   * 「入境規定 必要的只有我的打勾項」.
+   *
+   * K-ETA, Q-Code, the customs form and the arrival card were one flat run of
+   * chores and only the last was required of them, so ranking the list was
+   * left to the traveller two days before flying.
+   */
+  it('says which formalities are compulsory and which are merely advised', () => {
+    const korea = [
+      { id: 'r-keta', name: '申請 K-ETA', isPurchased: false, phase: 'pre', sourceType: 'travel_rules', travelRuleActionType: 'visa_or_eta', travelRuleNecessity: 'optional' },
+      { id: 'r-qcode', name: '填寫 Q-Code', isPurchased: false, phase: 'pre', sourceType: 'travel_rules', travelRuleActionType: 'health_declaration', travelRuleNecessity: 'recommended' },
+      { id: 'r-card', name: '入境卡', isPurchased: false, phase: 'pre', sourceType: 'travel_rules', travelRuleActionType: 'arrival_form', travelRuleNecessity: 'required' },
+    ] as never;
+
+    render(<TripPlanOverview {...baseProps} shoppingList={korea} travelRules={staleChecklist} />);
+
+    expect(screen.getByTestId('necessity-r-card').textContent).toBe('必要');
+    expect(screen.getByTestId('necessity-r-qcode').textContent).toBe('建議');
+    expect(screen.getByTestId('necessity-r-keta').textContent).toBe('視情況');
+  });
+
   it('still asks on a trip nobody has looked up', () => {
     render(<TripPlanOverview {...baseProps} travelRules={undefined} />);
 
