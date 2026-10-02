@@ -88,7 +88,9 @@ describe('reconcileTransfers', () => {
 describe('checkInTimeFromArrival', () => {
   it('moves a check-in still on the uninformed default', () => {
     expect(checkInTimeFromArrival('15:00', '13:05', 78 * 60)).toBe('16:23');
-    expect(checkInTimeFromArrival('15:00', '08:30')).toBe('10:30');
+    // No route yet: still after the ride in, not at the moment they walk out
+    // of the terminal.
+    expect(checkInTimeFromArrival('15:00', '08:30')).toBe('11:00');
   });
 
   it('leaves a time the traveller chose', () => {
@@ -99,6 +101,7 @@ describe('checkInTimeFromArrival', () => {
   });
 
   it('says nothing when the result would be the time already shown', () => {
-    expect(checkInTimeFromArrival('15:00', '13:00')).toBeUndefined();
+    // Clearing the airport at 14:30 plus the minimum ride lands back on 15:00.
+    expect(checkInTimeFromArrival('15:00', '12:30')).toBeUndefined();
   });
 });

@@ -778,8 +778,9 @@ describe('the airport transfer follows the flight', () => {
     // reaches the other traveller's phone, and it reads unambiguously.
     await waitFor(() => {
       const checkIn = persisted().find(item => item.title === '入住 海雲台格蘭飯店');
-      // With no route estimate, reaching the hotel is the airport-exit time.
-      expect(checkIn?.time).toBe('15:05');
+      // Out of the terminal at 15:05, through the door at 15:35. The ride is a
+      // step of its own, so check-in never shares a minute with the transfer.
+      expect(checkIn?.time).toBe('15:35');
     });
   });
 });

@@ -30,6 +30,21 @@ export interface ArrivalPlan {
  */
 export const MINUTES_CLEARING_AIRPORT = 120;
 
+/**
+ * The shortest the ride in can be, when no route has been computed yet.
+ *
+ * 「要先從金海國際機場「交通」到旅館 才會入住旅館」. Check-in used to be placed at
+ * the moment they walk out of the terminal, so the ride to the hotel and the
+ * arrival at it carried the same 21:55 and the itinerary showed him checking in
+ * before the car that takes him there.
+ *
+ * Treating an unknown journey as zero is as much a guess as any other number,
+ * and the only one that is provably wrong: no airport is inside its hotel. Half
+ * an hour is the floor, and the card says 交通時間請再確認 for as long as that is
+ * all it knows.
+ */
+export const MINUTES_MINIMUM_RIDE = 30;
+
 const clampToDay = (minutes: number) => Math.min(23 * 60 + 59, Math.max(0, minutes));
 
 const toMinutes = (time: string): number | null => {
@@ -55,15 +70,18 @@ export const departAirportTime = (arrivalTime: string): string | null => {
 /**
  * When they reach the hotel: out of the airport, plus the journey.
  *
- * Without a route this is just the airport-exit time. Adding a guessed
- * journey would move check-in by an amount nobody could check.
+ * Always after leaving the airport, never at the same minute — that ordering is
+ * the whole point of having both cards.
  */
 export const reachHotelTime = (arrivalTime: string, travelSeconds?: number): string | null => {
   const departure = departAirportTime(arrivalTime);
   if (departure === null) return null;
-  if (!travelSeconds || travelSeconds <= 0) return departure;
   const minutes = toMinutes(departure);
-  return minutes === null ? departure : toClock(clampToDay(minutes + Math.round(travelSeconds / 60)));
+  if (minutes === null) return departure;
+  const ride = travelSeconds && travelSeconds > 0
+    ? Math.max(MINUTES_MINIMUM_RIDE, Math.round(travelSeconds / 60))
+    : MINUTES_MINIMUM_RIDE;
+  return toClock(clampToDay(minutes + ride));
 };
 
 /**
@@ -95,6 +113,19 @@ export const airportTransferItem = (
     hotelName: string;
     travelSeconds?: number;
     mode?: 'DRIVE' | 'TRANSIT';
+    /*
+      Where this ride ends.
+
+      「輸入旅館的當下就已經應該帶入地址，就能夠依機場與旅館地址給交通建議與預估了」.
+      Carried from the booking so the card is a place rather than a sentence:
+      without it the transfer sat on the itinerary saying 地圖上沒有這個地點, and
+      the one journey the app had already worked out was also the one it could
+      not draw a route for.
+    */
+    hotelPlaceId?: string;
+    hotelAddress?: string;
+    hotelLatitude?: number;
+    hotelLongitude?: number;
   },
 ): {
   id: string;
@@ -104,6 +135,10 @@ export const airportTransferItem = (
   notes: string;
   date: string;
   time: string;
+  placeId?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
 } => ({
   id: options.id,
   type: 'TRANSPORT',
@@ -116,4 +151,10 @@ export const airportTransferItem = (
     : `已含入境與提領行李約 ${MINUTES_CLEARING_AIRPORT / 60} 小時，交通時間請再確認`,
   date: options.date,
   time: options.departTime,
+  ...(options.hotelPlaceId ? { placeId: options.hotelPlaceId } : {}),
+  ...(options.hotelAddress ? { address: options.hotelAddress } : {}),
+  ...(typeof options.hotelLatitude === 'number' && Number.isFinite(options.hotelLatitude)
+    && typeof options.hotelLongitude === 'number' && Number.isFinite(options.hotelLongitude)
+    ? { latitude: options.hotelLatitude, longitude: options.hotelLongitude }
+    : {}),
 });

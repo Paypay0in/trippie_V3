@@ -91,11 +91,13 @@ describe('stayToItineraryItems', () => {
     expect(items[1].time).toBe('11:00');
   });
 
-  it('checks in two hours after the flight lands that day', () => {
+  it('checks in after clearing the airport and riding in, not the moment they land', () => {
     const stay = normalizeParsedStay({ ...booking, checkInTime: undefined })!;
     const items = stayToItineraryItems(stay, makeId, [{ date: '2026-10-02', time: '13:05' }]);
-    // Landing 13:05, at the door around 15:05: immigration, bags, the ride in.
-    expect(items[0].time).toBe('15:05');
+    // Landing 13:05, out of the terminal around 15:05, at the door 15:35.
+    // 「要先從金海國際機場「交通」到旅館 才會入住旅館」: the ride is a step of its own,
+    // and a check-in sharing its minute put him in the room before the car.
+    expect(items[0].time).toBe('15:35');
   });
 
   it('keeps a time the booking stated, over anything derived from a flight', () => {
@@ -319,9 +321,9 @@ describe('stayMapUrl', () => {
 });
 
 describe('defaultCheckInTime', () => {
-  it('is two hours after a flight landing the same day', () => {
-    expect(defaultCheckInTime('2026-10-02', [{ date: '2026-10-02', time: '08:30' }])).toBe('10:30');
-    expect(defaultCheckInTime('2026-10-02', [{ date: '2026-10-02', time: '13:05' }])).toBe('15:05');
+  it('是入境通關加上到飯店的車程之後，和交通卡片用同一條規則', () => {
+    expect(defaultCheckInTime('2026-10-02', [{ date: '2026-10-02', time: '08:30' }])).toBe('11:00');
+    expect(defaultCheckInTime('2026-10-02', [{ date: '2026-10-02', time: '13:05' }])).toBe('15:35');
   });
 
   it('ignores a flight on another day', () => {
@@ -346,6 +348,6 @@ describe('defaultCheckInTime', () => {
       { date: '2026-10-02', time: '13:05' },
       { date: '2026-10-05', time: '09:00' },
     ];
-    expect(defaultCheckInTime('2026-10-05', arrivals)).toBe('11:00');
+    expect(defaultCheckInTime('2026-10-05', arrivals)).toBe('11:30');
   });
 });

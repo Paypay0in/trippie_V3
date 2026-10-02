@@ -33,14 +33,29 @@ describe('reachHotelTime', () => {
   });
 
   it('rounds to the minute, since a route estimate is not accurate to seconds', () => {
-    expect(reachHotelTime('10:00', 95)).toBe('12:02');
+    // 95 seconds is under the floor below, so the floor is what applies.
+    expect(reachHotelTime('10:00', 95)).toBe('12:30');
+    expect(reachHotelTime('10:00', 47 * 60)).toBe('12:47');
   });
 
-  it('is just the airport-exit time when no route was found', () => {
-    // Shifting check-in by a guessed journey would move it by an amount
-    // nobody could check.
-    expect(reachHotelTime('13:05')).toBe('15:05');
-    expect(reachHotelTime('13:05', 0)).toBe('15:05');
+  /*
+    「要先從金海國際機場「交通」到旅館 才會入住旅館」.
+
+    This used to return the airport-exit time unchanged, on the grounds that a
+    guessed journey moves check-in by an amount nobody can check. But zero is
+    also a guess, and the only one that is certainly wrong — it put the ride to
+    the hotel and the arrival at it on the same 21:55, so the itinerary showed
+    him checking in before the car that takes him there.
+  */
+  it('沒有路線時仍然在離開機場之後，而不是同一分鐘', () => {
+    expect(reachHotelTime('13:05')).toBe('15:35');
+    expect(reachHotelTime('13:05', 0)).toBe('15:35');
+  });
+
+  it('永遠晚於離開機場的時間', () => {
+    ['00:10', '09:30', '19:55', '21:40'].forEach(landing => {
+      expect(reachHotelTime(landing)! > departAirportTime(landing)!).toBe(true);
+    });
   });
 
   it('stays inside the arrival day', () => {

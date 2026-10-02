@@ -14,6 +14,7 @@
  */
 
 import { addLocalDays, fromLocalIsoDate } from './localDate';
+import { reachHotelTime } from './arrivalPlan';
 
 export const STAY_MODEL = 'gemini-3-flash-preview';
 
@@ -159,7 +160,10 @@ const addHours = (time: string, hours: number): string => {
  */
 export const defaultCheckInTime = (checkInDate: string | undefined, arrivals: FlightArrival[] = []): string => {
   const sameDay = arrivals.find(arrival => arrival.date === checkInDate && arrival.time);
-  if (sameDay) return addHours(sameDay.time, HOURS_FROM_LANDING_TO_CHECK_IN);
+  // One rule, shared with the transfer card: clear the airport, then ride in.
+  // Computing it separately here is what put check-in at the same minute as the
+  // car that takes them there.
+  if (sameDay) return reachHotelTime(sameDay.time) ?? addHours(sameDay.time, HOURS_FROM_LANDING_TO_CHECK_IN);
   // No flight that day: the near-universal hotel check-in hour.
   return '15:00';
 };
@@ -259,9 +263,32 @@ export interface StaySpan {
   address?: string;
   /** Every night slept here; empty when the span is unknown. */
   nights: string[];
+  /*
+    The resolved place, when the booking has one.
+
+    Carried so the airport transfer can be a real journey between two points.
+    「輸入旅館的當下就已經應該帶入地址，就能夠依機場與旅館地址給交通建議與預估了」.
+  */
+  placeId?: string;
+  latitude?: number;
+  longitude?: number;
   /** The check-in item, so the banner can open the detail the card holds. */
   itemId: string;
 }
+
+/** Either card of a booking may be the linked one; the first one that is wins. */
+const carryPlace = (
+  stay: StaySpan,
+  item: { placeId?: string; latitude?: number; longitude?: number },
+): void => {
+  if (stay.placeId || !item.placeId) return;
+  stay.placeId = item.placeId;
+  if (typeof item.latitude === 'number' && Number.isFinite(item.latitude)
+    && typeof item.longitude === 'number' && Number.isFinite(item.longitude)) {
+    stay.latitude = item.latitude;
+    stay.longitude = item.longitude;
+  }
+};
 
 const CHECK_IN_PREFIX = '入住 ';
 const CHECK_OUT_PREFIX = '退房 ';
@@ -280,7 +307,7 @@ const CHECK_OUT_PREFIX = '退房 ';
  * bookings entered before this existed.
  */
 export const staysFromItinerary = (
-  items: Array<{ id: string; type: string; title: string; date?: string; address?: string; location?: string; fixedEventKind?: string }>,
+  items: Array<{ id: string; type: string; title: string; date?: string; address?: string; location?: string; fixedEventKind?: string; placeId?: string; latitude?: number; longitude?: number }>,
 ): StaySpan[] => {
   const byName = new Map<string, StaySpan>();
 
@@ -299,16 +326,19 @@ export const staysFromItinerary = (
       const stay = ensure(item.title.slice(CHECK_IN_PREFIX.length), item.id);
       stay.checkInDate = item.date;
       stay.address = stay.address ?? item.address ?? item.location;
+      carryPlace(stay, item);
       // The check-in item is the one worth opening, so it wins the id.
       stay.itemId = item.id;
     } else if (item.title.startsWith(CHECK_OUT_PREFIX)) {
       const stay = ensure(item.title.slice(CHECK_OUT_PREFIX.length), item.id);
       stay.checkOutDate = item.date;
       stay.address = stay.address ?? item.address ?? item.location;
+      carryPlace(stay, item);
     } else {
       // A stay entered with no dates keeps its bare title.
       const stay = ensure(item.title, item.id);
       stay.address = stay.address ?? item.address ?? item.location;
+      carryPlace(stay, item);
     }
   }
 

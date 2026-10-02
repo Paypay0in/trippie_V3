@@ -71,6 +71,12 @@ export const reconcileTransfers = (
       hotelName: pair.stay.name,
       travelSeconds: estimate.travelSeconds,
       mode: estimate.mode,
+      // The destination, so the card is a place on the map rather than a
+      // sentence about one.
+      hotelPlaceId: pair.stay.placeId,
+      hotelAddress: pair.stay.address,
+      hotelLatitude: pair.stay.latitude,
+      hotelLongitude: pair.stay.longitude,
     }) as ItineraryItem];
   });
 
