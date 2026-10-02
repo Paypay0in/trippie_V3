@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import MemberSettlementDetail from '../components/MemberSettlementDetail';
-import { buildMemberPositions, describeExpense } from '../services/memberSettlementDetail';
+import { buildMemberPositions, describeExpense, settlementExpenses } from '../services/memberSettlementDetail';
 import { Category, Expense, TripMember } from '../types';
 
 const GINA = 'seat-gina';
@@ -138,6 +138,54 @@ describe('這趟旅程本身', () => {
 
   it('沒有支出時說出來，而不是留一塊空白', () => {
     page({ expenses: [] });
+
+    expect(screen.getByText('這趟還沒有需要分攤的支出')).toBeTruthy();
+  });
+});
+
+/**
+ * 「這個支出沒有分帳的問題 是對方個人的支出 就不應出現在分帳結算表格」.
+ *
+ * Gina's own NT$ 888 sat in 相關支出 on a page about who owes whom, labelled
+ * 「自己的支出」 — the one honest thing it could say, and the proof it did not
+ * belong there. It settles nothing and moves no money between anybody.
+ */
+describe('自己付給自己的帳', () => {
+  // Stored the way his really is: Gina paid it and Gina is the only one on it.
+  const ownBill = bill({ id: 'e-own', description: '哈哈❤️', date: '2026-10-03', amount: 888, twdAmount: 888, payerId: GINA, beneficiaries: [GINA] });
+  // The rarer shape: nobody on it at all.
+  const nobodysBill = bill({ id: 'e-nobody', description: '自己的咖啡', date: '2026-10-03', amount: 120, twdAmount: 120, payerId: GINA, beneficiaries: [] });
+
+  it('不列進分帳結算表格', () => {
+    expect(settlementExpenses([...ledger, ownBill], members, ANN).map(expense => expense.id))
+      .toEqual(ledger.map(expense => expense.id));
+  });
+
+  it('畫面上也看不到它', () => {
+    page({ expenses: [...ledger, ownBill] });
+
+    expect(screen.queryByTestId('expense-e-own')).toBeNull();
+    expect(document.body.textContent).not.toContain('自己的支出');
+  });
+
+  it('但它不會改變任何人的結算金額——自己付自己的，淨額是零', () => {
+    const withOwn = buildMemberPositions([...ledger, ownBill], members, ANN);
+    const without = buildMemberPositions(ledger, members, ANN);
+
+    expect(withOwn.map(row => row.net)).toEqual(without.map(row => row.net));
+  });
+
+  it('連分攤者都沒有的帳也一樣，不會讓付款人變成應收', () => {
+    const withNobody = buildMemberPositions([...ledger, nobodysBill], members, ANN);
+
+    expect(withNobody.map(row => row.net)).toEqual(buildMemberPositions(ledger, members, ANN).map(row => row.net));
+    expect(Math.round(withNobody.reduce((sum, row) => sum + row.net, 0))).toBe(0);
+    expect(settlementExpenses([...ledger, nobodysBill], members, ANN).map(expense => expense.id))
+      .toEqual(ledger.map(expense => expense.id));
+  });
+
+  it('整趟都沒有分帳時，說出來而不是留一塊空白', () => {
+    page({ expenses: [ownBill] });
 
     expect(screen.getByText('這趟還沒有需要分攤的支出')).toBeTruthy();
   });

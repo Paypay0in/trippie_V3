@@ -42,6 +42,14 @@ export const buildMemberPositions = (
   expenses.forEach(expense => {
     if (!Number.isFinite(expense.twdAmount)) return;
     const { responsibility, paid } = calculateExpenseLedger(expense, ownerMemberId);
+    /*
+      A bill nobody is responsible for is nobody's debt.
+
+      Crediting the payer for money no one owes back would show them as 應收 for
+      their own spending — and it would break the one invariant this page rests
+      on, that everybody's net sums to zero.
+    */
+    if (Object.keys(responsibility).length === 0) return;
     Object.entries(paid).forEach(([id, amount]) => {
       if (Number.isFinite(amount)) net[id] = (net[id] || 0) + amount;
     });
@@ -66,6 +74,22 @@ export const buildMemberPositions = (
       .filter((row): row is { member: TripMember; amount: number } => Boolean(row)),
   }));
 };
+
+/**
+ * The bills this settlement is actually about.
+ *
+ * 「這個支出沒有分帳的問題 是對方個人的支出 就不應出現在分帳結算表格」. A bill
+ * somebody paid for themselves settles nothing: it moves no money between
+ * anyone, and it was listed on a page about who owes whom reading 「自己的支出」.
+ * It is still their expense and still in their own ledger — it is just not part
+ * of this conversation.
+ */
+export const settlementExpenses = (
+  expenses: Expense[],
+  members: TripMember[],
+  ownerMemberId?: string,
+): Expense[] =>
+  expenses.filter(expense => describeExpense(expense, members, ownerMemberId).owedBy.length > 0);
 
 /** One bill, read as 「X 先付，Y 和 Z 各欠 N」. */
 export const describeExpense = (

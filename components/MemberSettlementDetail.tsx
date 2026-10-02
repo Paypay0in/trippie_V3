@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Users, X } from 'lucide-react';
 import { Expense, TripMember } from '../types';
 import { getCategoryIcon } from '../constants';
-import { buildMemberPositions, describeExpense } from '../services/memberSettlementDetail';
+import { buildMemberPositions, describeExpense, settlementExpenses } from '../services/memberSettlementDetail';
 
 /**
  * 成員結算明細 — everybody's position on one screen.
@@ -53,6 +53,16 @@ const MemberSettlementDetail: React.FC<Props> = ({
 }) => {
   const positions = React.useMemo(
     () => buildMemberPositions(expenses, members, ownerMemberId),
+    [expenses, members, ownerMemberId],
+  );
+  /*
+    Everyone's position is computed from every bill — a bill someone paid for
+    themselves nets to zero, so including it changes nothing and leaving it out
+    would risk changing something. The list below is the narrower question:
+    which bills put one person in debt to another.
+  */
+  const shared = React.useMemo(
+    () => settlementExpenses(expenses, members, ownerMemberId),
     [expenses, members, ownerMemberId],
   );
   const toneOf = (memberId: string) =>
@@ -139,11 +149,11 @@ const MemberSettlementDetail: React.FC<Props> = ({
           )}
         </div>
 
-        {expenses.length === 0 ? (
+        {shared.length === 0 ? (
           <p className="py-6 text-center text-xs text-slate-400">這趟還沒有需要分攤的支出</p>
         ) : (
           <div className="mt-3 space-y-2.5">
-            {expenses.map(expense => {
+            {shared.map(expense => {
               const { payer, owedBy, perHead } = describeExpense(expense, members, ownerMemberId);
               const Icon = getCategoryIcon(expense.category);
               return (
@@ -174,15 +184,10 @@ const MemberSettlementDetail: React.FC<Props> = ({
                   </div>
                   <div className="shrink-0 whitespace-nowrap text-right">
                     <p className="text-sm font-black">{money(expense.twdAmount, currency)}</p>
-                    {owedBy.length > 0 && (
-                      <>
-                        <p className="mt-0.5 text-[11px] text-slate-400">{owedBy.map(member => member.name).join('、')} 應付</p>
-                        {perHead !== undefined && (
-                          <p className="text-[11px] font-bold text-rose-500">各 {money(perHead, currency)}</p>
-                        )}
-                      </>
+                    <p className="mt-0.5 text-[11px] text-slate-400">{owedBy.map(member => member.name).join('、')} 應付</p>
+                    {perHead !== undefined && (
+                      <p className="text-[11px] font-bold text-rose-500">各 {money(perHead, currency)}</p>
                     )}
-                    {owedBy.length === 0 && <p className="mt-0.5 text-[11px] text-slate-400">自己的支出</p>}
                   </div>
                   <ChevronRight size={16} className="shrink-0 text-slate-300" />
                 </button>
