@@ -760,10 +760,17 @@ describe('the airport transfer follows the flight', () => {
     render(<App />);
     await openPlanning(user);
 
-    const transfer = await screen.findByText(/前往 海雲台格蘭飯店/);
-    const card = transfer.closest('[class*="rounded-[20px]"]') as HTMLElement;
+    const transfer = await screen.findByRole('heading', { name: /前往 海雲台格蘭飯店/ });
+    const card = transfer.closest('[data-item-id]') as HTMLElement;
+    /*
+      Read off the input, not off the text.
+
+      「拖曳時間不方便」: the time on a card is a native time input now, so the
+      phone's own picker opens on tap instead of the hour being reachable only
+      by dragging in 30-minute steps. A value is not text content.
+    */
     // Landing 13:05, out of the airport around 15:05.
-    expect(within(card).getByText('15:05')).toBeTruthy();
+    expect((within(card).getByLabelText(/前往 海雲台格蘭飯店 的時間/) as HTMLInputElement).value).toBe('15:05');
     expect(within(card).getByText(/入境與提領行李/)).toBeTruthy();
   });
 
@@ -773,7 +780,7 @@ describe('the airport transfer follows the flight', () => {
     render(<App />);
     await openPlanning(user);
 
-    await screen.findByText(/前往 海雲台格蘭飯店/);
+    await screen.findByRole('heading', { name: /前往 海雲台格蘭飯店/ });
     // Asserted on what was stored, not on the rendered time: storage is what
     // reaches the other traveller's phone, and it reads unambiguously.
     await waitFor(() => {

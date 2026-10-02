@@ -2265,7 +2265,7 @@ const App: React.FC = () => {
 
   const handleUpdateItineraryItem = (
     id: string,
-    updates: Pick<ItineraryItem, "date" | "isCompleted">,
+    updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time">>,
   ) => {
     setItinerary((current) => {
       const nextItinerary = current.map((item) =>

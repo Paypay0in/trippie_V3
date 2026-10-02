@@ -7,6 +7,7 @@ import { fetchPlaceCommerce, hasDisplayableCommerce } from '../services/placeCom
 import { itemsForDay, orderItemsForDay, hasTimeOrderConflict } from '../services/itineraryOrdering';
 import {
   detectCollisions,
+  describeCollision,
   durationOf,
   hasLateItem,
   isTimedItem,
@@ -37,7 +38,8 @@ interface Props {
   onAddToCalendar?: (item: ItineraryItem) => void;
   startDate?: string;
   endDate?: string;
-  onUpdateItem?: (id: string, updates: Pick<ItineraryItem, 'date' | 'isCompleted'>) => void;
+  /** `time` joins date and completion so the card can edit the hour in place. */
+  onUpdateItem?: (id: string, updates: Partial<Pick<ItineraryItem, 'date' | 'isCompleted' | 'time'>>) => void;
   onAdd?: (date?: string) => void;
   onEdit?: (item: ItineraryItem) => void;
   /** Takes the traveller to the stay card, for a night with no room booked. */
@@ -409,7 +411,33 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         <GripVertical size={14} />
                       </button>
                     )}
-                    <span className="text-[#6b4df6]">{getIcon(item.type)}</span><span className="font-mono text-xs font-black text-[#6b4df6]">{item.time}</span>
+                    <span className="text-[#6b4df6]">{getIcon(item.type)}</span>
+                    {/*
+                      The time, editable where it is shown.
+
+                      「拖曳時間不方便」 — dragging moves a card in 30-minute steps,
+                      which is fine for nudging a day along and useless for
+                      「這家店 11:20 才開」. The date beside it has been a real
+                      input all along; the time was text you could only change by
+                      dragging or by opening the edit sheet. A native time input
+                      hands the job to the phone's own picker.
+
+                      Anchor-derived cards stay read-only: their time comes from
+                      the flight, and editing it here would be overwritten the
+                      next time the anchor rebuilt.
+                    */}
+                    {item.derivedFromFlightAnchorId ? (
+                      <span className="font-mono text-xs font-black text-[#6b4df6]">{item.time}</span>
+                    ) : (
+                      <input
+                        type="time"
+                        value={item.time || ''}
+                        aria-label={`${item.title} 的時間`}
+                        data-testid={`time-input-${item.id}`}
+                        onChange={event => onUpdateItem(item.id, { time: event.target.value })}
+                        className="w-[4.6rem] rounded-lg bg-transparent px-1 py-0.5 font-mono text-xs font-black text-[#6b4df6] outline-none hover:bg-[#f3f0ff] focus:bg-[#f3f0ff]"
+                      />
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5">
                     {onTogglePin && (
@@ -877,6 +905,22 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 </div>
 
                 <div className={`min-w-0 flex-1 ${collidingIds.has(item.id) ? 'rounded-[20px] ring-2 ring-rose-200' : ''}`}>
+                  {/*
+                    A warning that says what it is.
+
+                    「為何有紅框」 — the ring was drawn and never explained
+                    anywhere on the screen, so the only way to find out what it
+                    meant was to ask. A mark nobody can read is not a warning.
+                  */}
+                  {collidingIds.has(item.id) && (
+                    <p
+                      data-testid={`collision-note-${item.id}`}
+                      className="mb-1.5 flex items-center gap-1 rounded-lg bg-rose-50 px-2 py-1 text-[10px] font-bold leading-4 text-rose-600"
+                    >
+                      <AlertTriangle size={11} className="shrink-0" />
+                      {describeCollision(item, timedItems)}
+                    </p>
+                  )}
                   {renderCard(item)}
                 </div>
               </div>

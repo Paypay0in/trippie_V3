@@ -292,3 +292,38 @@ export const hasLateItem = (dayItems: ItineraryItem[]): boolean =>
     const start = timeToMinutes(item.time);
     return start !== null && start > LATE_DAY_BOUNDARY_MINUTES;
   });
+
+/**
+ * Why two cards are marked as clashing, in words the traveller can act on.
+ *
+ * 「為何有紅框」. The ring was drawn and never explained, so the only way to
+ * learn what it meant was to ask — and in his case the answer was awkward: the
+ * 10:00 brunch states no duration, so the app assumed an hour, and then warned
+ * him about its own assumption clashing with the 10:15 next door.
+ *
+ * An overlap between two stated durations is a fact about the plan. An overlap
+ * that exists only because of an assumed hour is a fact about the app, and it
+ * says which one it is rather than showing the same red for both.
+ */
+export const describeCollision = (
+  item: ItineraryItem,
+  dayItems: ItineraryItem[],
+): string | undefined => {
+  if (!isTimedItem(item)) return undefined;
+  const start = timeToMinutes(item.time)!;
+  const end = start + durationOf(item);
+
+  const clash = dayItems.find(other => {
+    if (other.id === item.id || !isTimedItem(other)) return false;
+    const otherStart = timeToMinutes(other.time)!;
+    return start < otherStart + durationOf(other) && otherStart < end;
+  });
+  if (!clash) return undefined;
+
+  const stated = (entry: ItineraryItem) =>
+    typeof entry.durationMinutes === 'number' && Number.isFinite(entry.durationMinutes) && entry.durationMinutes > 0;
+
+  return stated(item) && stated(clash)
+    ? `和「${clash.title}」的時間重疊`
+    : `這裡沒有填停留時間，先以 ${DEFAULT_DURATION_MINUTES} 分鐘估算，和「${clash.title}」重疊了`;
+};
