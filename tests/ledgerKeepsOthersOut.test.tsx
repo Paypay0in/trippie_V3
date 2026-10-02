@@ -78,6 +78,39 @@ describe('a bill split with somebody', () => {
   });
 });
 
+/**
+ * 「若有上傳照片 縮圖顯示在這」.
+ *
+ * Every row wore the same circle naming the kind of expense, which the title
+ * beside it already said. The photograph says which bill this is, and it is
+ * what you scan a list for.
+ */
+describe('a bill with a receipt', () => {
+  it('shows the receipt in the row instead of a category glyph', () => {
+    const withPhoto = { ...flights, twdAmount: 12000, receiptPhotos: ['data:image/jpeg;base64,AAAA'] } as Expense;
+    list([withPhoto], ME);
+
+    expect(screen.getByTestId(`row-receipt-${withPhoto.id}`)).toBeTruthy();
+  });
+
+  it('opens it full size, which a 40-pixel crop never was', async () => {
+    const user = userEvent.setup();
+    const withPhoto = { ...flights, twdAmount: 12000, receiptPhotos: ['data:image/jpeg;base64,AAAA'] } as Expense;
+    list([withPhoto], ME);
+
+    expect(screen.queryByTestId('list-receipt-viewer')).toBeNull();
+    await user.click(screen.getByTestId(`row-receipt-${withPhoto.id}`));
+    expect(screen.getByTestId('list-receipt-viewer')).toBeTruthy();
+  });
+
+  it('leaves a bill with no photo wearing its category', () => {
+    const withTwd = { ...flights, twdAmount: 12000 } as Expense;
+    list([withTwd], ME);
+
+    expect(screen.queryByTestId(`row-receipt-${withTwd.id}`)).toBeNull();
+  });
+});
+
 describe('somebody else’s money', () => {
   it('is not in this traveller’s list', () => {
     list([flights, herOwnThing], ME);

@@ -35,6 +35,8 @@ const ExpenseList: React.FC<Props> = ({
   onOpenDisputes,
 }) => {
   const [othersShown, setOthersShown] = React.useState(false);
+  /** A receipt opened full size, because a 40-pixel crop cannot be read. */
+  const [viewingReceipt, setViewingReceipt] = React.useState<string | null>(null);
   /**
    * What this bill cost the viewer, where the app knows who they are.
    *
@@ -144,6 +146,17 @@ const ExpenseList: React.FC<Props> = ({
 
   return (
     <div className="space-y-6 pb-24">
+      {viewingReceipt && (
+        <div
+          role="dialog"
+          aria-label="收據"
+          data-testid="list-receipt-viewer"
+          onClick={() => setViewingReceipt(null)}
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4"
+        >
+          <img src={viewingReceipt} alt="收據" className="max-h-full max-w-full rounded-xl object-contain" />
+        </div>
+      )}
       {sortedDates.map((date) => {
         const dayExpenses = groupedByDate[date];
         // Calculate daily total for easier checking (Net total)
@@ -195,7 +208,25 @@ const ExpenseList: React.FC<Props> = ({
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
                         )}
 
-                        {/* Icon */}
+                        {/*
+                          The receipt, where the category glyph would be.
+
+                          「若有上傳照片 縮圖顯示在這」 — a row of identical circles
+                          names the kind of expense, which the title already
+                          says. The photograph says which bill this is, and it
+                          is the thing you scan a list for.
+                        */}
+                        {(item.receiptPhotos?.length ?? 0) > 0 ? (
+                            <button
+                                type="button"
+                                onClick={() => setViewingReceipt(item.receiptPhotos?.[0] ?? null)}
+                                aria-label={`放大 ${item.description || '這筆支出'} 的收據`}
+                                data-testid={`row-receipt-${item.id}`}
+                                className="w-10 h-10 rounded-full flex-shrink-0 ml-1 overflow-hidden ring-1 ring-slate-200"
+                            >
+                                <img src={item.receiptPhotos?.[0]} alt="收據" className="w-full h-full object-cover" />
+                            </button>
+                        ) : (
                         <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ml-1 
                             ${isIncome 
                                 ? 'bg-emerald-100 text-emerald-600' 
@@ -206,6 +237,7 @@ const ExpenseList: React.FC<Props> = ({
                         >
                             <Icon size={20} />
                         </div>
+                        )}
 
                         {/* Description & Tags - Flex Grow to take available space */}
                         <div className="flex-1 min-w-0">
