@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Plane, ReceiptText } from 'lucide-react';
-import { Category, Expense, ShoppingItem, TaxRule, TravelRules } from '../types';
+import { Category, Expense, ShoppingItem, TaxRule, TravelRules, TripMember } from '../types';
 import ExpenseList from './ExpenseList';
 import PostTripChecklist from './PostTripChecklist';
 import ShoppingListPanel from './ShoppingListPanel';
@@ -23,6 +23,8 @@ interface Props {
   viewerMemberId?: string;
   tripOwnerMemberId?: string;
   onOpenDisputes?: (expense: Expense) => void;
+  /** The travellers, so each row can name who paid. Forwarded to ExpenseList. */
+  members?: TripMember[];
 }
 
 const WalletReturnScreen: React.FC<Props> = ({
@@ -40,6 +42,7 @@ const WalletReturnScreen: React.FC<Props> = ({
   viewerMemberId,
   tripOwnerMemberId,
   onOpenDisputes,
+  members,
 }) => {
   const postExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'post'), [expenses]);
   const returnTotal = useMemo(() => postExpenses.reduce((sum, expense) => sum + expense.twdAmount, 0), [postExpenses]);
@@ -86,7 +89,7 @@ const WalletReturnScreen: React.FC<Props> = ({
           <div><h2 className="text-lg font-black text-[#11183d]">返程支出 / 機場消費</h2><p className="mt-1 text-xs font-medium text-slate-400">僅顯示返程階段的實際支出</p></div>
           <div className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700"><ReceiptText size={13} /> NT$ {Math.round(returnTotal).toLocaleString()}</div>
         </div>
-        <ExpenseList expenses={postExpenses} onDelete={onDeleteExpense} onEdit={onEditExpense} taxRule={taxRule} viewerMemberId={viewerMemberId} tripOwnerMemberId={tripOwnerMemberId} onOpenDisputes={onOpenDisputes} />
+        <ExpenseList expenses={postExpenses} onDelete={onDeleteExpense} onEdit={onEditExpense} taxRule={taxRule} viewerMemberId={viewerMemberId} tripOwnerMemberId={tripOwnerMemberId} members={members} onOpenDisputes={onOpenDisputes} />
       </section>
     </div>
   );

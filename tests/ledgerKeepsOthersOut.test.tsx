@@ -58,23 +58,24 @@ describe('a bill split with somebody', () => {
 
     // The badge is built from several nodes, so read the rendered text.
     expect(document.body.textContent).toContain('分帳・你 $6,000');
-    expect(document.body.textContent).toContain('NT$ 12,000');
+    // 「將帳目的這個介面 100% 改成我圖上的樣子」: the design writes amounts as TWD.
+    expect(document.body.textContent).toContain('TWD 12,000');
   });
 
   it('subtotals the day by what this traveller bears', () => {
     const withTwd = { ...flights, twdAmount: 12000 } as Expense;
     list([withTwd], ME);
 
-    expect(document.body.textContent).toContain('你的單日小計');
-    expect(document.body.textContent).toContain('$6,000');
+    expect(document.body.textContent).toContain('你的小計');
+    expect(document.body.textContent).toContain('6,000');
   });
 
-  it('leaves an unsplit day saying 單日小計', () => {
+  it('leaves an unsplit day saying 小計', () => {
     const mine = { ...expense({ id: 'solo', description: '早餐', amount: 200, payerId: ME, beneficiaries: [ME] }), twdAmount: 200 } as Expense;
     list([mine], ME);
 
-    expect(document.body.textContent).toContain('單日小計');
-    expect(document.body.textContent).not.toContain('你的單日小計');
+    expect(document.body.textContent).toContain('小計');
+    expect(document.body.textContent).not.toContain('你的小計');
   });
 });
 

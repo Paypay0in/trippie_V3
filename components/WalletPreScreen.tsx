@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { ChevronRight, Pencil, Plus, WalletCards } from 'lucide-react';
-import { Category, Expense } from '../types';
+import { Category, Expense, TripMember } from '../types';
 import { totalPaidByMember } from '../services/expensePaidBy';
 import { partitionByConcern } from '../services/expenseConcernsMember';
 import { calculateExpenseLedger } from '../services/splitCalculator';
@@ -18,6 +18,8 @@ interface Props {
   viewerMemberId?: string;
   tripOwnerMemberId?: string;
   onOpenDisputes?: (expense: Expense) => void;
+  /** The travellers, so each row can name who paid. Forwarded to ExpenseList. */
+  members?: TripMember[];
   taxRule?: unknown;
 }
 
@@ -35,7 +37,7 @@ const categoryLabel = (category: Category) => {
 
 const money = (value: number, currency: string) => `${currency === 'TWD' ? 'NT$' : currency} ${Math.round(value).toLocaleString()}`;
 
-const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBudget, onQuickAdd, onDeleteExpense, onEditExpense, taxRule, viewerMemberId, tripOwnerMemberId, onOpenDisputes }) => {
+const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBudget, onQuickAdd, onDeleteExpense, onEditExpense, taxRule, viewerMemberId, tripOwnerMemberId, onOpenDisputes, members }) => {
   const normalizedCurrency = currency?.trim().toUpperCase();
   const preExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'pre'), [expenses]);
   /*
@@ -185,7 +187,7 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
         {plannedRows.length ? <div className="mt-3 divide-y divide-slate-100">{plannedRows.map(expense => <div key={expense.id} className="flex items-center gap-3 py-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-sm font-black text-indigo-600">{categoryLabel(expense.category).slice(0, 1)}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-[#11183d]">{categoryLabel(expense.category)}</p><p className="mt-0.5 text-[11px] font-semibold text-emerald-600">已記錄支出 · {expense.currency} {Math.round(expense.amount).toLocaleString()}</p></div><ChevronRight size={17} className="text-slate-300" /></div>)}</div> : <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">尚未有旅行前支出項目。</div>}
       </section>
 
-      <section className="rounded-[1.6rem] bg-white p-5 shadow-[0_10px_28px_rgba(49,46,129,.06)] ring-1 ring-slate-100"><div className="mb-3 flex items-end justify-between"><div><h2 className="text-lg font-black text-[#11183d]">最近記錄</h2><p className="mt-1 text-xs font-medium text-slate-400">旅行前的實際支出</p></div><button type="button" onClick={() => undefined} className="text-xs font-black text-indigo-600">查看全部</button></div><ExpenseList expenses={recentExpenses} onDelete={onDeleteExpense} onEdit={onEditExpense} taxRule={taxRule as never} viewerMemberId={viewerMemberId} tripOwnerMemberId={tripOwnerMemberId} onOpenDisputes={onOpenDisputes} /></section>
+      <section className="rounded-[1.6rem] bg-white p-5 shadow-[0_10px_28px_rgba(49,46,129,.06)] ring-1 ring-slate-100"><div className="mb-3 flex items-end justify-between"><div><h2 className="text-lg font-black text-[#11183d]">最近記錄</h2><p className="mt-1 text-xs font-medium text-slate-400">旅行前的實際支出</p></div><button type="button" onClick={() => undefined} className="text-xs font-black text-indigo-600">查看全部</button></div><ExpenseList expenses={recentExpenses} onDelete={onDeleteExpense} onEdit={onEditExpense} taxRule={taxRule as never} viewerMemberId={viewerMemberId} tripOwnerMemberId={tripOwnerMemberId} members={members} onOpenDisputes={onOpenDisputes} /></section>
     </div>
   );
 };

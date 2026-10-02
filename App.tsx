@@ -5731,6 +5731,7 @@ const App: React.FC = () => {
             onDeleteExpense={handleDeleteExpense}
             viewerMemberId={viewerMemberId}
             tripOwnerMemberId={activeOwnerMemberId}
+            members={settlementMembers}
             onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
             onEditExpense={handleEditExpense}
             taxRule={taxRule}
@@ -5750,6 +5751,7 @@ const App: React.FC = () => {
             onDeleteExpense={handleDeleteExpense}
             viewerMemberId={viewerMemberId}
             tripOwnerMemberId={activeOwnerMemberId}
+            members={settlementMembers}
             onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
             onEditExpense={handleEditExpense}
           />
@@ -5802,6 +5804,7 @@ const App: React.FC = () => {
                 taxRule={taxRule}
                 viewerMemberId={viewerMemberId}
                 tripOwnerMemberId={activeOwnerMemberId}
+                members={settlementMembers}
                 onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
               />
             )}
@@ -6593,6 +6596,7 @@ const App: React.FC = () => {
                     taxRule={taxRule}
                     viewerMemberId={viewerMemberId}
                     tripOwnerMemberId={activeOwnerMemberId}
+                    members={settlementMembers}
                     onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
                   />
                 </div>
