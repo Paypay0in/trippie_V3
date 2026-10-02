@@ -274,7 +274,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     try {
       // Same builder as the first generation, so a regenerate carries the identical
       // preferences rather than quietly reverting to a default plan.
-      const input = buildTripPlanningInput(trip, buildTripPlanningSelection(groups, selected), planningPreferences);
+      // The flights go in with it: a day that lands at 19:55 is not a day the
+      // planner may fill from the morning.
+      const input = buildTripPlanningInput(trip, buildTripPlanningSelection(groups, selected), planningPreferences, existingItinerary);
       const generated = await generateTripInspirationProposal(input);
       if (requestRef.current !== requestId) return;
       if (generated.days.length === 0) {
@@ -350,7 +352,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     setForwardedCount(0);
     try {
       const input = buildItineraryAdjustmentInput(
-        buildTripPlanningInput(trip, buildTripPlanningSelection(groups, selected), planningPreferences),
+        buildTripPlanningInput(trip, buildTripPlanningSelection(groups, selected), planningPreferences, existingItinerary),
         adjustmentMode,
         existingItinerary,
       );

@@ -1,4 +1,5 @@
 import { ItineraryItem, SavedExperienceNote, SavedTravelInspiration } from '../types';
+import { FixedScheduleEntry, fixedAnchorSchedule } from './itineraryDayFloor';
 
 /**
  * Bridges the existing SavedTravelInspiration store into active Trip itinerary
@@ -77,6 +78,15 @@ export interface TripPlanningInput {
    * Inspiration provenance on anything the planner adds because of it.
    */
   planningPreferences?: string;
+  /**
+   * The flights already on the itinerary.
+   *
+   * 「怎麼會先入境金浦機場再去桃園機場」 — the planner used to be told the trip's
+   * dates and nothing else, so it filled the arrival day from the morning and
+   * landed them in Busan hours before their plane left Taoyuan. A day spent in
+   * the air is not a day that can be planned over.
+   */
+  fixedSchedule?: FixedScheduleEntry[];
 }
 
 /**
@@ -412,6 +422,7 @@ export const buildTripPlanningInput = (
   trip: TripDestinationContext & { startDate?: string; endDate?: string },
   selections: TripPlanningInspirationSelection[],
   planningPreferences?: string,
+  existingItinerary?: ItineraryItem[],
 ): TripPlanningInput => ({
   destination: trip.destination?.trim() || undefined,
   destinationCountry: (trip.destinationCountry || trip.travelCountry)?.trim() || undefined,
@@ -420,4 +431,7 @@ export const buildTripPlanningInput = (
   durationDays: tripDurationDays(trip.startDate, trip.endDate),
   selections,
   planningPreferences: planningPreferences?.trim() || undefined,
+  // Flights only. Everything else on the itinerary is movable, and the planner
+  // is allowed to propose around it.
+  fixedSchedule: existingItinerary ? fixedAnchorSchedule(existingItinerary) : undefined,
 });

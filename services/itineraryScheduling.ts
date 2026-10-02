@@ -118,8 +118,13 @@ export const scheduleProposalDay = (
 
   // A user instruction is a floor the model does not get to overrule. Without one
   // there is no floor at all — an early start the model chose on purpose is kept.
-  const userFloor = options.earliestStart || parseEarliestStartPreference(options.planningPreferences);
-  const floorMinutes = userFloor ? toMinutes(userFloor) : 0;
+  // Two floors can apply at once: a flight that lands at 19:55 and a user who
+  // does not leave before 11:00. The later one wins — satisfying it satisfies both.
+  const preferenceFloor = parseEarliestStartPreference(options.planningPreferences);
+  const floorMinutes = Math.max(
+    options.earliestStart ? toMinutes(options.earliestStart) : 0,
+    preferenceFloor ? toMinutes(preferenceFloor) : 0,
+  );
   const dayEndMinutes = toMinutes(DAY_END);
 
   // Timed items first, in clock order; untimed ones keep the order the model gave

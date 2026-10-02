@@ -1,6 +1,7 @@
 import { FlightAnchor, ItineraryItem, SavedExperienceNote, SavedInspiration } from '../types';
 import { PlaceCoordinates, TripPlanningInput, TripPlanningInspirationSelection } from './tripInspirationSelection';
 import { scheduleProposalDay } from './itineraryScheduling';
+import { earliestFreeStartByDate, isCoveredByFixedSchedule } from './itineraryDayFloor';
 
 export type ItineraryProposal = { days: Array<{ date: string; items: ItineraryItem[] }>; conflicts: Array<{ type: string; message: string; existingItemId?: string; proposedItemId?: string }>; warnings: string[] };
 
@@ -194,6 +195,11 @@ export const normalizeTripInspirationProposal = (
     });
   });
 
+  // The arrival day cannot begin before the plane lands, and the landing, the
+  // immigration queue and the hotel check-in are already on it.
+  const dayFloors = earliestFreeStartByDate(input.fixedSchedule || []);
+  let droppedRestatedAnchors = 0;
+
   const usedPlaceKeys = new Set<string>();
   const placedInspirationIds = new Set<string>();
   let droppedOutOfRange = 0;
@@ -215,6 +221,19 @@ export const normalizeTripInspirationProposal = (
       const modelName = typeof item.placeName === 'string' ? item.placeName.trim() : '';
       const placeName = selection ? selection.placeName : modelName;
       if (!placeName) return;
+
+      /*
+        An untagged suggestion that merely restates the day's flights is dropped.
+
+        「第一天行程非常不合理 且有重複的」: alongside the anchors for 16:35 起飛 and
+        19:55 抵達金海, the model had written 「抵達金海國際機場並完成入境」、
+        「前往計程車搭乘處」、「抵達飯店門口並辦理入住」. A saved place is never
+        dropped this way — the user chose it.
+      */
+      if (!selection && dayFloors[date] && isCoveredByFixedSchedule(placeName, typeof item.note === 'string' ? item.note : undefined)) {
+        droppedRestatedAnchors += 1;
+        return;
+      }
 
       // One place, one slot. A saved place is keyed by its Phase 1 groupId, which is
       // unique per place, so two distinct saves sharing a display name both survive.
@@ -275,6 +294,7 @@ export const normalizeTripInspirationProposal = (
     // passes through unchanged.
     const { items: scheduledItems, repaired } = scheduleProposalDay(dayItems, {
       planningPreferences: input.planningPreferences,
+      earliestStart: dayFloors[date],
     });
     if (repaired) repairedDays += 1;
     days.push({ date, items: scheduledItems });
@@ -283,6 +303,7 @@ export const normalizeTripInspirationProposal = (
   days.sort((left, right) => left.date.localeCompare(right.date));
 
   if (droppedOutOfRange > 0) warnings.push(`AI 提案有 ${droppedOutOfRange} 天不在旅程日期範圍內，已略過。`);
+  if (droppedRestatedAnchors > 0) warnings.push(`AI 把航班與入住又寫成了 ${droppedRestatedAnchors} 個行程項目，已略過，這些時段照你的航班資料走。`);
   if (droppedDuplicates > 0) warnings.push(`AI 提案重複安排了 ${droppedDuplicates} 個地點，已只保留第一次。`);
   if (repairedDays > 0) warnings.push(`AI 提案有 ${repairedDays} 天的時間重複或前後衝突，已依停留時間與移動時間重新排出可行的時段。`);
 
