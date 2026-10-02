@@ -128,3 +128,55 @@ describe('a place name that is not a name', () => {
     expect(result.warnings).toEqual([]);
   });
 });
+
+/**
+ * 「當我輸入航班資訊時 行程表就應該先錨定 1.飛機起飛與抵達時間 2.應該回推兩小時到機場」.
+ *
+ * The anchors exist and are correct — a 16:35 departure already produces
+ * 14:35 抵達機場 — but the planner was free to ignore them, and did: day 1 of
+ * the Busan itinerary had them clearing Korean immigration at 14:00, before the
+ * plane left Taoyuan. The flights come first; everything else is placed after.
+ */
+describe('當天的航班是下限', () => {
+  const FLOORS = { '2026-10-02': '21:55' };
+
+  it('排在航班之前的建議被改排到航班之後，而不是丟掉', () => {
+    const result = checkProposedChanges(
+      [add({ toDate: '2026-10-02', toTime: '14:00' })],
+      TRIP,
+      FLOORS,
+    );
+
+    expect(result.changes).toHaveLength(1);
+    expect(result.changes[0].toTime).toBe('21:55');
+  });
+
+  it('說出它改了什麼、為什麼', () => {
+    const result = checkProposedChanges([add({ toDate: '2026-10-02', toTime: '14:00' })], TRIP, FLOORS);
+
+    expect(result.warnings[0]).toContain('21:55');
+    expect(result.warnings[0]).toContain('航班');
+  });
+
+  it('移動既有項目一樣受限', () => {
+    const result = checkProposedChanges(
+      [{ type: 'move', existingItemId: 'x', placeName: '甘川洞文化村', toDate: '2026-10-02', toTime: '10:00' }],
+      TRIP,
+      FLOORS,
+    );
+
+    expect(result.changes[0].toTime).toBe('21:55');
+  });
+
+  it('航班之後的時間原封不動', () => {
+    const late = add({ toDate: '2026-10-02', toTime: '22:30' });
+
+    expect(checkProposedChanges([late], TRIP, FLOORS)).toEqual({ changes: [late], warnings: [] });
+  });
+
+  it('沒有航班的日子完全不受影響', () => {
+    const other = add({ toDate: '2026-10-03', toTime: '09:00' });
+
+    expect(checkProposedChanges([other], TRIP, FLOORS)).toEqual({ changes: [other], warnings: [] });
+  });
+});

@@ -25,6 +25,7 @@ import {
 import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
 import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
 import { checkProposedChanges } from "./services/adjustmentChanges";
+import { earliestFreeStartByDate } from "./services/itineraryDayFloor";
 import { enumerateTripDates } from "./services/itineraryPlanningService";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1529,6 +1530,24 @@ async function startServer() {
       const mode = input.adjustmentMode as "add" | "fill" | "reorder" | "replan";
       const existingItinerary = Array.isArray(input.existingItinerary) ? input.existingItinerary : [];
       if (existingItinerary.length === 0) { res.status(400).json({ error: "目前沒有可調整的正式行程。" }); return; }
+      /*
+        The flights are anchored first and everything else is placed after them:
+        「當我輸入航班資訊時 行程表就應該先錨定」. A day's floor is the end of its
+        last hard-timed travel item, which on arrival day is the flight.
+      */
+      const dayFloors = earliestFreeStartByDate(
+        (existingItinerary as Array<Record<string, any>>)
+          .filter(item => item?.fixedEvent === true && typeof item?.date === "string" && typeof item?.startTime === "string")
+          .map(item => ({
+            date: item.date as string,
+            time: item.startTime as string,
+            durationMinutes: typeof item.durationMinutes === "number" ? item.durationMinutes : undefined,
+            label: typeof item.placeName === "string" ? item.placeName : "航班",
+          })),
+      );
+      const floorBlock = Object.keys(dayFloors).length > 0
+        ? `\n\n【1b. 每一天最早可以開始安排的時間（由當天航班推算，不可違反）】\n${Object.entries(dayFloors).map(([date, time]) => `${date}：${time} 之後`).join("\n")}\n這幾天在那個時間之前都還在機場或飛機上。絕對不要在那之前安排任何行程，也不要重複產生抵達機場、入境通關、領行李、辦理入住這類項目——系統已經依航班自動放進去了。`
+        : "";
       const selections = Array.isArray(input.selections) ? input.selections : [];
       const model = "gemini-3-flash-preview";
       const planningPreferences = typeof input.planningPreferences === "string"
@@ -1607,7 +1626,7 @@ async function startServer() {
         contents: `${factsPreamble()}使用者這趟旅程「已經有正式行程」了。請先讀懂目前的安排，再提出調整建議。不要當成空白行程重排。${focusBlock}
 
 【1. 旅程事實】
-只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。
+只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${floorBlock}
 
 【2. 目前的正式行程（這是事實，不是建議）】
 ${JSON.stringify(existingItinerary)}
@@ -1788,6 +1807,7 @@ ${MODE_RULES[mode]}
         const checked = checkProposedChanges(
           succeeded.flatMap(entry => (Array.isArray(entry.data.changes) ? entry.data.changes : [])),
           tripDates,
+          dayFloors,
         );
         const failedDates = results
           .filter(entry => "failed" in entry)
