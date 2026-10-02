@@ -85,6 +85,34 @@ describe('a bill split with somebody', () => {
  * beside it already said. The photograph says which bill this is, and it is
  * what you scan a list for.
  */
+/**
+ * 「帳目標題被截掉 數字也跑版」.
+ *
+ * The row lays out icon, title, amount and actions across one line. With
+ * 提出疑問 spelling itself out, the middle column had almost nothing left: the
+ * title clipped to two characters and the tags — each of them nowrap — ran
+ * straight across the amount beside them.
+ */
+describe('a crowded row', () => {
+  it('truncates the title text rather than the box around it', () => {
+    const long = { ...flights, twdAmount: 12000, description: '大師兄牛肉麵本店特製紅燒半筋半肉' } as Expense;
+    list([long], ME);
+
+    const title = screen.getByText('大師兄牛肉麵本店特製紅燒半筋半肉');
+    expect(title.className).toContain('truncate');
+    expect(title.className).toContain('min-w-0');
+  });
+
+  it('keeps the tags inside their own column', () => {
+    const withTwd = { ...flights, twdAmount: 12000 } as Expense;
+    const { container } = list([withTwd], ME);
+
+    const tags = container.querySelector('.flex-wrap');
+    expect(tags?.className).toContain('min-w-0');
+    expect(tags?.className).toContain('overflow-hidden');
+  });
+});
+
 describe('a bill with a receipt', () => {
   it('shows the receipt in the row instead of a category glyph', () => {
     const withPhoto = { ...flights, twdAmount: 12000, receiptPhotos: ['data:image/jpeg;base64,AAAA'] } as Expense;

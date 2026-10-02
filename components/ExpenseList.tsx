@@ -241,15 +241,24 @@ const ExpenseList: React.FC<Props> = ({
 
                         {/* Description & Tags - Flex Grow to take available space */}
                         <div className="flex-1 min-w-0">
-                            <h4 className={`font-semibold truncate text-sm md:text-base flex items-center gap-2 ${isIncome ? 'text-emerald-900' : 'text-gray-800'}`}>
-                                {item.description}
+                            {/* truncate belongs on the text, not on the flex box around it. */}
+                            <h4 className={`font-semibold text-sm md:text-base flex min-w-0 items-center gap-2 ${isIncome ? 'text-emerald-900' : 'text-gray-800'}`}>
+                                <span className="min-w-0 truncate">{item.description}</span>
                                 {item.needsReview && (
                                     <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded flex items-center gap-1 border border-yellow-200">
                                         <AlertTriangle size={10} /> 待確認
                                     </span>
                                 )}
                             </h4>
-                            <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap mt-0.5">
+                            {/*
+                              Tags wrap inside their own column, never over it.
+
+                              「帳目標題被截掉 數字也跑版」: each tag is nowrap, and
+                              with 提出疑問 spelling itself out the middle column
+                              had almost no width left, so the row ran its tags
+                              straight across the amount sitting beside them.
+                            */}
+                            <div className="flex min-w-0 items-center gap-1.5 text-xs text-gray-500 flex-wrap mt-0.5 overflow-hidden">
                                 <span className={`px-1.5 py-0.5 rounded whitespace-nowrap ${isIncome ? 'bg-emerald-100 text-emerald-700 font-bold' : 'bg-gray-100'}`}>
                                     {isIncome ? '退稅入帳' : item.category}
                                 </span>
@@ -278,7 +287,7 @@ const ExpenseList: React.FC<Props> = ({
                         </div>
                         
                         {/* Amount Display */}
-                        <div className="text-right flex-shrink-0">
+                        <div className="ml-auto text-right flex-shrink-0 whitespace-nowrap">
                             {/* Main Amount (TWD) */}
                             <div className={`font-bold text-sm md:text-base ${isIncome ? 'text-emerald-600' : 'text-gray-900'}`}>
                                 {isIncome ? '+' : ''} NT$ {Math.abs(Math.round(item.twdAmount)).toLocaleString()}
@@ -322,12 +331,12 @@ const ExpenseList: React.FC<Props> = ({
                                 title={mayRaiseDispute(item) ? '提出疑問' : '查看疑問'}
                                 className={`relative flex items-center gap-1 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors ${
                                     mayRaiseDispute(item)
-                                        ? 'px-2.5 py-2 text-violet-600 bg-violet-50 text-xs font-bold whitespace-nowrap'
+                                        ? 'p-2 sm:px-2.5 text-violet-600 bg-violet-50 text-xs font-bold whitespace-nowrap'
                                         : 'p-2'
                                 }`}
                             >
                                 <MessageCircleQuestion size={18} />
-                                {mayRaiseDispute(item) && <span>提出疑問</span>}
+                                {mayRaiseDispute(item) && <span className="hidden sm:inline">提出疑問</span>}
                                 {openDisputeCount(item) > 0 && (
                                     <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-white" />
                                 )}
