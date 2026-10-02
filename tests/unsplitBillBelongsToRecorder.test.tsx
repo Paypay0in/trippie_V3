@@ -129,6 +129,46 @@ describe('attaching a receipt', () => {
     expect(input.accept).toBe('image/*');
   });
 
+  /**
+   * 「如果用戶有上傳照片，將帳目照片放在此欄位顯示」. The header of the edit sheet
+   * showed a category glyph while the bill's own photograph sat further down
+   * the form — and a bill being checked is recognised by its picture long
+   * before its words.
+   */
+  it('wears its receipt in the header, and opens it full size', async () => {
+    const user = userEvent.setup();
+    render(
+      <ExpenseForm
+        currentPhase="pre"
+        customCategories={{ pre: [], during: [], post: [], summary: [] } as never}
+        onAddCustomCategory={() => undefined}
+        onRemoveCustomCategory={() => undefined}
+        existingExpenses={[]}
+        companions={[]}
+        onSubmit={() => undefined}
+        onClose={() => undefined}
+        ownerMemberId={OWNER}
+        ownerName="Ann"
+        viewerMemberId={OWNER}
+        viewerIdentified
+        initialData={{
+          id: 'e-1', description: '大師兄牛肉麵', amount: 726, twdAmount: 726, currency: 'TWD',
+          exchangeRate: 1, category: '其他', paymentMethod: 'CASH_TWD', phase: 'during',
+          date: '2026-10-02', payerId: OWNER, beneficiaries: [OWNER],
+          splitMethod: 'EQUAL', splitAllocations: {},
+          receiptPhotos: ['data:image/jpeg;base64,AAAA'],
+        } as never}
+      />,
+    );
+
+    expect(screen.queryByTestId('receipt-viewer')).toBeNull();
+    await user.click(screen.getByTestId('summary-receipt'));
+    expect(screen.getByTestId('receipt-viewer')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: '關閉收據' }));
+    expect(screen.queryByTestId('receipt-viewer')).toBeNull();
+  });
+
   it('shows a receipt the expense already carries, and lets it be taken back', async () => {
     const user = userEvent.setup();
     render(

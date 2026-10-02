@@ -197,6 +197,8 @@ const ExpenseForm: React.FC<Props> = ({
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [receiptPhotos, setReceiptPhotos] = useState<string[]>(initialData?.receiptPhotos || []);
   const [receiptError, setReceiptError] = useState('');
+  /** A receipt opened full size, because a thumbnail cannot be read. */
+  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const MAX_RECEIPTS = 4;
 
   const handleReceiptFiles = async (files: FileList | null) => {
@@ -704,6 +706,26 @@ const ExpenseForm: React.FC<Props> = ({
 
   return (
     <div className={`fixed inset-0 bg-black/50 flex items-center justify-center p-4 ${OVERLAY.form} animate-fade-in`}>
+      {/* A receipt at a size it can actually be read at. */}
+      {viewingReceipt && (
+        <div
+          role="dialog"
+          aria-label="收據"
+          data-testid="receipt-viewer"
+          onClick={() => setViewingReceipt(null)}
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+        >
+          <img src={viewingReceipt} alt="收據" className="max-h-full max-w-full rounded-xl object-contain" />
+          <button
+            type="button"
+            aria-label="關閉收據"
+            onClick={() => setViewingReceipt(null)}
+            className="absolute right-5 top-5 rounded-full bg-white/15 p-2 text-white"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      )}
       <div className="bg-white rounded-[28px] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-white flex-shrink-0">
           <button onClick={onClose} aria-label="關閉" className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500">
@@ -813,9 +835,28 @@ const ExpenseForm: React.FC<Props> = ({
             <div className="space-y-5 pt-0">
               {initialData && SummaryIcon && (
                 <div className="flex items-center gap-3 rounded-2xl bg-[#f5f1ff] p-4 ring-1 ring-violet-100">
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white text-violet-600 shadow-sm">
-                    <SummaryIcon size={20} />
-                  </div>
+                  {/*
+                    The receipt, where the category icon would otherwise sit.
+
+                    「如果用戶有上傳照片，將帳目照片放在此欄位顯示」 — a bill you are
+                    checking is recognised by the picture of it long before the
+                    words, and the picture was already attached to this record.
+                  */}
+                  {receiptPhotos.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setViewingReceipt(receiptPhotos[0])}
+                      aria-label="放大收據"
+                      data-testid="summary-receipt"
+                      className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full shadow-sm ring-1 ring-violet-100"
+                    >
+                      <img src={receiptPhotos[0]} alt="收據" className="h-full w-full object-cover" />
+                    </button>
+                  ) : (
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white text-violet-600 shadow-sm">
+                      <SummaryIcon size={20} />
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold text-[#11183d]">
                       {initialData.description || '這筆支出'}
@@ -1246,7 +1287,9 @@ const ExpenseForm: React.FC<Props> = ({
                     <div data-testid="receipt-thumbs" className="mt-3 flex flex-wrap gap-2">
                       {receiptPhotos.map((photo, index) => (
                         <div key={`${index}-${photo.slice(-24)}`} className="relative">
-                          <img src={photo} alt={`收據 ${index + 1}`} className="h-20 w-20 rounded-xl border border-slate-200 object-cover" />
+                          <button type="button" onClick={() => setViewingReceipt(photo)} aria-label={`放大收據 ${index + 1}`}>
+                            <img src={photo} alt={`收據 ${index + 1}`} className="h-20 w-20 rounded-xl border border-slate-200 object-cover" />
+                          </button>
                           <button
                             type="button"
                             aria-label={`移除收據 ${index + 1}`}
