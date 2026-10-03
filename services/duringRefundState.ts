@@ -1,10 +1,30 @@
 import { Category, Expense, TravelRules } from '../types';
 
+/**
+ * One eligible purchase, with the two numbers the card has to show.
+ *
+ * 「退稅的金額要寫在該項目旁邊 加總的在上面」. The list showed each purchase at
+ * what it cost and the refund only as a single total above it, so there was no
+ * way to tell which of two pairs of glasses was worth carrying to the counter.
+ *
+ * `amount` is normalised into the rule's currency, which is what the threshold
+ * and the total are judged on — a purchase recorded in TWD would otherwise be
+ * printed beside a refund derived from a different number, and the rows would
+ * not add up to the figure above them.
+ */
+export interface RefundCandidate {
+  expense: Expense;
+  /** The purchase, in the rule's currency. */
+  amount: number;
+  /** What this one purchase is estimated to refund, when a rate is known. */
+  refund?: number;
+}
+
 export type DuringRefundState =
   | { status: 'no_rule' }
-  | { status: 'below_threshold'; currency: string; threshold: number; shoppingSpend: number; belowThresholdExpenses: Expense[]; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
-  | { status: 'threshold_met'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleSpend: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
-  | { status: 'estimate_available'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleSpend: number; estimatedRefund: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number };
+  | { status: 'below_threshold'; currency: string; threshold: number; shoppingSpend: number; belowThresholdExpenses: Expense[]; belowThresholdItems: RefundCandidate[]; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
+  | { status: 'threshold_met'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleItems: RefundCandidate[]; eligibleSpend: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
+  | { status: 'estimate_available'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleItems: RefundCandidate[]; eligibleSpend: number; estimatedRefund: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number };
 
 type ValidRule = { currency: string; minSpend: number; rate?: number; ruleSource: 'grounded' | 'model_knowledge' };
 
@@ -39,7 +59,21 @@ export const deriveDuringRefundState = ({ expenses, travelRules }: { expenses: E
   const eligible = normalized.filter(item => item.amount >= rule.minSpend);
   const belowThreshold = normalized.filter(item => item.amount < rule.minSpend);
   const eligibleSpend = eligible.reduce((sum, item) => sum + item.amount, 0);
-  if (eligible.length === 0) return { status: 'below_threshold', currency: rule.currency, threshold: rule.minSpend, shoppingSpend: normalized.reduce((sum, item) => sum + item.amount, 0), belowThresholdExpenses: belowThreshold.map(item => item.expense), ruleSource: rule.ruleSource, refundRate: rule.rate };
-  if (rule.rate === undefined) return { status: 'threshold_met', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleSpend, ruleSource: rule.ruleSource };
-  return { status: 'estimate_available', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleSpend, estimatedRefund: eligibleSpend * rule.rate, ruleSource: rule.ruleSource, refundRate: rule.rate };
+  /*
+    Each candidate carries its own refund, from the same rate the total uses.
+
+    Deriving it again in the card would be a second rule, and two rules that
+    agree today are two rules that disagree later — which is exactly how the
+    spending totals came to say three different things on three screens.
+  */
+  const withRefund = (items: typeof normalized): RefundCandidate[] =>
+    items.map(item => ({
+      expense: item.expense,
+      amount: item.amount,
+      ...(rule.rate === undefined ? {} : { refund: item.amount * rule.rate }),
+    }));
+
+  if (eligible.length === 0) return { status: 'below_threshold', currency: rule.currency, threshold: rule.minSpend, shoppingSpend: normalized.reduce((sum, item) => sum + item.amount, 0), belowThresholdExpenses: belowThreshold.map(item => item.expense), belowThresholdItems: withRefund(belowThreshold), ruleSource: rule.ruleSource, refundRate: rule.rate };
+  if (rule.rate === undefined) return { status: 'threshold_met', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleItems: withRefund(eligible), eligibleSpend, ruleSource: rule.ruleSource };
+  return { status: 'estimate_available', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleItems: withRefund(eligible), eligibleSpend, estimatedRefund: eligibleSpend * rule.rate, ruleSource: rule.ruleSource, refundRate: rule.rate };
 };
