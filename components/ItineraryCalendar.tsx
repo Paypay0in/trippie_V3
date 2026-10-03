@@ -32,6 +32,7 @@ import {
 import { estimateRoute } from '../services/routesService';
 import { enumerateLocalDates } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
+import SavedPlaceCard from './SavedPlaceCard';
 import StayDetailSheet from './StayDetailSheet';
 import TransportLeg from './TransportLeg';
 
@@ -319,6 +320,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   const [photos, setPhotos] = useState<Record<string, PlacePhoto | null>>({});
   // Item ids whose saved travel notes the user chose to see in full.
   const [expandedNoteIds, setExpandedNoteIds] = useState<string[]>([]);
+  /** The itinerary item whose place card is open, if any. */
+  const [openPlaceItemId, setOpenPlaceItemId] = useState<string | null>(null);
   // Ticket/booking info per itinerary item id. undefined = still looking.
   const [commerce, setCommerce] = useState<Record<string, PlaceCommerceInfo | null>>({});
 
@@ -558,9 +561,27 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     {item.placeId && photos[item.placeId]?.attribution?.uri && <a href={photos[item.placeId]?.attribution?.uri} target="_blank" rel="noreferrer" aria-label="查看照片來源" className="absolute bottom-1 right-1 rounded bg-black/55 p-0.5 text-white"><Info size={10} /></a>}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="mb-1 text-base font-black leading-tight text-[#111A4A]">{item.title}</h4>
-                    {item.location && <div className="flex items-start gap-1 text-xs font-semibold text-slate-600"><MapPin size={11} className="mt-0.5 shrink-0 text-[#6b4df6]" />{item.location}</div>}
-                    {item.address && <p className="mt-1 pl-4 text-[10px] font-medium leading-snug text-slate-400">{item.address}</p>}
+                    {/*
+                      The place on the plan opens like the place on the list.
+
+                      「目前行程也要點擊後讓用戶看到小卡 另外，地址要可以一鍵複製」.
+                      The address was printed here and nothing more, so getting
+                      to it meant selecting grey 10px text on a phone — or
+                      retyping a Busan street address into another app.
+
+                      Same card as the collection uses, deliberately: a place is
+                      a place, and a second one would drift from this one.
+                    */}
+                    <button
+                      type="button"
+                      data-testid={`open-itinerary-place-${item.id}`}
+                      onClick={() => setOpenPlaceItemId(item.id)}
+                      className="block w-full text-left"
+                    >
+                      <h4 className="mb-1 text-base font-black leading-tight text-[#111A4A]">{item.title}</h4>
+                      {item.location && <span className="flex items-start gap-1 text-xs font-semibold text-slate-600"><MapPin size={11} className="mt-0.5 shrink-0 text-[#6b4df6]" />{item.location}</span>}
+                      {item.address && <span className="mt-1 block pl-4 text-[10px] font-medium leading-snug text-slate-400">{item.address}</span>}
+                    </button>
                     {/*
                       An item no map knows. 「廣安里海景早午餐咖啡廳」 is a
                       description, not a business, so it has no address, no photo
@@ -1138,6 +1159,30 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           </div>
         </div>
       )}
+
+      {/*
+        Read from the live list rather than held in state, so an item that is
+        deleted or re-synced underneath the card closes it instead of leaving a
+        dialog describing something that is no longer on the plan.
+      */}
+      {(() => {
+        const openItem = items.find(item => item.id === openPlaceItemId);
+        if (!openItem) return null;
+        return (
+          <SavedPlaceCard
+            place={{
+              placeName: openItem.location || openItem.title,
+              placeId: openItem.placeId,
+              formattedAddress: openItem.address,
+              coordinates: Number.isFinite(openItem.latitude) && Number.isFinite(openItem.longitude)
+                ? { latitude: openItem.latitude as number, longitude: openItem.longitude as number }
+                : undefined,
+            }}
+            notes={openItem.savedTravelNotes || []}
+            onClose={() => setOpenPlaceItemId(null)}
+          />
+        );
+      })()}
 
       {stayDetail && (
         <StayDetailSheet
