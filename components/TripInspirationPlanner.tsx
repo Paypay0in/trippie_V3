@@ -30,6 +30,7 @@ import {
   TripInspirationProposal,
 } from '../services/itineraryPlanningService';
 import { ItineraryAcceptanceMode } from '../services/itineraryAcceptance';
+import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 
 export interface ProposalAcceptanceResult {
   ok: boolean;
@@ -161,6 +162,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [removingGroupId, setRemovingGroupId] = useState<string | null>(null);
   /** The place whose card is open, if any. */
   const [openPlaceGroupId, setOpenPlaceGroupId] = useState<string | null>(null);
+  /** Google's one-line description, for the saved places that carry no points. */
+  const [basicsByGroupId, setBasicsByGroupId] = useState<Record<string, string>>({});
 
   // AI 行程調整模式 — only reachable when the trip already has an itinerary.
   const [adjustmentMode, setAdjustmentMode] = useState<ItineraryAdjustmentMode | null>(null);
@@ -290,6 +293,41 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     setAdjustment(null);
     setAdjustmentError(null);
   }, [itineraryFingerprint]);
+
+  /*
+    Fills the rows that carry nothing of their own.
+
+    「這個你要基本查一些資訊 不能讓這個行程空白」. Restricted to places with no
+    points and a resolved Google id: without an id there is nothing to look up
+    that would not be a guess, and a row that already has points does not need
+    a category line above them.
+  */
+  const emptyGroupKey = groups
+    .filter(group => group.experienceNotes.length === 0 && group.placeId)
+    .map(group => `${group.id}:${group.placeId}`)
+    .join('|');
+
+  useEffect(() => {
+    if (!emptyGroupKey) return;
+    let cancelled = false;
+    const wanted = emptyGroupKey.split('|').map(entry => {
+      const separator = entry.lastIndexOf(':');
+      return { groupId: entry.slice(0, separator), placeId: entry.slice(separator + 1) };
+    });
+
+    void Promise.all(wanted.map(async ({ groupId, placeId }) => {
+      const basics = await fetchPlaceBasics(placeId);
+      const line = summarizePlaceBasics(basics) || basics?.summary || '';
+      return line ? [groupId, line] as const : null;
+    })).then(found => {
+      if (cancelled) return;
+      const resolved = found.filter((entry): entry is readonly [string, string] => entry !== null);
+      if (resolved.length === 0) return;
+      setBasicsByGroupId(current => ({ ...current, ...Object.fromEntries(resolved) }));
+    });
+
+    return () => { cancelled = true; };
+  }, [emptyGroupKey]);
 
   const creatorById = useMemo(() => {
     const map = new Map<string, { name: string; avatar?: string }>();
@@ -595,6 +633,23 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                 )}
                 {isPlanned && plannedNoticeGroupId === group.id && (
                   <p className="px-3 pb-2.5 pl-11 text-[11px] leading-5 text-slate-500">此景點已經存在行程中。</p>
+                )}
+                {/*
+                  A place the screenshot named and said nothing about.
+
+                  「這個你要基本查一些資訊 不能讓這個行程空白」 — 다고소님 arrived as a
+                  name over an empty space, which is indistinguishable from a
+                  row that failed to load. Google's own category and rating fill
+                  it with something true.
+
+                  Only for rows that have no points of their own: a lookup per
+                  visible place would be twelve requests to fill a list most of
+                  which is already full.
+                */}
+                {group.experienceNotes.length === 0 && basicsByGroupId[group.id] && (
+                  <p data-testid={`basics-line-${group.id}`} className="px-3 pb-3 pl-11 text-[11px] font-bold text-slate-500">
+                    {basicsByGroupId[group.id]}
+                  </p>
                 )}
                 {group.experienceNotes.length > 0 && (() => {
                   /*

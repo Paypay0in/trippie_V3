@@ -71,6 +71,8 @@ async function startServer() {
   // In a real app, this would be a database
   const sharedTrips: Record<string, any> = {};
   const placePhotoCache = new Map<string, { expiresAt: number; value: unknown }>();
+  /** Google's own facts about a place, cached like its photo is. */
+  const placeBasicsCache = new Map<string, { expiresAt: number; value: unknown }>();
 
 
   const normalizeNumericRule = (value: any, _sourceBacked: boolean) => {
@@ -751,6 +753,69 @@ async function startServer() {
         mapsUri: data.googleMapsUri,
       });
     } catch { res.status(502).json({ error: "Place details unavailable." }); }
+  });
+
+  /*
+    What Google already knows about a place.
+
+    「這個你要基本查一些資訊 不能讓這個行程空白」. A screenshot that named a shop and
+    said nothing else produced a saved place with a name and an empty space under
+    it — and an empty space is indistinguishable from a bug.
+
+    Everything here is a field Google returns about that exact place id: what kind
+    of place it is, its own one-line description, its hours, its rating. Nothing
+    is generated, because a plausible sentence about a restaurant nobody has
+    checked is worse than a blank line.
+  */
+  app.post("/api/places/basics", async (req, res) => {
+    const placeId = typeof req.body?.placeId === "string" ? req.body.placeId.trim() : "";
+    if (!placeId || !process.env.GOOGLE_MAPS_API_KEY) { res.json({ basics: null }); return; }
+    const cached = placeBasicsCache.get(placeId);
+    if (cached && cached.expiresAt > Date.now()) { res.json({ basics: cached.value }); return; }
+    try {
+      // The language is asked for explicitly. Without it Google answers in the
+      // place's own locale, so a Busan cafe comes back as 「Cafe」 and 「Monday:
+      // 9:00 AM – 6:00 PM」 on a card the traveller reads in Chinese.
+      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=zh-TW`, {
+        headers: {
+          "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask": "id,primaryTypeDisplayName,editorialSummary,rating,userRatingCount,priceLevel,businessStatus,regularOpeningHours,websiteUri",
+        },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) { res.json({ basics: null }); return; }
+      const data = await response.json() as {
+        primaryTypeDisplayName?: { text?: string };
+        editorialSummary?: { text?: string };
+        rating?: number;
+        userRatingCount?: number;
+        priceLevel?: string;
+        businessStatus?: string;
+        regularOpeningHours?: { openNow?: boolean; weekdayDescriptions?: string[] };
+        websiteUri?: string;
+      };
+      const basics = {
+        kind: data.primaryTypeDisplayName?.text,
+        summary: data.editorialSummary?.text,
+        rating: typeof data.rating === "number" ? data.rating : undefined,
+        ratingCount: typeof data.userRatingCount === "number" ? data.userRatingCount : undefined,
+        priceLevel: data.priceLevel,
+        businessStatus: data.businessStatus,
+        openNow: data.regularOpeningHours?.openNow,
+        weekdayHours: Array.isArray(data.regularOpeningHours?.weekdayDescriptions)
+          ? data.regularOpeningHours?.weekdayDescriptions?.filter((line: unknown) => typeof line === "string")
+          : undefined,
+        website: data.websiteUri,
+      };
+      // A place Google knows nothing useful about is cached as nothing, so the
+      // card does not ask again every time it opens.
+      const value = Object.values(basics).some(entry => entry !== undefined) ? basics : null;
+      placeBasicsCache.set(placeId, { expiresAt: Date.now() + 30 * 60_000, value });
+      res.json({ basics: value });
+    } catch {
+      placeBasicsCache.set(placeId, { expiresAt: Date.now() + 60_000, value: null });
+      res.json({ basics: null });
+    }
   });
 
   app.post("/api/places/photo", async (req, res) => {

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { AlertTriangle, Copy, MapPin, Navigation, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, Star, X } from 'lucide-react';
 import { SavedExperienceNote } from '../types';
 import { MappablePlace, placeCopyText, placeDirectionsUrl, placeMapsUrl } from '../services/placeLinks';
+import { fetchPlaceBasics, hoursForToday, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 
 /**
  * A saved place, opened.
@@ -25,6 +26,24 @@ interface Props {
 
 const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
   const [copied, setCopied] = useState(false);
+  /*
+    What Google knows, for the places the traveller saved nothing about.
+
+    「這個你要基本查一些資訊 不能讓這個行程空白」. Looked up when the card opens
+    rather than when the list renders: twelve lookups to fill twelve rows that
+    may never be tapped is somebody else's API bill and a slower list.
+  */
+  const [basics, setBasics] = useState<PlaceBasics | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBasics(null);
+    void fetchPlaceBasics(place.placeId).then(found => { if (!cancelled) setBasics(found); });
+    return () => { cancelled = true; };
+  }, [place.placeId]);
+
+  const basicsLine = summarizePlaceBasics(basics);
+  const todayHours = hoursForToday(basics);
 
   const copy = async () => {
     try {
@@ -114,6 +133,48 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
         >
           <Copy size={13} />{copied ? '已複製' : place.formattedAddress ? '複製地址' : '複製店名'}
         </button>
+
+        {/*
+          Google's own facts, kept visibly separate from what a person wrote.
+
+          Labelled as coming from Google because that is the difference that
+          matters: a note is somebody's experience of the place, this is the
+          record. Mixing them would make both less trustworthy.
+        */}
+        {(basicsLine || basics?.summary || todayHours || basics?.website) && (
+          <div data-testid="place-basics" className="mt-4 space-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5">
+            <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Google 基本資料</div>
+            {basics?.summary && <p className="text-xs leading-5 text-slate-700">{basics.summary}</p>}
+            {basicsLine && (
+              <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                <Star size={11} className="shrink-0 text-amber-500" />{basicsLine}
+              </p>
+            )}
+            {todayHours && (
+              <p className="flex items-start gap-1.5 text-[11px] font-medium text-slate-600">
+                <Clock3 size={11} className="mt-0.5 shrink-0 text-slate-400" />
+                <span className="min-w-0 flex-1">
+                  今日 {todayHours}
+                  {basics?.openNow !== undefined && (
+                    <span className={`ml-1.5 font-black ${basics.openNow ? 'text-emerald-600' : 'text-rose-500'}`}>
+                      {basics.openNow ? '營業中' : '休息中'}
+                    </span>
+                  )}
+                </span>
+              </p>
+            )}
+            {basics?.website && (
+              <a
+                href={basics.website}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-[11px] font-black text-[#5b3df5]"
+              >
+                <Globe size={11} />官方網站
+              </a>
+            )}
+          </div>
+        )}
 
         {notes.length > 0 && (
           <div className="mt-4 space-y-1.5">
