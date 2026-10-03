@@ -9,6 +9,7 @@ import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, nor
 import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle } from 'lucide-react';
 import { localToday } from '../services/localDate';
 import { readAndDownscale } from '../services/postPhotos';
+import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
 
 interface Props {
   currentPhase: Phase;
@@ -1052,6 +1053,47 @@ const ExpenseForm: React.FC<Props> = ({
               </div>
 
               {/* Tax Refund Alert */}
+              {/*
+                The refund already taken off this bill, shown as the subtraction.
+
+                「若是在結帳時已退稅，要回頭去去掉該筆帳的總額。點開可看到計算」 —
+                the list row shows the net figure, and this is where the three
+                numbers behind it are: what the shop charged, what came back,
+                and what it therefore cost. A number nobody can reconstruct is a
+                number nobody can check against their card bill.
+              */}
+              {initialData && refundReceivedInTwd(initialData) > 0 && (
+                  <div data-testid="refund-breakdown" className="animate-fade-in rounded-lg border border-emerald-200 bg-emerald-50 p-3 shadow-sm">
+                      <div className="text-sm font-bold text-emerald-800">
+                          {initialData.taxRefundedAtPurchase ? '結帳時已退稅' : '已收到退稅'}
+                      </div>
+                      <div className="mt-2 space-y-1 text-xs text-emerald-900">
+                          <div className="flex justify-between">
+                              <span>原始金額</span>
+                              <span className="font-mono">NT$ {Math.round(initialData.twdAmount).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                              <span>
+                                  已退稅
+                                  {initialData.currency !== 'TWD' && initialData.taxRefundActual !== undefined && (
+                                      <span className="ml-1 text-emerald-700/70">
+                                          （{Math.round(initialData.taxRefundActual).toLocaleString()} {initialData.currency}）
+                                      </span>
+                                  )}
+                              </span>
+                              <span className="font-mono">− NT$ {Math.round(refundReceivedInTwd(initialData)).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-emerald-200 pt-1 font-bold">
+                              <span>實際支出</span>
+                              <span className="font-mono">NT$ {Math.round(expenseNetAmount(initialData)).toLocaleString()}</span>
+                          </div>
+                      </div>
+                      <p className="mt-2 text-[10px] leading-4 text-emerald-700/70">
+                          各項總計與分帳都以「實際支出」計算。退稅金額可在退稅清單裡修改。
+                      </p>
+                  </div>
+              )}
+
               {isEligibleForRefund && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 animate-fade-in shadow-sm">
                       <div className="flex items-start gap-3">

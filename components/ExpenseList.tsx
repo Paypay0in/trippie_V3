@@ -10,6 +10,7 @@ import { canDeleteExpense, canEditExpense } from '../services/expensePermissions
 import { canRaiseDispute, getOpenDisputes } from '../services/expenseDisputes';
 import { partitionByConcern } from '../services/expenseConcernsMember';
 import { calculateExpenseLedger } from '../services/splitCalculator';
+import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
 
 interface Props {
   expenses: Expense[];
@@ -210,6 +211,9 @@ const ExpenseList: React.FC<Props> = ({
 
                     const { payer, involved, isPersonal, sharerCount, viewerShare } =
                         summariseExpenseRow(item, members, viewerMemberId, tripOwnerMemberId);
+                    // A refund already received comes off what this bill cost.
+                    const refunded = refundReceivedInTwd(item);
+                    const netAmount = expenseNetAmount(item);
                     const isSplit = sharerCount > 1;
                     /*
                       One tap target instead of a row of small ones.
@@ -343,9 +347,29 @@ const ExpenseList: React.FC<Props> = ({
                         {/* The amount, against a hairline, as the design has it. */}
                         <div className="flex shrink-0 items-center gap-1 self-stretch border-l border-slate-100 pl-3 text-right">
                             <div className="whitespace-nowrap">
+                                {/*
+                                  What the bill came to after anything already refunded.
+
+                                  「若是在結帳時已退稅，要回頭去去掉該筆帳的總額」 — money
+                                  handed back at the till never left, so the sticker
+                                  price is not what this cost. The original stays
+                                  above it, struck through: a row that silently shows
+                                  a number matching neither the receipt nor the card
+                                  is a row nobody can reconcile.
+                                */}
+                                {refunded > 0 && (
+                                    <div className="text-[11px] font-medium text-slate-400 line-through">
+                                        TWD {Math.abs(Math.round(item.twdAmount)).toLocaleString()}
+                                    </div>
+                                )}
                                 <div className={`text-base font-black ${isIncome ? 'text-emerald-600' : 'text-[#11183d]'}`}>
-                                    {isIncome ? '+' : ''}TWD {Math.abs(Math.round(item.twdAmount)).toLocaleString()}
+                                    {isIncome ? '+' : ''}TWD {Math.abs(Math.round(netAmount)).toLocaleString()}
                                 </div>
+                                {refunded > 0 && (
+                                    <div data-testid={`refund-deducted-${item.id}`} className="text-[11px] font-bold text-emerald-600">
+                                        已退稅 −{Math.round(refunded).toLocaleString()}
+                                    </div>
+                                )}
                                 {/*
                                   A split bill says what it cost you, not only what it cost.
 

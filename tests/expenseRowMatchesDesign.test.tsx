@@ -152,3 +152,40 @@ describe('日期標頭', () => {
     expect(document.body.textContent).toContain('TWD 363');
   });
 });
+
+/**
+ * 「若是在結帳時已退稅，要回頭去去掉該筆帳的總額。點開可看到計算」.
+ *
+ * The row has to show the figure that matches the card bill, and it has to show
+ * its working — a number nobody can reconstruct is a number nobody can check.
+ */
+describe('已經退稅的那一筆', () => {
+  const lipstick = expense({
+    id: 'e-lipstick', description: '口紅', amount: 18000, twdAmount: 414,
+    currency: 'KRW', exchangeRate: 0.023, payerId: ME, beneficiaries: [],
+    taxRefundedAtPurchase: true, taxRefundActual: 1080,
+  });
+
+  it('顯示扣完的金額，原價劃掉留在上面', () => {
+    list([lipstick]);
+    const row = within(screen.getByTestId('expense-row-e-lipstick'));
+
+    expect(row.getByText('TWD 389')).toBeTruthy();
+    expect(row.getByText('TWD 414').className).toContain('line-through');
+  });
+
+  it('那一列直接寫出扣了多少', () => {
+    list([lipstick]);
+
+    expect(screen.getByTestId('refund-deducted-e-lipstick').textContent).toContain('25');
+  });
+
+  it('沒退稅的帳目完全不受影響', () => {
+    const plain = expense({ id: 'e-plain', description: '咖啡', amount: 150, twdAmount: 150, payerId: ME });
+    list([plain]);
+    const row = within(screen.getByTestId('expense-row-e-plain'));
+
+    expect(row.getByText('TWD 150')).toBeTruthy();
+    expect(screen.queryByTestId('refund-deducted-e-plain')).toBeNull();
+  });
+});

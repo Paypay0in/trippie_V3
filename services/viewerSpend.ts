@@ -18,6 +18,36 @@ import { calculateExpenseLedger } from './splitCalculator';
  * single-user ledger has nobody to apportion to, and quietly reporting a
  * fraction there would understate what somebody spent.
  */
+/**
+ * A refund already received, in the ledger's own currency.
+ *
+ * 「若是在結帳時已退稅，要回頭去去掉該筆帳的總額」. Money handed back at the till is
+ * money that never left — counting the sticker price as spend overstates the
+ * trip by the whole refund.
+ *
+ * Only a figure the traveller actually recorded counts. An estimate is what the
+ * app thinks the counter might pay; subtracting one from a real total would be
+ * the app paying itself back in arithmetic.
+ */
+export const refundReceivedInTwd = (expense: Expense): number => {
+  const actual = expense.taxRefundActual;
+  if (!Number.isFinite(actual as number) || (actual as number) <= 0) return 0;
+  const rate = Number.isFinite(expense.exchangeRate) && expense.exchangeRate > 0 ? expense.exchangeRate : 1;
+  // The refund is in the purchase's own currency, like the amount it came off.
+  return (actual as number) * rate;
+};
+
+/**
+ * What a bill actually cost, after anything already refunded on it.
+ *
+ * Floored at zero: a refund larger than the purchase is a mis-keyed figure, and
+ * a negative expense would read as income on every screen that sums these.
+ */
+export const expenseNetAmount = (expense: Expense): number => {
+  if (!Number.isFinite(expense.twdAmount)) return 0;
+  return Math.max(0, expense.twdAmount - refundReceivedInTwd(expense));
+};
+
 export const expenseCostToViewer = (
   expense: Expense,
   viewerMemberId?: string,
@@ -32,7 +62,14 @@ export const expenseCostToViewer = (
     one: an amount that is not a number is not money anybody spent.
   */
   if (!Number.isFinite(expense.twdAmount)) return 0;
-  const whole = expense.twdAmount;
+  /*
+    Net of anything already refunded, before the split.
+
+    Two people halving a 18,000 purchase that gave 1,080 back at the counter
+    each carry half of 16,920, not half of 18,000 — the refund came off the one
+    bill they are sharing.
+  */
+  const whole = expenseNetAmount(expense);
   if (!viewerMemberId) return whole;
 
   const { responsibility } = calculateExpenseLedger(expense, tripOwnerMemberId);
@@ -49,7 +86,11 @@ export const expenseCostToViewer = (
   }
 
   const share = responsibility[viewerMemberId];
-  return Number.isFinite(share) ? share : 0;
+  if (!Number.isFinite(share)) return 0;
+  // The split calculator works from the gross bill, so the reader's share is
+  // scaled by the same proportion the refund took off it.
+  const gross = expense.twdAmount;
+  return gross > 0 ? (share as number) * (whole / gross) : 0;
 };
 
 /** The owner's member id, which the split calculator needs to resolve aliases. */

@@ -9,7 +9,7 @@
  * how the Dashboard ended up as the one place that never got it.
  */
 import { describe, expect, it } from 'vitest';
-import { expenseCostToViewer, ownerMemberIdOf } from './viewerSpend';
+import { expenseCostToViewer, expenseNetAmount, ownerMemberIdOf, refundReceivedInTwd } from './viewerSpend';
 import { Category, Expense, TripMember } from '../types';
 
 const ME = 'trip:owner';
@@ -146,5 +146,58 @@ describe('每個畫面都用同一條規則', () => {
     'components/WalletPreScreen.tsx',
   ])('%s 不再自己從 responsibility 挑出讀者那一份', path => {
     expect(sourceOf(path)).not.toMatch(/responsibility\[viewerMemberId\]/);
+  });
+});
+
+/**
+ * 「若是在結帳時已退稅，要回頭去去掉該筆帳的總額。點開可看到計算」.
+ *
+ * Money handed back at the till never left. Counting the sticker price as spend
+ * overstates the trip by the whole refund, and the figure the traveller sees
+ * then matches neither their receipt nor their card bill.
+ */
+describe('已經退回來的錢', () => {
+  const lipstick = bill({
+    id: 'e-lipstick', description: '口紅', amount: 18000, twdAmount: 414,
+    currency: 'KRW', exchangeRate: 0.023, payerId: ME, beneficiaries: [],
+    taxRefundedAtPurchase: true, taxRefundActual: 1080,
+  });
+
+  it('從那筆帳的金額扣掉，換算成記帳幣別', () => {
+    // 1,080 KRW × 0.023 = 24.84 TWD off 414.
+    expect(Math.round(refundReceivedInTwd(lipstick))).toBe(25);
+    expect(Math.round(expenseNetAmount(lipstick))).toBe(389);
+  });
+
+  it('沒有填實際金額時不扣——估算不是收到的錢', () => {
+    const estimatedOnly = bill({ ...lipstick, taxRefundActual: undefined });
+
+    expect(refundReceivedInTwd(estimatedOnly)).toBe(0);
+    expect(expenseNetAmount(estimatedOnly)).toBe(414);
+  });
+
+  it('總計用的是扣完之後的金額', () => {
+    expect(Math.round(expenseCostToViewer(lipstick, ME, ME))).toBe(389);
+  });
+
+  it('分帳的人各自分攤扣完之後的金額', () => {
+    const shared = bill({ ...lipstick, beneficiaries: [ME, GINA] });
+
+    // Half of 389, not half of 414.
+    expect(Math.round(expenseCostToViewer(shared, ME, ME))).toBe(195);
+    expect(Math.round(expenseCostToViewer(shared, GINA, ME))).toBe(195);
+  });
+
+  it('退稅比購買金額還大時歸零，不會變成一筆收入', () => {
+    const typo = bill({ ...lipstick, taxRefundActual: 999999 });
+
+    expect(expenseNetAmount(typo)).toBe(0);
+    expect(expenseCostToViewer(typo, ME, ME)).toBe(0);
+  });
+
+  it('機場退的也一樣扣——錢回來就是回來了，不管在哪裡回來', () => {
+    const atAirport = bill({ ...lipstick, taxRefundedAtPurchase: undefined, taxRefundChannel: 'airport' });
+
+    expect(Math.round(expenseNetAmount(atAirport))).toBe(389);
   });
 });
