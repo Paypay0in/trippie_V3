@@ -4951,6 +4951,31 @@ const App: React.FC = () => {
    * adding an expense from 記帳 ＞ 旅行中 offered 機票、簽證、保險, the 行前
    * categories, because the trip has not departed yet.
    */
+  /**
+   * The day a quick-added itinerary item should land on.
+   *
+   * 「新增行程要點哪一個」 — from the global menu there is no day in hand, so it
+   * is today when today is part of the trip, and the trip's first day otherwise.
+   * Someone adding on the move means now; someone planning ahead means the start.
+   */
+  const dayForQuickItineraryAdd = (): string | undefined => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const withinTrip =
+      (!tripStartDate || today >= tripStartDate) && (!tripEndDate || today <= tripEndDate);
+    return withinTrip ? today : tripStartDate || undefined;
+  };
+
+  /** Opens the itinerary add form on that day, from anywhere. */
+  const openQuickItineraryAdd = () => {
+    setIsGlobalActionOpen(false);
+    setAppSection("trips");
+    setViewMode("trip");
+    setWorkspaceSection("planning");
+    setItineraryFormDate(dayForQuickItineraryAdd());
+    setItineraryFormItem(null);
+  };
+
   const phaseForNewExpense = (): Phase => {
     const stage = workspaceSection === "records" ? walletPhase : currentPhase;
     return stage === "return" || stage === "summary" ? "post" : (stage as Phase);
@@ -5281,16 +5306,12 @@ const App: React.FC = () => {
               setAppSection("trips");
               handleCreateNewTrip();
             }}
-            onAddPlace={() => {
+            onOpenBookshelf={() => {
               setIsGlobalActionOpen(false);
               setAppSection("trips");
               setViewMode("bookshelf");
             }}
-            onAddNote={() => {
-              setIsGlobalActionOpen(false);
-              setAppSection("trips");
-              setViewMode("bookshelf");
-            }}
+            onAddItineraryItem={activeDraftId ? openQuickItineraryAdd : undefined}
             onAiImport={() => {
               setIsGlobalActionOpen(false);
               setAppSection("trips");
@@ -5336,6 +5357,10 @@ const App: React.FC = () => {
   if (appSection === "trips" && viewMode === "bookshelf") {
     return (
       <TravelHome
+        onAiImport={() => {
+          setAppSection("trips");
+          setViewMode("tripSetup");
+        }}
         onDeleteDraft={handleDeleteDraft}
         activeSection="trips"
         authStatus={authStatus}
@@ -5448,14 +5473,11 @@ const App: React.FC = () => {
               setIsGlobalActionOpen(false);
               handleCreateNewTrip();
             }}
-            onAddPlace={() => {
+            onOpenBookshelf={() => {
               setIsGlobalActionOpen(false);
               setViewMode("bookshelf");
             }}
-            onAddNote={() => {
-              setIsGlobalActionOpen(false);
-              setViewMode("bookshelf");
-            }}
+            onAddItineraryItem={activeDraftId ? openQuickItineraryAdd : undefined}
             onAiImport={() => {
               setIsGlobalActionOpen(false);
               setViewMode("tripSetup");
@@ -6392,14 +6414,11 @@ const App: React.FC = () => {
                 setIsGlobalActionOpen(false);
                 handleCreateNewTrip();
               }}
-              onAddPlace={() => {
+              onOpenBookshelf={() => {
                 setIsGlobalActionOpen(false);
                 setViewMode("bookshelf");
               }}
-              onAddNote={() => {
-                setIsGlobalActionOpen(false);
-                setViewMode("bookshelf");
-              }}
+              onAddItineraryItem={activeDraftId ? openQuickItineraryAdd : undefined}
               onAiImport={() => {
                 setIsGlobalActionOpen(false);
                 setViewMode("tripSetup");

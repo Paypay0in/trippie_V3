@@ -10,20 +10,47 @@ interface Props {
   onJoinTrip: () => void;
   onCreatePost: () => void;
   onCreateTrip: () => void;
-  onAddPlace: () => void;
-  onAddNote: () => void;
+  /** Opens the trip's bookshelf. Navigation, and labelled as such. */
+  onOpenBookshelf: () => void;
   onAiImport: () => void;
   onAddExpense: () => void;
+  /**
+   * Adds an itinerary item to the open trip.
+   *
+   * 「新增行程要點哪一個」 — none of them, was the answer: the menu offered five
+   * ways to start or join a trip and no way to do the thing somebody mid-trip
+   * actually wants. Omitted when no trip is open, where there is nothing to
+   * add an item to.
+   */
+  onAddItineraryItem?: () => void;
 }
 
-const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCreatePost, onCreateTrip, onAddPlace, onAddNote, onAiImport, onAddExpense }) => {
+const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCreatePost, onCreateTrip, onOpenBookshelf, onAiImport, onAddExpense, onAddItineraryItem }) => {
   const actions = context === 'community'
     ? [['發布旅行貼文', onCreatePost], ['分享一趟旅程', onClose], ['從相簿建立', onClose], ['儲存為草稿', onCreatePost]]
     : context === 'travel'
-      // 加入旅程 sits first because someone who has been invited has nothing
-      // else here they want: every other action builds a trip of their own,
-      // and the one they were asked to join is somebody else's.
-      ? [['加入旅程', onJoinTrip], ['新增旅程', onCreateTrip], ['新增地點', onAddPlace], ['新增筆記', onAddNote], ['AI 匯入', onAiImport]]
+      /*
+        What someone can actually do from here.
+
+        「新增行程要點哪一個」 — the honest answer was 「none of them」. 新增地點 and
+        新增筆記 both ran `setViewMode('bookshelf')`: two different labels, the
+        same navigation, and neither added anything. There is no add-place or
+        add-note feature behind them to reach. So the lie is gone and the one
+        entry that remains says what it does.
+
+        新增行程 leads when a trip is open, because that is the thing a traveller
+        in the middle of one wants. 加入旅程 leads otherwise: someone who was
+        invited has nothing else here they want, since every other action builds
+        a trip of their own and the one they were asked to join is somebody
+        else's.
+      */
+      ? [
+          ...(onAddItineraryItem ? [['新增行程', onAddItineraryItem] as [string, () => void]] : []),
+          ['加入旅程', onJoinTrip],
+          ['新增旅程', onCreateTrip],
+          ['旅行書架', onOpenBookshelf],
+          ['AI 匯入', onAiImport],
+        ]
       : [['新增支出', onAddExpense]];
   return <div className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-950/35 p-4`} onClick={onClose}>
     <div className="w-full max-w-2xl rounded-[28px] bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()}>

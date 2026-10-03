@@ -36,6 +36,11 @@ interface Props {
   onContinueTrip: (trip: Trip) => void;
   onCreateNew: () => void;
   onOpenPlanner: () => void;
+  /**
+   * Opens AI 匯入旅程資料. Previously wired to `() => undefined` — a tile that
+   * looked live and answered nothing, beside two more of the same.
+   */
+  onAiImport?: () => void;
   savedTravelInspirations: SavedTravelInspiration[];
   communityPosts: CommunityPost[];
   onOpenSavedDestination: (country: string, city: string) => void;
@@ -158,6 +163,7 @@ const TravelHome: React.FC<Props> = ({
   onContinueTrip,
   onCreateNew,
   onOpenPlanner,
+  onAiImport,
   savedTravelInspirations,
   onOpenSavedDestination,
   authStatus,
@@ -378,13 +384,20 @@ const TravelHome: React.FC<Props> = ({
         </section>
         <section>
           <h2 className="mb-3 text-xl font-black">快速開始</h2>
-          <div className="grid grid-cols-5 gap-2">
+          {/*
+            Only the tiles that do something.
+
+            「新增行程要點哪一個」 came from the same shape one menu over: 新增地點
+            and 新增筆記 were both `() => undefined` here — live-looking tiles
+            wired to nothing, because no add-place or add-note feature exists to
+            wire them to. A control that answers a tap with silence costs more
+            trust than the blank space where it was.
+          */}
+          <div className="grid grid-cols-3 gap-2">
             {[
               [Sparkles, "AI 幫我排行程", onOpenPlanner, "bg-violet-50 text-violet-600"],
-              [FileInput, "AI 匯入旅程資料", () => undefined, "bg-blue-50 text-blue-600"],
+              [FileInput, "AI 匯入旅程資料", onAiImport || onCreateNew, "bg-blue-50 text-blue-600"],
               [Plus, "新增旅程", onCreateNew, "bg-pink-50 text-pink-600"],
-              [MapPin, "新增地點", () => undefined, "bg-emerald-50 text-emerald-600"],
-              [NotebookPen, "新增筆記", () => undefined, "bg-orange-50 text-orange-600"],
             ].map(([Icon, label, action, color]) => (
               <button
                 key={label as string}
