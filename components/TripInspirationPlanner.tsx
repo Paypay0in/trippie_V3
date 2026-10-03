@@ -3,6 +3,7 @@ import { Compass, MapPin, Sparkles, Check, AlertTriangle, ArrowRight, Clock3, Ro
 import { CommunityPost, ExperienceNoteType, ItineraryItem, SavedTravelInspiration } from '../types';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
+import { selectedInspirationsToItineraryItems } from '../services/inspirationToItinerary';
 import { PlacePreview, previewPlaceResolution } from '../services/itineraryPlaceEnrichment';
 import {
   analyzeExistingItinerary,
@@ -148,6 +149,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   // Set when the `add` suggestions were handed to the itinerary timeline, so the
   // traveller is told where they went instead of watching the panel go empty.
   const [forwardedCount, setForwardedCount] = useState(0);
+  /** The day a manual add drops the chosen places onto, and what it just added. */
+  const [manualAddDate, setManualAddDate] = useState('');
+  const [manualAddedCount, setManualAddedCount] = useState(0);
 
   const hasExistingItinerary = existingItinerary.length > 0;
   /** The days a screenshot's places can be dropped onto. */
@@ -551,6 +555,60 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
               <button type="button" disabled={selected.length === 0 || isGenerating} onClick={handleGenerate} className="mt-2.5 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-40">
                 <Sparkles size={16} />{isGenerating ? 'AI 正在排行程…' : `AI 幫我排行程（${selected.length}）`}
               </button>
+
+              {/*
+                The same places, placed by hand.
+
+                「目前要將這些筆記加入行程只能用 AI 也要有可以手動更新選後輸入的
+                選項」 — picking three places and a day is a decision already made.
+                Sending it through a model that re-orders the day, invents times
+                and may drop one of them answers a question nobody asked.
+              */}
+              {onAddItineraryItems && tripDates.length > 0 && (
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                    加到
+                    <select
+                      aria-label="直接加入哪一天"
+                      value={manualAddDate}
+                      onChange={event => setManualAddDate(event.target.value)}
+                      className="min-w-0 flex-1 rounded-lg border border-[#e4e2f2] bg-white px-2 py-2 text-[11px] font-black text-[#11183d]"
+                    >
+                      <option value="">先不指定日期</option>
+                      {tripDates.map((date, index) => (
+                        <option key={date} value={date}>
+                          Day {index + 1}・{date.slice(5).replace('-', '/')}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    data-testid="manual-add-selected"
+                    disabled={selected.length === 0}
+                    onClick={() => {
+                      const items = selectedInspirationsToItineraryItems(
+                        groups,
+                        selected,
+                        () => `insp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+                        manualAddDate || undefined,
+                      );
+                      if (items.length === 0) return;
+                      onAddItineraryItems(items);
+                      setManualAddedCount(items.length);
+                      onSelectionChange([]);
+                    }}
+                    className="min-h-11 shrink-0 rounded-2xl border border-[#d9d5f5] bg-white px-3 text-xs font-black text-[#5b3df5] disabled:opacity-40"
+                  >
+                    直接加入（{selected.length}）
+                  </button>
+                </div>
+              )}
+              {manualAddedCount > 0 && (
+                <p data-testid="manual-add-done" className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-bold leading-5 text-emerald-700">
+                  已加入 {manualAddedCount} 個地點，筆記也一起帶過去了。到時間軸調整時間與順序。
+                </p>
+              )}
             </>
           )}
         </div>
