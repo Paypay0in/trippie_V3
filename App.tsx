@@ -2335,6 +2335,25 @@ const App: React.FC = () => {
     return saved.length;
   };
 
+  /**
+   * Takes places off the want-to-go list.
+   *
+   * 「另外要可以刪除」. The removal travels: the push prunes ids this device knows
+   * the server has, so a place removed here leaves the other traveller's copy
+   * too — the list is one list, and a place that only half-disappears is worse
+   * than one that never went.
+   *
+   * The itinerary is untouched. A place already planned into a day stays there;
+   * removing it from the shortlist of maybes says nothing about the plan it
+   * already became.
+   */
+  const handleRemoveInspirations = (inspirationIds: string[]) => {
+    const removing = new Set(inspirationIds);
+    if (removing.size === 0) return;
+    setSavedTravelInspirations((current) =>
+      current.filter((inspiration) => !removing.has(inspiration.id)));
+  };
+
   const handleUpdateItineraryItem = (
     id: string,
     updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time" | "durationMinutes">>,
@@ -5931,6 +5950,7 @@ const App: React.FC = () => {
           onProposeToItinerary={handleProposeSuggestions}
           onAddItineraryItems={handleAddStayItems}
           onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
+          onRemoveInspirations={handleRemoveInspirations}
           onProposalAccepted={() => setWorkspaceSection("overview")}
         />
         {/*

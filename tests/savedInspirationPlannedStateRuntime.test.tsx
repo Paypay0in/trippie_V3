@@ -101,7 +101,10 @@ const openPlanning = async (user: ReturnType<typeof userEvent.setup>) => {
 
 /** The inspiration card for a place, by its checkbox's accessible name. */
 const cardFor = (placeName: string) =>
-  screen.getByRole('checkbox', { name: new RegExp(placeName) }).closest('div')!;
+  // The card itself, not whichever div happens to wrap the checkbox row: the
+  // notes and the planned badge live outside that row.
+  screen.getByRole('checkbox', { name: new RegExp(placeName) })
+    .closest('[data-testid^="inspiration-card-"]')! as HTMLElement;
 
 describe('Saved Inspiration 已在行程中 runtime', () => {
   it('marks the already-planned place, refuses selection, and leaves the other selectable', async () => {

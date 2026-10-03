@@ -87,6 +87,19 @@ interface Props {
    * and 補充行程 fits them around the itinerary that already exists.
    */
   onSaveScreenshotPlaces?: (slices: ItinerarySlice[]) => Promise<number> | number;
+  /**
+   * Removes saved places from the trip's collection.
+   *
+   * 「另外要可以刪除」. A want-to-go list is a list of maybes, and the answer to a
+   * maybe is often no — a place read wrong out of a screenshot, a restaurant
+   * the group talked themselves out of. Without this the only way off the list
+   * was to never have put it on.
+   *
+   * Takes every inspiration folded into the place, because the row is one
+   * place: deleting what the row shows while leaving the other traveller's save
+   * of the same restaurant behind would make it reappear on the next sync.
+   */
+  onRemoveInspirations?: (inspirationIds: string[]) => void;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -121,7 +134,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +150,14 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [plannedNoticeGroupId, setPlannedNoticeGroupId] = useState<string | null>(null);
   /** Groups whose full note list the traveller asked to see. */
   const [expandedNoteGroupIds, setExpandedNoteGroupIds] = useState<string[]>([]);
+  /**
+   * The place waiting for its delete to be confirmed.
+   *
+   * Asked rather than undone: this list is shared, so a mis-tap removes a place
+   * off the other traveller's screen too, and the notes that came with it are
+   * not re-derivable without the original screenshot.
+   */
+  const [removingGroupId, setRemovingGroupId] = useState<string | null>(null);
 
   // AI 行程調整模式 — only reachable when the trip already has an itinerary.
   const [adjustmentMode, setAdjustmentMode] = useState<ItineraryAdjustmentMode | null>(null);
@@ -480,14 +501,15 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             const isPlanned = plannedGroupIds.has(group.id);
             const isSelected = !isPlanned && selected.includes(group.id);
             return (
-              <div key={group.id} className={`rounded-2xl border transition ${isPlanned ? 'border-slate-100 bg-slate-50' : isSelected ? 'border-violet-300 bg-violet-50/50' : 'border-slate-100 bg-white'}`}>
+              <div key={group.id} data-testid={`inspiration-card-${group.id}`} className={`rounded-2xl border transition ${isPlanned ? 'border-slate-100 bg-slate-50' : isSelected ? 'border-violet-300 bg-violet-50/50' : 'border-slate-100 bg-white'}`}>
+                <div className="flex items-start">
                 <button
                   type="button"
                   role="checkbox"
                   aria-checked={isSelected}
                   aria-disabled={isPlanned}
                   onClick={() => toggleGroup(group.id)}
-                  className={`flex w-full items-start gap-3 px-3 py-3 text-left ${isPlanned ? 'cursor-default' : ''}`}
+                  className={`flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left ${isPlanned ? 'cursor-default' : ''}`}
                 >
                   <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isPlanned ? 'border-slate-200 bg-slate-100 text-slate-300' : isSelected ? 'border-violet-500 bg-violet-600 text-white' : 'border-slate-300 bg-white'}`}>
                     {isPlanned ? <Check size={13} strokeWidth={3} /> : isSelected && <Check size={13} strokeWidth={3} />}
@@ -506,6 +528,52 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                     )}
                   </span>
                 </button>
+                {onRemoveInspirations && (
+                  <button
+                    type="button"
+                    data-testid={`remove-inspiration-${group.id}`}
+                    aria-label={`從收藏移除 ${group.placeName}`}
+                    onClick={() => setRemovingGroupId(current => (current === group.id ? null : group.id))}
+                    className="flex min-h-11 w-11 shrink-0 items-center justify-center text-slate-300 transition hover:text-rose-500"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
+                </div>
+                {onRemoveInspirations && removingGroupId === group.id && (
+                  <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-3 py-2.5">
+                    {/*
+                      Says what goes, because a place carries its notes with it
+                      and the count is the part that is easy to forget.
+                    */}
+                    <span className="mr-auto text-[11px] font-bold text-slate-500">
+                      {group.experienceNotes.length > 0
+                        ? `移除「${group.placeName}」和它的 ${group.experienceNotes.length} 項重點？`
+                        : `移除「${group.placeName}」？`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRemovingGroupId(null)}
+                      className="min-h-9 rounded-xl px-3 text-xs font-black text-slate-500"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`confirm-remove-inspiration-${group.id}`}
+                      onClick={() => {
+                        onRemoveInspirations(group.inspirationIds);
+                        setRemovingGroupId(null);
+                        // A place that is gone must not stay in the shortlist,
+                        // or the next plan would be built around nothing.
+                        onSelectionChange(selected.filter(id => id !== group.id));
+                      }}
+                      className="min-h-9 rounded-xl bg-rose-500 px-3 text-xs font-black text-white"
+                    >
+                      移除
+                    </button>
+                  </div>
+                )}
                 {isPlanned && plannedNoticeGroupId === group.id && (
                   <p className="px-3 pb-2.5 pl-11 text-[11px] leading-5 text-slate-500">此景點已經存在行程中。</p>
                 )}
