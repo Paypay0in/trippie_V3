@@ -115,14 +115,43 @@ export const sliceToItineraryItem = (
   slice: ItinerarySlice,
   makeId: () => string,
   date?: string,
-): ItineraryItem => ({
-  id: makeId(),
-  type: ITEM_TYPE[slice.type],
-  title: slice.title,
-  location: slice.placeName || slice.title,
-  notes: [slice.summary, ...slice.notes.map(note => `・${note.text}`)].filter(Boolean).join('\n'),
-  date,
-  time: slice.suggestedStartTime || '',
-  ...(slice.durationMinutes ? { durationMinutes: slice.durationMinutes } : {}),
-  isCompleted: false,
-});
+): ItineraryItem => {
+  /*
+    The notes travel as notes, not as a paragraph.
+
+    「透析完筆記，要根據各推薦抓重點，之後建立行程時也要顯示筆記」. The card has a
+    旅行筆記 section that lists them one per line and collapses past the third;
+    flattening them into the free-text field instead meant the one thing worth
+    reading in a shop — 要排隊、幾點公休、必點什麼 — arrived as a wall.
+
+    `sourceInspirationIds` carries the screenshot marker because the persistence
+    layer drops notes from an item with no linkage at all: 「沒有來源就不是收藏
+    地點，筆記跟著走」. A screenshot is a source, so it says so rather than
+    letting a reload quietly eat what it read.
+  */
+  const source = `screenshot:${slice.id}`;
+  const notes = slice.notes.map(note => ({
+    id: makeId(),
+    sourceNoteId: `${source}:${note.text.slice(0, 24)}`,
+    sourceSliceId: source,
+    sourcePostId: source,
+    sourceCreatorId: source,
+    type: 'other' as const,
+    text: note.text,
+  }));
+
+  return {
+    id: makeId(),
+    type: ITEM_TYPE[slice.type],
+    title: slice.title,
+    location: slice.placeName || slice.title,
+    // The summary stays in the free-text field; the practical points go to the
+    // notes list, which is where somebody standing outside the shop looks.
+    notes: slice.summary || '',
+    date,
+    time: slice.suggestedStartTime || '',
+    ...(slice.durationMinutes ? { durationMinutes: slice.durationMinutes } : {}),
+    ...(notes.length > 0 ? { savedTravelNotes: notes, sourceInspirationIds: [source] } : {}),
+    isCompleted: false,
+  };
+};

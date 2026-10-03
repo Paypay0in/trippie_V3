@@ -2676,7 +2676,34 @@ const App: React.FC = () => {
       }
     }
 
-    const result = applyItineraryAdjustment(itinerary, enrichedProposal, generateId);
+    const result = applyItineraryAdjustment(
+      itinerary,
+      enrichedProposal,
+      generateId,
+      /*
+        The notes saved with each place, so a card the AI scheduled arrives with
+        them: 「之後建立行程時也要顯示筆記」. Matched by inspiration id, which is
+        what the proposal carries — a name would match the wrong save whenever
+        two places share one.
+      */
+      (inspirationIds) => {
+        const wanted = new Set(inspirationIds);
+        const notes = savedTravelInspirations
+          .filter((inspiration) =>
+            inspiration.sourceNoteIds.some((id) => wanted.has(id)) ||
+            wanted.has(inspiration.id) ||
+            wanted.has(inspiration.sourceSliceId))
+          .flatMap((inspiration) => inspiration.notes);
+        // One line per distinct piece of advice, however many saves carried it.
+        const seen = new Set<string>();
+        return notes.filter((note) => {
+          const key = note.text.trim();
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      },
+    );
     const nextItinerary = result.items;
     const nextDrafts = drafts.map((draft) => draft.id === activeDraftId
       ? { ...draft, itinerary: nextItinerary, updatedAt: new Date().toISOString() }

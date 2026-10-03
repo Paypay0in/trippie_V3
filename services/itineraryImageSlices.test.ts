@@ -58,12 +58,33 @@ describe('加進行程的卡片', () => {
   const slices = normalizeItinerarySlices(raw);
   const makeId = () => 'generated';
 
-  it('帶著名稱與筆記，筆記逐條列出來', () => {
+  /**
+   * 「透析完筆記，要根據各推薦抓重點，之後建立行程時也要顯示筆記」.
+   *
+   * The card has a 旅行筆記 section that lists notes one per line. Flattening
+   * them into the free-text field meant the one thing worth reading while
+   * standing outside the shop arrived as a paragraph.
+   */
+  it('筆記變成卡片上的旅行筆記，一條一條，而不是壓成一段文字', () => {
     const item = sliceToItineraryItem(slices[0], makeId, '2026-10-03');
 
     expect(item.title).toBe('大師兄牛肉麵');
     expect(item.date).toBe('2026-10-03');
-    expect(item.notes).toContain('晚上七點後要排隊');
+    expect(item.savedTravelNotes?.map(note => note.text)).toEqual(['晚上七點後要排隊']);
+  });
+
+  it('筆記留得住——沒有來源連結的項目，重新載入時筆記會被丟掉', () => {
+    const item = sliceToItineraryItem(slices[0], makeId);
+
+    // tripPersistence drops savedTravelNotes when sourceInspirationIds is empty.
+    expect(item.sourceInspirationIds?.length).toBeGreaterThan(0);
+  });
+
+  it('沒有筆記的切片不會硬掛一個空來源', () => {
+    const item = sliceToItineraryItem(slices[1], makeId);
+
+    expect(item.savedTravelNotes).toBeUndefined();
+    expect(item.sourceInspirationIds).toBeUndefined();
   });
 
   it('類型對應到行程卡片的類型', () => {
@@ -89,8 +110,13 @@ describe('加進行程的卡片', () => {
     expect(sliceToItineraryItem(slices[1], makeId).time).toBe('10:00');
   });
 
-  it('不會被當成收藏靈感或 AI 建議——那是別的來源', () => {
-    expect(sliceToItineraryItem(slices[0], makeId).origin).toBeUndefined();
-    expect(sliceToItineraryItem(slices[0], makeId).sourceInspirationIds).toBeUndefined();
+  it('不會被當成收藏靈感或 AI 建議——來源標成截圖，不冒充別人的身分', () => {
+    const item = sliceToItineraryItem(slices[0], makeId);
+
+    expect(item.origin).toBeUndefined();
+    // The linkage exists so the notes survive a reload, but it is a screenshot
+    // marker — it matches no saved inspiration group, so nothing reads this
+    // card as a place somebody saved from the community.
+    expect(item.sourceInspirationIds?.every(id => id.startsWith('screenshot:'))).toBe(true);
   });
 });

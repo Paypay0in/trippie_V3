@@ -567,6 +567,16 @@ export const applyItineraryAdjustment = (
   existing: ItineraryItem[],
   proposal: ItineraryAdjustmentProposal,
   createId: () => string,
+  /**
+   * The notes saved with a place, looked up by its inspiration ids.
+   *
+   * 「透析完筆記，要根據各推薦抓重點，之後建立行程時也要顯示筆記」. A place reaches
+   * the collection carrying the practical lines that came with it — 要排隊、
+   * 幾點公休、必點什麼 — and this path forwarded the linkage without them, so the
+   * AI scheduled the place and left behind the only part worth reading in the
+   * shop. Omitted leaves the behaviour as it was.
+   */
+  notesForInspirations?: (inspirationIds: string[]) => ItineraryItem['savedTravelNotes'],
 ): ItineraryAdjustmentApplyResult => {
   const allowed = ALLOWED_CHANGE_TYPES[proposal.mode];
   const byId = new Map(existing.map(item => [item.id, item]));
@@ -601,6 +611,14 @@ export const applyItineraryAdjustment = (
         ...(item.durationMinutes ? { durationMinutes: item.durationMinutes } : {}),
         origin: item.source,
         ...(item.sourceInspirationIds.length > 0 ? { sourceInspirationIds: [...item.sourceInspirationIds] } : {}),
+        // The notes the traveller saved with this place, carried onto the card
+        // the AI just scheduled.
+        ...(() => {
+          const notes = item.sourceInspirationIds.length > 0
+            ? notesForInspirations?.(item.sourceInspirationIds)
+            : undefined;
+          return notes && notes.length > 0 ? { savedTravelNotes: notes } : {};
+        })(),
       });
       addedCount += 1;
       return;

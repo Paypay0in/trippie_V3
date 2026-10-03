@@ -47,6 +47,15 @@ const TYPE_LABELS: Record<ItinerarySlice['type'], string> = {
 
 const makeId = () => `shot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+/**
+ * How many screenshots one go may carry.
+ *
+ * 「上傳截圖目前只能一次一張 希望變10張」 — a friend's recommendations arrive as a
+ * run of screenshots, and uploading them one at a time means waiting out the
+ * parse ten times over.
+ */
+const MAX_SCREENSHOTS = 10;
+
 const ScreenshotItineraryIntake: React.FC<Props> = ({
   dates,
   defaultDate,
@@ -64,37 +73,72 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
   const [added, setAdded] = useState(0);
   const [saved, setSaved] = useState(0);
   const [saving, setSaving] = useState(false);
+  /** How far through a batch of screenshots the parse is. */
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
 
-  const handleFile = async (file: File) => {
+  const readAsBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+
+  const handleFiles = async (files: File[]) => {
     setError('');
     setAdded(0);
     setSaved(0);
     setBusy(true);
-    try {
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-        reader.onerror = () => reject(new Error('read failed'));
-        reader.readAsDataURL(file);
-      });
+    setProgress({ done: 0, total: Math.min(files.length, MAX_SCREENSHOTS) });
 
-      const found = await readItinerarySlicesFromImage({
-        base64Data,
-        mimeType: file.type,
-        destination,
-        destinationCountry,
-      });
-      setSlices(found);
-      // Everything on, because the traveller chose this screenshot on purpose.
-      // Taking one off is one tap; ticking six is six.
-      setChosen(found.map(slice => slice.id));
-    } catch (caught) {
-      setSlices([]);
-      setChosen([]);
-      setError(caught instanceof Error ? caught.message : '現在無法辨識截圖，請稍後再試。');
+    const batch = files.slice(0, MAX_SCREENSHOTS);
+    const collected: ItinerarySlice[] = [];
+    const failures: string[] = [];
+
+    try {
+      for (const file of batch) {
+        try {
+          const found = await readItinerarySlicesFromImage({
+            base64Data: await readAsBase64(file),
+            mimeType: file.type,
+            destination,
+            destinationCountry,
+          });
+          /*
+            Across screenshots as well as within one.
+
+            Two of a friend's screenshots overlap more often than not — the same
+            restaurant screenshotted twice, once in the list and once in the
+            detail — and ten uploads producing the same place ten times is worse
+            than uploading them one at a time.
+          */
+          found.forEach(slice => {
+            const key = `${slice.type}:${slice.title.trim().toLocaleLowerCase()}`;
+            if (collected.some(seen => `${seen.type}:${seen.title.trim().toLocaleLowerCase()}` === key)) return;
+            collected.push(slice);
+          });
+        } catch (caught) {
+          // One unreadable screenshot does not discard the nine that worked.
+          failures.push(caught instanceof Error ? caught.message : '辨識失敗');
+        }
+        setProgress(current => ({ ...current, done: current.done + 1 }));
+      }
+
+      setSlices(collected);
+      // Everything on, because the traveller chose these screenshots on purpose.
+      // Taking one off is one tap; ticking twenty is twenty.
+      setChosen(collected.map(slice => slice.id));
+      if (collected.length === 0) {
+        setError(failures[0] || '這些截圖看不出可以排進行程的地點，換幾張再試試。');
+      } else if (failures.length > 0) {
+        setError(`有 ${failures.length} 張沒讀出東西，其餘已列在下面。`);
+      }
+      if (files.length > MAX_SCREENSHOTS) {
+        setError(`一次最多 ${MAX_SCREENSHOTS} 張，已處理前 ${MAX_SCREENSHOTS} 張。`);
+      }
     } finally {
       setBusy(false);
-      // Clearing lets the same file be picked again after a failure.
+      setProgress({ done: 0, total: 0 });
+      // Clearing lets the same files be picked again after a failure.
       if (fileInput.current) fileInput.current.value = '';
     }
   };
@@ -137,7 +181,7 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
           <div>
             <h3 className="font-black text-[#11183d]">從截圖加入行程</h3>
             <p className="mt-0.5 text-[11px] font-medium text-slate-400">
-              社群貼文、部落格、朋友傳的清單都可以
+              社群貼文、部落格、朋友傳的清單都可以，一次最多 {MAX_SCREENSHOTS} 張
             </p>
           </div>
         </div>
@@ -148,7 +192,9 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
           className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 text-xs font-black text-[#5b3df5] disabled:opacity-50"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-          {busy ? '辨識中' : '上傳截圖'}
+          {busy
+            ? (progress.total > 1 ? `辨識中 ${progress.done}/${progress.total}` : '辨識中')
+            : '上傳截圖'}
         </button>
       </div>
 
@@ -158,9 +204,10 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
         accept="image/*"
         aria-label="上傳旅行截圖"
         className="hidden"
+        multiple
         onChange={event => {
-          const file = event.target.files?.[0];
-          if (file) void handleFile(file);
+          const files = Array.from(event.target.files || []);
+          if (files.length > 0) void handleFiles(files);
         }}
       />
 
