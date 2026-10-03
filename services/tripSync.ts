@@ -1,5 +1,6 @@
 import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMember } from '../types';
 import { idsToPrune } from './syncPrune';
+import type { SharedTaxRule } from './sharedTaxRule';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import {
   ExpenseRow,
@@ -64,6 +65,14 @@ export interface TripSyncSnapshot {
    * and a missing list must never be read as an emptied one.
    */
   inspirations?: SavedTravelInspiration[];
+  /**
+   * The destination's tax-refund rule, so both travellers get an estimate.
+   *
+   * 「Gina的介面無法看到退稅資訊」 — it lived on the local draft, so whoever ran
+   * the research was the only person with a refund card that worked. Only the
+   * tax rule travels: entry rules depend on whose passport it is.
+   */
+  taxRule?: SharedTaxRule;
   /**
    * The flights the trip is arranged around.
    *
@@ -239,12 +248,13 @@ export const fetchTripSnapshot = async (
     // any update — so a re-read handed the app the same trip in a new order
     // every twenty seconds, and anything watching the list for changes saw one
     // that had not happened.
-    const [members, expenses, itinerary, flights, inspirations] = await Promise.all([
+    const [members, expenses, itinerary, flights, inspirations, taxRule] = await Promise.all([
       supabase.from('trip_members').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('expenses').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('flight_anchors').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('trip_inspirations').select('*').eq('trip_id', tripId).order('id'),
+      supabase.from('trip_tax_rules').select('*').eq('trip_id', tripId).maybeSingle(),
     ]);
     if (members.error) throw members.error;
     if (expenses.error) throw expenses.error;
@@ -265,6 +275,10 @@ export const fetchTripSnapshot = async (
     if (inspirations.error && import.meta.env.DEV) {
       console.warn('[tripSync] trip inspirations unavailable', inspirations.error.message);
     }
+    // And for the shared tax rule, which arrives in migration 0012.
+    if (taxRule.error && import.meta.env.DEV) {
+      console.warn('[tripSync] trip tax rule unavailable', taxRule.error.message);
+    }
 
     return {
       status: 'ok',
@@ -280,6 +294,14 @@ export const fetchTripSnapshot = async (
         inspirations: inspirations.error
           ? undefined
           : (inspirations.data as TripInspirationRow[]).map(fromTripInspirationRow),
+        taxRule: taxRule.error || !taxRule.data
+          ? undefined
+          : {
+              rule: (taxRule.data as Record<string, unknown>).rule as SharedTaxRule['rule'],
+              ruleSource: ((taxRule.data as Record<string, unknown>).rule_source as string) ?? undefined,
+              destination: ((taxRule.data as Record<string, unknown>).destination as string) ?? undefined,
+              fetchedAt: ((taxRule.data as Record<string, unknown>).fetched_at as string) ?? undefined,
+            },
       },
     };
   } catch (error) {
@@ -379,7 +401,7 @@ export const pushMembers = async (
  * because nobody is looking for it.
  */
 export const pushTripSnapshot = async (
-  { members, expenses, itinerary, flightAnchors, inspirations }: TripSyncSnapshot,
+  { members, expenses, itinerary, flightAnchors, inspirations, taxRule }: TripSyncSnapshot,
   tripId: string,
   /**
    * What this device knows exists on the server: everything it has read or
@@ -512,6 +534,32 @@ export const pushTripSnapshot = async (
         }
       }
     }
+
+    /*
+      The destination's tax rule, written by whoever researched it.
+
+      One row per trip, so a second traveller running the research updates the
+      same answer rather than adding a competing one. Never pruned: a rule
+      nobody has re-researched is still the rule.
+
+      Allowed to fail on its own, like the two writes above it — the table
+      arrives in migration 0012, and code reaches a deployment first.
+    */
+    if (taxRule?.rule?.numericRule) {
+      const { error } = await supabase
+        .from('trip_tax_rules')
+        .upsert({
+          trip_id: tripId,
+          rule: taxRule.rule,
+          rule_source: taxRule.ruleSource ?? null,
+          destination: taxRule.destination ?? null,
+          fetched_at: taxRule.fetchedAt ?? null,
+        }, { onConflict: 'trip_id' });
+      if (error && import.meta.env.DEV) {
+        console.warn('[tripSync] tax rule not written', error.message);
+      }
+    }
+
 
     return { status: 'ok', data: null };
   } catch (error) {

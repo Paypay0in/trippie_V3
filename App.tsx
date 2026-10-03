@@ -165,6 +165,7 @@ import {
   slicesToSavedInspirations,
 } from "./services/screenshotInspiration";
 import { mergeTripInspirations } from "./services/inspirationMerge";
+import { mergeSharedTaxRule, toSharedTaxRule } from "./services/sharedTaxRule";
 import { matchesTripDestination } from "./services/tripInspirationSelection";
 import { flightModeFromAnchors } from "./services/tripSyncMapping";
 import ItineraryPlanningAssistant from "./components/ItineraryPlanningAssistant";
@@ -3128,6 +3129,10 @@ const App: React.FC = () => {
     // the places that belong to this trip's destination travel with it — the
     // store is one list across every trip the traveller has ever planned.
     inspirations: tripScopedInspirations,
+    // 「Gina的介面無法看到退稅資訊」 — the destination's refund rule travels with
+    // the trip now. Only the tax part: entry rules depend on whose passport
+    // it is, and that is one traveller's business.
+    taxRule: toSharedTaxRule(travelRules),
     note: cloudTripNote,
     onRemoteSnapshot: (snapshot) => {
       // The remote copy wins on open. Someone else may have added an expense
@@ -3165,6 +3170,18 @@ const App: React.FC = () => {
       if (snapshot.inspirations) {
         setSavedTravelInspirations((current) =>
           mergeTripInspirations(current, snapshot.inspirations ?? []));
+      }
+
+      /*
+        The shared tax rule, for the traveller who never ran the research.
+
+        Local research wins where there is any: it was run for this device and
+        cannot be older than what a companion uploaded. This only fills the
+        empty case, which is the one she was looking at.
+      */
+      if (snapshot.taxRule) {
+        setTravelRules((current) =>
+          mergeSharedTaxRule(current, snapshot.taxRule, tripDestination));
       }
       // The owner is derived locally from the account, not stored as a
       // companion, so only the others come back into the companion list.

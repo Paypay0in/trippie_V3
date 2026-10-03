@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMember } from '../types';
+import type { SharedTaxRule } from '../services/sharedTaxRule';
 import {
   KnownRemoteIds,
   TripSyncSnapshot,
@@ -67,6 +68,8 @@ interface Options {
    * 「跟朋友會先把想去的地方列一個表單」.
    */
   inspirations?: SavedTravelInspiration[];
+  /** The destination's tax rule, so a companion gets a refund estimate too. */
+  taxRule?: SharedTaxRule;
 }
 
 const PUSH_DEBOUNCE_MS = 900;
@@ -162,6 +165,7 @@ export const useTripSync = ({
   itinerary,
   flightAnchors,
   inspirations = [],
+  taxRule,
   note,
   onRemoteSnapshot,
 }: Options): TripSyncState => {
@@ -330,16 +334,16 @@ export const useTripSync = ({
   // The roster and the expense list are rebuilt on every render, so depending
   // on the arrays themselves would restart the debounce forever and never
   // write. Comparing content also means an idle re-render costs no request.
-  const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors, inspirations });
-  const payloadRef = useRef({ members, expenses, itinerary, flightAnchors, inspirations });
-  payloadRef.current = { members, expenses, itinerary, flightAnchors, inspirations };
+  const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors, inspirations, taxRule });
+  const payloadRef = useRef({ members, expenses, itinerary, flightAnchors, inspirations, taxRule });
+  payloadRef.current = { members, expenses, itinerary, flightAnchors, inspirations, taxRule };
 
   useEffect(() => {
     if (!enabled || !tripId || readyTripIdRef.current !== tripId) return;
 
     const timer = window.setTimeout(() => {
-      const { members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s } = payloadRef.current;
-      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s }, tripId, knownRef.current).then(result => {
+      const { members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s, taxRule: t } = payloadRef.current;
+      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s, taxRule: t }, tripId, knownRef.current).then(result => {
         if (readyTripIdRef.current !== tripId) return;
         if (result.status !== 'error') {
           // What was just written is now known, and what was deleted stops
