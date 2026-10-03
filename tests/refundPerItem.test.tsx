@@ -179,3 +179,93 @@ describe('退稅是誰的', () => {
     expect('eligibleItems' in state ? state.eligibleItems.length : 0).toBe(3);
   });
 });
+
+/**
+ * 「我發現，退稅有些店家是直接可以在購物結帳時扣除，所以要讓我每筆都點選已經扣除」.
+ *
+ * Korea calls it 즉시환급: under certain limits the shop takes the tax off at
+ * the till and the traveller walks out with it already settled. Counting those
+ * again inflates the figure somebody is about to stand in an airport queue for.
+ */
+describe('結帳時就退掉的那些', () => {
+  const claimable = shopping({ id: 'e-claim', description: '墨鏡', amount: 112800, twdAmount: 2594 });
+  const atTill = shopping({ id: 'e-till', description: '藥妝', amount: 60000, twdAmount: 1380, taxRefundedAtPurchase: true });
+
+  const state = () => deriveDuringRefundState({ expenses: [claimable, atTill], travelRules: rules });
+
+  it('不列入機場要退的估算', () => {
+    const current = state();
+
+    expect('eligibleItems' in current ? current.eligibleItems.map(item => item.expense.id) : [])
+      .toEqual(['e-claim']);
+    // 112,800 × 6% only — not the 10,368 that counted the pharmacy too.
+    expect(Math.floor('estimatedRefund' in current ? current.estimatedRefund : 0)).toBe(6768);
+  });
+
+  it('還是會被列出來，不是打完勾就消失', () => {
+    const current = state();
+
+    expect('settledItems' in current ? current.settledItems.map(item => item.expense.id) : [])
+      .toEqual(['e-till']);
+  });
+
+  it('畫面上分開放，而且標明不列入估算', async () => {
+    const user = userEvent.setup();
+    render(
+      <TaxRefundSummaryCard
+        refundState={state()}
+        onSettleRefund={vi.fn()}
+        onToggleRefundedAtPurchase={vi.fn()}
+      />,
+    );
+
+    await open(user);
+
+    expect(screen.getByTestId('settled-row-e-till')).toBeTruthy();
+    expect(screen.getByTestId('settled-at-purchase').textContent).toContain('不列入上方估算');
+  });
+
+  it('每一筆都可以點選標記', async () => {
+    const onToggle = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <TaxRefundSummaryCard
+        refundState={state()}
+        onSettleRefund={vi.fn()}
+        onToggleRefundedAtPurchase={onToggle}
+      />,
+    );
+
+    await open(user);
+    await user.click(screen.getByTestId('mark-refunded-e-claim'));
+
+    expect(onToggle).toHaveBeenCalledWith('e-claim', true);
+  });
+
+  it('標錯了可以取消，一下就好', async () => {
+    const onToggle = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <TaxRefundSummaryCard
+        refundState={state()}
+        onSettleRefund={vi.fn()}
+        onToggleRefundedAtPurchase={onToggle}
+      />,
+    );
+
+    await open(user);
+    await user.click(screen.getByTestId('unmark-refunded-e-till'));
+
+    expect(onToggle).toHaveBeenCalledWith('e-till', false);
+  });
+
+  it('沒有提供標記功能時，清單仍然讀得到', async () => {
+    const user = userEvent.setup();
+    render(<TaxRefundSummaryCard refundState={state()} onSettleRefund={vi.fn()} />);
+
+    await open(user);
+
+    expect(screen.queryByTestId('mark-refunded-e-claim')).toBeNull();
+    expect(screen.getByTestId('refund-row-e-claim')).toBeTruthy();
+  });
+});

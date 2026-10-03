@@ -3370,6 +3370,42 @@ const App: React.FC = () => {
     showToast("已刪除該筆支出", "error");
   };
 
+  /**
+   * Marks a purchase as already refunded at the till, or unmarks it.
+   *
+   * 「退稅有些店家是直接可以在購物結帳時扣除，所以要讓我每筆都點選已經扣除」. Korea
+   * calls it 즉시환급. Those purchases leave the airport estimate, because
+   * counting them again inflates a figure somebody is about to queue for.
+   *
+   * Only the person who recorded it may mark it: whether the shop refunded at
+   * the counter is a fact about their receipt, and the other traveller was not
+   * holding it.
+   */
+  const handleToggleRefundedAtPurchase = (expenseId: string, refunded: boolean) => {
+    const target = expenses.find((entry) => entry.id === expenseId);
+    if (!target) return;
+    if (
+      viewerMemberId &&
+      activeOwnerMemberId &&
+      !canEditExpense({
+        expense: target,
+        viewerMemberId,
+        tripOwnerMemberId: activeOwnerMemberId,
+      })
+    ) {
+      showToast("這筆支出不是你記錄的，無法標記。", "error");
+      return;
+    }
+    setExpenses((prev) =>
+      prev.map((entry) =>
+        entry.id === expenseId
+          ? { ...entry, taxRefundedAtPurchase: refunded ? true : undefined }
+          : entry,
+      ),
+    );
+    showToast(refunded ? "已標記為結帳時退稅，不列入估算" : "已取消標記，重新列入估算");
+  };
+
   // Disputes never change money. Each handler runs the pure rule first and only
   // writes back the expense the service returns, so an unauthorized call — from
   // a stale render or any future caller — cannot attach or close anything.
@@ -5871,6 +5907,7 @@ const App: React.FC = () => {
             taxRule={taxRule}
             travelRules={travelRules}
             onSettleRefund={() => handleOpenRefundSettlement()}
+            onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
             onQuickAddCategory={handleQuickAdd}
             onAddShoppingItem={handleAddReturnShoppingItem}
             onRemoveShoppingItem={handleRemoveShoppingItem}
@@ -5908,6 +5945,7 @@ const App: React.FC = () => {
               onAddCash={() => handleQuickAdd(Category.EXCHANGE)}
               onAddExpense={handleSaveExpense}
               onSettleRefund={() => handleOpenRefundSettlement()}
+              onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
               onOpenSettlement={handleOpenSettlement}
               viewerMemberId={viewerMemberId}
               // On 結算 the closing report below states the same total, card
@@ -6643,6 +6681,7 @@ const App: React.FC = () => {
                   visaInfo={visaInfo}
                   onOpenSettlement={handleOpenSettlement}
                   onSettleRefund={() => handleOpenRefundSettlement()}
+                  onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
                   viewerMemberId={viewerMemberId}
                 />
 

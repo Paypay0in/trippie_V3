@@ -182,6 +182,19 @@ export interface Expense {
    * settle from, and it is worth keeping where the number is.
    */
   receiptPhotos?: string[];
+  /**
+   * The refund was taken off at the till, so there is nothing to claim later.
+   *
+   * 「退稅有些店家是直接可以在購物結帳時扣除，所以要讓我每筆都點選已經扣除」. Korea
+   * calls this 즉시환급 — under certain limits the shop deducts the tax on the
+   * spot and the traveller walks out with it already settled. Counting those
+   * purchases again in the airport estimate inflates a number somebody is about
+   * to queue for.
+   *
+   * Absent means not deducted, which is the common case and the safe default:
+   * an unmarked purchase is still worth taking to the counter.
+   */
+  taxRefundedAtPurchase?: boolean;
 }
 
 /**

@@ -62,3 +62,31 @@ describe('一來一回', () => {
     expect(read.sourceNoteIds).toEqual([]);
   });
 });
+
+/**
+ * 「要讓我每筆都點選已經扣除」 — and both travellers have to agree on which
+ * purchases are already settled, so the mark travels with the expense.
+ */
+describe('結帳時已退稅的標記', () => {
+  it('跟著帳目一起同步', async () => {
+    const { toExpenseRow, fromExpenseRow } = await import('./tripSyncMapping');
+    const expense = {
+      id: 'e1', description: '藥妝', amount: 60000, twdAmount: 1380, currency: 'KRW',
+      exchangeRate: 0.023, category: '購物', phase: 'during', date: '2026-10-02',
+      payerId: 'me', beneficiaries: [], splitMethod: 'EQUAL', splitAllocations: {},
+      paymentMethod: 'CREDIT_CARD', taxRefundedAtPurchase: true,
+    } as never;
+
+    const row = toExpenseRow(expense, 'trip-1');
+
+    expect(row.tax_refunded_at_purchase).toBe(true);
+    expect(fromExpenseRow(row as never).taxRefundedAtPurchase).toBe(true);
+  });
+
+  it('沒標記的不會變成 true', async () => {
+    const { fromExpenseRow } = await import('./tripSyncMapping');
+
+    expect(fromExpenseRow({ tax_refunded_at_purchase: false } as never).taxRefundedAtPurchase).toBeUndefined();
+    expect(fromExpenseRow({} as never).taxRefundedAtPurchase).toBeUndefined();
+  });
+});

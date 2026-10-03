@@ -2,9 +2,21 @@ import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Tag } from 'lucide-react';
 import { DuringRefundState, RefundCandidate } from '../services/duringRefundState';
 
-interface Props { refundState: DuringRefundState; onSettleRefund: () => void; returnContext?: boolean; }
+interface Props {
+  refundState: DuringRefundState;
+  onSettleRefund: () => void;
+  returnContext?: boolean;
+  /**
+   * Marks one purchase as already refunded at the till, or unmarks it.
+   *
+   * 「要讓我每筆都點選已經扣除」 — Korea's 즉시환급 settles the refund at the
+   * counter, and those purchases must leave the airport estimate. Omit to render
+   * the list read-only.
+   */
+  onToggleRefundedAtPurchase?: (expenseId: string, refunded: boolean) => void;
+}
 
-const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, returnContext = false }) => {
+const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, returnContext = false, onToggleRefundedAtPurchase }) => {
   const [expanded, setExpanded] = useState(false);
   const eligible = 'eligibleItems' in refundState ? refundState.eligibleItems : [];
   const rows: RefundCandidate[] = eligible.length
@@ -15,6 +27,8 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
   const source = 'ruleSource' in refundState ? refundState.ruleSource : undefined;
   const refundCurrency = 'currency' in refundState ? refundState.currency : '';
   const threshold = 'threshold' in refundState ? refundState.threshold : 0;
+  /** Purchases the shop already refunded, kept visible so a tick is not a disappearance. */
+  const settled = 'settledItems' in refundState ? refundState.settledItems : [];
   const estimate = refundState.status === 'estimate_available';
   const title = refundState.status === 'no_rule' ? '退稅資格待確認' : refundState.status === 'below_threshold' ? '尚未達退稅門檻' : refundState.status === 'threshold_met' ? '已達退稅門檻' : source === 'model_knowledge' ? 'AI 預估退稅' : '預估退稅總額';
   return <section className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm">
@@ -52,6 +66,17 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
             <span className="mt-0.5 block text-[10px] text-amber-700/60">
               {Math.round(item.amount).toLocaleString()} {refundCurrency}
             </span>
+            {/* 「要讓我每筆都點選已經扣除」, where the purchase is listed. */}
+            {onToggleRefundedAtPurchase && (
+              <button
+                type="button"
+                data-testid={`mark-refunded-${item.expense.id}`}
+                onClick={() => onToggleRefundedAtPurchase(item.expense.id, true)}
+                className="mt-1 rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
+              >
+                結帳時已退稅
+              </button>
+            )}
           </span>
           {/*
             A row that does not qualify shows what it is short by, not a refund
@@ -68,6 +93,38 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
         </div>
       ))}
     </div>}</div>}
+
+    {/*
+      Already settled at the till.
+
+      Listed rather than dropped: the traveller ticked these, and a list that
+      quietly loses the row they just tapped looks like it failed. They are out
+      of the estimate above — that is the whole point — so they are shown apart
+      from it, and a mistaken tick is one tap to undo.
+    */}
+    {settled.length > 0 && (
+      <div data-testid="settled-at-purchase" className="mt-3 rounded-xl bg-white/60 px-3 py-2">
+        <p className="text-[11px] font-black text-amber-800">結帳時已退稅 · {settled.length} 筆（不列入上方估算）</p>
+        <div className="mt-1 divide-y divide-amber-100">
+          {settled.map(item => (
+            <div key={item.expense.id} data-testid={`settled-row-${item.expense.id}`} className="flex items-center justify-between gap-3 py-1.5 text-xs">
+              <span className="min-w-0 flex-1 truncate text-amber-900/70 line-through">{item.expense.description}</span>
+              <span className="shrink-0 text-[10px] text-amber-700/60">{Math.round(item.amount).toLocaleString()} {refundCurrency}</span>
+              {onToggleRefundedAtPurchase && (
+                <button
+                  type="button"
+                  data-testid={`unmark-refunded-${item.expense.id}`}
+                  onClick={() => onToggleRefundedAtPurchase(item.expense.id, false)}
+                  className="shrink-0 text-[10px] font-bold text-amber-700 underline underline-offset-2"
+                >
+                  取消
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
     {estimate && <button onClick={onSettleRefund} className="mt-3 w-full rounded-lg bg-amber-500 py-2 text-sm font-bold text-white">辦理退稅入帳{returnContext ? '（抵銷旅費）' : ''}</button>}
   </section>;
 };

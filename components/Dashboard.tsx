@@ -43,6 +43,8 @@ interface Props {
   travelRules?: TravelRules | null;
   visaInfo?: VisaInfo | null; // Added prop
   onSettleRefund: () => void;
+  /** Marks one purchase as refunded at the till; forwarded to the refund card. */
+  onToggleRefundedAtPurchase?: (expenseId: string, refunded: boolean) => void;
   onOpenSettlement?: () => void;
   /**
    * Whose seat these balances are read from. Defaults to the trip owner, the
@@ -54,7 +56,8 @@ interface Props {
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
 
-const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund, onOpenSettlement, viewerMemberId, settlementOnly }) => {
+const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund,
+  onToggleRefundedAtPurchase, onOpenSettlement, viewerMemberId, settlementOnly }) => {
   const [isRefundListExpanded, setIsRefundListExpanded] = useState(false);
   
   // Wallet History State
@@ -333,7 +336,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
 
         {/* TravelRules-safe DURING candidate tracker. Legacy TaxRule estimation is intentionally bypassed here. */}
         {currentPhase === 'during' && (
-          <TaxRefundSummaryCard refundState={duringRefundState} onSettleRefund={onSettleRefund} />
+          <TaxRefundSummaryCard refundState={duringRefundState} onSettleRefund={onSettleRefund} onToggleRefundedAtPurchase={onToggleRefundedAtPurchase} />
           /* <div className="rounded-2xl p-5 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
