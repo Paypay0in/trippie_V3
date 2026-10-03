@@ -57,15 +57,38 @@ export const slicesToSavedInspirations = (
     const source = `${SCREENSHOT_SOURCE_PREFIX}${slice.id}`;
     const place = context.resolved?.[slice.id];
 
-    const notes: SavedExperienceNote[] = slice.notes.map(note => ({
-      id: context.makeId(),
-      sourceNoteId: `${source}:${note.text.slice(0, 24)}`,
-      sourceSliceId: source,
-      sourcePostId: source,
-      sourceCreatorId: context.savedByUserId,
-      type: 'other',
-      text: note.text,
-    }));
+    /*
+      The summary becomes a note, because the collection has nowhere else to put it.
+
+      「已收藏的也要列重點」. A SavedTravelInspiration carries a place and its
+      notes and no free-text field, so a slice whose content the model had put
+      in `summary` reached the collection as a bare name — which is exactly what
+      his picker was showing: a list of restaurants with nothing under them.
+
+      First in the list, because it is the line that says what the place is.
+    */
+    const lines = [
+      ...(slice.summary ? [slice.summary] : []),
+      ...slice.notes.map(note => note.text),
+    ];
+
+    const seen = new Set<string>();
+    const notes: SavedExperienceNote[] = lines
+      .map(text => text.trim())
+      .filter(text => {
+        if (!text || seen.has(text)) return false;
+        seen.add(text);
+        return true;
+      })
+      .map(text => ({
+        id: context.makeId(),
+        sourceNoteId: `${source}:${text.slice(0, 24)}`,
+        sourceSliceId: source,
+        sourcePostId: source,
+        sourceCreatorId: context.savedByUserId,
+        type: 'other' as const,
+        text,
+      }));
 
     return {
       id: context.makeId(),

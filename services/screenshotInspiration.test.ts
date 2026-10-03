@@ -113,3 +113,57 @@ describe('兩個朋友的清單有重複時', () => {
     expect(mergeScreenshotInspirations([theirs], [first])).toHaveLength(2);
   });
 });
+
+/**
+ * 「已收藏的也要列重點」.
+ *
+ * The picker showed a list of restaurant names with nothing under them. A
+ * SavedTravelInspiration carries a place and its notes and no free-text field,
+ * so a slice whose content the model had put in `summary` reached the collection
+ * stripped of everything that made it worth saving.
+ */
+describe('收藏時要把重點一起帶進去', () => {
+  it('摘要也變成一條重點，而不是被丟掉', () => {
+    const [saved] = slicesToSavedInspirations(
+      [slice({ summary: '韓式創意料理餐廳', notes: [{ text: '招牌是大份量拌飯' }] })],
+      context(),
+    );
+
+    expect(saved.notes.map(note => note.text)).toEqual(['韓式創意料理餐廳', '招牌是大份量拌飯']);
+  });
+
+  it('摘要排第一——它說的是「這是什麼」', () => {
+    const [saved] = slicesToSavedInspirations(
+      [slice({ summary: '雜貨店', notes: [{ text: '二樓賣創意小物' }] })],
+      context(),
+    );
+
+    expect(saved.notes[0].text).toBe('雜貨店');
+  });
+
+  it('摘要和某條筆記一樣時不會變成兩條', () => {
+    const [saved] = slicesToSavedInspirations(
+      [slice({ summary: '雜貨店', notes: [{ text: '雜貨店' }, { text: '二樓賣創意小物' }] })],
+      context(),
+    );
+
+    expect(saved.notes.map(note => note.text)).toEqual(['雜貨店', '二樓賣創意小物']);
+  });
+
+  it('什麼都沒有時就是沒有重點，不會硬生出一條', () => {
+    const [saved] = slicesToSavedInspirations([slice({ summary: undefined, notes: [] })], context());
+
+    expect(saved.notes).toEqual([]);
+    expect(saved.sourceNoteIds).toEqual([]);
+  });
+
+  it('每條重點都查得到來源，重新載入時才不會被丟掉', () => {
+    const [saved] = slicesToSavedInspirations(
+      [slice({ summary: '雜貨店', notes: [{ text: '二樓賣創意小物' }] })],
+      context(),
+    );
+
+    expect(saved.sourceNoteIds).toHaveLength(2);
+    expect(saved.notes.every(note => note.sourcePostId.startsWith('screenshot:'))).toBe(true);
+  });
+});

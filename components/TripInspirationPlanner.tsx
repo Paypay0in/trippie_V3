@@ -135,6 +135,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [isAccepting, setIsAccepting] = useState(false);
   // The group whose 「已在行程中」 explanation is currently showing, if any.
   const [plannedNoticeGroupId, setPlannedNoticeGroupId] = useState<string | null>(null);
+  /** Groups whose full note list the traveller asked to see. */
+  const [expandedNoteGroupIds, setExpandedNoteGroupIds] = useState<string[]>([]);
 
   // AI 行程調整模式 — only reachable when the trip already has an itinerary.
   const [adjustmentMode, setAdjustmentMode] = useState<ItineraryAdjustmentMode | null>(null);
@@ -507,10 +509,22 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                 {isPlanned && plannedNoticeGroupId === group.id && (
                   <p className="px-3 pb-2.5 pl-11 text-[11px] leading-5 text-slate-500">此景點已經存在行程中。</p>
                 )}
-                {group.experienceNotes.length > 0 && (
+                {group.experienceNotes.length > 0 && (() => {
+                  /*
+                    「已收藏的也要列重點」, and only the points.
+
+                    Every note of every place, all expanded, turns a list of
+                    twelve restaurants into a page nobody scrolls. Three is what
+                    the itinerary card shows for the same reason; the rest is one
+                    tap away.
+                  */
+                  const notesExpanded = expandedNoteGroupIds.includes(group.id);
+                  const visibleNotes = notesExpanded ? group.experienceNotes : group.experienceNotes.slice(0, 3);
+                  const hiddenNotes = group.experienceNotes.length - visibleNotes.length;
+                  return (
                   <div className="space-y-1.5 px-3 pb-3 pl-11">
-                    <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Experience Notes</div>
-                    {group.experienceNotes.map(note => {
+                    <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">重點</div>
+                    {visibleNotes.map(note => {
                       const sourcePost = communityPosts.find(post => post.id === note.sourcePostId);
                       const author = sourcePost ? { name: sourcePost.authorName, avatar: sourcePost.authorAvatar } : creatorById.get(note.sourceCreatorId);
                       return (
@@ -520,17 +534,38 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                             {NOTE_TYPE_LABELS[note.type] && <span className="mr-1.5 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-violet-600">{NOTE_TYPE_LABELS[note.type]}</span>}
                             {note.text}
                           </p>
-                          <span className="ml-1 inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-slate-500">
-                            <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">
-                              {author?.avatar ? <img src={author.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}
+                          {/*
+                            Credit only where somebody wrote it.
+
+                            A note read off the traveller's own screenshot has no
+                            author, and labelling it 「原作者」 credits a person who
+                            does not exist for words nobody signed.
+                          */}
+                          {!note.sourcePostId.startsWith('screenshot:') && (
+                            <span className="ml-1 inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-slate-500">
+                              <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">
+                                {author?.avatar ? <img src={author.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}
+                              </span>
+                              {author?.name || '原作者'}
                             </span>
-                            {author?.name || '原作者'}
-                          </span>
+                          )}
                         </div>
                       );
                     })}
+                    {(hiddenNotes > 0 || notesExpanded) && (
+                      <button
+                        type="button"
+                        data-testid={`toggle-notes-${group.id}`}
+                        onClick={() => setExpandedNoteGroupIds(current =>
+                          notesExpanded ? current.filter(id => id !== group.id) : [...current, group.id])}
+                        className="text-[11px] font-black text-violet-600"
+                      >
+                        {notesExpanded ? '收起' : `還有 ${hiddenNotes} 項重點`}
+                      </button>
+                    )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}
