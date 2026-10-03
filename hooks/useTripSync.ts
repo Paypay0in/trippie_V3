@@ -10,6 +10,8 @@ import {
   pushTripSnapshot,
 } from '../services/tripSync';
 import { shouldHydrateInitialSnapshot } from '../services/tripSnapshotApply';
+import { withFingerprints } from '../services/rowFingerprints';
+import { toExpenseRow, toItineraryRow, toTripInspirationRow } from '../services/tripSyncMapping';
 import { nextKnownIds } from '../services/syncPrune';
 import { mergeWithUnpushed } from '../services/syncMerge';
 import { BUILD_ID } from '../services/buildStamp';
@@ -221,7 +223,27 @@ export const useTripSync = ({
   };
 
   const rememberRemote = (snapshot: TripSyncSnapshot) => {
+    /*
+      What the server holds, row by row.
+
+      「Gina打開就覆蓋掉我們剛剛更新的資料了」 — every open used to republish the
+      whole trip, so the device that opened last decided what every row said.
+      Recorded from the rows as they arrive, in the same shape a push builds, so
+      an untouched row is recognisably untouched.
+    */
+    let fingerprints = withFingerprints(undefined, 'expenses', snapshot.expenses.map(expense => toExpenseRow(expense, tripId || '')));
+    fingerprints = withFingerprints(fingerprints, 'itinerary_items', snapshot.itinerary.map(item => toItineraryRow(item, tripId || '')));
+    if (snapshot.inspirations) {
+      fingerprints = withFingerprints(fingerprints, 'trip_inspirations', snapshot.inspirations.map(entry => toTripInspirationRow(entry, tripId || '')));
+    } else if (knownRef.current?.fingerprints) {
+      // The table said nothing, so what this device believed about it stands.
+      Object.entries(knownRef.current.fingerprints)
+        .filter(([key]) => key.startsWith('trip_inspirations:'))
+        .forEach(([key, value]) => { fingerprints[key] = value; });
+    }
+
     knownRef.current = {
+      fingerprints,
       members: new Set(snapshot.members.map(member => member.id)),
       expenses: new Set(snapshot.expenses.map(expense => expense.id)),
       itinerary: new Set(snapshot.itinerary.map(item => item.id)),
@@ -350,6 +372,22 @@ export const useTripSync = ({
           // being — otherwise a later push would try to delete it again, and
           // would destroy a row someone else recreated under the same id.
           knownRef.current = {
+            /*
+              What was just written is now what the server holds.
+
+              Recorded from the same mapped rows the push built, so the next
+              open does not send them again — a rewrite of an unchanged row is
+              how the other traveller's edit gets reverted.
+            */
+            fingerprints: withFingerprints(
+              withFingerprints(
+                withFingerprints(knownRef.current.fingerprints, 'expenses', e.map(expense => toExpenseRow(expense, tripId))),
+                'itinerary_items',
+                i.map(item => toItineraryRow(item, tripId)),
+              ),
+              'trip_inspirations',
+              s.map(entry => toTripInspirationRow(entry, tripId)),
+            ),
             members: nextKnownIds(knownRef.current.members ?? [], m.map(member => member.id)),
             expenses: nextKnownIds(knownRef.current.expenses, e.map(expense => expense.id)),
             itinerary: nextKnownIds(knownRef.current.itinerary, i.map(item => item.id)),

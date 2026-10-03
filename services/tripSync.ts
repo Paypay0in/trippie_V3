@@ -1,5 +1,6 @@
 import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMember } from '../types';
 import { idsToPrune } from './syncPrune';
+import { changedRows, RowFingerprints } from './rowFingerprints';
 import type { SharedTaxRule } from './sharedTaxRule';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import {
@@ -55,6 +56,14 @@ export interface KnownRemoteIds {
   flightAnchors: Iterable<string>;
   /** Optional while the table is newer than some deployed clients. */
   inspirations?: Iterable<string>;
+  /**
+   * What the server is believed to hold, row by row.
+   *
+   * 「Gina打開就覆蓋掉我們剛剛更新的資料了」 — without this every open republished
+   * the whole trip, so the device that opened last decided what every row said.
+   * Rows whose fingerprint still matches are not sent at all.
+   */
+  fingerprints?: RowFingerprints;
 }
 
 export interface TripSyncSnapshot {
@@ -436,10 +445,17 @@ export const pushTripSnapshot = async (
     // what they paid is a far worse failure than a stale roster.
     await pushMembers(members, tripId, known?.members);
 
-    if (expenses.length) {
+    /*
+      Only the expenses this device actually changed.
+
+      An unchanged row rewritten is not harmless: it overwrites whatever the
+      other traveller saved in the seconds since this device last read.
+    */
+    const expenseRows = changedRows('expenses', expenses.map(expense => toExpenseRow(expense, tripId)), known?.fingerprints);
+    if (expenseRows.length) {
       const { error } = await supabase
         .from('expenses')
-        .upsert(expenses.map(expense => toExpenseRow(expense, tripId)), { onConflict: 'id' });
+        .upsert(expenseRows, { onConflict: 'id' });
       if (error) throw error;
     }
 
@@ -457,10 +473,11 @@ export const pushTripSnapshot = async (
     // what is not. Deleting a day's plan has to reach the other phone too, or
     // the two people are following different itineraries and only one of them
     // knows it.
-    if (itinerary.length) {
+    const itineraryRows = changedRows('itinerary_items', itinerary.map(item => toItineraryRow(item, tripId)), known?.fingerprints);
+    if (itineraryRows.length) {
       const { error } = await supabase
         .from('itinerary_items')
-        .upsert(itinerary.map(item => toItineraryRow(item, tripId)), { onConflict: 'id' });
+        .upsert(itineraryRows, { onConflict: 'id' });
       if (error) throw error;
     }
 
@@ -538,10 +555,16 @@ export const pushTripSnapshot = async (
         .eq('trip_id', tripId);
       if (existing.error && !isMissingTable(existing.error)) throw existing.error;
 
-      const rows = alignInspirationRowIds(
+      const aligned = alignInspirationRowIds(
         inspirations.map(entry => toTripInspirationRow(entry, tripId)),
         (existing.data as Pick<TripInspirationRow, 'id' | 'place_id' | 'place_name'>[] | null) ?? [],
       );
+      /*
+        Fingerprints are compared after the ids are aligned, because a row only
+        matches the server's copy once it is addressed by the server's id.
+      */
+      const rows = changedRows('trip_inspirations', aligned, known?.fingerprints);
+      if (rows.length === 0) return { status: 'ok', data: null };
 
       const { error } = await supabase
         .from('trip_inspirations')
