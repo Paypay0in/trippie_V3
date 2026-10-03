@@ -269,3 +269,97 @@ describe('結帳時就退掉的那些', () => {
     expect(screen.getByTestId('refund-row-e-claim')).toBeTruthy();
   });
 });
+
+/**
+ * 「如果按下去 可以輸入正確退稅金額」.
+ *
+ * An estimate is the app's arithmetic; this is what the counter handed back. A
+ * fact does not get averaged with a guess — it replaces it, and the card says
+ * how much of its headline is which.
+ */
+describe('填入實際退稅金額', () => {
+  const glasses = shopping({ id: 'e-glasses', description: '墨鏡', amount: 112800, twdAmount: 2594 });
+  const withActual = shopping({ ...glasses, id: 'e-known', description: '藥妝', amount: 100000, taxRefundActual: 6500 });
+
+  const state = () => deriveDuringRefundState({ expenses: [glasses, withActual], travelRules: rules });
+
+  const card = (props: Record<string, unknown> = {}) =>
+    render(
+      <TaxRefundSummaryCard
+        refundState={state()}
+        onSettleRefund={vi.fn()}
+        onRecordActualRefund={vi.fn()}
+        {...(props as never)}
+      />,
+    );
+
+  it('那一筆顯示實際金額，而且標明是實際', async () => {
+    const user = userEvent.setup();
+    card();
+
+    await open(user);
+
+    const row = within(screen.getByTestId('refund-row-e-known'));
+    expect(row.getByText(/\+6,500 KRW/)).toBeTruthy();
+    expect(row.getByText('實際')).toBeTruthy();
+  });
+
+  it('標題說出其中多少是已確認的', async () => {
+    const user = userEvent.setup();
+    card();
+
+    await open(user);
+
+    expect(screen.getByTestId('refund-confirmed-split').textContent).toContain('6,500');
+  });
+
+  it('輸入之後交給呼叫端記錄', async () => {
+    const onRecordActualRefund = vi.fn();
+    const user = userEvent.setup();
+    card({ onRecordActualRefund });
+
+    await open(user);
+    await user.click(screen.getByTestId('enter-actual-e-glasses'));
+    await user.type(screen.getByTestId('actual-input-e-glasses'), '7000');
+    await user.click(screen.getByTestId('save-actual-e-glasses'));
+
+    expect(onRecordActualRefund).toHaveBeenCalledWith('e-glasses', 7000);
+  });
+
+  it('清空就是清掉，不是存成 0——「我沒記」和「退了 0 元」是兩回事', async () => {
+    const onRecordActualRefund = vi.fn();
+    const user = userEvent.setup();
+    card({ onRecordActualRefund });
+
+    await open(user);
+    await user.click(screen.getByTestId('enter-actual-e-known'));
+    await user.clear(screen.getByTestId('actual-input-e-known'));
+    await user.click(screen.getByTestId('save-actual-e-known'));
+
+    expect(onRecordActualRefund).toHaveBeenCalledWith('e-known', undefined);
+  });
+
+  it('沒填的那些還是估算，而且改用他自己那張收據的比率', () => {
+    const current = state();
+    const total = 'estimatedRefund' in current ? current.estimatedRefund : 0;
+
+    /*
+      The receipt says 6,500 on 100,000 — 6.5%, not the 6% that was looked up.
+      112,800 is close enough in size for that to be the better number, so the
+      estimate uses it. That is the whole point of 「反推」: his own refunds are
+      measurements of the thing being estimated.
+    */
+    expect(Math.round(total)).toBe(6500 + Math.round(112800 * 0.065));
+  });
+
+  it('金額差太遠的就不借用，回去用查到的比例', () => {
+    const tiny = shopping({ id: 'e-tiny', description: '小東西', amount: 20000, twdAmount: 460 });
+    const current = deriveDuringRefundState({ expenses: [tiny, withActual], travelRules: rules });
+    const row = 'eligibleItems' in current
+      ? current.eligibleItems.find(item => item.expense.id === 'e-tiny')
+      : undefined;
+
+    // 20,000 is a fifth of the observed purchase, so the looked-up 6% stands.
+    expect(Math.round(row?.refund ?? 0)).toBe(Math.round(20000 * 0.06));
+  });
+});

@@ -34,6 +34,8 @@ export interface ExpenseRow {
   /** Receipts, as downscaled data URLs, the same shape community posts use. */
   receipt_photos?: unknown;
   tax_refunded_at_purchase?: unknown;
+  tax_refund_actual?: unknown;
+  tax_refund_channel?: unknown;
 }
 
 export interface TripMemberRow {
@@ -77,6 +79,10 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   receipt_photos: expense.receiptPhotos ?? [],
   // Both travellers need to agree on which purchases are already settled.
   tax_refunded_at_purchase: expense.taxRefundedAtPurchase === true,
+  // What the counter actually paid back, so both travellers see the same figure
+  // and the estimate stops competing with a fact one of them already has.
+  tax_refund_actual: Number.isFinite(expense.taxRefundActual as number) ? expense.taxRefundActual : null,
+  tax_refund_channel: expense.taxRefundChannel ?? null,
 });
 
 /**
@@ -129,6 +135,12 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   needsReview: Boolean(row.needs_review),
   linkedShoppingItemId: row.linked_shopping_item_id ?? undefined,
   taxRefundedAtPurchase: row.tax_refunded_at_purchase === true ? true : undefined,
+  taxRefundActual: Number.isFinite(Number(row.tax_refund_actual)) && row.tax_refund_actual !== null
+    ? Number(row.tax_refund_actual)
+    : undefined,
+  taxRefundChannel: row.tax_refund_channel === 'at_till' || row.tax_refund_channel === 'airport'
+    ? row.tax_refund_channel
+    : undefined,
   receiptPhotos: Array.isArray(row.receipt_photos)
     ? (row.receipt_photos as unknown[]).filter((photo): photo is string => typeof photo === 'string')
     : [],

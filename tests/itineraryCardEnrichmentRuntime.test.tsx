@@ -12,7 +12,21 @@ import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 
-const TRIP_START = '2026-10-02';
+/*
+  Today, not a date in the calendar.
+
+  This was hard-coded to 2026-10-02, with the trip starting and ending that day.
+  It passed for as long as that day was today and began failing the moment the
+  clock rolled past it — 「繼續旅程」 is not offered for a trip that is over, so
+  the whole file could no longer reach 規劃. No code changed; the date did.
+
+  Derived from the clock instead, so the trip under test is always the trip the
+  app considers current.
+*/
+const TRIP_START = (() => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+})();
 const DRAFT_ID = 'draft-enrich';
 
 const savedNotes = [

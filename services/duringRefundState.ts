@@ -1,5 +1,6 @@
 import { Category, Expense, TravelRules } from '../types';
 import { calculateExpenseLedger } from './splitCalculator';
+import { rateForAmount, refundObservationsFrom, ruleLooksWrong } from './refundObservations';
 
 /**
  * One eligible purchase, with the two numbers the card has to show.
@@ -19,15 +20,45 @@ export interface RefundCandidate {
   amount: number;
   /** What this one purchase is estimated to refund, when a rate is known. */
   refund?: number;
+  /**
+   * What it actually refunded, where the traveller recorded it.
+   *
+   * 「如果按下去 可以輸入正確退稅金額」 — where this exists it is what the row
+   * shows, and `refund` is no longer the answer for this purchase.
+   */
+  actualRefund?: number;
 }
 
 export type DuringRefundState =
   | { status: 'no_rule' }
   | { status: 'below_threshold'; currency: string; threshold: number; shoppingSpend: number; belowThresholdExpenses: Expense[]; belowThresholdItems: RefundCandidate[]; settledItems: RefundCandidate[]; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
   | { status: 'threshold_met'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleItems: RefundCandidate[]; settledItems: RefundCandidate[]; eligibleSpend: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
-  | { status: 'estimate_available'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleItems: RefundCandidate[]; settledItems: RefundCandidate[]; eligibleSpend: number; estimatedRefund: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number };
+  | {
+      status: 'estimate_available';
+      currency: string;
+      threshold: number;
+      eligibleExpenses: Expense[];
+      eligibleItems: RefundCandidate[];
+      settledItems: RefundCandidate[];
+      eligibleSpend: number;
+      /** Everything still to claim: confirmed figures where known, estimates elsewhere. */
+      estimatedRefund: number;
+      /**
+       * The part of that total somebody has actually been handed.
+       *
+       * 「輸入正確退稅金額」 — a card that mixes a receipt and a guess into one
+       * number without saying so is quietly claiming to know more than it does.
+       */
+      confirmedRefund: number;
+      /** True when the traveller's own receipts keep disagreeing with the rule. */
+      ruleLooksWrong: boolean;
+      /** How many of their receipts the estimates are leaning on. */
+      observationCount: number;
+      ruleSource: 'grounded' | 'model_knowledge';
+      refundRate?: number;
+    };
 
-type ValidRule = { currency: string; minSpend: number; rate?: number; ruleSource: 'grounded' | 'model_knowledge' };
+type ValidRule = { currency: string; minSpend: number; rate?: number; ruleSource: 'grounded' | 'model_knowledge'; destination?: string };
 
 const getValidRule = (travelRules?: TravelRules | null): ValidRule | undefined => {
   const taxRefund = travelRules?.taxRefund;
@@ -111,14 +142,50 @@ export const deriveDuringRefundState = ({
     agree today are two rules that disagree later — which is exactly how the
     spending totals came to say three different things on three screens.
   */
+  const observations = refundObservationsFrom(mine, normalizeAmount, rule.currency, rule.destination);
+
   const withRefund = (items: typeof normalized): RefundCandidate[] =>
-    items.map(item => ({
-      expense: item.expense,
-      amount: item.amount,
-      ...(rule.rate === undefined ? {} : { refund: item.amount * rule.rate }),
-    }));
+    items.map(item => {
+      const actual = Number.isFinite(item.expense.taxRefundActual as number)
+        ? (item.expense.taxRefundActual as number)
+        : undefined;
+      /*
+        A fact beats the arithmetic, and the traveller's own receipts beat the
+        looked-up rate for a purchase of about the same size — they are
+        measurements of the very thing being estimated.
+      */
+      const channel = item.expense.taxRefundedAtPurchase ? 'at_till' : 'airport';
+      const estimate = rateForAmount(item.amount, observations, rule.rate, channel);
+      return {
+        expense: item.expense,
+        amount: item.amount,
+        ...(actual !== undefined ? { actualRefund: actual } : {}),
+        ...(estimate === undefined ? {} : { refund: item.amount * estimate.rate }),
+      };
+    });
 
   if (eligible.length === 0) return { status: 'below_threshold', currency: rule.currency, threshold: rule.minSpend, shoppingSpend: normalized.reduce((sum, item) => sum + item.amount, 0), belowThresholdExpenses: belowThreshold.map(item => item.expense), belowThresholdItems: withRefund(belowThreshold), settledItems: withRefund(settled), ruleSource: rule.ruleSource, refundRate: rule.rate };
   if (rule.rate === undefined) return { status: 'threshold_met', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleItems: withRefund(eligible), settledItems: withRefund(settled), eligibleSpend, ruleSource: rule.ruleSource };
-  return { status: 'estimate_available', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleItems: withRefund(eligible), settledItems: withRefund(settled), eligibleSpend, estimatedRefund: eligibleSpend * rule.rate, ruleSource: rule.ruleSource, refundRate: rule.rate };
+  const eligibleItems = withRefund(eligible);
+  /*
+    Each purchase at its best available figure: the receipt where there is one,
+    the estimate otherwise. Summing `eligibleSpend * rate` instead would throw
+    away every actual the traveller bothered to type in.
+  */
+  const refundOf = (item: RefundCandidate) => item.actualRefund ?? item.refund ?? 0;
+  return {
+    status: 'estimate_available',
+    currency: rule.currency,
+    threshold: rule.minSpend,
+    eligibleExpenses: eligible.map(item => item.expense),
+    eligibleItems,
+    settledItems: withRefund(settled),
+    eligibleSpend,
+    estimatedRefund: eligibleItems.reduce((sum, item) => sum + refundOf(item), 0),
+    confirmedRefund: eligibleItems.reduce((sum, item) => sum + (item.actualRefund ?? 0), 0),
+    ruleLooksWrong: ruleLooksWrong(observations, rule.rate),
+    observationCount: observations.length,
+    ruleSource: rule.ruleSource,
+    refundRate: rule.rate,
+  };
 };

@@ -195,6 +195,23 @@ export interface Expense {
    * an unmarked purchase is still worth taking to the counter.
    */
   taxRefundedAtPurchase?: boolean;
+  /**
+   * The refund actually received, in the refund rule's currency.
+   *
+   * 「如果按下去 可以輸入正確退稅金額」. An estimate is the app's arithmetic; this
+   * is what the till or the counter actually handed back. Where it exists it
+   * replaces the estimate for that purchase outright — a fact does not get
+   * averaged with a guess.
+   *
+   * Absent means unknown, which is not the same as zero: a traveller who did
+   * not note the figure still refunded the purchase.
+   */
+  taxRefundActual?: number;
+  /**
+   * Where that refund happened. The two are different schemes with different
+   * fee tables, so an observation from one says nothing about the other.
+   */
+  taxRefundChannel?: 'at_till' | 'airport';
 }
 
 /**

@@ -14,10 +14,36 @@ interface Props {
    * the list read-only.
    */
   onToggleRefundedAtPurchase?: (expenseId: string, refunded: boolean) => void;
+  /**
+   * Records what the refund actually came to for one purchase.
+   *
+   * 「如果按下去 可以輸入正確退稅金額」 — an estimate is the app's arithmetic, this
+   * is what the counter handed back. Pass `undefined` to clear it.
+   */
+  onRecordActualRefund?: (expenseId: string, actual: number | undefined) => void;
 }
 
-const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, returnContext = false, onToggleRefundedAtPurchase }) => {
+const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, returnContext = false, onToggleRefundedAtPurchase, onRecordActualRefund }) => {
   const [expanded, setExpanded] = useState(false);
+  /** The row whose actual amount is being typed, and what has been typed. */
+  const [editingActualFor, setEditingActualFor] = useState<string | null>(null);
+  const [actualDraft, setActualDraft] = useState('');
+
+  const openActualEntry = (expenseId: string, current?: number) => {
+    setEditingActualFor(expenseId);
+    setActualDraft(current === undefined ? '' : String(Math.round(current)));
+  };
+
+  const commitActual = (expenseId: string) => {
+    const typed = actualDraft.trim();
+    // An empty box clears the figure rather than storing a zero: 「我沒記」 and
+    // 「退了 0 元」 are different answers and only one of them is usually true.
+    const value = typed === '' ? undefined : Number(typed.replace(/,/g, ''));
+    if (value !== undefined && (!Number.isFinite(value) || value < 0)) return;
+    onRecordActualRefund?.(expenseId, value);
+    setEditingActualFor(null);
+    setActualDraft('');
+  };
   const eligible = 'eligibleItems' in refundState ? refundState.eligibleItems : [];
   const rows: RefundCandidate[] = eligible.length
     ? eligible
@@ -50,6 +76,28 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
     )}
     {refundState.status === 'below_threshold' && <p className="mt-2 text-xs text-amber-800">目前購物金額：{refundState.shoppingSpend.toLocaleString()} {refundState.currency}</p>}
     {(estimate || refundState.status === 'threshold_met') && <p className="mt-2 text-xs font-bold text-amber-800">符合 {eligible.length} 筆目前估算條件</p>}
+    {/*
+      How much of that headline is a receipt and how much is arithmetic.
+
+      A card that folds a confirmed figure and a guess into one number without
+      saying so is claiming to know more than it does.
+    */}
+    {estimate && refundState.confirmedRefund > 0 && (
+      <p data-testid="refund-confirmed-split" className="mt-2 text-xs font-bold text-amber-800">
+        其中 {Math.round(refundState.confirmedRefund).toLocaleString()} {refundState.currency} 是你已確認收到的金額
+      </p>
+    )}
+    {/*
+      The receipts and the looked-up rule disagree. Said, not silently applied:
+      a handful of receipts is not the regulation, and overwriting a researched
+      rule with them would be the wrong direction — but continuing to estimate
+      with a rate the traveller's own refunds keep contradicting is worse.
+    */}
+    {estimate && refundState.ruleLooksWrong && (
+      <p data-testid="refund-rule-disagrees" className="mt-2 rounded-xl bg-white/60 px-3 py-2 text-[11px] font-bold leading-5 text-amber-900">
+        你實際收到的退稅和查到的比例不太一樣，下面的估算已改用你自己的 {refundState.observationCount} 筆紀錄推算。
+      </p>
+    )}
     {estimate && <p className="mt-3 text-[11px] leading-5 text-amber-800/70">{source === 'model_knowledge' ? '此為 AI 依目前旅行規則資訊估算，實際退稅資格與金額依商家及最新官方規定為準。' : '依目前查得規則估算，實際退稅資格與金額依商家、商品類別及現場規定為準。'}</p>}
     {rows.length > 0 && <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white/60"><button onClick={() => setExpanded(v => !v)} className="flex w-full items-center justify-between px-3 py-2 text-xs font-bold text-amber-800">{rowsQualify ? '查看退稅清單與明細' : '查看購物明細'} {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>{expanded && <div className="divide-y divide-amber-100 px-3">
       {/*
@@ -66,29 +114,83 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
             <span className="mt-0.5 block text-[10px] text-amber-700/60">
               {Math.round(item.amount).toLocaleString()} {refundCurrency}
             </span>
-            {/* 「要讓我每筆都點選已經扣除」, where the purchase is listed. */}
-            {onToggleRefundedAtPurchase && (
-              <button
-                type="button"
-                data-testid={`mark-refunded-${item.expense.id}`}
-                onClick={() => onToggleRefundedAtPurchase(item.expense.id, true)}
-                className="mt-1 rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
-              >
-                結帳時已退稅
-              </button>
-            )}
+            <span className="mt-1 flex flex-wrap items-center gap-1.5">
+              {/* 「要讓我每筆都點選已經扣除」, where the purchase is listed. */}
+              {onToggleRefundedAtPurchase && (
+                <button
+                  type="button"
+                  data-testid={`mark-refunded-${item.expense.id}`}
+                  onClick={() => onToggleRefundedAtPurchase(item.expense.id, true)}
+                  className="rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
+                >
+                  結帳時已退稅
+                </button>
+              )}
+              {/*
+                The figure the counter actually handed back.
+
+                「如果按下去 可以輸入正確退稅金額」 — once it is in, this row stops
+                estimating and the headline says how much of itself is confirmed.
+              */}
+              {onRecordActualRefund && editingActualFor !== item.expense.id && (
+                <button
+                  type="button"
+                  data-testid={`enter-actual-${item.expense.id}`}
+                  onClick={() => openActualEntry(item.expense.id, item.actualRefund)}
+                  className="rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
+                >
+                  {item.actualRefund === undefined ? '填入實際退稅' : '修改實際金額'}
+                </button>
+              )}
+              {onRecordActualRefund && editingActualFor === item.expense.id && (
+                <span className="flex items-center gap-1">
+                  <input
+                    autoFocus
+                    inputMode="numeric"
+                    aria-label={`${item.expense.description} 實際退稅金額`}
+                    data-testid={`actual-input-${item.expense.id}`}
+                    value={actualDraft}
+                    onChange={event => setActualDraft(event.target.value)}
+                    onKeyDown={event => { if (event.key === 'Enter') commitActual(item.expense.id); }}
+                    placeholder={refundCurrency}
+                    className="w-20 rounded-md border border-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900 outline-none"
+                  />
+                  <button
+                    type="button"
+                    data-testid={`save-actual-${item.expense.id}`}
+                    onClick={() => commitActual(item.expense.id)}
+                    className="rounded-md bg-amber-500 px-1.5 py-0.5 text-[10px] font-black text-white"
+                  >
+                    存
+                  </button>
+                </span>
+              )}
+            </span>
           </span>
           {/*
             A row that does not qualify shows what it is short by, not a refund
             it will not get. Printing an estimate beside 未達門檻 would be the
             card arguing with itself.
           */}
-          <b className="shrink-0 whitespace-nowrap text-amber-700">
+          {/*
+            A fact replaces the arithmetic. An estimate is what the app worked
+            out; this is what the counter paid, so it is not averaged with the
+            guess, it supersedes it — and it says so, because a reader cannot
+            otherwise tell which of the two they are looking at.
+          */}
+          <b className="shrink-0 whitespace-nowrap text-right text-amber-700">
             {!rowsQualify
               ? <span className="text-amber-700/60">還差 {Math.max(0, Math.ceil(threshold - item.amount)).toLocaleString()}</span>
-              : item.refund === undefined
-                ? '—'
-                : `+${Math.floor(item.refund).toLocaleString()} ${refundCurrency}`}
+              : item.actualRefund !== undefined
+                ? (
+                  <span className="block">
+                    +{Math.round(item.actualRefund).toLocaleString()} {refundCurrency}
+                    <span className="mt-0.5 block text-[9px] font-bold text-emerald-600">實際</span>
+                  </span>
+                )
+                : item.refund === undefined
+                  ? '—'
+                  : `+${Math.floor(item.refund).toLocaleString()} ${refundCurrency}`}
           </b>
         </div>
       ))}

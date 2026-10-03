@@ -15,6 +15,8 @@ interface Props {
   onSettleRefund: () => void;
   /** Marks one purchase as refunded at the till; forwarded to the refund card. */
   onToggleRefundedAtPurchase?: (expenseId: string, refunded: boolean) => void;
+  /** Records the refund actually received for one purchase. */
+  onRecordActualRefund?: (expenseId: string, actual: number | undefined) => void;
   onQuickAddCategory: (category: Category) => void;
   onAddShoppingItem: (name: string) => void;
   onRemoveShoppingItem: (id: string) => void;
@@ -36,6 +38,7 @@ const WalletReturnScreen: React.FC<Props> = ({
   travelRules,
   onSettleRefund,
   onToggleRefundedAtPurchase,
+  onRecordActualRefund,
   onQuickAddCategory,
   onAddShoppingItem,
   onRemoveShoppingItem,
@@ -72,7 +75,7 @@ const WalletReturnScreen: React.FC<Props> = ({
         </div>
       </section>
 
-      <TaxRefundSummaryCard refundState={refundState} onSettleRefund={onSettleRefund} onToggleRefundedAtPurchase={onToggleRefundedAtPurchase} returnContext />
+      <TaxRefundSummaryCard refundState={refundState} onSettleRefund={onSettleRefund} onToggleRefundedAtPurchase={onToggleRefundedAtPurchase} onRecordActualRefund={onRecordActualRefund} returnContext />
 
       <PostTripChecklist onQuickAddCategory={onQuickAddCategory} expenses={expenses} />
 

@@ -3406,6 +3406,45 @@ const App: React.FC = () => {
     showToast(refunded ? "已標記為結帳時退稅，不列入估算" : "已取消標記，重新列入估算");
   };
 
+  /**
+   * Records what a refund actually came to.
+   *
+   * 「如果按下去 可以輸入正確退稅金額 你之後就能反推退稅的規則？」 — the figure
+   * replaces the estimate for that purchase, and feeds the rate used to estimate
+   * purchases of a similar size. Same permission as the mark beside it: it is a
+   * fact about the recorder's own receipt.
+   */
+  const handleRecordActualRefund = (expenseId: string, actual: number | undefined) => {
+    const target = expenses.find((entry) => entry.id === expenseId);
+    if (!target) return;
+    if (
+      viewerMemberId &&
+      activeOwnerMemberId &&
+      !canEditExpense({
+        expense: target,
+        viewerMemberId,
+        tripOwnerMemberId: activeOwnerMemberId,
+      })
+    ) {
+      showToast("這筆支出不是你記錄的，無法填寫。", "error");
+      return;
+    }
+    setExpenses((prev) =>
+      prev.map((entry) =>
+        entry.id === expenseId
+          ? {
+              ...entry,
+              taxRefundActual: actual,
+              taxRefundChannel: actual === undefined
+                ? undefined
+                : entry.taxRefundedAtPurchase ? "at_till" : "airport",
+            }
+          : entry,
+      ),
+    );
+    showToast(actual === undefined ? "已清除實際退稅金額" : "已記錄實際退稅金額");
+  };
+
   // Disputes never change money. Each handler runs the pure rule first and only
   // writes back the expense the service returns, so an unauthorized call — from
   // a stale render or any future caller — cannot attach or close anything.
@@ -5908,6 +5947,7 @@ const App: React.FC = () => {
             travelRules={travelRules}
             onSettleRefund={() => handleOpenRefundSettlement()}
             onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
+            onRecordActualRefund={handleRecordActualRefund}
             onQuickAddCategory={handleQuickAdd}
             onAddShoppingItem={handleAddReturnShoppingItem}
             onRemoveShoppingItem={handleRemoveShoppingItem}
@@ -5946,6 +5986,7 @@ const App: React.FC = () => {
               onAddExpense={handleSaveExpense}
               onSettleRefund={() => handleOpenRefundSettlement()}
               onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
+              onRecordActualRefund={handleRecordActualRefund}
               onOpenSettlement={handleOpenSettlement}
               viewerMemberId={viewerMemberId}
               // On 結算 the closing report below states the same total, card
@@ -6682,6 +6723,7 @@ const App: React.FC = () => {
                   onOpenSettlement={handleOpenSettlement}
                   onSettleRefund={() => handleOpenRefundSettlement()}
                   onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
+                  onRecordActualRefund={handleRecordActualRefund}
                   viewerMemberId={viewerMemberId}
                 />
 
