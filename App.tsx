@@ -2347,6 +2347,36 @@ const App: React.FC = () => {
    * removing it from the shortlist of maybes says nothing about the plan it
    * already became.
    */
+  /**
+   * Binds a saved place to the map place the traveller picked.
+   *
+   * 「我還是希望要盡量找到資訊，你不能搜尋嗎？」 — without an identity the entry has
+   * no address, no hours, no directions, and the planner can only guess where
+   * it is. The name is left as the traveller saved it: 「다곡소님」 is what their
+   * screenshot said, and replacing it with Google's spelling would make their
+   * own list unrecognisable. Only the identity and the geography are written.
+   */
+  const handleResolveInspirationPlace = (
+    inspirationIds: string[],
+    resolved: { placeId: string; placeName: string; address?: string; latitude?: number; longitude?: number },
+  ) => {
+    const wanted = new Set(inspirationIds);
+    if (wanted.size === 0 || !resolved.placeId) return;
+    setSavedTravelInspirations((current) =>
+      current.map((inspiration) =>
+        wanted.has(inspiration.id)
+          ? {
+              ...inspiration,
+              placeId: resolved.placeId,
+              resolvedPlaceName: resolved.placeName,
+              formattedAddress: resolved.address,
+              latitude: resolved.latitude,
+              longitude: resolved.longitude,
+            }
+          : inspiration));
+    showToast(`已連結到「${resolved.placeName}」`);
+  };
+
   const handleRemoveInspirations = (inspirationIds: string[]) => {
     const removing = new Set(inspirationIds);
     if (removing.size === 0) return;
@@ -5987,6 +6017,7 @@ const App: React.FC = () => {
           onAddItineraryItems={handleAddStayItems}
           onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
           onRemoveInspirations={handleRemoveInspirations}
+          onResolveInspirationPlace={handleResolveInspirationPlace}
           onProposalAccepted={() => setWorkspaceSection("overview")}
         />
         {/*

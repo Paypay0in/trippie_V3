@@ -32,6 +32,7 @@ import {
 import { ItineraryAcceptanceMode } from '../services/itineraryAcceptance';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { localToday } from '../services/localDate';
+import { findPlaceCandidates, PlaceCandidate, resolveCandidate } from '../services/placeCandidates';
 
 export interface ProposalAcceptanceResult {
   ok: boolean;
@@ -103,6 +104,17 @@ interface Props {
    * of the same restaurant behind would make it reappear on the next sync.
    */
   onRemoveInspirations?: (inspirationIds: string[]) => void;
+  /**
+   * Writes a place the traveller picked out of a search onto their saved entry.
+   *
+   * 「我還是希望要盡量找到資訊，你不能搜尋嗎？」 — a saved place with no map identity
+   * has no address, no hours and no directions, and the planner can only guess
+   * where to put it. Omit to hide the search entirely.
+   */
+  onResolveInspirationPlace?: (
+    inspirationIds: string[],
+    resolved: { placeId: string; placeName: string; address?: string; latitude?: number; longitude?: number },
+  ) => void;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -137,7 +149,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,6 +177,67 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [openPlaceGroupId, setOpenPlaceGroupId] = useState<string | null>(null);
   /** Google's one-line description, for the saved places that carry no points. */
   const [basicsByGroupId, setBasicsByGroupId] = useState<Record<string, string>>({});
+  /** The place currently being searched for, and what came back. */
+  const [lookupGroupId, setLookupGroupId] = useState<string | null>(null);
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookupResults, setLookupResults] = useState<PlaceCandidate[]>([]);
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+
+  const openLookup = (groupId: string, placeName: string) => {
+    setLookupGroupId(groupId);
+    // Prefilled with the name as saved, which is usually right and is the thing
+    // to correct when it is not.
+    setLookupQuery(placeName);
+    setLookupResults([]);
+    setLookupError('');
+  };
+
+  const runLookup = async (group: { placeName: string; experienceNotes: Array<{ text: string }> }) => {
+    const typed = lookupQuery.trim();
+    if (!typed) return;
+    setLookupBusy(true);
+    setLookupError('');
+    try {
+      const found = await findPlaceCandidates(typed, {
+        // The trip's own city and country, not the ones stored on the save: a
+        // screenshot states neither, so a trip entered as 「韓國」 wrote a country
+        // into both fields and the query could never match.
+        city: trip.destination,
+        country: trip.destinationCountry || trip.travelCountry,
+        latitude: trip.destinationLatitude,
+        longitude: trip.destinationLongitude,
+        notes: group.experienceNotes.map(note => note.text),
+      });
+      setLookupResults(found);
+      if (found.length === 0) {
+        setLookupError('找不到這個名稱。截圖上的字可能被讀錯了，改一下店名再試試。');
+      }
+    } catch {
+      setLookupError('現在查不到，請稍後再試。');
+    } finally {
+      setLookupBusy(false);
+    }
+  };
+
+  const chooseCandidate = async (
+    group: { id: string; inspirationIds: string[] },
+    candidate: PlaceCandidate,
+  ) => {
+    if (!onResolveInspirationPlace) return;
+    setLookupBusy(true);
+    try {
+      const resolved = await resolveCandidate(candidate);
+      if (!resolved) { setLookupError('這個地點的資料讀不到，換一個試試。'); return; }
+      onResolveInspirationPlace(group.inspirationIds, resolved);
+      setLookupGroupId(null);
+      setLookupResults([]);
+    } catch {
+      setLookupError('這個地點的資料讀不到，換一個試試。');
+    } finally {
+      setLookupBusy(false);
+    }
+  };
 
   // AI 行程調整模式 — only reachable when the trip already has an itinerary.
   const [adjustmentMode, setAdjustmentMode] = useState<ItineraryAdjustmentMode | null>(null);
@@ -585,7 +658,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                     </span>
                     <span className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{[group.city, group.country].filter(Boolean).join('・')}</span>
                     {!isPlanned && group.missingPlaceIdentity && (
-                      <span className="mt-1.5 flex items-start gap-1.5 text-[11px] font-bold text-amber-600"><AlertTriangle size={12} className="mt-0.5 shrink-0" />尚未取得地點座標，AI 規劃時再解析</span>
+                      <span className="mt-1.5 flex items-start gap-1.5 text-[11px] font-bold text-amber-600"><AlertTriangle size={12} className="mt-0.5 shrink-0" />地圖上還沒找到這個地點</span>
                     )}
                   </span>
                 </button>
@@ -601,6 +674,83 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   </button>
                 )}
                 </div>
+                {/*
+                  Searching for a place the screenshot named and Google does not know.
+
+                  「我還是希望要盡量找到資訊，你不能搜尋嗎？」. Two rows said 「尚未取得
+                  地點座標」 and stayed that way, because the lookup had gone out as
+                  「다곡소님 韓國 韓國」 — a country twice over and no city. The same
+                  name with 「부산」 finds candidates at once.
+
+                  The name is editable because the reason those two failed is that
+                  the parser misread 단골손님 twice. No query of the wrong name finds
+                  the right shop; a person who has the screenshot can fix it in a
+                  second.
+                */}
+                {!isPlanned && group.missingPlaceIdentity && onResolveInspirationPlace && (
+                  <div className="px-3 pb-3 pl-11">
+                    {lookupGroupId !== group.id ? (
+                      <button
+                        type="button"
+                        data-testid={`find-place-${group.id}`}
+                        onClick={() => openLookup(group.id, group.placeName)}
+                        className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-violet-200 bg-white px-2.5 text-[11px] font-black text-violet-600"
+                      >
+                        <Compass size={12} />在地圖上尋找這個地點
+                      </button>
+                    ) : (
+                      <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
+                        <div className="flex gap-1.5">
+                          <input
+                            autoFocus
+                            value={lookupQuery}
+                            onChange={event => setLookupQuery(event.target.value)}
+                            onKeyDown={event => { if (event.key === 'Enter') void runLookup(group); }}
+                            aria-label={`搜尋 ${group.placeName}`}
+                            data-testid={`lookup-input-${group.id}`}
+                            className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-2.5 py-1.5 text-xs font-bold text-[#11183d] outline-none"
+                          />
+                          <button
+                            type="button"
+                            data-testid={`lookup-search-${group.id}`}
+                            onClick={() => void runLookup(group)}
+                            disabled={lookupBusy}
+                            className="shrink-0 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
+                          >
+                            {lookupBusy ? '搜尋中' : '搜尋'}
+                          </button>
+                        </div>
+                        <p className="mt-1.5 text-[10px] font-medium leading-4 text-slate-500">
+                          截圖上的名稱可能被讀錯，可以改成正確的店名再搜尋。
+                        </p>
+                        {lookupError && <p className="mt-1.5 text-[11px] font-bold text-amber-600">{lookupError}</p>}
+                        {lookupResults.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {lookupResults.map(candidate => (
+                              <button
+                                type="button"
+                                key={candidate.placeId}
+                                data-testid={`lookup-pick-${candidate.placeId}`}
+                                onClick={() => void chooseCandidate(group, candidate)}
+                                className="block w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left"
+                              >
+                                <span className="block text-xs font-black text-[#11183d]">{candidate.name}</span>
+                                {candidate.detail && <span className="mt-0.5 block text-[10px] text-slate-500">{candidate.detail}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setLookupGroupId(null)}
+                          className="mt-2 text-[11px] font-black text-slate-500"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {onRemoveInspirations && removingGroupId === group.id && (
                   <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-3 py-2.5">
                     {/*
