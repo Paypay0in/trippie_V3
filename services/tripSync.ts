@@ -1,6 +1,6 @@
 import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMember } from '../types';
 import { idsToPrune } from './syncPrune';
-import { changedRows, RowFingerprints } from './rowFingerprints';
+import { changedRows, RowFingerprints, withFingerprints } from './rowFingerprints';
 import type { SharedTaxRule } from './sharedTaxRule';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import {
@@ -105,6 +105,11 @@ export interface TripSyncSnapshot {
    * closes that gap, on the same read-before-write ordering as the rest.
    */
   flightAnchors: FlightAnchor[];
+}
+
+/** What a push leaves behind: the server's contents, as this push addressed them. */
+export interface PushOutcome {
+  fingerprints: RowFingerprints;
 }
 
 export type SyncResult<T> =
@@ -437,8 +442,19 @@ export const pushTripSnapshot = async (
    * direction for a caller that has not been taught this yet.
    */
   known?: KnownRemoteIds,
-): Promise<SyncResult<null>> => {
+): Promise<SyncResult<PushOutcome>> => {
   if (!supabase) return { status: 'unavailable' };
+  /*
+    What the server holds after this push, as the push itself addressed it.
+
+    Reported back rather than recomputed by the caller, because the caller
+    cannot know the ids used: saved places are re-addressed to the server's own
+    row ids on the way out, so a fingerprint recorded against the local id never
+    matches again and every open rewrites all twenty rows — which is exactly
+    what the database showed after the first attempt at this fix.
+  */
+  let written: RowFingerprints = { ...(known?.fingerprints || {}) };
+  const done = (): SyncResult<PushOutcome> => ({ status: 'ok', data: { fingerprints: written } });
   try {
     // A member who is not the owner is refused by the roster policy. That must
     // not stop their expenses from being written — losing someone's record of
@@ -458,6 +474,7 @@ export const pushTripSnapshot = async (
         .upsert(expenseRows, { onConflict: 'id' });
       if (error) throw error;
     }
+    written = withFingerprints(written, 'expenses', expenses.map(expense => toExpenseRow(expense, tripId)));
 
     const removedExpenses = idsToPrune(known?.expenses ?? [], expenses.map(expense => expense.id));
     if (removedExpenses.length) {
@@ -480,6 +497,7 @@ export const pushTripSnapshot = async (
         .upsert(itineraryRows, { onConflict: 'id' });
       if (error) throw error;
     }
+    written = withFingerprints(written, 'itinerary_items', itinerary.map(item => toItineraryRow(item, tripId)));
 
     const removedItems = idsToPrune(known?.itinerary ?? [], itinerary.map(item => item.id));
     if (removedItems.length) {
@@ -507,7 +525,7 @@ export const pushTripSnapshot = async (
         });
       if (error) {
         if (import.meta.env.DEV) console.warn('[tripSync] flight anchors not written', error.message);
-        return { status: 'ok', data: null };
+        return done();
       }
     }
 
@@ -564,7 +582,9 @@ export const pushTripSnapshot = async (
         matches the server's copy once it is addressed by the server's id.
       */
       const rows = changedRows('trip_inspirations', aligned, known?.fingerprints);
-      if (rows.length === 0) return { status: 'ok', data: null };
+      // Recorded against the aligned ids, which are the ids the server uses.
+      written = withFingerprints(written, 'trip_inspirations', aligned);
+      if (rows.length === 0) return done();
 
       const { error } = await supabase
         .from('trip_inspirations')
@@ -580,7 +600,7 @@ export const pushTripSnapshot = async (
       if (error) {
         if (!isMissingTable(error)) throw error;
         if (import.meta.env.DEV) console.warn('[tripSync] inspirations table missing', error.message);
-        return { status: 'ok', data: null };
+        return done();
       }
     }
 
@@ -624,7 +644,7 @@ export const pushTripSnapshot = async (
     }
 
 
-    return { status: 'ok', data: null };
+    return done();
   } catch (error) {
     return failed(error);
   }

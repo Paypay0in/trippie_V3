@@ -137,3 +137,48 @@ describe('the want-to-go list on open', () => {
     expect(idsFor('trip_inspirations')).toEqual([]);
   });
 });
+
+/**
+ * The first attempt at this fix did not hold, and the database said so: all 20
+ * saved places were rewritten again, in one second, minutes after it shipped.
+ *
+ * Saved places are re-addressed to the server's own row ids on the way out —
+ * a re-upload mints a new local id for a place the shared list already has. A
+ * fingerprint recorded against the local id therefore never matches the row the
+ * next push builds, so every open rewrote the whole list exactly as before.
+ */
+describe('a saved place the server knows under another id', () => {
+  const place = (id: string, name: string) => ({
+    id, savedByUserId: 'north', country: '韓國', city: '釜山', placeName: name,
+    sourcePostId: 'screenshot:a', sourceSliceId: 'screenshot:a', sourceCreatorId: 'north',
+    sourceNoteIds: [], savedAt: '2026-10-03T09:00:00.000Z', notes: [],
+  }) as never;
+
+  const pushOnce = (fingerprints?: Record<string, string>) => pushTripSnapshot(
+    { members: [], expenses: [], itinerary: [], flightAnchors: [], inspirations: [place('local-new', '味贊王鹽烤肉')] } as never,
+    'trip',
+    { expenses: new Set(), itinerary: new Set(), flightAnchors: new Set(), fingerprints },
+  );
+
+  it('reports what it wrote under the id it actually used', async () => {
+    existingInspirationRows = [{ id: 'remote-1', place_id: null, place_name: '味贊王鹽烤肉' }];
+
+    const result = await pushOnce();
+
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') return;
+    expect(Object.keys(result.data.fingerprints)).toContain('trip_inspirations:remote-1');
+    expect(Object.keys(result.data.fingerprints)).not.toContain('trip_inspirations:local-new');
+  });
+
+  it('does not write it again on the next open', async () => {
+    existingInspirationRows = [{ id: 'remote-1', place_id: null, place_name: '味贊王鹽烤肉' }];
+    const first = await pushOnce();
+    if (first.status !== 'ok') throw new Error('expected a push');
+    upserts.length = 0;
+
+    await pushOnce(first.data.fingerprints);
+
+    expect(idsFor('trip_inspirations')).toEqual([]);
+  });
+});

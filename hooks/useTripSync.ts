@@ -373,21 +373,14 @@ export const useTripSync = ({
           // would destroy a row someone else recreated under the same id.
           knownRef.current = {
             /*
-              What was just written is now what the server holds.
+              What the push says the server now holds.
 
-              Recorded from the same mapped rows the push built, so the next
-              open does not send them again — a rewrite of an unchanged row is
-              how the other traveller's edit gets reverted.
+              Taken from the push rather than recomputed here: saved places are
+              re-addressed to the server's own row ids on the way out, so a
+              fingerprint recorded against the local id never matches again and
+              every open rewrites the whole list.
             */
-            fingerprints: withFingerprints(
-              withFingerprints(
-                withFingerprints(knownRef.current.fingerprints, 'expenses', e.map(expense => toExpenseRow(expense, tripId))),
-                'itinerary_items',
-                i.map(item => toItineraryRow(item, tripId)),
-              ),
-              'trip_inspirations',
-              s.map(entry => toTripInspirationRow(entry, tripId)),
-            ),
+            fingerprints: result.status === 'ok' ? result.data.fingerprints : knownRef.current.fingerprints,
             members: nextKnownIds(knownRef.current.members ?? [], m.map(member => member.id)),
             expenses: nextKnownIds(knownRef.current.expenses, e.map(expense => expense.id)),
             itinerary: nextKnownIds(knownRef.current.itinerary, i.map(item => item.id)),
