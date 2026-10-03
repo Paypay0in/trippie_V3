@@ -440,6 +440,20 @@ export const useTripSync = ({
             expenses: mergeWithUnpushed(local.expenses, remote.data.expenses, known.expenses),
             itinerary: mergeWithUnpushed(local.itinerary, remote.data.itinerary, known.itinerary),
             flightAnchors: mergeWithUnpushed(local.flightAnchors, remote.data.flightAnchors, known.flightAnchors),
+            /*
+              Saved places go through the same rule as everything else now.
+
+              「這也刪掉過了又出現」 — they used to be handed over as the server's
+              raw list and merged into the local one, and a merge cannot express
+              a deletion: the removed place was still local, so it was treated as
+              something the server had not heard about and published again.
+
+              `undefined` still means the server said nothing about the table,
+              which must not be read as an emptied list.
+            */
+            ...(remote.data.inspirations
+              ? { inspirations: mergeWithUnpushed(local.inspirations ?? [], remote.data.inspirations, known.inspirations ?? []) }
+              : {}),
           };
           onRemoteSnapshotRef.current(merged);
           // Only what the server actually confirmed becomes known. Marking a

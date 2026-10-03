@@ -164,7 +164,7 @@ import {
   mergeScreenshotInspirations,
   slicesToSavedInspirations,
 } from "./services/screenshotInspiration";
-import { mergeTripInspirations } from "./services/inspirationMerge";
+import { applyTripInspirations } from "./services/applyTripInspirations";
 import { mergeSharedTaxRule, toSharedTaxRule } from "./services/sharedTaxRule";
 import { matchesTripDestination } from "./services/tripInspirationSelection";
 import { flightModeFromAnchors } from "./services/tripSyncMapping";
@@ -3244,8 +3244,22 @@ const App: React.FC = () => {
         nothing, which is not the same as saying the list is empty.
       */
       if (snapshot.inspirations) {
+        /*
+          Applied, not merged — scoped to this trip.
+
+          「這也刪掉過了又出現」. Merging has no way to say 「this one is gone」: a
+          place removed on the other phone was still here, so it looked like
+          something the server had not heard about and went straight back up.
+          Everything else on the trip has always been replaced by the server's
+          copy; this list is the same, except that the store spans every trip,
+          so only the places belonging to this one are replaced.
+        */
         setSavedTravelInspirations((current) =>
-          mergeTripInspirations(current, snapshot.inspirations ?? []));
+          applyTripInspirations(
+            current,
+            snapshot.inspirations ?? [],
+            (inspiration) => matchesTripDestination(inspiration, tripInspirationContext).matched,
+          ));
       }
 
       /*
