@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import SavedPlaceCard from './SavedPlaceCard';
 import { Compass, MapPin, Sparkles, Check, AlertTriangle, ArrowRight, Clock3, RotateCcw, CalendarDays, CheckCircle2, Wand2, MoveRight, Trash2, Plus, PencilLine } from 'lucide-react';
 import { CommunityPost, ExperienceNoteType, ItineraryItem, SavedTravelInspiration } from '../types';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
@@ -158,6 +159,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
    * not re-derivable without the original screenshot.
    */
   const [removingGroupId, setRemovingGroupId] = useState<string | null>(null);
+  /** The place whose card is open, if any. */
+  const [openPlaceGroupId, setOpenPlaceGroupId] = useState<string | null>(null);
 
   // AI 行程調整模式 — only reachable when the trip already has an itinerary.
   const [adjustmentMode, setAdjustmentMode] = useState<ItineraryAdjustmentMode | null>(null);
@@ -503,19 +506,35 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             return (
               <div key={group.id} data-testid={`inspiration-card-${group.id}`} className={`rounded-2xl border transition ${isPlanned ? 'border-slate-100 bg-slate-50' : isSelected ? 'border-violet-300 bg-violet-50/50' : 'border-slate-100 bg-white'}`}>
                 <div className="flex items-start">
+                {/*
+                  The tick and the place are two different questions.
+
+                  「點擊後就跳出小卡 讓用戶可以轉跳到 Google 地圖等」 — tapping a
+                  restaurant should tell you where it is, and the whole row used
+                  to be the checkbox, so there was nowhere left to ask that.
+                  The box selects; the name opens the place.
+                */}
                 <button
                   type="button"
                   role="checkbox"
                   aria-checked={isSelected}
                   aria-disabled={isPlanned}
+                  aria-label={group.placeName}
                   onClick={() => toggleGroup(group.id)}
-                  className={`flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left ${isPlanned ? 'cursor-default' : ''}`}
+                  className={`flex min-h-11 w-11 shrink-0 items-start justify-center pl-3 pt-3 ${isPlanned ? 'cursor-default' : ''}`}
                 >
                   <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isPlanned ? 'border-slate-200 bg-slate-100 text-slate-300' : isSelected ? 'border-violet-500 bg-violet-600 text-white' : 'border-slate-300 bg-white'}`}>
                     {isPlanned ? <Check size={13} strokeWidth={3} /> : isSelected && <Check size={13} strokeWidth={3} />}
                   </span>
+                </button>
+                <button
+                  type="button"
+                  data-testid={`open-inspiration-${group.id}`}
+                  onClick={() => setOpenPlaceGroupId(group.id)}
+                  className="min-w-0 flex-1 py-3 pr-1 text-left"
+                >
                   {/* Only the identifying row is muted; the notes below stay readable. */}
-                  <span className={`min-w-0 flex-1 ${isPlanned ? 'opacity-55' : ''}`}>
+                  <span className={`block min-w-0 ${isPlanned ? 'opacity-55' : ''}`}>
                     <span className="flex items-start justify-between gap-2">
                       <span className="block min-w-0 flex-1 truncate text-sm font-black text-[#11183d]">{group.placeName}</span>
                       {isPlanned && (
@@ -637,6 +656,33 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
               </div>
             );
           })}
+
+          {/*
+            Rendered once, from the group that is open — not one card per row.
+
+            Keeping it outside the list means the card cannot inherit a row's
+            muted or selected styling, and a place that disappears underneath it
+            (removed, or filtered out by a re-read) closes the card instead of
+            leaving a dialog describing something no longer there.
+          */}
+          {(() => {
+            const openGroup = groups.find(group => group.id === openPlaceGroupId);
+            if (!openGroup) return null;
+            return (
+              <SavedPlaceCard
+                place={{
+                  placeName: openGroup.placeName,
+                  placeId: openGroup.placeId,
+                  formattedAddress: openGroup.formattedAddress,
+                  coordinates: openGroup.coordinates,
+                  city: openGroup.city,
+                  country: openGroup.country,
+                }}
+                notes={openGroup.experienceNotes}
+                onClose={() => setOpenPlaceGroupId(null)}
+              />
+            );
+          })()}
 
           {!hasExistingItinerary && (
             <>
