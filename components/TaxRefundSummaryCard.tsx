@@ -15,6 +15,14 @@ interface Props {
    */
   onToggleRefundedAtPurchase?: (expenseId: string, refunded: boolean) => void;
   /**
+   * Marks a purchase as outside the refund scheme entirely.
+   *
+   * 「要加一個按鈕：不可退稅」. A shop that is not tax-free registered, a meal, a
+   * service — the rule knows a threshold and a rate and nothing else, so it
+   * counts them all in and the headline promises money nobody can collect.
+   */
+  onToggleRefundIneligible?: (expenseId: string, ineligible: boolean) => void;
+  /**
    * Records what the refund actually came to for one purchase.
    *
    * 「如果按下去 可以輸入正確退稅金額」 — an estimate is the app's arithmetic, this
@@ -23,7 +31,7 @@ interface Props {
   onRecordActualRefund?: (expenseId: string, actual: number | undefined) => void;
 }
 
-const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, returnContext = false, onToggleRefundedAtPurchase, onRecordActualRefund }) => {
+const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, returnContext = false, onToggleRefundedAtPurchase, onRecordActualRefund, onToggleRefundIneligible }) => {
   const [expanded, setExpanded] = useState(false);
   /** The row whose actual amount is being typed, and what has been typed. */
   const [editingActualFor, setEditingActualFor] = useState<string | null>(null);
@@ -55,6 +63,8 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
   const threshold = 'threshold' in refundState ? refundState.threshold : 0;
   /** Purchases the shop already refunded, kept visible so a tick is not a disappearance. */
   const settled = 'settledItems' in refundState ? refundState.settledItems : [];
+  /** Purchases marked 「不可退稅」, listed so the mark can be taken back. */
+  const ineligible = 'ineligibleItems' in refundState ? refundState.ineligibleItems : [];
   const estimate = refundState.status === 'estimate_available';
   const title = refundState.status === 'no_rule' ? '退稅資格待確認' : refundState.status === 'below_threshold' ? '尚未達退稅門檻' : refundState.status === 'threshold_met' ? '已達退稅門檻' : source === 'model_knowledge' ? 'AI 預估退稅' : '預估退稅總額';
   return <section className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm">
@@ -124,6 +134,22 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                   className="rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
                 >
                   結帳時已退稅
+                </button>
+              )}
+              {/*
+                「要加一個按鈕：不可退稅」, beside the purchase it is about.
+
+                Separate from 結帳時已退稅: that one says the refund already
+                happened, this one says there was never one to have.
+              */}
+              {onToggleRefundIneligible && (
+                <button
+                  type="button"
+                  data-testid={`mark-ineligible-${item.expense.id}`}
+                  onClick={() => onToggleRefundIneligible(item.expense.id, true)}
+                  className="rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
+                >
+                  不可退稅
                 </button>
               )}
               {/*
@@ -217,6 +243,35 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                   type="button"
                   data-testid={`unmark-refunded-${item.expense.id}`}
                   onClick={() => onToggleRefundedAtPurchase(item.expense.id, false)}
+                  className="shrink-0 text-[10px] font-bold text-amber-700 underline underline-offset-2"
+                >
+                  取消
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+    {/*
+      Outside the scheme, and said so.
+
+      Shown for the same reason the settled list is: the traveller marked these
+      and a row that silently vanishes looks like a bug. One tap puts it back.
+    */}
+    {ineligible.length > 0 && (
+      <div data-testid="refund-ineligible" className="mt-3 rounded-xl bg-white/60 px-3 py-2">
+        <p className="text-[11px] font-black text-amber-800">不可退稅 · {ineligible.length} 筆（不列入上方估算）</p>
+        <div className="mt-1 divide-y divide-amber-100">
+          {ineligible.map(item => (
+            <div key={item.expense.id} data-testid={`ineligible-row-${item.expense.id}`} className="flex items-center justify-between gap-3 py-1.5 text-xs">
+              <span className="min-w-0 flex-1 truncate text-amber-900/70 line-through">{item.expense.description}</span>
+              <span className="shrink-0 text-[10px] text-amber-700/60">{Math.round(item.amount).toLocaleString()} {refundCurrency}</span>
+              {onToggleRefundIneligible && (
+                <button
+                  type="button"
+                  data-testid={`unmark-ineligible-${item.expense.id}`}
+                  onClick={() => onToggleRefundIneligible(item.expense.id, false)}
                   className="shrink-0 text-[10px] font-bold text-amber-700 underline underline-offset-2"
                 >
                   取消

@@ -34,6 +34,7 @@ export interface ExpenseRow {
   /** Receipts, as downscaled data URLs, the same shape community posts use. */
   receipt_photos?: unknown;
   tax_refunded_at_purchase?: unknown;
+  tax_refund_ineligible?: unknown;
   tax_refund_actual?: unknown;
   tax_refund_channel?: unknown;
 }
@@ -79,6 +80,9 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   receipt_photos: expense.receiptPhotos ?? [],
   // Both travellers need to agree on which purchases are already settled.
   tax_refunded_at_purchase: expense.taxRefundedAtPurchase === true,
+  // A purchase outside the scheme altogether, so both travellers stop seeing it
+  // counted towards a refund neither of them can claim.
+  tax_refund_ineligible: expense.taxRefundIneligible === true,
   // What the counter actually paid back, so both travellers see the same figure
   // and the estimate stops competing with a fact one of them already has.
   tax_refund_actual: Number.isFinite(expense.taxRefundActual as number) ? expense.taxRefundActual : null,
@@ -135,6 +139,7 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   needsReview: Boolean(row.needs_review),
   linkedShoppingItemId: row.linked_shopping_item_id ?? undefined,
   taxRefundedAtPurchase: row.tax_refunded_at_purchase === true ? true : undefined,
+  taxRefundIneligible: row.tax_refund_ineligible === true ? true : undefined,
   taxRefundActual: Number.isFinite(Number(row.tax_refund_actual)) && row.tax_refund_actual !== null
     ? Number(row.tax_refund_actual)
     : undefined,

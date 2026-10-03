@@ -196,6 +196,21 @@ export interface Expense {
    */
   taxRefundedAtPurchase?: boolean;
   /**
+   * This purchase cannot be refunded at all.
+   *
+   * 「要加一個按鈕：不可退稅」. Plenty of what gets bought on a trip is outside the
+   * scheme however much it cost: the shop is not tax-free registered, it is food
+   * eaten there, a service, a ticket. The rule only knows a threshold and a
+   * rate, so it counts those in and quietly inflates the figure the traveller is
+   * about to queue for.
+   *
+   * Distinct from `taxRefundedAtPurchase`, which means the refund already
+   * happened. This one means there is no refund to have — so it is excluded
+   * from the estimate and never used to infer a rate, because it is not a
+   * measurement of anything.
+   */
+  taxRefundIneligible?: boolean;
+  /**
    * The refund actually received, in the refund rule's currency.
    *
    * 「如果按下去 可以輸入正確退稅金額」. An estimate is the app's arithmetic; this

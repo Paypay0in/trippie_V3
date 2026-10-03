@@ -3453,6 +3453,42 @@ const App: React.FC = () => {
   };
 
   /**
+   * Marks a purchase as outside the refund scheme.
+   *
+   * 「要加一個按鈕：不可退稅」. The rule knows a threshold and a rate and nothing
+   * about what the shop is, so a meal, a service or a store that is not
+   * tax-free registered all get counted in — and the headline then promises
+   * money nobody can collect.
+   *
+   * Same permission as the mark beside it: it is a statement about the
+   * recorder's own receipt.
+   */
+  const handleToggleRefundIneligible = (expenseId: string, ineligible: boolean) => {
+    const target = expenses.find((entry) => entry.id === expenseId);
+    if (!target) return;
+    if (
+      viewerMemberId &&
+      activeOwnerMemberId &&
+      !canEditExpense({
+        expense: target,
+        viewerMemberId,
+        tripOwnerMemberId: activeOwnerMemberId,
+      })
+    ) {
+      showToast("這筆支出不是你記錄的，無法標記。", "error");
+      return;
+    }
+    setExpenses((prev) =>
+      prev.map((entry) =>
+        entry.id === expenseId
+          ? { ...entry, taxRefundIneligible: ineligible ? true : undefined }
+          : entry,
+      ),
+    );
+    showToast(ineligible ? "已標記為不可退稅，不列入估算" : "已取消標記，重新列入估算");
+  };
+
+  /**
    * Records what a refund actually came to.
    *
    * 「如果按下去 可以輸入正確退稅金額 你之後就能反推退稅的規則？」 — the figure
@@ -6016,6 +6052,7 @@ const App: React.FC = () => {
             travelRules={travelRules}
             onSettleRefund={() => handleOpenRefundSettlement()}
             onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
+            onToggleRefundIneligible={handleToggleRefundIneligible}
             onRecordActualRefund={handleRecordActualRefund}
             onQuickAddCategory={handleQuickAdd}
             onAddShoppingItem={handleAddReturnShoppingItem}
@@ -6055,6 +6092,7 @@ const App: React.FC = () => {
               onAddExpense={handleSaveExpense}
               onSettleRefund={() => handleOpenRefundSettlement()}
               onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
+            onToggleRefundIneligible={handleToggleRefundIneligible}
               onRecordActualRefund={handleRecordActualRefund}
               onOpenSettlement={handleOpenSettlement}
               viewerMemberId={viewerMemberId}
@@ -6789,6 +6827,7 @@ const App: React.FC = () => {
                   onOpenSettlement={handleOpenSettlement}
                   onSettleRefund={() => handleOpenRefundSettlement()}
                   onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
+            onToggleRefundIneligible={handleToggleRefundIneligible}
                   onRecordActualRefund={handleRecordActualRefund}
                   viewerMemberId={viewerMemberId}
                 />

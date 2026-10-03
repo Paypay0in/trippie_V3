@@ -31,8 +31,8 @@ export interface RefundCandidate {
 
 export type DuringRefundState =
   | { status: 'no_rule' }
-  | { status: 'below_threshold'; currency: string; threshold: number; shoppingSpend: number; belowThresholdExpenses: Expense[]; belowThresholdItems: RefundCandidate[]; settledItems: RefundCandidate[]; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
-  | { status: 'threshold_met'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleItems: RefundCandidate[]; settledItems: RefundCandidate[]; eligibleSpend: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
+  | { status: 'below_threshold'; currency: string; threshold: number; shoppingSpend: number; belowThresholdExpenses: Expense[]; belowThresholdItems: RefundCandidate[]; settledItems: RefundCandidate[]; ineligibleItems: RefundCandidate[]; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
+  | { status: 'threshold_met'; currency: string; threshold: number; eligibleExpenses: Expense[]; eligibleItems: RefundCandidate[]; settledItems: RefundCandidate[]; ineligibleItems: RefundCandidate[]; eligibleSpend: number; ruleSource: 'grounded' | 'model_knowledge'; refundRate?: number }
   | {
       status: 'estimate_available';
       currency: string;
@@ -40,6 +40,8 @@ export type DuringRefundState =
       eligibleExpenses: Expense[];
       eligibleItems: RefundCandidate[];
       settledItems: RefundCandidate[];
+      /** Marked 「不可退稅」: listed, never counted. */
+      ineligibleItems: RefundCandidate[];
       eligibleSpend: number;
       /** Everything still to claim: confirmed figures where known, estimates elsewhere. */
       estimatedRefund: number;
@@ -130,8 +132,21 @@ export const deriveDuringRefundState = ({
     Kept as their own list rather than dropped: the traveller marked them, and
     a list that silently loses the row they just ticked looks like it failed.
   */
-  const settled = normalized.filter(item => item.expense.taxRefundedAtPurchase === true);
-  const claimable = normalized.filter(item => item.expense.taxRefundedAtPurchase !== true);
+  /*
+    A purchase that cannot be refunded at all.
+
+    「要加一個按鈕：不可退稅」. A shop that is not tax-free registered, a meal, a
+    service, a ticket — the rule knows only a threshold and a rate, so it counts
+    every one of those in. Excluded here rather than hidden: the traveller
+    marked it, and it stays listed so the mark can be taken back.
+
+    Checked before the settled split, because 「不可退稅」 is the stronger
+    statement: there was never a refund for it to have been given at the till.
+  */
+  const ineligible = normalized.filter(item => item.expense.taxRefundIneligible === true);
+  const refundable = normalized.filter(item => item.expense.taxRefundIneligible !== true);
+  const settled = refundable.filter(item => item.expense.taxRefundedAtPurchase === true);
+  const claimable = refundable.filter(item => item.expense.taxRefundedAtPurchase !== true);
   const eligible = claimable.filter(item => item.amount >= rule.minSpend);
   const belowThreshold = claimable.filter(item => item.amount < rule.minSpend);
   const eligibleSpend = eligible.reduce((sum, item) => sum + item.amount, 0);
@@ -142,7 +157,19 @@ export const deriveDuringRefundState = ({
     agree today are two rules that disagree later — which is exactly how the
     spending totals came to say three different things on three screens.
   */
-  const observations = refundObservationsFrom(mine, normalizeAmount, rule.currency, rule.destination);
+  /*
+    Nothing is inferred from a purchase that cannot be refunded.
+
+    A rate is derived by comparing what was paid with what came back; a
+    purchase outside the scheme has no 「what came back」, so including it would
+    teach the estimator that the rate is zero.
+  */
+  const observations = refundObservationsFrom(
+    mine.filter(expense => expense.taxRefundIneligible !== true),
+    normalizeAmount,
+    rule.currency,
+    rule.destination,
+  );
 
   const withRefund = (items: typeof normalized): RefundCandidate[] =>
     items.map(item => {
@@ -164,8 +191,8 @@ export const deriveDuringRefundState = ({
       };
     });
 
-  if (eligible.length === 0) return { status: 'below_threshold', currency: rule.currency, threshold: rule.minSpend, shoppingSpend: normalized.reduce((sum, item) => sum + item.amount, 0), belowThresholdExpenses: belowThreshold.map(item => item.expense), belowThresholdItems: withRefund(belowThreshold), settledItems: withRefund(settled), ruleSource: rule.ruleSource, refundRate: rule.rate };
-  if (rule.rate === undefined) return { status: 'threshold_met', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleItems: withRefund(eligible), settledItems: withRefund(settled), eligibleSpend, ruleSource: rule.ruleSource };
+  if (eligible.length === 0) return { status: 'below_threshold', currency: rule.currency, threshold: rule.minSpend, shoppingSpend: refundable.reduce((sum, item) => sum + item.amount, 0), belowThresholdExpenses: belowThreshold.map(item => item.expense), belowThresholdItems: withRefund(belowThreshold), settledItems: withRefund(settled), ineligibleItems: withRefund(ineligible), ruleSource: rule.ruleSource, refundRate: rule.rate };
+  if (rule.rate === undefined) return { status: 'threshold_met', currency: rule.currency, threshold: rule.minSpend, eligibleExpenses: eligible.map(item => item.expense), eligibleItems: withRefund(eligible), settledItems: withRefund(settled), ineligibleItems: withRefund(ineligible), eligibleSpend, ruleSource: rule.ruleSource };
   const eligibleItems = withRefund(eligible);
   /*
     Each purchase at its best available figure: the receipt where there is one,
@@ -180,6 +207,7 @@ export const deriveDuringRefundState = ({
     eligibleExpenses: eligible.map(item => item.expense),
     eligibleItems,
     settledItems: withRefund(settled),
+    ineligibleItems: withRefund(ineligible),
     eligibleSpend,
     estimatedRefund: eligibleItems.reduce((sum, item) => sum + refundOf(item), 0),
     confirmedRefund: eligibleItems.reduce((sum, item) => sum + (item.actualRefund ?? 0), 0),

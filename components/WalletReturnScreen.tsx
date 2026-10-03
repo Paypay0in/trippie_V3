@@ -15,6 +15,8 @@ interface Props {
   onSettleRefund: () => void;
   /** Marks one purchase as refunded at the till; forwarded to the refund card. */
   onToggleRefundedAtPurchase?: (expenseId: string, refunded: boolean) => void;
+  /** 「要加一個按鈕：不可退稅」 — forwarded to the refund card unchanged. */
+  onToggleRefundIneligible?: (expenseId: string, ineligible: boolean) => void;
   /** Records the refund actually received for one purchase. */
   onRecordActualRefund?: (expenseId: string, actual: number | undefined) => void;
   onQuickAddCategory: (category: Category) => void;
@@ -38,6 +40,7 @@ const WalletReturnScreen: React.FC<Props> = ({
   travelRules,
   onSettleRefund,
   onToggleRefundedAtPurchase,
+  onToggleRefundIneligible,
   onRecordActualRefund,
   onQuickAddCategory,
   onAddShoppingItem,
@@ -75,7 +78,7 @@ const WalletReturnScreen: React.FC<Props> = ({
         </div>
       </section>
 
-      <TaxRefundSummaryCard refundState={refundState} onSettleRefund={onSettleRefund} onToggleRefundedAtPurchase={onToggleRefundedAtPurchase} onRecordActualRefund={onRecordActualRefund} returnContext />
+      <TaxRefundSummaryCard refundState={refundState} onSettleRefund={onSettleRefund} onToggleRefundedAtPurchase={onToggleRefundedAtPurchase} onToggleRefundIneligible={onToggleRefundIneligible} onRecordActualRefund={onRecordActualRefund} returnContext />
 
       <PostTripChecklist onQuickAddCategory={onQuickAddCategory} expenses={expenses} />
 
