@@ -1,4 +1,5 @@
 import { ItineraryItem, SavedExperienceNote, SavedTravelInspiration } from '../types';
+import { dedupeNoteTexts } from './itineraryImageSlices';
 import { FixedScheduleEntry, fixedAnchorSchedule } from './itineraryDayFloor';
 
 /**
@@ -30,6 +31,23 @@ export interface PlaceCoordinates {
   latitude: number;
   longitude: number;
 }
+
+/**
+ * The notes of one place, with the ones that only restate another removed.
+ *
+ * Works on the notes rather than on their text so the surviving note keeps its
+ * id and its provenance — the picker matches planned places by those.
+ */
+const keepDistinctNotes = (notes: SavedExperienceNote[]): SavedExperienceNote[] => {
+  const kept = dedupeNoteTexts(notes.map(note => note.text));
+  const remaining = [...kept];
+  return notes.filter(note => {
+    const index = remaining.indexOf(note.text.trim());
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+    return true;
+  });
+};
 
 export interface TripInspirationPlaceGroup {
   /** Stable, data-derived id. Never an array index. */
@@ -328,6 +346,16 @@ export const groupInspirationsByPlace = (
 
   return Array.from(groups.values()).map(group => ({
     ...group,
+    /*
+      Restatements folded as the list is read, not only as it is written.
+
+      「這三句語意相同，不能這樣列，要換成一句」 — the save that produced those three
+      sentences is already in the database, and the rule that now prevents them
+      only runs on the way in. Applying it here as well means the places he is
+      looking at today read correctly, without rewriting rows he did not ask
+      anyone to touch.
+    */
+    experienceNotes: keepDistinctNotes(group.experienceNotes),
     missingPlaceIdentity: !group.placeId && !group.coordinates,
   }));
 };

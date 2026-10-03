@@ -82,3 +82,45 @@ describe('a screenshot parsed twice', () => {
     ]);
   });
 });
+
+/**
+ * 「這三句語意相同，不能這樣列，要換成一句」.
+ *
+ * Peak square came back as 「海邊景觀咖啡店」, 「海邊咖啡店」 and 「有看海景觀位」: one
+ * fact, three sentences, none containing another as a string. A model with
+ * little to report pads, and the prompt already forbade it — so the limit has
+ * to be in the code.
+ */
+describe('a place described three times', () => {
+  it('keeps one description', () => {
+    expect(dedupeNoteTexts(['海邊景觀咖啡店', '海邊咖啡店', '有看海景觀位']))
+      .toEqual(['海邊景觀咖啡店']);
+  });
+
+  it('keeps the first, which is the one the model led with', () => {
+    expect(dedupeNoteTexts(['海邊咖啡店', '海邊景觀咖啡店'])).toEqual(['海邊咖啡店']);
+  });
+
+  it('never drops something to act on, however much it overlaps', () => {
+    // 「必點海鮮麵」 is not 「海鮮麵餐廳」 said twice: one is what the place is,
+    // the other is what to order there.
+    expect(dedupeNoteTexts(['海鮮麵餐廳', '必點海鮮麵', '對面是廣安里海水浴場'])).toEqual([
+      '海鮮麵餐廳',
+      '必點海鮮麵',
+      '對面是廣安里海水浴場',
+    ]);
+  });
+
+  it('keeps a description that carries real detail', () => {
+    // 「章魚蝦仁五花肉三拼加方便麵」 overlaps 「辣炒章魚餐廳」 but adds what is in it.
+    expect(dedupeNoteTexts(['辣炒章魚餐廳', '章魚蝦仁五花肉三拼加方便麵', '位於海雲台'])).toEqual([
+      '辣炒章魚餐廳',
+      '章魚蝦仁五花肉三拼加方便麵',
+      '位於海雲台',
+    ]);
+  });
+
+  it('does not fold two descriptions that share one character by chance', () => {
+    expect(dedupeNoteTexts(['人氣Brunch餐廳', '加辣版番茄意面'])).toHaveLength(2);
+  });
+});

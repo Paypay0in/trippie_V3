@@ -95,6 +95,59 @@ export const noteIsCovered = (existing: string, candidate: string): boolean => {
   return incoming.length >= MIN_CONTAINED_CHARS && have.includes(incoming);
 };
 
+/*
+  A place with nothing to say about it gets described three times.
+
+  「這三句語意相同，不能這樣列，要換成一句」. Peak square came back as 「海邊景觀咖啡
+  店」, 「海邊咖啡店」 and 「有看海景觀位」 — one fact, three sentences. None contains
+  another as a string, so containment could not see it, and the prompt already
+  forbids it: a model with little to report pads, and padding is what a limit in
+  code is for.
+
+  What these three have in common is that none of them tells the reader to do
+  anything. A note that carries an instruction, an hour, a price or a quantity
+  is a fact worth keeping even when it overlaps another; a note that only says
+  what the place is, is a second description, and a place needs one.
+*/
+
+/** Marks a note as something to act on rather than a description of the place. */
+const ACTIONABLE = /[0-9０-９]|必點|必吃|必去|推薦|建議|記得|預約|排隊|排號|公休|營業|休息|注意|禁止|限|不可|要|需|可以|免費|分鐘|小時|元|價|票|訂|帶|穿/;
+
+const isDescriptor = (text: string): boolean => !ACTIONABLE.test(text);
+
+/** Distinct CJK characters, which is as close to "what it is about" as this gets. */
+const topicChars = (text: string): Set<string> =>
+  new Set(Array.from(noteKey(text)).filter(char => /[一-鿿]/.test(char)));
+
+/** Two shared topic characters, below which the overlap is a coincidence. */
+const MIN_SHARED_TOPIC_CHARS = 2;
+
+/**
+ * How much a note may add and still count as a restatement.
+ *
+ * 「有看海景觀位」 adds 有/看/位 to 「海邊景觀咖啡店」 — three characters that carry
+ * no fact the reader did not have. 「章魚蝦仁五花肉三拼加方便麵」 adds eleven to
+ * 「辣炒章魚餐廳」, and those eleven are what to order. Overlap alone cannot tell
+ * those apart; how much is new can.
+ */
+const MAX_NEW_TOPIC_CHARS = 3;
+
+/**
+ * Whether a note is a second description of a place already described.
+ *
+ * Only ever true between two notes that both say what the place is: an
+ * actionable note is kept however much it overlaps, because 「必點海鮮麵」 is not
+ * 「海鮮麵餐廳」 said twice.
+ */
+export const noteRestatesDescription = (existing: string, candidate: string): boolean => {
+  if (!isDescriptor(existing) || !isDescriptor(candidate)) return false;
+  const have = topicChars(existing);
+  let shared = 0;
+  let added = 0;
+  topicChars(candidate).forEach(char => { if (have.has(char)) shared += 1; else added += 1; });
+  return shared >= MIN_SHARED_TOPIC_CHARS && added <= MAX_NEW_TOPIC_CHARS;
+};
+
 /**
  * Drops notes that only restate a longer one.
  *
@@ -120,8 +173,22 @@ export const dedupeNoteTexts = (texts: string[]): string[] => {
     });
 
   // A note wholly inside another is the shorter telling of it, and goes.
-  return unique.filter(text => !unique.some(other =>
+  const distinct = unique.filter(text => !unique.some(other =>
     other !== text && noteIsCovered(other, text) && noteKey(other) !== noteKey(text)));
+
+  /*
+    Then at most one description of what the place is.
+
+    Resolved against what has already been kept, in order, so the first
+    description survives and the restatements fall away — rather than two
+    descriptions each removing the other and the place losing both.
+  */
+  const kept: string[] = [];
+  distinct.forEach(text => {
+    if (kept.some(saved => noteRestatesDescription(saved, text))) return;
+    kept.push(text);
+  });
+  return kept;
 };
 
 /**

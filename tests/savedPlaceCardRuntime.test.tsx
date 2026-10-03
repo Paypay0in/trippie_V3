@@ -137,3 +137,24 @@ describe('opening a saved place', () => {
     expect(screen.queryByTestId('saved-place-card')).toBeNull();
   });
 });
+
+/**
+ * 「這三句語意相同，不能這樣列，要換成一句」, applied to saves already in the
+ * database — the rule that prevents them now only runs on the way in.
+ */
+describe('a place saved with three descriptions of itself', () => {
+  it('lists one of them', () => {
+    renderPlanner([inspiration({
+      id: 'insp-peak',
+      placeName: 'Peak square',
+      notes: ['海邊景觀咖啡店', '海邊咖啡店', '有看海景觀位'].map((text, index) => ({
+        id: `p${index}`, sourceNoteId: `sp-${index}`, sourceSliceId: 'screenshot:p',
+        sourcePostId: 'screenshot:p', sourceCreatorId: 'user-1', type: 'other', text,
+      })),
+    })]);
+
+    expect(screen.getByText('海邊景觀咖啡店')).toBeTruthy();
+    expect(screen.queryByText('海邊咖啡店')).toBeNull();
+    expect(screen.queryByText('有看海景觀位')).toBeNull();
+  });
+});
