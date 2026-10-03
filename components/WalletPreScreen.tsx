@@ -3,6 +3,7 @@ import { ChevronRight, Pencil, Plus, WalletCards } from 'lucide-react';
 import { Category, Expense, TripMember } from '../types';
 import { totalPaidByMember } from '../services/expensePaidBy';
 import { partitionByConcern } from '../services/expenseConcernsMember';
+import { expenseCostToViewer } from '../services/viewerSpend';
 import { calculateExpenseLedger } from '../services/splitCalculator';
 import ExpenseList from './ExpenseList';
 
@@ -79,12 +80,12 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
    */
   const borneByViewer = useMemo(() => {
     if (!viewerMemberId || !normalizedCurrency) return undefined;
-    const total = preExpenses.reduce((sum, expense) => {
-      if (!Number.isFinite(expense.twdAmount)) return sum;
-      const { responsibility } = calculateExpenseLedger(expense, tripOwnerMemberId);
-      const share = responsibility[viewerMemberId];
-      return sum + (Number.isFinite(share) ? share : 0);
-    }, 0);
+    // Same rule as the dashboard and the summary. Computed here separately,
+    // this dropped a bill the reader paid with nobody sharing it.
+    const total = preExpenses.reduce(
+      (sum, expense) => sum + expenseCostToViewer(expense, viewerMemberId, tripOwnerMemberId),
+      0,
+    );
     return Math.round(total);
   }, [preExpenses, viewerMemberId, tripOwnerMemberId, normalizedCurrency]);
   const tripWideSpent = useMemo(() => spendOf(preExpenses), [normalizedCurrency, preExpenses]);

@@ -3,6 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { expenseCostToViewer } from '../services/viewerSpend';
 import { calculateExpenseLedger } from '../services/splitCalculator';
 import { partitionByConcern } from '../services/expenseConcernsMember';
 import { X, Trophy, Wallet, Receipt, CreditCard, Printer, Archive, Save, List, PieChart as PieIcon, Tag, CheckCircle, HandHelping, Calculator, CheckSquare, Square, Share, MousePointerClick, Percent } from 'lucide-react';
@@ -32,10 +33,11 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
   /** What this reader is actually responsible for, out of the trip's total. */
   const viewerShare = React.useMemo(() => {
     if (!viewerMemberId) return undefined;
-    return expenses.reduce((sum, expense) => {
-      const { responsibility } = calculateExpenseLedger(expense, ownerMemberId);
-      return sum + (responsibility[viewerMemberId] || 0);
-    }, 0);
+    // One rule, shared with the ledger list and the dashboard. Computed here
+    // separately, this dropped the reader's own unsplit spending: a bill with
+    // no sharers has an empty responsibility map, which read as zero.
+    return expenses.reduce((sum, expense) =>
+      sum + expenseCostToViewer(expense, viewerMemberId, ownerMemberId), 0);
   }, [expenses, viewerMemberId, ownerMemberId]);
   /**
    * Money that actually left this traveller's pocket.
@@ -68,13 +70,11 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
      trip, so 「哈哈❤️ $888」 — the other traveller's own spending — appeared in
      his 準備清單 and in his pie, under a subtotal of 33,388.
   */
-  /** This reader's share of one bill, falling back to the bill where unknown. */
-  const shareOfExpense = React.useCallback((expense: Expense): number => {
-    if (!viewerMemberId || !Number.isFinite(expense.twdAmount)) return expense.twdAmount;
-    const { responsibility } = calculateExpenseLedger(expense, ownerMemberId);
-    const share = responsibility[viewerMemberId];
-    return Number.isFinite(share) ? share : expense.twdAmount;
-  }, [viewerMemberId, ownerMemberId]);
+  /** This reader's share of one bill — the same rule every other screen uses. */
+  const shareOfExpense = React.useCallback(
+    (expense: Expense): number => expenseCostToViewer(expense, viewerMemberId, ownerMemberId),
+    [viewerMemberId, ownerMemberId],
+  );
 
   const reportExpenses = React.useMemo(
     () => (viewerMemberId ? partitionByConcern(expenses, viewerMemberId).mine : expenses),

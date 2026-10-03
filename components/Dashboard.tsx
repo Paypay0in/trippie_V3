@@ -8,6 +8,7 @@ import { Wallet, TrendingDown, Coins, PlusCircle, Users, Tag, ChevronDown, Chevr
 import TravelAdvisoryWidget from './TravelAdvisoryWidget';
 import { deriveDuringRefundState } from '../services/duringRefundState';
 import TaxRefundSummaryCard from './TaxRefundSummaryCard';
+import { expenseCostToViewer, ownerMemberIdOf } from '../services/viewerSpend';
 import { calculateOutstandingDebts } from '../services/settlementConsumption';
 import { buildViewerBalanceRows } from '../services/viewerBalances';
 
@@ -142,12 +143,18 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
           ccBillAccumulation(cc, e);
       }
 
-      let realCost = 0;
-      if (e.category === Category.EXCHANGE) {
-        realCost = e.handlingFee || 0;
-      } else {
-        realCost = e.twdAmount;
-      }
+      /*
+        What this bill cost the person reading the screen.
+
+        「對方的帳又算到我這裡了」 — the totals added up every expense in full,
+        so the other traveller's own spending landed in this reader's 旅行中
+        支出總計, and a bill split down the middle was counted twice over
+        between the two phones. A fee is the exception: an exchange costs
+        whoever paid it, and it is never split.
+      */
+      const realCost = e.category === Category.EXCHANGE
+        ? (e.handlingFee || 0)
+        : expenseCostToViewer(e, viewerMemberId, ownerMemberIdOf(accountingMembers));
 
       // Check Refund Eligibility Logic (Used for both personal and help buy)
       // Normalize currency check to be case insensitive
@@ -223,7 +230,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
         helpBuyTotal: helpBuyTWD,
         helpBuyPotentialRefund
     };
-  }, [expenses, allExpenses, companions, members, batches, taxRule, currentPhase]);
+  }, [expenses, allExpenses, companions, members, batches, taxRule, currentPhase, viewerMemberId]);
 
   // Helper functions to keep useMemo clean
   function ccBillAccumulation(cc: any, e: Expense) {
