@@ -294,10 +294,21 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
                       {slice.summary && (
                         <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">{slice.summary}</span>
                       )}
+                      {/*
+                        One point per line, with the bullet aligned off the text.
+
+                        「解析結果應該條列重點」 — the bullet was inside the same
+                        text run, so a note that wrapped put its second line
+                        under the dot and the list read as a paragraph with
+                        stray marks in it.
+                      */}
                       {slice.notes.length > 0 && (
-                        <span className="mt-1 block space-y-0.5">
+                        <span className="mt-1.5 block space-y-1">
                           {slice.notes.map((note, index) => (
-                            <span key={index} className="block text-[11px] leading-relaxed text-slate-400">・{note.text}</span>
+                            <span key={index} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500">
+                              <span className="mt-[6px] h-1 w-1 shrink-0 rounded-full bg-violet-300" />
+                              <span className="min-w-0 flex-1 break-words">{note.text}</span>
+                            </span>
                           ))}
                         </span>
                       )}

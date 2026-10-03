@@ -120,3 +120,71 @@ describe('加進行程的卡片', () => {
     expect(item.sourceInspirationIds?.every(id => id.startsWith('screenshot:'))).toBe(true);
   });
 });
+
+/**
+ * 「解析結果應該條列重點」.
+ *
+ * Asked for notes, the model returned an essay: 단골손님 came back as four hundred
+ * characters of 「推薦…值得…深受好評…推薦」, the same sentence rephrased until it
+ * ran out of room. Nobody reads that standing outside a restaurant.
+ *
+ * The prompt now asks for short bullets, but a prompt is a request. These are
+ * the limits.
+ */
+describe('讀出來的要是重點，不是一篇介紹文', () => {
+  const essay = '韓式創意料理餐廳，特色為大份量的拌飯與湯鍋類餐點物，適合多人聚餐分享其招牌美食。'
+    + '店名意為「老顧客」。這家店是釜山探店合集中的推薦店家之一，值得造訪體驗其豐富的餐飲選擇與在地好味道的味道。'
+    + '這家店的招牌菜餚讓人印象深刻值得品嚐其特色推薦。這家店的菜色不僅美味且視覺效果極佳，深受食客好評推薦推薦。';
+
+  const sliceWith = (over: Record<string, unknown>) =>
+    normalizeItinerarySlices({ slices: [{ type: 'food', title: '단골손님', ...over }] })[0];
+
+  it('一整段介紹文被切回一句', () => {
+    const slice = sliceWith({ summary: essay });
+
+    expect(slice.summary!.length).toBeLessThanOrEqual(41);
+    expect(slice.summary).not.toContain('深受食客好評');
+  });
+
+  it('沒有內容的稱讚不會變成摘要', () => {
+    expect(sliceWith({ summary: '值得推薦' }).summary).toBeUndefined();
+    expect(sliceWith({ summary: '深受好評' }).summary).toBeUndefined();
+  });
+
+  it('每一則筆記只留一個重點', () => {
+    const slice = sliceWith({ notes: [{ text: essay }] });
+
+    expect(slice.notes[0].text.length).toBeLessThanOrEqual(41);
+  });
+
+  it('空話筆記直接丟掉', () => {
+    const slice = sliceWith({
+      notes: [{ text: '晚上七點後要排隊' }, { text: '非常推薦' }, { text: '很好吃' }],
+    });
+
+    expect(slice.notes.map(note => note.text)).toEqual(['晚上七點後要排隊']);
+  });
+
+  it('同一件事換句話說不會變成兩則', () => {
+    const slice = sliceWith({
+      notes: [{ text: '晚上七點後要排隊' }, { text: '晚上七點後要排隊。' }, { text: '週一公休' }],
+    });
+
+    expect(slice.notes.map(note => note.text)).toEqual(['晚上七點後要排隊', '週一公休']);
+  });
+
+  it('最多六則——再多就不是重點了', () => {
+    const slice = sliceWith({
+      notes: Array.from({ length: 12 }, (_, index) => ({ text: `重點 ${index + 1} 要注意的事` })),
+    });
+
+    expect(slice.notes).toHaveLength(6);
+  });
+
+  it('本來就短的照原樣留著', () => {
+    const slice = sliceWith({ summary: '韓式創意料理餐廳', notes: [{ text: '招牌是大份量拌飯' }] });
+
+    expect(slice.summary).toBe('韓式創意料理餐廳');
+    expect(slice.notes[0].text).toBe('招牌是大份量拌飯');
+  });
+});

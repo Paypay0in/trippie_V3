@@ -43,6 +43,58 @@ const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
+/*
+  「解析結果應該條列重點」.
+
+  Asked for notes, the model returned an essay: 單골손님 came back as four hundred
+  characters of 「推薦…值得…深受好評…推薦」, the same sentence rephrased until it ran
+  out of room. Nobody reads that standing outside a restaurant, and it is not
+  what a screenshot of a recommendation contains.
+
+  The prompt now asks for short bullets, but a prompt is a request. These are the
+  limits, applied to whatever comes back.
+*/
+/** A summary says what the place is. One line, not an introduction. */
+const MAX_SUMMARY_CHARS = 40;
+/** One point per note. */
+const MAX_NOTE_CHARS = 40;
+/** Past this the list stops being scannable, which was the whole point. */
+const MAX_NOTES = 6;
+
+/** Marketing with no content behind it. A note made only of these says nothing. */
+const EMPTY_PRAISE = /^[\s。，、！!,.]*((很|超|超級|非常|真的|蠻|滿|挺|頗|極|相當|十分|值得)*(推薦|好吃|美味|好玩|不錯|讚|棒|優秀|必去|必吃|好評)|深受(食客|遊客|大家)?好評|口碑(很)?好|人氣(很)?高|CP值(很)?高)[\s。，、！!,.]*$/;
+
+/** Collapses whitespace so two notes differing only in spacing count as one. */
+const noteKey = (value: string): string => value.replace(/[\s。，、,.!！]/g, '').toLocaleLowerCase();
+
+/**
+ * A note the traveller can act on, cut to one point.
+ *
+ * Long prose is truncated at the first sentence break rather than mid-word: a
+ * model that ignored the length limit usually packed several points into one
+ * string, and the first is the one it led with.
+ */
+const toNote = (value: string): string => {
+  const trimmed = value.trim();
+  if (trimmed.length <= MAX_NOTE_CHARS) return trimmed;
+  const firstSentence = trimmed.split(/[。！？\n]/)[0].trim();
+  const kept = firstSentence.length > 0 && firstSentence.length <= MAX_NOTE_CHARS
+    ? firstSentence
+    : trimmed.slice(0, MAX_NOTE_CHARS);
+  return `${kept}…`;
+};
+
+const toSummary = (value: string): string | undefined => {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (EMPTY_PRAISE.test(trimmed)) return undefined;
+  if (trimmed.length <= MAX_SUMMARY_CHARS) return trimmed;
+  const firstSentence = trimmed.split(/[。！？\n]/)[0].trim();
+  return firstSentence.length > 0 && firstSentence.length <= MAX_SUMMARY_CHARS
+    ? firstSentence
+    : `${trimmed.slice(0, MAX_SUMMARY_CHARS)}…`;
+};
+
 /**
  * Turns whatever the model returned into slices that can be shown.
  *
@@ -78,13 +130,24 @@ export const normalizeItinerarySlices = (raw: unknown): ItinerarySlice[] => {
       type,
       title,
       placeName: text(slice.placeName) || undefined,
-      summary: text(slice.summary) || undefined,
+      summary: toSummary(text(slice.summary)),
       suggestedStartTime: CLOCK.test(startTime) ? startTime : undefined,
       durationMinutes: duration,
       notes: Array.isArray(slice.notes)
-        ? (slice.notes as unknown[])
-            .map(note => ({ text: text((note as Record<string, unknown>)?.text) }))
-            .filter(note => note.text)
+        ? (() => {
+            const seenNotes = new Set<string>();
+            return (slice.notes as unknown[])
+              .map(note => toNote(text((note as Record<string, unknown>)?.text)))
+              .filter(note => {
+                if (!note || EMPTY_PRAISE.test(note)) return false;
+                const key = noteKey(note);
+                if (seenNotes.has(key)) return false;
+                seenNotes.add(key);
+                return true;
+              })
+              .slice(0, MAX_NOTES)
+              .map(text => ({ text }));
+          })()
         : [],
     }];
   });

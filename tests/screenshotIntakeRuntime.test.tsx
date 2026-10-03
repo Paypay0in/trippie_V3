@@ -67,7 +67,8 @@ describe('上傳截圖之後', () => {
 
     await waitFor(() => expect(screen.getByText('大師兄牛肉麵')).toBeTruthy());
     expect(screen.getByText('甘川洞文化村')).toBeTruthy();
-    expect(screen.getByText('・晚上七點後要排隊')).toBeTruthy();
+    // The bullet is its own element now, so the note is just its text.
+    expect(screen.getByText('晚上七點後要排隊')).toBeTruthy();
   });
 
   it('在使用者按下去之前，什麼都不會寫進行程', async () => {
