@@ -64,8 +64,15 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
   const [isSafeRefundListExpanded, setIsSafeRefundListExpanded] = useState(false);
 
   const duringRefundState = useMemo(
-    () => deriveDuringRefundState({ expenses, travelRules }),
-    [expenses, travelRules],
+    // 「這裡出現 Gina 的退稅明細 他自己的帳不應出現在我這」 — the refund belongs to
+    // whoever paid, so the estimate is built from this reader's purchases only.
+    () => deriveDuringRefundState({
+      expenses,
+      travelRules,
+      viewerMemberId,
+      tripOwnerMemberId: ownerMemberIdOf(members || []),
+    }),
+    [expenses, travelRules, viewerMemberId, members],
   );
   const shoppingExpenses = expenses.filter(expense => expense.phase === 'during' && expense.category === Category.SHOPPING);
   const qualifiedRefundCandidates = 'eligibleExpenses' in duringRefundState ? duringRefundState.eligibleExpenses : [];

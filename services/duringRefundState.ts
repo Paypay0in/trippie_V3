@@ -1,4 +1,5 @@
 import { Category, Expense, TravelRules } from '../types';
+import { calculateExpenseLedger } from './splitCalculator';
 
 /**
  * One eligible purchase, with the two numbers the card has to show.
@@ -45,10 +46,42 @@ const getValidRule = (travelRules?: TravelRules | null): ValidRule | undefined =
   return undefined;
 };
 
-export const deriveDuringRefundState = ({ expenses, travelRules }: { expenses: Expense[]; travelRules?: TravelRules | null }): DuringRefundState => {
+export const deriveDuringRefundState = ({
+  expenses,
+  travelRules,
+  viewerMemberId,
+  tripOwnerMemberId,
+}: {
+  expenses: Expense[];
+  travelRules?: TravelRules | null;
+  /**
+   * Whose refund this is.
+   *
+   * 「我的介面 這裡出現 Gina 的退稅明細 他自己的帳不應出現在我這」. The list read
+   * every shopping expense on the trip, so her sunglasses were sitting in his
+   * estimate — and in his total.
+   *
+   * A refund belongs to whoever paid, not to whoever shares the cost: the
+   * receipt is in their name and it is their passport at the counter. A bill
+   * she paid and split with him is still hers to claim.
+   *
+   * Omitted on a single-user ledger, where every purchase is the reader's.
+   */
+  viewerMemberId?: string;
+  tripOwnerMemberId?: string;
+}): DuringRefundState => {
   const rule = getValidRule(travelRules);
   if (!rule) return { status: 'no_rule' };
-  const shoppingExpenses = expenses.filter(expense => expense.phase === 'during' && expense.category === Category.SHOPPING);
+  const mine = viewerMemberId
+    // Asked through the ledger rather than by comparing `payerId`, so the
+    // owner's seat alias resolves the same way it does everywhere else.
+    ? expenses.filter(expense => {
+        if (!Number.isFinite(expense.twdAmount)) return false;
+        const { paid } = calculateExpenseLedger(expense, tripOwnerMemberId);
+        return (paid[viewerMemberId] || 0) > 0;
+      })
+    : expenses;
+  const shoppingExpenses = mine.filter(expense => expense.phase === 'during' && expense.category === Category.SHOPPING);
   const targetCurrencyRate = shoppingExpenses.find(expense => expense.currency.toUpperCase() === rule.currency && Number.isFinite(expense.exchangeRate) && expense.exchangeRate > 0)?.exchangeRate;
   const normalizeAmount = (expense: Expense): number | undefined => {
     if (expense.currency.toUpperCase() === rule.currency) return expense.amount;

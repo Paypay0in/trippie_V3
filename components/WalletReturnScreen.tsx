@@ -47,7 +47,11 @@ const WalletReturnScreen: React.FC<Props> = ({
   const postExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'post'), [expenses]);
   const returnTotal = useMemo(() => postExpenses.reduce((sum, expense) => sum + expense.twdAmount, 0), [postExpenses]);
   const returnShoppingList = useMemo(() => shoppingList.filter(item => item.phase === 'post'), [shoppingList]);
-  const refundState = useMemo(() => deriveDuringRefundState({ expenses, travelRules }), [expenses, travelRules]);
+  // Same rule as the during-trip card: a refund is claimed by whoever paid.
+  const refundState = useMemo(
+    () => deriveDuringRefundState({ expenses, travelRules, viewerMemberId, tripOwnerMemberId }),
+    [expenses, travelRules, viewerMemberId, tripOwnerMemberId],
+  );
 
   return (
     <div className="space-y-5 pb-4">

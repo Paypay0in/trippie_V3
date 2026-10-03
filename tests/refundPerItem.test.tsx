@@ -111,3 +111,71 @@ describe('還沒達到門檻的購物', () => {
     expect(document.body.textContent).not.toContain('+540');
   });
 });
+
+/**
+ * 「我的介面 這裡出現 Gina 的退稅明細 他自己的帳不應出現在我這」.
+ *
+ * The fourth screen this week to show one traveller the other's money. The
+ * refund list read every shopping expense on the trip, so her sunglasses sat
+ * in his estimate and in his total.
+ *
+ * A refund belongs to whoever paid, not to whoever shares the cost: the receipt
+ * is in their name and it is their passport at the counter. A bill she paid and
+ * split with him is still hers to claim — which is the one case a 「我分攤了就
+ * 算我的」 rule would get wrong.
+ */
+describe('退稅是誰的', () => {
+  const ME = 'trip:owner';
+  const GINA = 'seat-gina';
+
+  const mine = shopping({ id: 'e-mine', description: 'Blue elephant 墨鏡', amount: 112800, twdAmount: 2594, payerId: ME });
+  const hers = shopping({ id: 'e-hers', description: '太陽眼鏡', amount: 99800, twdAmount: 2295, payerId: GINA });
+  /** She paid, he shares half — still her receipt. */
+  const sharedButHers = shopping({
+    id: 'e-shared', description: '伴手禮', amount: 60000, twdAmount: 1380,
+    payerId: GINA, beneficiaries: [GINA, ME],
+  });
+
+  const stateFor = (viewer?: string) =>
+    deriveDuringRefundState({
+      expenses: [mine, hers, sharedButHers],
+      travelRules: rules,
+      viewerMemberId: viewer,
+      tripOwnerMemberId: ME,
+    });
+
+  it('我的畫面只算我付的那筆', () => {
+    const state = stateFor(ME);
+
+    expect('eligibleItems' in state ? state.eligibleItems.map(item => item.expense.id) : [])
+      .toEqual(['e-mine']);
+  });
+
+  it('她付的、就算分我一半，退稅仍然是她的', () => {
+    const state = stateFor(ME);
+
+    expect(document.body.textContent).not.toContain('太陽眼鏡');
+    expect('eligibleItems' in state ? state.eligibleItems.map(item => item.expense.id) : [])
+      .not.toContain('e-shared');
+  });
+
+  it('她的畫面算的是她付的兩筆', () => {
+    const state = stateFor(GINA);
+
+    expect('eligibleItems' in state ? state.eligibleItems.map(item => item.expense.id) : [])
+      .toEqual(['e-hers', 'e-shared']);
+  });
+
+  it('總額跟著縮到只剩我自己的', () => {
+    const state = stateFor(ME);
+
+    // 112,800 × 6% = 6,768 — not the 12,756 that counted hers too.
+    expect(Math.floor('estimatedRefund' in state ? state.estimatedRefund : 0)).toBe(6768);
+  });
+
+  it('沒有指定讀的人時照舊算全部——單人帳本每一筆都是他的', () => {
+    const state = stateFor(undefined);
+
+    expect('eligibleItems' in state ? state.eligibleItems.length : 0).toBe(3);
+  });
+});
