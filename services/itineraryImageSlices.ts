@@ -64,8 +64,43 @@ const MAX_NOTES = 6;
 /** Marketing with no content behind it. A note made only of these says nothing. */
 const EMPTY_PRAISE = /^[\s。，、！!,.]*((很|超|超級|非常|真的|蠻|滿|挺|頗|極|相當|十分|值得)*(推薦|好吃|美味|好玩|不錯|讚|棒|優秀|必去|必吃|好評)|深受(食客|遊客|大家)?好評|口碑(很)?好|人氣(很)?高|CP值(很)?高)[\s。，、！!,.]*$/;
 
-/** Collapses whitespace so two notes differing only in spacing count as one. */
-export const noteKey = (value: string): string => value.replace(/[\s。，、,.!！：:（）()「」\-–—~～]/g, '').toLocaleLowerCase();
+/*
+  Simplified and traditional are the same word.
+
+  His screenshots come from mainland and Taiwanese accounts in the same upload,
+  so one place gets 「推荐菜品：五花肉」 and 「强推五花肉」 — which every rule below
+  read as two unrelated sentences because the characters differ. Only the
+  characters that actually turn up in travel notes are mapped; this is a lookup
+  for comparison, never for display.
+*/
+const SIMPLIFIED_TO_TRADITIONAL: Record<string, string> = {
+  荐: '薦', 营: '營', 业: '業', 时: '時', 间: '間', 预: '預', 约: '約', 议: '議',
+  钟: '鐘', 价: '價', 费: '費', 买: '買', 卖: '賣', 点: '點', 热: '熱', 门: '門',
+  餐: '餐', 厅: '廳', 馆: '館', 临: '臨', 边: '邊', 这: '這', 个: '個', 们: '們',
+  后: '後', 发: '發', 现: '現', 欢: '歡', 迎: '迎', 还: '還', 过: '過', 内: '內',
+  车: '車', 铁: '鐵', 机: '機', 场: '場', 市: '市', 园: '園', 园区: '園區',
+  观: '觀', 风: '風', 气: '氣', 鲜: '鮮', 面: '麵', 鱼: '魚', 鸡: '雞', 猪: '豬',
+  虾: '蝦', 汤: '湯', 饭: '飯', 号: '號', 队: '隊', 带: '帶', 钱: '錢', 币: '幣',
+  证: '證', 医: '醫', 药: '藥', 产: '產', 质: '質', 丽: '麗', 丰: '豐', 举: '舉',
+  双: '雙', 东: '東', 两: '兩', 为: '為', 处: '處', 务: '務', 单: '單', 卫: '衛',
+  厕: '廁', 开: '開', 关: '關', 够: '夠', 术: '術', 艺: '藝', 听: '聽', 读: '讀',
+  试: '試', 验: '驗', 杂: '雜', 货: '貨', 热门: '熱門', 强: '強', 书: '書',
+  学: '學', 国: '國', 园林: '園林', 丛: '叢', 乐: '樂', 习: '習', 乡: '鄉',
+  专: '專', 业界: '業界', 临时: '臨時', 众: '眾', 优: '優', 传: '傳', 体: '體',
+  俩: '倆', 储: '儲', 儿: '兒', 党: '黨', 兴: '興', 军: '軍', 农: '農', 冲: '沖',
+  决: '決', 况: '況', 减: '減', 凤: '鳳', 划: '劃', 则: '則', 刚: '剛', 创: '創',
+  别: '別', 动: '動', 务实: '務實', 劳: '勞', 势: '勢', 区: '區', 医院: '醫院',
+  历: '歷', 压: '壓', 厂: '廠', 县: '縣', 参: '參', 双人: '雙人', 变: '變',
+  叶: '葉', 吗: '嗎', 吨: '噸', 听说: '聽說', 启: '啟', 响: '響', 园艺: '園藝',
+};
+
+/** One text, in one script, for comparison only. */
+const unifyScript = (value: string): string =>
+  Array.from(value).map(char => SIMPLIFIED_TO_TRADITIONAL[char] || char).join('');
+
+/** Collapses whitespace and script so two notes differing only in those count as one. */
+export const noteKey = (value: string): string =>
+  unifyScript(value.replace(/[\s。，、,.!！：:（）()「」\-–—~～]/g, '')).toLocaleLowerCase();
 
 /**
  * How short a note may be and still absorb a longer one that contains it.
@@ -87,12 +122,30 @@ const MIN_CONTAINED_CHARS = 6;
  * contained in a longer one — 「營業時間 12:00-23:00」 inside a line that already
  * gave the hours and the break.
  */
+/**
+ * Whether every character of the shorter appears, in order, inside the longer.
+ *
+ * 「15:00-17:00 为休息时间」 sits inside 「營業時間：12:00-23:00（15:00-17:00 为休息
+ * 准备时间）」 with 「准备」 wedged into the middle, so plain containment could not
+ * see it and the shop appeared to have two different closing arrangements. A
+ * rewording that inserts a word is still the same sentence.
+ */
+const isSubsequence = (short: string, long: string): boolean => {
+  let index = 0;
+  for (const char of long) {
+    if (char === short[index]) index += 1;
+    if (index === short.length) return true;
+  }
+  return index === short.length;
+};
+
 export const noteIsCovered = (existing: string, candidate: string): boolean => {
   const have = noteKey(existing);
   const incoming = noteKey(candidate);
   if (!incoming) return true;
   if (have === incoming) return true;
-  return incoming.length >= MIN_CONTAINED_CHARS && have.includes(incoming);
+  if (incoming.length < MIN_CONTAINED_CHARS || incoming.length >= have.length) return false;
+  return have.includes(incoming) || isSubsequence(incoming, have);
 };
 
 /*
@@ -111,9 +164,18 @@ export const noteIsCovered = (existing: string, candidate: string): boolean => {
 */
 
 /** Marks a note as something to act on rather than a description of the place. */
-const ACTIONABLE = /[0-9０-９]|必點|必吃|必去|推薦|建議|記得|預約|排隊|排號|公休|營業|休息|注意|禁止|限|不可|要|需|可以|免費|分鐘|小時|元|價|票|訂|帶|穿/;
+const ACTIONABLE = /[0-9０-９]|必點|必吃|必去|推薦|強推|建議|記得|預約|排隊|排號|公休|營業|休息|注意|禁止|限|不可|要|需|可以|免費|分鐘|小時|元|價|票|訂|帶|穿/;
 
-const isDescriptor = (text: string): boolean => !ACTIONABLE.test(text);
+/**
+ * Which of the two things a note is.
+ *
+ * Only notes of the same kind can restate each other. 「必點海鮮麵」 and 「海鮮麵
+ * 餐廳」 share every topic word and are not the same sentence: one says what to
+ * order, the other says what the place is. Two recommendations of the same
+ * dish, on the other hand, are one recommendation written twice.
+ */
+const noteKind = (text: string): 'action' | 'description' =>
+  (ACTIONABLE.test(noteKey(text)) ? 'action' : 'description');
 
 /** Distinct CJK characters, which is as close to "what it is about" as this gets. */
 const topicChars = (text: string): Set<string> =>
@@ -133,18 +195,41 @@ const MIN_SHARED_TOPIC_CHARS = 2;
 const MAX_NEW_TOPIC_CHARS = 3;
 
 /**
- * Whether a note is a second description of a place already described.
+ * Characters that are enthusiasm rather than information.
  *
- * Only ever true between two notes that both say what the place is: an
- * actionable note is kept however much it overlaps, because 「必點海鮮麵」 is not
- * 「海鮮麵餐廳」 said twice.
+ * 「巨巨好吃的烤肉，强推五花肉」 adds six characters to 「推荐菜品：五花肉」 and five of
+ * them are the writer being pleased. Counting those as new content is how one
+ * recommendation of 五花肉 stayed on the list as two.
+ */
+const PRAISE_CHARS = new Set(Array.from('好吃讚棒巨超級强強推必愛美味香爆紅人氣讚嘆值得真的很非常超讚不錯優秀'));
+
+/** Digits, which are the one thing two notes must never be assumed to share. */
+const digitsOf = (text: string): string => (noteKey(text).match(/[0-9０-９]+/g) || []).join(',');
+
+/**
+ * Whether a note says what another note already said.
+ *
+ * Only ever true between notes of the same kind: 「必點海鮮麵」 and 「海鮮麵餐廳」
+ * share every word and are not the same sentence — one is what to order, the
+ * other is what the place is. Two recommendations of 五花肉 are.
+ *
+ * Enthusiasm does not count as new content, and different numbers always do:
+ * two notes carrying different figures are two facts however alike they read.
  */
 export const noteRestatesDescription = (existing: string, candidate: string): boolean => {
-  if (!isDescriptor(existing) || !isDescriptor(candidate)) return false;
+  if (noteKind(existing) !== noteKind(candidate)) return false;
+
+  const haveDigits = digitsOf(existing);
+  const incomingDigits = digitsOf(candidate);
+  if (haveDigits && incomingDigits && haveDigits !== incomingDigits) return false;
+
   const have = topicChars(existing);
   let shared = 0;
   let added = 0;
-  topicChars(candidate).forEach(char => { if (have.has(char)) shared += 1; else added += 1; });
+  topicChars(candidate).forEach(char => {
+    if (have.has(char)) shared += 1;
+    else if (!PRAISE_CHARS.has(char)) added += 1;
+  });
   return shared >= MIN_SHARED_TOPIC_CHARS && added <= MAX_NEW_TOPIC_CHARS;
 };
 

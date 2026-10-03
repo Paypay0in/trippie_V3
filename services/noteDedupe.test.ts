@@ -124,3 +124,60 @@ describe('a place described three times', () => {
     expect(dedupeNoteTexts(['人氣Brunch餐廳', '加辣版番茄意面'])).toHaveLength(2);
   });
 });
+
+/**
+ * 「我覺得筆記的內容 不能有重複的句意」.
+ *
+ * 味贊王鹽烤肉 still listed seven points for five facts: the closing hours twice,
+ * and 五花肉 recommended twice. Both escaped the previous rules — one because a
+ * word was wedged into the middle of the repeat, the other because the two
+ * screenshots were written in different scripts.
+ */
+describe('同一件事換句話說', () => {
+  const pork = [
+    '饭点人超多需排号',
+    '营业时间：12:00 - 23:00（15:00 - 17:00 为休息准备时间）',
+    '推荐菜品：五花肉',
+    '15:00-17:00 为休息时间',
+    '巨巨好吃的烤肉，强推五花肉',
+    '配鹽和各種小菜',
+    '位於海雲台',
+  ];
+
+  it('drops the repeat that had a word wedged into it', () => {
+    // 「15:00-17:00 为休息时间」 is 「…15:00-17:00 为休息准备时间」 with 准备 removed,
+    // so it is not a substring of it — but every character is there, in order.
+    expect(dedupeNoteTexts(pork)).not.toContain('15:00-17:00 为休息时间');
+  });
+
+  it('drops the second recommendation of the same dish', () => {
+    expect(dedupeNoteTexts(pork)).not.toContain('巨巨好吃的烤肉，强推五花肉');
+  });
+
+  it('keeps everything that is its own fact', () => {
+    expect(dedupeNoteTexts(pork)).toEqual([
+      '饭点人超多需排号',
+      '营业时间：12:00 - 23:00（15:00 - 17:00 为休息准备时间）',
+      '推荐菜品：五花肉',
+      '配鹽和各種小菜',
+      '位於海雲台',
+    ]);
+  });
+
+  it('reads simplified and traditional as the same word', () => {
+    // 「推荐」 and 「推薦」 are one word; two scripts in one upload is the normal
+    // case when a friend's screenshots come from both sides of the strait.
+    expect(dedupeNoteTexts(['推薦菜品：五花肉', '推荐菜品：五花肉'])).toHaveLength(1);
+  });
+
+  it('never folds two notes carrying different numbers', () => {
+    // Alike in shape, different in fact. A figure is the one thing that must
+    // never be assumed to be a rewording.
+    expect(dedupeNoteTexts(['門票 12000 韓元', '建議預留 3 小時以上'])).toHaveLength(2);
+    expect(dedupeNoteTexts(['成人門票 12000 韓元', '兒童門票 8000 韓元'])).toHaveLength(2);
+  });
+
+  it('still keeps what to order beside what the place is', () => {
+    expect(dedupeNoteTexts(['海鮮麵餐廳', '必點海鮮麵'])).toHaveLength(2);
+  });
+});
