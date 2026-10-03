@@ -1,4 +1,5 @@
 import { SavedTravelInspiration } from '../types';
+import { noteIsCovered } from './itineraryImageSlices';
 
 /**
  * One place, one entry on the list — whoever put it there.
@@ -54,9 +55,16 @@ const fold = (
     ? [existing, incoming]
     : [incoming, existing];
 
+  /*
+    Notes fold on meaning, not on characters.
+
+    Two devices that read the same screenshot get the same facts phrased
+    differently, so matching exact text put both on one place — which is what
+    「資訊會重複紀錄」 looked like from the list.
+  */
   const notes = [...first.notes];
   second.notes.forEach(note => {
-    if (!notes.some(saved => saved.text.trim() === note.text.trim())) notes.push(note);
+    if (!notes.some(saved => noteIsCovered(saved.text, note.text))) notes.push(note);
   });
 
   return {

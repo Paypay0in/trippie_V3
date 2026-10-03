@@ -1,5 +1,5 @@
 import { SavedExperienceNote, SavedTravelInspiration } from '../types';
-import { ItinerarySlice } from './itineraryImageSlices';
+import { ItinerarySlice, dedupeNoteTexts, noteIsCovered } from './itineraryImageSlices';
 
 /**
  * A screenshot's places, saved the way everything else is saved.
@@ -67,19 +67,12 @@ export const slicesToSavedInspirations = (
 
       First in the list, because it is the line that says what the place is.
     */
-    const lines = [
+    const lines = dedupeNoteTexts([
       ...(slice.summary ? [slice.summary] : []),
       ...slice.notes.map(note => note.text),
-    ];
+    ]);
 
-    const seen = new Set<string>();
     const notes: SavedExperienceNote[] = lines
-      .map(text => text.trim())
-      .filter(text => {
-        if (!text || seen.has(text)) return false;
-        seen.add(text);
-        return true;
-      })
       .map(text => ({
         id: context.makeId(),
         sourceNoteId: `${source}:${text.slice(0, 24)}`,
@@ -137,9 +130,16 @@ export const mergeScreenshotInspirations = (
     if (existingIndex < 0) { next.push(entry); return; }
 
     const existing = next[existingIndex];
+    /*
+      A second upload of the same place adds what it knows, not what it repeats.
+
+      「我剛重新上傳一次 資訊會重複紀錄」 — the model rephrases between runs, so
+      exact text matching let 「營業時間 12:00-23:00」 pile up beside the sentence
+      that already said it.
+    */
     const notes = [...existing.notes];
     entry.notes.forEach(note => {
-      if (!notes.some(saved => saved.text === note.text)) notes.push(note);
+      if (!notes.some(saved => noteIsCovered(saved.text, note.text))) notes.push(note);
     });
 
     next[existingIndex] = {

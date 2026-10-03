@@ -421,6 +421,61 @@ export const toTripInspirationRow = (
   saved_at: inspiration.savedAt || new Date().toISOString(),
 });
 
+/**
+ * What the database considers the same saved place.
+ *
+ * Mirrors `trip_inspirations_place_unique` exactly: a resolved Google id when
+ * there is one, otherwise the trimmed lowercased name. It has to mirror it,
+ * because the index is what rejects a write — a client that disagrees with it
+ * finds out by having a save fail.
+ */
+export const inspirationRowKey = (
+  row: Pick<TripInspirationRow, 'place_id' | 'place_name'>,
+): string => (row.place_id?.trim()
+  ? `place:${row.place_id.trim()}`
+  : `name:${(row.place_name || '').trim().toLocaleLowerCase()}`);
+
+/**
+ * Rewrites outgoing rows to the ids the server already uses for those places.
+ *
+ * 「我剛重新上傳一次 … 一按存檔就變沒有東西呀」. Saving the same screenshot twice
+ * mints a fresh local id for a place that is already on the shared list, and an
+ * upsert keyed on `id` asks Postgres to insert it — which the place-uniqueness
+ * index refuses. The refusal takes the whole batch with it, so the new places in
+ * that upload were lost too, and the save reported success because the failure
+ * was swallowed.
+ *
+ * Reusing the existing row's id turns that insert into the update it always
+ * was: the place keeps one entry, and whatever the second upload learned about
+ * it lands on that entry.
+ *
+ * Rows that collide with each other inside one batch are folded here too, for
+ * the same reason — Postgres rejects a batch that names one row twice, however
+ * the duplicate got in.
+ */
+export const alignInspirationRowIds = (
+  rows: TripInspirationRow[],
+  existing: Pick<TripInspirationRow, 'id' | 'place_id' | 'place_name'>[],
+): TripInspirationRow[] => {
+  const remoteIdByKey = new Map<string, string>();
+  existing.forEach(row => {
+    if (!remoteIdByKey.has(inspirationRowKey(row))) remoteIdByKey.set(inspirationRowKey(row), row.id);
+  });
+
+  const aligned: TripInspirationRow[] = [];
+  const takenKeys = new Set<string>();
+
+  rows.forEach(row => {
+    const key = inspirationRowKey(row);
+    if (takenKeys.has(key)) return;
+    takenKeys.add(key);
+    const remoteId = remoteIdByKey.get(key);
+    aligned.push(remoteId && remoteId !== row.id ? { ...row, id: remoteId } : row);
+  });
+
+  return aligned;
+};
+
 export const fromTripInspirationRow = (row: TripInspirationRow): SavedTravelInspiration => ({
   id: row.id,
   savedByUserId: row.saved_by_user_id ?? '',

@@ -65,7 +65,64 @@ const MAX_NOTES = 6;
 const EMPTY_PRAISE = /^[\s。，、！!,.]*((很|超|超級|非常|真的|蠻|滿|挺|頗|極|相當|十分|值得)*(推薦|好吃|美味|好玩|不錯|讚|棒|優秀|必去|必吃|好評)|深受(食客|遊客|大家)?好評|口碑(很)?好|人氣(很)?高|CP值(很)?高)[\s。，、！!,.]*$/;
 
 /** Collapses whitespace so two notes differing only in spacing count as one. */
-const noteKey = (value: string): string => value.replace(/[\s。，、,.!！]/g, '').toLocaleLowerCase();
+export const noteKey = (value: string): string => value.replace(/[\s。，、,.!！：:（）()「」\-–—~～]/g, '').toLocaleLowerCase();
+
+/**
+ * How short a note may be and still absorb a longer one that contains it.
+ *
+ * 「資訊會重複紀錄」. One parse returned 「營業時間：12:00 - 23:00（15:00 - 17:00 为
+ * 休息准备时间）」 and then 「營業時間 12:00-23:00」 — the same fact, written twice,
+ * so exact-match dedupe kept both and the list read as if the shop had two
+ * opening hours.
+ *
+ * Containment catches that; the floor stops it from going too far. Without one,
+ * a two-character note would swallow every note it appeared inside.
+ */
+const MIN_CONTAINED_CHARS = 6;
+
+/**
+ * Whether a note already on the list says what a new one is about to say.
+ *
+ * True for the same text written differently, and for a shorter note wholly
+ * contained in a longer one — 「營業時間 12:00-23:00」 inside a line that already
+ * gave the hours and the break.
+ */
+export const noteIsCovered = (existing: string, candidate: string): boolean => {
+  const have = noteKey(existing);
+  const incoming = noteKey(candidate);
+  if (!incoming) return true;
+  if (have === incoming) return true;
+  return incoming.length >= MIN_CONTAINED_CHARS && have.includes(incoming);
+};
+
+/**
+ * Drops notes that only restate a longer one.
+ *
+ * Longest first, so the fuller sentence is the one kept: it is the one that
+ * carries the detail the shorter version left out.
+ */
+export const dedupeNoteTexts = (texts: string[]): string[] => {
+  /*
+    Order is the model's, and it is kept: it leads with what it thinks matters.
+
+    So the same fact written twice resolves to whichever came first, not
+    whichever is longer — between 「晚上七點後要排隊」 and 「晚上七點後要排隊。」 the
+    trailing character is not information.
+  */
+  const seen = new Set<string>();
+  const unique = texts
+    .map(text => text.trim())
+    .filter(text => {
+      const key = noteKey(text);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  // A note wholly inside another is the shorter telling of it, and goes.
+  return unique.filter(text => !unique.some(other =>
+    other !== text && noteIsCovered(other, text) && noteKey(other) !== noteKey(text)));
+};
 
 /**
  * A note the traveller can act on, cut to one point.
@@ -134,20 +191,13 @@ export const normalizeItinerarySlices = (raw: unknown): ItinerarySlice[] => {
       suggestedStartTime: CLOCK.test(startTime) ? startTime : undefined,
       durationMinutes: duration,
       notes: Array.isArray(slice.notes)
-        ? (() => {
-            const seenNotes = new Set<string>();
-            return (slice.notes as unknown[])
+        ? dedupeNoteTexts(
+            (slice.notes as unknown[])
               .map(note => toNote(text((note as Record<string, unknown>)?.text)))
-              .filter(note => {
-                if (!note || EMPTY_PRAISE.test(note)) return false;
-                const key = noteKey(note);
-                if (seenNotes.has(key)) return false;
-                seenNotes.add(key);
-                return true;
-              })
-              .slice(0, MAX_NOTES)
-              .map(text => ({ text }));
-          })()
+              .filter(note => Boolean(note) && !EMPTY_PRAISE.test(note)),
+          )
+            .slice(0, MAX_NOTES)
+            .map(text => ({ text }))
         : [],
     }];
   });

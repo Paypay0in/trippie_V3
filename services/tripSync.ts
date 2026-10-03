@@ -18,7 +18,21 @@ import {
   toTripInspirationRow,
   toItineraryRow,
   toMemberRow,
+  alignInspirationRowIds,
 } from './tripSyncMapping';
+
+/**
+ * A table this deployment's database has not been given yet.
+ *
+ * Postgres answers `42P01` for an undefined table, and PostgREST `PGRST205`
+ * when its schema cache has never seen one. Code reaches a deployment before a
+ * migration reaches a database, so that window has to be survivable — but it is
+ * the only error that may be mistaken for success.
+ */
+const isMissingTable = (error: { code?: string; message?: string }): boolean =>
+  error?.code === '42P01'
+  || error?.code === 'PGRST205'
+  || /does not exist|schema cache/i.test(error?.message || '');
 
 /**
  * Reading and writing one trip's ledger to the shared tables.
@@ -509,14 +523,40 @@ export const pushTripSnapshot = async (
       as failed when the ledger and the itinerary both landed.
     */
     if (inspirations?.length) {
+      /*
+        The ids on the server decide which rows these are.
+
+        Uniqueness here is on the place, not on the id — two phones, or the same
+        phone uploading a screenshot twice, mint different ids for one
+        restaurant. Sending a new id for a place that already has a row is an
+        insert, and the place index refuses it, taking every other place in the
+        same batch down with it.
+      */
+      const existing = await supabase
+        .from('trip_inspirations')
+        .select('id,place_id,place_name')
+        .eq('trip_id', tripId);
+      if (existing.error && !isMissingTable(existing.error)) throw existing.error;
+
+      const rows = alignInspirationRowIds(
+        inspirations.map(entry => toTripInspirationRow(entry, tripId)),
+        (existing.data as Pick<TripInspirationRow, 'id' | 'place_id' | 'place_name'>[] | null) ?? [],
+      );
+
       const { error } = await supabase
         .from('trip_inspirations')
-        .upsert(inspirations.map(entry => toTripInspirationRow(entry, tripId)), {
-          onConflict: 'id',
-          ignoreDuplicates: false,
-        });
+        .upsert(rows, { onConflict: 'id', ignoreDuplicates: false });
+      /*
+        Only a table that does not exist yet is tolerated.
+
+        That is the one failure this client can be sure is harmless: 0011 has
+        not been applied to this database. Every other error means a save the
+        traveller watched succeed did not happen, and reporting it as a success
+        is how a list of places came back empty with nothing to explain it.
+      */
       if (error) {
-        if (import.meta.env.DEV) console.warn('[tripSync] inspirations not written', error.message);
+        if (!isMissingTable(error)) throw error;
+        if (import.meta.env.DEV) console.warn('[tripSync] inspirations table missing', error.message);
         return { status: 'ok', data: null };
       }
     }
