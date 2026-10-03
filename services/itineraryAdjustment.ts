@@ -2,6 +2,7 @@ import { ItineraryItem } from '../types';
 import {
   buildInspirationIndex,
   enumerateTripDates,
+  plannableDates,
   isValidProposalDate,
   matchSelection,
   normalizeKey,
@@ -233,7 +234,7 @@ const minutesOf = (time?: string): number | undefined => {
  */
 export const analyzeExistingItinerary = (
   snapshot: ExistingItinerarySnapshotItem[],
-  options: { startDate?: string; endDate?: string; selections?: TripPlanningInspirationSelection[] } = {},
+  options: { startDate?: string; endDate?: string; today?: string; selections?: TripPlanningInspirationSelection[] } = {},
 ): ItineraryAnalysis => {
   const byDate = new Map<string, ExistingItinerarySnapshotItem[]>();
   const untimedItemIds: string[] = [];
@@ -245,7 +246,15 @@ export const analyzeExistingItinerary = (
     else byDate.set(item.date, [item]);
   });
 
-  const tripDates = enumerateTripDates(options.startDate, options.endDate);
+  /*
+    Only the days still ahead count as empty.
+
+    「ai排行程會排到已經失效的日期」 — 「把空白的日子排滿」 was being asked to fill
+    10/02 on the 4th. A day that has already passed is not a gap in the plan; it
+    is the part of the trip that happened, and offering to fill it is offering
+    to rewrite a record.
+  */
+  const tripDates = plannableDates(options.startDate, options.endDate, options.today);
   const emptyDates = tripDates.filter(date => !byDate.has(date));
   // An anchor is something the trip is built around, not something chosen for
   // the day: the flight, the hotel, anything the traveller pinned themselves.
@@ -352,7 +361,9 @@ export const normalizeItineraryAdjustment = (
     ? source.warnings.filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim()))
     : [];
 
-  const allowedDates = new Set(enumerateTripDates(input.startDate, input.endDate));
+  // A change landing on a day already gone cannot be followed, and it displaces
+  // one that could have been.
+  const allowedDates = new Set(plannableDates(input.startDate, input.endDate, input.today));
   const existingById = new Map(input.existingItinerary.map(item => [item.id, item]));
   const inspirationIndex = buildInspirationIndex(input.selections);
 
@@ -736,6 +747,9 @@ export const buildItineraryAdjustmentInput = (
     analysis: analyzeExistingItinerary(existingItinerary, {
       startDate: base.startDate,
       endDate: base.endDate,
+      // Carried from the planning input, so the analysis and the prompt agree
+      // about which days are still ahead.
+      today: base.today,
       selections: base.selections,
     }),
   };

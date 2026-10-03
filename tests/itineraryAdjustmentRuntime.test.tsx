@@ -15,9 +15,23 @@ import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 
-const TRIP_START = '2026-10-01';
-const TRIP_MID = '2026-10-02';
-const TRIP_END = '2026-10-03';
+/*
+  Derived from the clock, not written down.
+
+  The planner only offers days that have not happened yet — 「ai排行程會排到已經
+  失效的日期」 — so a fixture with fixed dates stops exercising this the moment
+  the real date passes it. The trip starts today and runs three days.
+*/
+const isoDay = (offset: number): string => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const TRIP_START = isoDay(0);
+const TRIP_MID = isoDay(1);
+const TRIP_END = isoDay(2);
 const DRAFT_ID = 'draft-adjust';
 
 /** Captures exactly what the client sent to the itinerary route. */

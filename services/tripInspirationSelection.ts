@@ -1,6 +1,7 @@
 import { ItineraryItem, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { dedupeNoteTexts } from './itineraryImageSlices';
 import { FixedScheduleEntry, fixedAnchorSchedule } from './itineraryDayFloor';
+import { localToday } from './localDate';
 
 /**
  * Bridges the existing SavedTravelInspiration store into active Trip itinerary
@@ -89,6 +90,15 @@ export interface TripPlanningInput {
   startDate?: string;
   endDate?: string;
   durationDays?: number;
+  /**
+   * Today, read off the traveller's own device.
+   *
+   * 「要讓他先跟本機對時間再排行程」. The planner knows the trip's dates and has no
+   * idea which of them have already been lived. Sent explicitly rather than
+   * read inside the planner so a test can state what day it is, and so the
+   * clock that decides is the one in the traveller's pocket.
+   */
+  today?: string;
   selections: TripPlanningInspirationSelection[];
   /**
    * Free-text, trip-wide planner guidance typed by the user ("每天 11 點才出門",
@@ -457,6 +467,7 @@ export const buildTripPlanningInput = (
   startDate: trip.startDate || undefined,
   endDate: trip.endDate || undefined,
   durationDays: tripDurationDays(trip.startDate, trip.endDate),
+  today: localToday(),
   selections,
   planningPreferences: planningPreferences?.trim() || undefined,
   // Flights only. Everything else on the itinerary is movable, and the planner

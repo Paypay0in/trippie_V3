@@ -1669,6 +1669,22 @@ async function startServer() {
     }
   });
 
+  /*
+    The trip days a plan may still be made for.
+
+    「ai排行程會排到已經失效的日期，要讓他先跟本機對時間再排行程」. The model was given
+    the trip's own dates and nothing about which of them had already been lived,
+    so on the 4th it was still filling the 2nd. `today` is sent by the client,
+    because the clock that decides is the one in the traveller's pocket — this
+    server may be in another timezone entirely.
+  */
+  const plannableTripDates = (startDate: string, endDate: string, today: unknown): string[] => {
+    const dates = enumerateTripDates(startDate, endDate);
+    return typeof today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(today)
+      ? dates.filter(date => date >= today)
+      : dates;
+  };
+
   app.post("/api/itinerary-proposals", async (req, res) => {
     const input = req.body;
     if (!input || typeof input.startDate !== "string" || typeof input.endDate !== "string") { res.status(400).json({ error: "Trip dates are required." }); return; }
@@ -1698,6 +1714,19 @@ async function startServer() {
       ].sort();
       const floorBlock = windowLines.length > 0
         ? `\n\n【1b. 每一天可以安排行程的時間範圍（由當天航班推算，不可違反）】\n${windowLines.join("\n")}\n範圍以外的時間都還在機場、飛機上或已經離境。絕對不要在那些時段安排行程，也不要重複產生抵達機場、入境通關、領行李、辦理入住這類項目——系統已經依航班自動放進去了。`
+        : "";
+      /*
+        What day it is, where the traveller is.
+
+        Without this the model reasons about a trip in the abstract and puts
+        things on days that have already gone. Phrased as a fact rather than a
+        rule because that is what it is; the rule follows it.
+      */
+      const remainingDates = plannableTripDates(input.startDate, input.endDate, input.today);
+      const todayBlock = typeof input.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.today)
+        ? `\n今天是 ${input.today}。${remainingDates.length > 0
+          ? `這趟旅程還剩下 ${remainingDates.join("、")} 可以安排，${input.today} 以前的日期已經過去了，絕對不要安排任何行程到那些天。`
+          : "這趟旅程的日期都已經過去了，不要再安排新的行程。"}`
         : "";
       const selections = Array.isArray(input.selections) ? input.selections : [];
       const model = "gemini-3-flash-preview";
@@ -1777,7 +1806,7 @@ async function startServer() {
         contents: `${factsPreamble()}使用者這趟旅程「已經有正式行程」了。請先讀懂目前的安排，再提出調整建議。不要當成空白行程重排。${focusBlock}
 
 【1. 旅程事實】
-只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${floorBlock}
+只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${todayBlock}${floorBlock}
 
 【2. 目前的正式行程（這是事實，不是建議）】
 ${JSON.stringify(existingItinerary)}
@@ -1801,7 +1830,7 @@ ${MODE_RULES[mode]}
 1. 只回傳「變更」，不要回傳整份重排後的行程。沒有要動的項目就不要出現在 changes 裡。
 2. move / update / remove 必須帶 existingItemId，而且只能用【2】裡出現過的 id。絕對不要用地點名稱指認項目。
 3. 不要重複建議目前行程已經有的地點。
-4. 每一筆 add 都「必須」帶 toDate，而且只能是 ${enumerateTripDates(input.startDate, input.endDate).join("、") || "旅程範圍內的日期"} 其中之一，並帶 toTime。沒有日期的建議使用者無法採用，會被系統丟棄。
+4. 每一筆 add 都「必須」帶 toDate，而且只能是 ${plannableTripDates(input.startDate, input.endDate, input.today).join("、") || "旅程範圍內的日期"} 其中之一，並帶 toTime。沒有日期的建議使用者無法採用，會被系統丟棄。已經過去的日期不在這個清單裡，排進去的建議沒有人能照著走。
 5. add 的項目若來自【3b】的收藏地點，sourceInspirationIds 必須原封不動使用該地點的 inspirationIds；否則一律是空陣列。
 6. 不要捏造 placeId 或座標；地點識別由系統自行帶入。
 6b. placeName 必須是「那家店／那個景點自己的正式名稱」，就是地圖上查得到、招牌上寫的那一個。
@@ -2013,8 +2042,21 @@ ${MODE_RULES[mode]}
       const flightBlock = fixedSchedule.length > 0
         ? `\n\n【1b. 已經確定的航班（不可更動，也不要重複產生）】\n${fixedSchedule.map(entry => `${entry.date} ${entry.time}${entry.durationMinutes ? `（約 ${entry.durationMinutes} 分鐘）` : ""} ${entry.label || "航班"}`).join("\n")}\n這些是既有事實。規則：\n- 當天的活動一律排在當天最後一段航班結束之後，絕對不可以排在航班之前或與航班重疊。\n- 不要再產生抵達機場、入境通關、領行李、前往計程車招呼站、辦理入住／退房這類項目，系統已經依航班與訂房自動放進去了，重複寫就會變成同一天出現兩次。\n- 落地當天與回程當天本來就只剩很少的時間，就排少量、靠近機場或飯店的行程，不要硬塞滿一天。`
         : "";
+      /*
+        A trip that is already underway.
+
+        Planning is not only done before leaving: 「重新規劃」 gets pressed on the
+        third evening. Without today's date the proposal fills the days already
+        spent, and the traveller is handed a plan that starts in the past.
+      */
+      const createRemaining = plannableTripDates(input.startDate, input.endDate, input.today);
+      const createTodayBlock = typeof input.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.today)
+        ? `\n今天是 ${input.today}。${createRemaining.length > 0
+          ? `只剩下 ${createRemaining.join("、")} 可以安排，${input.today} 以前的日期已經過去了，不要安排任何行程到那些天。`
+          : "這趟旅程的日期都已經過去了，不要再安排新的行程。"}`
+        : "";
       const generationConfig = {
-        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${flightBlock}\n\n【2. 使用者已收藏並挑選的地點與原作者經驗筆記】\n${JSON.stringify(selections)}${preferenceBlock}\n\n規則：\n1. 每個被挑選的地點都要排進去，而且整份提案中只能出現一次。\n2. 回傳 sourceInspirationIds 時，必須原封不動使用上面每個地點提供的 inspirationIds。\n3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. 你可以加入少量未被收藏的建議地點來補完一天（包含使用者在規劃偏好裡指名想做的活動），但那些項目的 sourceInspirationIds 必須是空陣列。\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n只回傳 JSON。`,
+        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${createTodayBlock}${flightBlock}\n\n【2. 使用者已收藏並挑選的地點與原作者經驗筆記】\n${JSON.stringify(selections)}${preferenceBlock}\n\n規則：\n1. 每個被挑選的地點都要排進去，而且整份提案中只能出現一次。\n2. 回傳 sourceInspirationIds 時，必須原封不動使用上面每個地點提供的 inspirationIds。\n3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. 你可以加入少量未被收藏的建議地點來補完一天（包含使用者在規劃偏好裡指名想做的活動），但那些項目的 sourceInspirationIds 必須是空陣列。\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {

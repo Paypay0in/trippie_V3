@@ -106,6 +106,26 @@ export const enumerateTripDates = (startDate?: string, endDate?: string): string
   return dates;
 };
 
+/**
+ * The trip days a plan may still be made for.
+ *
+ * 「ai排行程會排到已經失效的日期，要讓他先跟本機對時間再排行程」. On 10/04 the planner
+ * was still being handed 10/02 and 10/03 as places to put things, because the
+ * only dates it knew were the trip's own. A suggestion for a day that has
+ * already happened cannot be followed, and it pushes a real one off the list.
+ *
+ * Today itself stays in: the afternoon of a day that started badly is exactly
+ * when somebody asks for a new plan. Only the days behind it are gone.
+ *
+ * With no reliable today — a clock that cannot be read, a trip entirely in the
+ * future — every trip date stands, which is the behaviour this replaces.
+ */
+export const plannableDates = (startDate?: string, endDate?: string, today?: string): string[] => {
+  const dates = enumerateTripDates(startDate, endDate);
+  if (!isValidProposalDate(today)) return dates;
+  return dates.filter(date => date >= (today as string));
+};
+
 const toCoordinates = (value: unknown): PlaceCoordinates | undefined => {
   if (!value || typeof value !== 'object') return undefined;
   const { latitude, longitude } = value as { latitude?: unknown; longitude?: unknown };
@@ -166,7 +186,7 @@ export const normalizeTripInspirationProposal = (
   input: TripPlanningInput,
 ): TripInspirationProposal => {
   const warnings: string[] = [];
-  const tripDates = enumerateTripDates(input.startDate, input.endDate);
+  const tripDates = plannableDates(input.startDate, input.endDate, input.today);
   const allowedDates = new Set(tripDates);
   const selections = input.selections;
 

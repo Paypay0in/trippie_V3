@@ -31,6 +31,7 @@ import {
 } from '../services/itineraryPlanningService';
 import { ItineraryAcceptanceMode } from '../services/itineraryAcceptance';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
+import { localToday } from '../services/localDate';
 
 export interface ProposalAcceptanceResult {
   ok: boolean;
@@ -210,6 +211,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     const analysis = analyzeExistingItinerary(snapshot, {
       startDate: trip.startDate,
       endDate: trip.endDate,
+      // 「要讓他先跟本機對時間」: the read-back must not offer to fill a day that
+      // has already happened, or it describes a plan the model is not given.
+      today: localToday(),
     });
     return {
       anchorCount: snapshot.filter(item => item.locked || item.fixedEvent || item.accommodation).length,

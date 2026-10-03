@@ -30,7 +30,7 @@ import {
   isFixedItem,
 } from '../services/itineraryFixedEvents';
 import { estimateRoute } from '../services/routesService';
-import { enumerateLocalDates } from '../services/localDate';
+import { enumerateLocalDates, localToday } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
 import SavedPlaceCard from './SavedPlaceCard';
 import StayDetailSheet from './StayDetailSheet';
@@ -134,6 +134,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   const [stayDetail, setStayDetail] = useState<StaySpan | null>(null);
 
   const dates = useMemo(() => (startDate && endDate ? enumerateLocalDates(startDate, endDate) : []), [startDate, endDate]);
+  /*
+    Today, where the traveller is standing.
+
+    Read once per render rather than held in state: a trip is not open across a
+    midnight often, and a stale value here would grey out the day somebody is
+    currently living.
+  */
+  const today = localToday();
   const [selectedDate, setSelectedDate] = useState<string | undefined>(dates[0]);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : dates[0];
 
@@ -746,11 +754,24 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6b4df6]">ITINERARY</p><h2 className="mt-1 text-xl font-black text-[#111A4A]">行程規劃</h2><p className="mt-1 text-xs text-slate-400">規劃每日行程，讓旅程更順暢、更有趣。</p></div>
         <div className="flex shrink-0 items-center gap-2">{onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] px-3 py-2 text-xs font-black text-white shadow-[0_6px_14px_rgba(91,61,245,.16)]"><Plus size={14} />新增行程</button>}<button type="button" className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#eceaf5] bg-white px-3 py-2 text-xs font-bold text-[#5b3df5] shadow-sm"><Map size={14} />地圖模式</button><button type="button" aria-label="更多選項" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={17} /></button></div>
       </div>
-      {dates.length > 0 && <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{dates.map((date, index) => <button type="button" key={date} ref={node => { dayTabRefs.current[date] = node; }} onClick={() => setSelectedDate(date)} aria-label={`Day ${index + 1}`} data-drop-day={date} className={`relative min-w-[84px] rounded-[18px] border px-3.5 py-3 text-left transition ${overDate === date ? 'border-[#6b4df6] bg-[#ece7ff] ring-2 ring-[#b9adff]' : dragItemId && date !== activeDate ? 'border-dashed border-[#b9adff] bg-white' : activeDate === date ? 'border-[#b9adff] bg-[#f4f1ff] text-[#4f35d7] shadow-[0_8px_18px_rgba(91,61,245,.12)]' : 'border-[#edf0f6] bg-white text-slate-500 shadow-[0_3px_10px_rgba(17,26,74,.03)]'}`}><span className={`mb-2 block h-1.5 w-1.5 rounded-full ${activeDate === date ? 'bg-[#6b4df6]' : 'bg-slate-200'}`} /><span className="block text-[11px] font-black">Day {index + 1}</span><span className="mt-1 block text-xs font-bold">{date.slice(5).replace('-', '/')}</span>{(() => {
+      {dates.length > 0 && <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{dates.map((date, index) => {
+        /*
+          A day that has already happened.
+
+          「已經經過的日期 要變成灰色的」 — on 10/04 the first two tabs looked exactly
+          like the days still ahead, so the part of the trip that is still a
+          decision was indistinguishable from the part that is now a record.
+
+          Still tappable: the plan for a day gone is where its photos, its notes
+          and its spending are read back from.
+        */
+        const isPast = date < today;
+        return <button type="button" key={date} ref={node => { dayTabRefs.current[date] = node; }} onClick={() => setSelectedDate(date)} aria-label={`Day ${index + 1}`} data-testid={`day-tab-${date}`} data-past={isPast ? 'true' : undefined} data-drop-day={date} className={`relative min-w-[84px] rounded-[18px] border px-3.5 py-3 text-left transition ${overDate === date ? 'border-[#6b4df6] bg-[#ece7ff] ring-2 ring-[#b9adff]' : dragItemId && date !== activeDate ? 'border-dashed border-[#b9adff] bg-white' : activeDate === date ? 'border-[#b9adff] bg-[#f4f1ff] text-[#4f35d7] shadow-[0_8px_18px_rgba(91,61,245,.12)]' : isPast ? 'border-[#eef1f5] bg-[#f6f7f9] text-slate-400 opacity-60' : 'border-[#edf0f6] bg-white text-slate-500 shadow-[0_3px_10px_rgba(17,26,74,.03)]'}`}><span className={`mb-2 block h-1.5 w-1.5 rounded-full ${activeDate === date ? 'bg-[#6b4df6]' : isPast ? 'bg-slate-300' : 'bg-slate-200'}`} /><span className="block text-[11px] font-black">Day {index + 1}</span><span className="mt-1 block text-xs font-bold">{date.slice(5).replace('-', '/')}</span>{(() => {
       // A suggestion sitting on another day is invisible from here otherwise.
       const count = (pendingSuggestions || []).filter(suggestion => (suggestion.date ? suggestion.date === date : date === dates[0])).length;
       return count > 0 ? <span data-testid={`suggestion-badge-${date}`} className="absolute right-2 top-2 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">{count}</span> : null;
-    })()}</button>)}</div>}
+    })()}</button>;
+      })}</div>}
 
       {/*
         The arranged order no longer reads chronologically. The times are shown
