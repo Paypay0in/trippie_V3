@@ -201,7 +201,24 @@ const MAX_NEW_TOPIC_CHARS = 3;
  * them are the writer being pleased. Counting those as new content is how one
  * recommendation of 五花肉 stayed on the list as two.
  */
-const PRAISE_CHARS = new Set(Array.from('好吃讚棒巨超級强強推必愛美味香爆紅人氣讚嘆值得真的很非常超讚不錯優秀'));
+const PRAISE_CHARS = new Set(Array.from(
+  '好吃讚棒巨超級强強愛美味香爆紅人氣讚嘆值得真的很非常超讚不錯優秀'
+  // Texture and taste. 「五花肉Q彈多汁」 beside 「推薦菜品：五花肉」 is one
+  // recommendation of one dish, and everything the second adds is how pleasant
+  // it was — which is the writer's experience of it, not a second fact.
+  + 'q彈嫩脆滑酥濃juicy鮮甜軟綿厚實多汁'
+));
+
+/**
+ * How much a note may add, across kinds, and still be a restatement.
+ *
+ * Two notes of different kinds normally both stand — 「必點海鮮麵」 is not
+ * 「海鮮麵餐廳」. But a note whose only addition to another's topic is how good
+ * it tasted is that note with enthusiasm attached, whatever grammatical shape
+ * it takes. One stray character is allowed because praise is never listed
+ * exhaustively.
+ */
+const MAX_NEW_ACROSS_KINDS = 1;
 
 /** Digits, which are the one thing two notes must never be assumed to share. */
 const digitsOf = (text: string): string => (noteKey(text).match(/[0-9０-９]+/g) || []).join(',');
@@ -217,7 +234,7 @@ const digitsOf = (text: string): string => (noteKey(text).match(/[0-9０-９]+/g
  * two notes carrying different figures are two facts however alike they read.
  */
 export const noteRestatesDescription = (existing: string, candidate: string): boolean => {
-  if (noteKind(existing) !== noteKind(candidate)) return false;
+  const sameKind = noteKind(existing) === noteKind(candidate);
 
   const haveDigits = digitsOf(existing);
   const incomingDigits = digitsOf(candidate);
@@ -230,7 +247,36 @@ export const noteRestatesDescription = (existing: string, candidate: string): bo
     if (have.has(char)) shared += 1;
     else if (!PRAISE_CHARS.has(char)) added += 1;
   });
-  return shared >= MIN_SHARED_TOPIC_CHARS && added <= MAX_NEW_TOPIC_CHARS;
+  if (shared < MIN_SHARED_TOPIC_CHARS) return false;
+  return added <= (sameKind ? MAX_NEW_TOPIC_CHARS : MAX_NEW_ACROSS_KINDS);
+};
+
+/**
+ * How much a note may add to the place's own name and still say nothing.
+ *
+ * 「鹽烤肉餐廳」 under 味贊王鹽烤肉 adds 餐廳 — it names the category the name
+ * already announced. Two characters, because that is what 餐廳 / 咖啡店 / 市場
+ * cost; a note that genuinely adds something adds more than a category word.
+ */
+const MAX_NEW_BEYOND_NAME = 2;
+
+/**
+ * Whether a note only repeats the place's own name back.
+ *
+ * Only descriptions are ever dropped this way. 「必點海鮮麵」 at a place called
+ * 海鮮麵餐廳 repeats the name too, and is still the one line worth reading.
+ */
+export const noteRestatesPlaceName = (placeName: string, candidate: string): boolean => {
+  if (!placeName.trim() || noteKind(candidate) === 'action') return false;
+  const name = topicChars(placeName);
+  if (name.size < MIN_SHARED_TOPIC_CHARS) return false;
+  let shared = 0;
+  let added = 0;
+  topicChars(candidate).forEach(char => {
+    if (name.has(char)) shared += 1;
+    else if (!PRAISE_CHARS.has(char)) added += 1;
+  });
+  return shared >= MIN_SHARED_TOPIC_CHARS && added <= MAX_NEW_BEYOND_NAME;
 };
 
 /**
@@ -239,7 +285,7 @@ export const noteRestatesDescription = (existing: string, candidate: string): bo
  * Longest first, so the fuller sentence is the one kept: it is the one that
  * carries the detail the shorter version left out.
  */
-export const dedupeNoteTexts = (texts: string[]): string[] => {
+export const dedupeNoteTexts = (texts: string[], placeName?: string): string[] => {
   /*
     Order is the model's, and it is kept: it leads with what it thinks matters.
 
@@ -270,6 +316,8 @@ export const dedupeNoteTexts = (texts: string[]): string[] => {
   */
   const kept: string[] = [];
   distinct.forEach(text => {
+    // A description of the place that only repeats its name says nothing.
+    if (placeName && noteRestatesPlaceName(placeName, text)) return;
     if (kept.some(saved => noteRestatesDescription(saved, text))) return;
     kept.push(text);
   });

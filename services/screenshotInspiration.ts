@@ -70,7 +70,7 @@ export const slicesToSavedInspirations = (
     const lines = dedupeNoteTexts([
       ...(slice.summary ? [slice.summary] : []),
       ...slice.notes.map(note => note.text),
-    ]);
+    ], slice.placeName || slice.title);
 
     const notes: SavedExperienceNote[] = lines
       .map(text => ({

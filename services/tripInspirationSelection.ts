@@ -39,8 +39,8 @@ export interface PlaceCoordinates {
  * Works on the notes rather than on their text so the surviving note keeps its
  * id and its provenance — the picker matches planned places by those.
  */
-const keepDistinctNotes = (notes: SavedExperienceNote[]): SavedExperienceNote[] => {
-  const kept = dedupeNoteTexts(notes.map(note => note.text));
+const keepDistinctNotes = (notes: SavedExperienceNote[], placeName: string): SavedExperienceNote[] => {
+  const kept = dedupeNoteTexts(notes.map(note => note.text), placeName);
   const remaining = [...kept];
   return notes.filter(note => {
     const index = remaining.indexOf(note.text.trim());
@@ -365,7 +365,7 @@ export const groupInspirationsByPlace = (
       looking at today read correctly, without rewriting rows he did not ask
       anyone to touch.
     */
-    experienceNotes: keepDistinctNotes(group.experienceNotes),
+    experienceNotes: keepDistinctNotes(group.experienceNotes, group.placeName),
     missingPlaceIdentity: !group.placeId && !group.coordinates,
   }));
 };

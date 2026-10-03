@@ -29,8 +29,13 @@ describe('dedupeNoteTexts', () => {
     expect(dedupeNoteTexts(['飯點人超多需排號', '推薦菜品：五花肉'])).toHaveLength(2);
   });
 
-  it('does not let a very short note swallow a longer one', () => {
-    expect(dedupeNoteTexts(['週二公休日請注意', '週二'])).toHaveLength(2);
+  it('drops a fragment that adds nothing to a fuller note', () => {
+    // 「週二」 beside 「週二公休日請注意」 is the first two characters of it.
+    expect(dedupeNoteTexts(['週二公休日請注意', '週二'])).toEqual(['週二公休日請注意']);
+  });
+
+  it('keeps a short note that carries its own fact', () => {
+    expect(dedupeNoteTexts(['週二公休日請注意', '可以刷卡'])).toHaveLength(2);
   });
 });
 
@@ -179,5 +184,59 @@ describe('同一件事換句話說', () => {
 
   it('still keeps what to order beside what the place is', () => {
     expect(dedupeNoteTexts(['海鮮麵餐廳', '必點海鮮麵'])).toHaveLength(2);
+  });
+});
+
+/**
+ * 「這修正過了 又重複內容」.
+ *
+ * 味贊王鹽烤肉 came back with 「鹽烤肉餐廳」 and 「五花肉Q彈多汁」 beside
+ * 「推荐菜品：五花肉」. The first says what the place's own name already says;
+ * the second is the same recommendation plus how good it tasted.
+ */
+describe('a note that adds only enthusiasm, or only the name', () => {
+  const pork = [
+    '饭点人超多需排号',
+    '营业时间：12:00 - 23:00（15:00 - 17:00 为休息准备时间）',
+    '推荐菜品：五花肉',
+    '鹽烤肉餐廳',
+    '五花肉Q彈多汁',
+    '配鹽和各種小菜',
+    '位於海雲台',
+  ];
+
+  it('drops a description that only repeats the place name', () => {
+    expect(dedupeNoteTexts(pork, '味贊王鹽烤肉')).not.toContain('鹽烤肉餐廳');
+  });
+
+  it('drops a second mention of the same dish that only says it was good', () => {
+    // Texture and taste are the writer's experience of a dish, not a second fact
+    // about it — and the dish was already named.
+    expect(dedupeNoteTexts(pork, '味贊王鹽烤肉')).not.toContain('五花肉Q彈多汁');
+  });
+
+  it('keeps the five that are each their own fact', () => {
+    expect(dedupeNoteTexts(pork, '味贊王鹽烤肉')).toEqual([
+      '饭点人超多需排号',
+      '营业时间：12:00 - 23:00（15:00 - 17:00 为休息准备时间）',
+      '推荐菜品：五花肉',
+      '配鹽和各種小菜',
+      '位於海雲台',
+    ]);
+  });
+
+  it('still keeps what to order at a place named after the dish', () => {
+    // 「必點海鮮麵」 repeats the name too, and is the one line worth reading.
+    expect(dedupeNoteTexts(['海鮮麵餐廳', '必點海鮮麵', '對面是廣安里海水浴場'], 'Nasari Sigdang'))
+      .toHaveLength(3);
+  });
+
+  it('keeps a description that adds more than a category word', () => {
+    expect(dedupeNoteTexts(['韓國特色傳統市場', '推薦糖餅', '排隊人潮多'], '海雲台傳統市場'))
+      .toHaveLength(3);
+  });
+
+  it('leaves everything alone when the place name is not given', () => {
+    expect(dedupeNoteTexts(['鹽烤肉餐廳'])).toEqual(['鹽烤肉餐廳']);
   });
 });
