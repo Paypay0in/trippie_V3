@@ -33,6 +33,7 @@ import {
 import { estimateRoute } from '../services/routesService';
 import { defaultItineraryDate, enumerateLocalDates, localToday } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
+import { stayDepartedFrom, stayIsLocated } from '../services/dayOrigin';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
 import DayBlockPlanner from './DayBlockPlanner';
@@ -212,6 +213,19 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
 
   // Derived from the whole itinerary, not from this day: the check-in and
   // check-out cards that define the span sit on other days.
+  /*
+    The hotel this day starts from.
+
+    「每天第一個行程要記得由旅館到第一個行程的交通要顯示在行程表」 — the morning leg
+    out of the hotel is the one the traveller plans around, and it was the only
+    leg the timeline never drew. Separate from `tonightsStay`, which is where
+    they sleep at the end of the day: on a check-out morning those are two
+    different answers, and only one of them is where they are standing.
+  */
+  const morningStay = useMemo(
+    () => (activeDate ? stayDepartedFrom(staysFromItinerary(items), activeDate) : undefined),
+    [items, activeDate],
+  );
   const tonightsStay = useMemo(
     () => (activeDate ? stayForNight(staysFromItinerary(items), activeDate) : undefined),
     [items, activeDate],
@@ -1077,6 +1091,47 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           <div className="space-y-3">
             {(previewItemsTimed ?? previewItems.filter(isTimedItem)).map((item, index, rendered) => (
               <React.Fragment key={item.id}>
+              {/*
+                Out of the hotel, to the first stop.
+
+                Only before the first card of the day, and only while nothing is
+                being dragged — mid-drag the first card is not yet the first
+                card, and a leg redrawn on every pointer move would be a
+                flicker rather than an answer.
+              */}
+              {index === 0 && !dragItemId && morningStay && (
+                stayIsLocated(morningStay) && typeof item.latitude === 'number' && typeof item.longitude === 'number' ? (
+                  <div data-testid={`morning-leg-${item.id}`}>
+                    <p className="ml-[62px] mb-1 flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                      <BedDouble size={11} className="shrink-0" />從 {morningStay.name} 出發
+                    </p>
+                    <TransportLeg
+                    origin={{ latitude: morningStay.latitude!, longitude: morningStay.longitude!, title: morningStay.name }}
+                    destination={{ latitude: item.latitude, longitude: item.longitude, title: item.title }}
+                    destinationCountry={destinationCountry}
+                    /*
+                      No `availableMinutes` and no push-back.
+
+                      Nothing before this leg has an end time — when they leave
+                      the room is theirs to decide — so there is no gap to
+                      measure and no earlier item to cascade from. Inventing a
+                      departure time would be telling them they are late by a
+                      clock they never set.
+                    */
+                    departureTime={activeDate ? new Date(`${activeDate}T${item.time}:00`).toISOString() : undefined}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    data-testid={`morning-leg-unavailable-${item.id}`}
+                    className="ml-[62px] rounded-2xl border border-dashed border-[#e6e3f3] px-3 py-2 text-[10px] font-bold leading-4 text-slate-400"
+                  >
+                    {stayIsLocated(morningStay)
+                      ? '第一個行程還沒連結地圖，無法計算從旅館出發的交通時間'
+                      : `${morningStay.name} 還沒連結地圖，無法計算出發的交通時間`}
+                  </div>
+                )
+              )}
               <div
                 ref={node => { cardRefs.current[item.id] = node; }}
                 data-item-id={item.id}
