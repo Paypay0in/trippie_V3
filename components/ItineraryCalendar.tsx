@@ -34,6 +34,8 @@ import { defaultItineraryDate, enumerateLocalDates, localToday } from '../servic
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
+import DayBlockPlanner from './DayBlockPlanner';
+import { fixedAnchorSchedule } from '../services/itineraryDayFloor';
 import SavedPlaceCard from './SavedPlaceCard';
 import StayDetailSheet from './StayDetailSheet';
 import TransportLeg from './TransportLeg';
@@ -91,6 +93,21 @@ interface Props {
   /** Removes one suggestion without writing anything. */
   onDismissSuggestion?: (suggestionId: string) => void;
   /**
+   * The traveller's saved places, for the block planner's dropdowns.
+   *
+   * Omit to hide the planner entirely: a day of empty blocks with nothing to
+   * put in them is a form that cannot be filled in.
+   */
+  savedPlaces?: Array<{
+    id: string;
+    placeName: string;
+    areaLabel?: string;
+    areaColorIndex?: number;
+    alreadyPlanned?: boolean;
+  }>;
+  /** Writes a place into a block. The caller owns the item and its persistence. */
+  onFillBlock?: (input: { date: string; time: string; durationMinutes: number; placeGroupId: string }) => void;
+  /**
    * The trip's areas, computed once from the plan and the collection together.
    *
    * 「行程就需要也有分顏色 讓用戶知道大行程在哪區」. Passed in rather than computed
@@ -136,7 +153,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -815,6 +832,32 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       return count > 0 ? <span data-testid={`suggestion-badge-${date}`} className="absolute right-2 top-2 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">{count}</span> : null;
     })()}</button>;
       })}</div>}
+
+      {/*
+        The day as blocks, above the day as cards.
+
+        「我們根本無法用行程表的這個功能」 — the timeline below shows what the day
+        is; this is where it gets built. Both read the same items, because a
+        filled block is an item: a second store of 「the day's blocks」 would be
+        a second answer to 「what is at 14:00」.
+      */}
+      {savedPlaces && onFillBlock && activeDate && (
+        <DayBlockPlanner
+          date={activeDate}
+          items={timedItems}
+          fixedSchedule={fixedAnchorSchedule(items)}
+          places={savedPlaces}
+          areas={areas}
+          isFixed={isFixedItem}
+          onFillBlock={(slot, placeGroupId) => onFillBlock({
+            date: activeDate,
+            time: slot.startTime,
+            durationMinutes: slot.durationMinutes,
+            placeGroupId,
+          })}
+          onChangeDuration={onChangeDuration ? (itemId, minutes) => { onChangeDuration(itemId, minutes); } : undefined}
+        />
+      )}
 
       {/*
         The arranged order no longer reads chronologically. The times are shown

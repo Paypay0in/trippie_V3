@@ -167,8 +167,9 @@ import {
 import { applyTripInspirations } from "./services/applyTripInspirations";
 import { effectiveTaxRule } from "./services/effectiveTaxRule";
 import { buildTripAreas } from "./services/tripAreas";
+import { inspirationGroupToItineraryItem } from "./services/inspirationToItinerary";
 import { mergeSharedTaxRule, toSharedTaxRule } from "./services/sharedTaxRule";
-import { matchesTripDestination, selectTripInspirationGroups } from "./services/tripInspirationSelection";
+import { matchesTripDestination, selectPlannedInspirationGroupIds, selectTripInspirationGroups } from "./services/tripInspirationSelection";
 import { flightModeFromAnchors } from "./services/tripSyncMapping";
 import ItineraryPlanningAssistant from "./components/ItineraryPlanningAssistant";
 import TravelBookView from "./components/TravelBookView";
@@ -2403,6 +2404,51 @@ const App: React.FC = () => {
     }),
     [itinerary, tripScopedInspirations, tripInspirationContext],
   );
+
+  /*
+    The saved places the block planner offers, with the area each one is in.
+
+    Derived from the same groups the areas were built from, so the colour in a
+    dropdown is the colour on the card it becomes.
+  */
+  const blockPlannerPlaces = useMemo(() => {
+    const groups = selectTripInspirationGroups(tripScopedInspirations, tripInspirationContext);
+    const planned = selectPlannedInspirationGroupIds(groups, itinerary);
+    return groups.map((group) => {
+      const area = tripAreas.areaOfInspiration(group.id);
+      return {
+        id: group.id,
+        placeName: group.placeName,
+        areaLabel: area?.label,
+        areaColorIndex: area?.colorIndex,
+        alreadyPlanned: planned.has(group.id),
+      };
+    });
+  }, [tripScopedInspirations, tripInspirationContext, itinerary, tripAreas]);
+
+  /**
+   * Fills one block of a day with a saved place.
+   *
+   * 「讓用戶用下拉式選單的方式來排行程」. The block decides the time and the length;
+   * the place brings its own address, coordinates and notes, so the card that
+   * appears is the same one the AI planner would have produced — only the
+   * choosing was done by hand.
+   */
+  const handleFillDayBlock = ({ date, time, durationMinutes, placeGroupId }: {
+    date: string; time: string; durationMinutes: number; placeGroupId: string;
+  }) => {
+    const groups = selectTripInspirationGroups(tripScopedInspirations, tripInspirationContext);
+    const group = groups.find((entry) => entry.id === placeGroupId);
+    if (!group) return;
+
+    const item = {
+      ...inspirationGroupToItineraryItem(group, generateId, date),
+      time,
+      durationMinutes,
+    };
+    setItinerary((current) => [...current, item]);
+    showToast(`已排入 ${time}・${group.placeName}`);
+  };
 
   const resolvedTaxRule = useMemo(
     () => effectiveTaxRule(taxRule, travelRules, tripDestination || travelCountry),
@@ -5989,6 +6035,8 @@ const App: React.FC = () => {
         </div>
         <ItineraryCalendar
           areas={tripAreas}
+          savedPlaces={blockPlannerPlaces}
+          onFillBlock={handleFillDayBlock}
           items={itinerary}
           startDate={tripStartDate}
           endDate={tripEndDate}
@@ -6819,6 +6867,8 @@ const App: React.FC = () => {
               <>
                 <ItineraryCalendar
                   areas={tripAreas}
+                  savedPlaces={blockPlannerPlaces}
+                  onFillBlock={handleFillDayBlock}
                   items={itinerary}
                   startDate={tripStartDate}
                   endDate={tripEndDate}
