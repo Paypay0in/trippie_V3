@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDaySlots, slotForTime } from './dayTemplate';
+import { buildDaySlots, buildDayTemplate, slotForTime } from './dayTemplate';
 import { FixedScheduleEntry } from './itineraryDayFloor';
 
 /**
@@ -111,5 +111,72 @@ describe('slotForTime', () => {
     expect(slotForTime(slots, '08:00')).toBeUndefined();
     expect(slotForTime(slots, undefined)).toBeUndefined();
     expect(slotForTime(slots, 'nope')).toBeUndefined();
+  });
+});
+
+/**
+ * 「先 B 然後讓用戶可以自己調整停留時間，AI 也可以建議。後來的行程就都要自動提前或
+ * 順延」.
+ *
+ * A block's length is an input and its start time is an output. That is what
+ * keeps the day from drifting: the shift is deliberate and whole, rather than
+ * each item guessing a clock and overlapping the next.
+ */
+describe('a block the traveller lengthened', () => {
+  it('pushes everything after it later', () => {
+    const slots = buildDaySlots({ date: DAY, dayStart: '10:00', dayEnd: '20:00', durations: { 0: 180 } });
+
+    expect(slots.map(slot => slot.startTime)).toEqual(['10:00', '13:00', '15:00', '17:00']);
+  });
+
+  it('pulls everything after it earlier when shortened', () => {
+    const slots = buildDaySlots({ date: DAY, dayStart: '10:00', dayEnd: '20:00', durations: { 0: 60 } });
+
+    // 19:00 would run to 21:00, past the 20:00 end, so the day stops at 17:00.
+    expect(slots.map(slot => slot.startTime)).toEqual(['10:00', '11:00', '13:00', '15:00', '17:00']);
+  });
+
+  it('keeps the length on the block it was set on, not on the clock', () => {
+    // Keyed by position: a block keyed on 「14:00」 would change identity the
+    // moment an earlier one was lengthened, and the length just set would
+    // belong to a different block.
+    const slots = buildDaySlots({ date: DAY, dayStart: '10:00', dayEnd: '20:00', durations: { 0: 180, 1: 60 } });
+
+    expect(slots[0].durationMinutes).toBe(180);
+    expect(slots[1].durationMinutes).toBe(60);
+    expect(slots[1].startTime).toBe('13:00');
+  });
+
+  it('lets the clock rename the blocks it moved', () => {
+    // A morning that runs long turns the next block into lunch by itself.
+    const slots = buildDaySlots({ date: DAY, dayStart: '10:00', dayEnd: '20:00', durations: { 0: 150 } });
+
+    expect(slots[1].label).toBe('午餐');
+  });
+
+  it('says so when the lengthened block itself no longer fits', () => {
+    // 「延長後排不進今天」 is worth saying out loud; quietly overrunning the time
+    // they have to leave for the airport is the overlap this design ends.
+    const template = buildDayTemplate({
+      date: DAY, dayStart: '10:00', dayEnd: '16:00', durations: { 1: 300 },
+    });
+
+    expect(template.ranOutOfDay).toBe(true);
+    expect(template.slots.map(slot => slot.startTime)).toEqual(['10:00']);
+  });
+
+  it('never runs a block past the time they leave for the airport', () => {
+    const template = buildDayTemplate({
+      date: DAY,
+      dayStart: '10:00',
+      fixedSchedule: [{ date: DAY, time: '16:00', durationMinutes: 120, label: '前往機場', role: 'to_airport' }],
+      durations: { 0: 300 },
+    });
+
+    expect(template.slots.every(slot => slot.endTime <= '16:00')).toBe(true);
+  });
+
+  it('is not an overflow when the day simply ends', () => {
+    expect(buildDayTemplate({ date: DAY, dayStart: '10:00', dayEnd: '20:00' }).ranOutOfDay).toBe(false);
   });
 });

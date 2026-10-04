@@ -21,16 +21,26 @@ import { FixedScheduleEntry, earliestFreeStartByDate, latestFreeStartByDate } fr
 export type DaySlotKind = 'meal' | 'activity';
 
 export interface DaySlot {
-  /** Stable for a given day and position, so a selection survives a re-render. */
+  /**
+   * Stable for a given day and position.
+   *
+   * By position rather than by clock time, because the clock moves: 「後來的行程
+   * 就都要自動提前或順延」, so a block keyed on 「14:00」 would change identity the
+   * moment an earlier block was lengthened, and the length the traveller just
+   * set would belong to a different block.
+   */
   id: string;
+  /** Where it sits in the day, counting from zero. */
+  index: number;
   kind: DaySlotKind;
   /** 早餐 / 上午行程 / 午餐 / 下午行程 / 晚餐 / 晚上行程. */
   label: string;
   startTime: string;
   endTime: string;
+  durationMinutes: number;
 }
 
-/** 「一個行程都預設抓 2 小時」, meals included. */
+/** 「一個行程都預設抓 2 小時」, meals included — until the traveller says otherwise. */
 export const BLOCK_MINUTES = 120;
 
 /** When the day starts if the traveller has not said. */
@@ -82,6 +92,27 @@ export interface DayTemplateInput {
   /** The flights and check-ins this day has to fit around. */
   fixedSchedule?: FixedScheduleEntry[];
   blockMinutes?: number;
+  /**
+   * How long each block runs, by position, where the traveller or the AI has
+   * said something other than the default.
+   *
+   * 「讓用戶可以自己調整停留時間，AI 也可以建議。後來的行程就都要自動提前或順延」 —
+   * so a block's length is an input and its start time is an output. Lengthen
+   * the morning and the afternoon moves with it, rather than overlapping it.
+   */
+  durations?: Record<number, number>;
+}
+
+export interface DayTemplate {
+  slots: DaySlot[];
+  /**
+   * True when the day filled up before the blocks did.
+   *
+   * 「延長後晚餐排不進今天」 is worth saying out loud. The alternative — quietly
+   * running a block past the time they have to leave for the airport — is the
+   * overlap this whole design exists to end.
+   */
+  ranOutOfDay: boolean;
 }
 
 /**
@@ -90,13 +121,14 @@ export interface DayTemplateInput {
  * Empty when the flights leave no room — an arrival landing at 20:00 has no
  * day to plan, and offering three slots after it would be inventing time.
  */
-export const buildDaySlots = ({
+export const buildDayTemplate = ({
   date,
   dayStart,
   dayEnd,
   fixedSchedule = [],
   blockMinutes = BLOCK_MINUTES,
-}: DayTemplateInput): DaySlot[] => {
+  durations = {},
+}: DayTemplateInput): DayTemplate => {
   /*
     The flights decide the edges, and the traveller decides the middle.
 
@@ -118,21 +150,54 @@ export const buildDaySlots = ({
   const slots: DaySlot[] = [];
   let cursor = toMinutes(start);
   const limit = toMinutes(end);
+  let index = 0;
+  let ranOutOfDay = false;
 
-  while (cursor + blockMinutes <= limit) {
+  /*
+    Each block starts where the one before it ended.
+
+    That is the whole of 「自動提前或順延」: a length is set, every later start
+    time follows from it, and nothing has to be dragged. The label is read off
+    the resulting clock, so a morning that runs long turns the next block into
+    lunch by itself.
+  */
+  const MAX_BLOCKS = 12;
+  while (index < MAX_BLOCKS) {
+    const minutes = Number.isFinite(durations[index]) && (durations[index] as number) > 0
+      ? (durations[index] as number)
+      : blockMinutes;
+
+    if (cursor + minutes > limit) {
+      /*
+        A block the day has no room for. Said rather than squeezed.
+
+        Only when the custom length is what pushed it out: a day that simply
+        ends is not an overflow, and reporting one would put a warning on every
+        ordinary evening.
+      */
+      ranOutOfDay = cursor + blockMinutes <= limit;
+      break;
+    }
+
     const meal = mealAt(cursor);
     slots.push({
-      id: `${date}-${toClock(cursor)}`,
+      id: `${date}#${index}`,
+      index,
       kind: meal ? 'meal' : 'activity',
       label: meal || activityLabel(cursor),
       startTime: toClock(cursor),
-      endTime: toClock(cursor + blockMinutes),
+      endTime: toClock(cursor + minutes),
+      durationMinutes: minutes,
     });
-    cursor += blockMinutes;
+    cursor += minutes;
+    index += 1;
   }
 
-  return slots;
+  return { slots, ranOutOfDay };
 };
+
+/** The blocks alone, for callers that do not care whether the day filled up. */
+export const buildDaySlots = (input: DayTemplateInput): DaySlot[] => buildDayTemplate(input).slots;
 
 /**
  * Which block an existing itinerary item sits in.
