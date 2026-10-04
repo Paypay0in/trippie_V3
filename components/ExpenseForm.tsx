@@ -1,5 +1,6 @@
 
 import { OVERLAY } from '../constants/layers';
+import { isForeignSplit, resolveExactSplit, splitTwdToEntry } from '../services/exactSplitCurrency';
 import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
@@ -167,8 +168,19 @@ const ExpenseForm: React.FC<Props> = ({
       companions.forEach(c => initial[c.id] = '');
       
       if (initialData?.splitAllocations && (initialData.splitMethod === 'EXACT' || initialData.splitMethod === 'PERCENT')) {
+           /*
+             Back into the currency the boxes are in.
+
+             Stored allocations are TWD; an exact split is read and typed in the
+             bill's own currency, so reopening a 28,000 KRW split must show won
+             again rather than the TWD it settles in. Percentages are already
+             unit-free and convert to nothing.
+           */
+           const toEntry = (value: number) => (initialData.splitMethod === 'EXACT'
+             ? splitTwdToEntry(value, initialData.currency, initialData.exchangeRate)
+             : value);
            Object.entries(hydratedSplitAllocations.values).forEach(([id, val]) => {
-               initial[id] = val.toString();
+               initial[id] = String(Math.round(toEntry(val)));
            });
       }
       return initial;
@@ -511,6 +523,24 @@ const ExpenseForm: React.FC<Props> = ({
 
   const currentTotalTwd = (parseFloat(amount || '0') * parseFloat(exchangeRate || '1')) + (category === Category.EXCHANGE ? parseFloat(handlingFee || '0') : 0);
 
+  /*
+    An exact split is entered in the currency the bill was paid in.
+
+    「該筆帳的金額是用韓幣計價 但是分帳的時候只能顯示用台幣分帳 是錯誤的」. The boxes
+    were labelled TWD and held TWD, so splitting a 28,000 KRW dinner meant
+    converting it in your head first — and the number a traveller actually has
+    is 「她那份一萬韓元」, read off the bill in front of them.
+
+    Stored in TWD regardless, because that is what the ledger settles in; the
+    conversion happens here, with the rate already on this form.
+  */
+  const splitCurrency = (currency || 'TWD').toUpperCase();
+  const splitRate = parseFloat(exchangeRate || '1');
+  /** The bill, in its own currency: what the exact boxes add up to. */
+  const currentTotalEntry = isForeignSplit(splitCurrency, splitRate)
+    ? (parseFloat(amount || '0') || 0)
+    : currentTotalTwd;
+
   const exactLastBeneficiaryId = splitMethod === 'EXACT' && beneficiaries.length > 0
       ? beneficiaries[beneficiaries.length - 1]
       : undefined;
@@ -520,10 +550,10 @@ const ExpenseForm: React.FC<Props> = ({
       .reduce((sum, id) => sum + Math.max(0, parseFloat(customInputs[id] || '0') || 0), 0);
 
   const exactRemainder = splitMethod === 'EXACT'
-      ? Math.max(0, currentTotalTwd - getExactManualTotal())
+      ? Math.max(0, currentTotalEntry - getExactManualTotal())
       : 0;
 
-  const exactAllocationExceedsTotal = splitMethod === 'EXACT' && getExactManualTotal() > currentTotalTwd + 0.0001;
+  const exactAllocationExceedsTotal = splitMethod === 'EXACT' && getExactManualTotal() > currentTotalEntry + 0.0001;
   const percentLastBeneficiaryId = splitMethod === 'PERCENT' && beneficiaries.length > 0
       ? beneficiaries[beneficiaries.length - 1]
       : undefined;
@@ -583,22 +613,29 @@ const ExpenseForm: React.FC<Props> = ({
     let finalAllocations: Record<string, number> = {};
     
     if (splitEnabled && splitMethod === 'EXACT') {
-        const manualTotal = beneficiaries
-            .filter(id => id !== exactLastBeneficiaryId)
-            .reduce((sum, id) => {
-                const value = Math.max(0, parseFloat(customInputs[id] || '0') || 0);
-                if (value > 0) finalAllocations[id] = value;
-                return sum + value;
-            }, 0);
+        /*
+          Typed in the bill's currency, stored in TWD.
 
-        if (manualTotal > totalTwd + 0.0001) {
+          The arithmetic lives in exactSplitCurrency rather than here: it decides
+          who owes what, and that is worth being testable on its own.
+        */
+        const typed: Record<string, number> = {};
+        beneficiaries.forEach(id => { typed[id] = parseFloat(customInputs[id] || '0') || 0; });
+        const exact = resolveExactSplit({
+            amount: parseFloat(amount || '0') || 0,
+            currency,
+            exchangeRate: rate,
+            totalTwd,
+            typed,
+            remainderMemberId: exactLastBeneficiaryId,
+        });
+
+        if (exact.exceedsTotal) {
             alert('分攤金額超過支出總額');
             return;
         }
 
-        if (exactLastBeneficiaryId) {
-            finalAllocations[exactLastBeneficiaryId] = Math.max(0, totalTwd - manualTotal);
-        }
+        finalAllocations = exact.allocations;
     } else if (splitEnabled && splitMethod === 'PERCENT') {
         const manualPercent = beneficiaries
             .filter(id => id !== percentLastBeneficiaryId)
@@ -1229,7 +1266,7 @@ const ExpenseForm: React.FC<Props> = ({
                                   <div className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2">
                                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700">{ownerLabel.charAt(0)}</span>
                                       <span className="w-12 truncate text-xs font-bold text-[#11183d]">{ownerLabel}</span>
-                                      <span className="text-[10px] font-bold text-slate-400">TWD</span>
+                                      <span className="text-[10px] font-bold text-slate-400">{splitMethod === 'PERCENT' ? '%' : splitCurrency}</span>
                                       <input 
                                           type="number"
                                       value={effectiveOwnerMemberId === exactLastBeneficiaryId ? Math.round(exactRemainder) : effectiveOwnerMemberId === percentLastBeneficiaryId ? Math.round(percentRemainder) : customInputs[effectiveOwnerMemberId]}
@@ -1244,7 +1281,7 @@ const ExpenseForm: React.FC<Props> = ({
                                       <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2">
                                           <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${companionIndex % 3 === 0 ? 'bg-pink-100 text-pink-700' : companionIndex % 3 === 1 ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'}`}>{c.name.charAt(0)}</span>
                                           <span className="text-xs font-bold text-[#11183d] w-12 truncate">{c.name}</span>
-                                          <span className="text-[10px] font-bold text-slate-400">TWD</span>
+                                          <span className="text-[10px] font-bold text-slate-400">{splitMethod === 'PERCENT' ? '%' : splitCurrency}</span>
                                           <input 
                                               type="number"
                                               value={c.id === exactLastBeneficiaryId ? Math.round(exactRemainder) : c.id === percentLastBeneficiaryId ? Math.round(percentRemainder) : customInputs[c.id]}
