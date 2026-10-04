@@ -1,4 +1,5 @@
-import { Category, Expense, TravelRules } from '../types';
+import { Expense, TravelRules } from '../types';
+import { isRefundableCategory } from './refundableCategories';
 import { calculateExpenseLedger } from './splitCalculator';
 import { rateForAmount, refundObservationsFrom, ruleLooksWrong } from './refundObservations';
 
@@ -114,7 +115,14 @@ export const deriveDuringRefundState = ({
         return (paid[viewerMemberId] || 0) > 0;
       })
     : expenses;
-  const shoppingExpenses = mine.filter(expense => expense.phase === 'during' && expense.category === Category.SHOPPING);
+  /*
+    Every bucket a bought thing lands in, not only 購物.
+
+    「還是有好幾筆沒有出現在這上面」 — a cup filed as 伴手禮 and a ring filed as
+    飾品配件 were absent from the card altogether. Korea refunds goods; which
+    drawer this app put them in is not the counter's business.
+  */
+  const shoppingExpenses = mine.filter(expense => expense.phase === 'during' && isRefundableCategory(expense.category));
   const targetCurrencyRate = shoppingExpenses.find(expense => expense.currency.toUpperCase() === rule.currency && Number.isFinite(expense.exchangeRate) && expense.exchangeRate > 0)?.exchangeRate;
   const normalizeAmount = (expense: Expense): number | undefined => {
     if (expense.currency.toUpperCase() === rule.currency) return expense.amount;

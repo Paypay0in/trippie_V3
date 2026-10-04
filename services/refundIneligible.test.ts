@@ -136,3 +136,33 @@ describe('不可退稅的標記', () => {
     expect(fromExpenseRow({} as never).taxRefundIneligible).toBeUndefined();
   });
 });
+
+/**
+ * 「還是有好幾筆沒有出現在這上面」 — the estimate counted 購物 and nothing else,
+ * so a cup filed as 伴手禮 never reached the card at all.
+ */
+describe('the refund estimate', () => {
+  it('counts every bucket a bought thing lands in', () => {
+    const state = deriveDuringRefundState({
+      expenses: [
+        purchase('cup', 18900, { category: Category.SOUVENIR }),
+        purchase('ring', 15000, { category: Category.ACCESSORIES }),
+        purchase('case', 30800, { category: Category.SHOPPING }),
+      ],
+      travelRules,
+    });
+
+    if (state.status !== 'estimate_available') throw new Error('expected an estimate');
+    expect(state.eligibleItems.map(item => item.expense.id).sort()).toEqual(['case', 'cup', 'ring']);
+  });
+
+  it('still leaves a meal out of it', () => {
+    const state = deriveDuringRefundState({
+      expenses: [purchase('case', 30800), purchase('dinner', 40000, { category: Category.FOOD })],
+      travelRules,
+    });
+
+    if (state.status !== 'estimate_available') throw new Error('expected an estimate');
+    expect(state.eligibleItems.map(item => item.expense.id)).toEqual(['case']);
+  });
+});

@@ -1,4 +1,5 @@
-import { Category, Expense, TaxRule } from '../types';
+import { Expense, TaxRule } from '../types';
+import { isRefundableCategory } from './refundableCategories';
 
 /**
  * Whether a recorded purchase is still worth carrying to the refund counter.
@@ -13,7 +14,7 @@ import { Category, Expense, TaxRule } from '../types';
  */
 export const qualifiesForRefund = (expense: Expense, taxRule?: TaxRule | null): boolean => {
   if (!taxRule || !(taxRule.refundRate > 0) || !Number.isFinite(taxRule.minSpend)) return false;
-  if (expense.phase !== 'during' || expense.category !== Category.SHOPPING) return false;
+  if (expense.phase !== 'during' || !isRefundableCategory(expense.category)) return false;
   // Only a bill in the rule's own currency can be judged against its threshold.
   if ((expense.currency || '').toUpperCase() !== (taxRule.currency || '').toUpperCase()) return false;
   if (!Number.isFinite(expense.amount) || expense.amount < taxRule.minSpend) return false;

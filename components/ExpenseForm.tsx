@@ -1,6 +1,7 @@
 
 import { OVERLAY } from '../constants/layers';
 import { isForeignSplit, resolveExactSplit, splitTwdToEntry } from '../services/exactSplitCurrency';
+import { isRefundableCategory } from '../services/refundableCategories';
 import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
@@ -730,12 +731,12 @@ const ExpenseForm: React.FC<Props> = ({
   const isEligibleForRefund = taxRule
                               && taxRule.refundRate > 0
                               && currentPhase === 'during'
-                              && category === Category.SHOPPING
+                              && isRefundableCategory(category)
                               && parseFloat(amount || '0') >= taxRule.minSpend
                               && (currency.toUpperCase() === taxRule.currency.toUpperCase()); 
 
   const estimatedRefund = isEligibleForRefund ? parseFloat(amount || '0') * taxRule.refundRate : 0;
-  const taxRefundGuidance = category === Category.SHOPPING ? travelRules?.taxRefund : undefined;
+  const taxRefundGuidance = isRefundableCategory(category) ? travelRules?.taxRefund : undefined;
 
   // Section heading shared by the three form groups, so the grouping reads as
   // one system rather than three ad-hoc labels.

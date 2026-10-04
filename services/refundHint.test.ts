@@ -50,11 +50,45 @@ describe('qualifiesForRefund', () => {
   });
 
   it('stays quiet outside the trip itself', () => {
-    expect(qualifiesForRefund(purchase(30800, { phase: 'before' }), korea)).toBe(false);
+    expect(qualifiesForRefund(purchase(30800, { phase: 'pre' as never }), korea)).toBe(false);
   });
 
   it('stays quiet with no rule, or a rule that cannot be calculated', () => {
     expect(qualifiesForRefund(purchase(30800), null)).toBe(false);
     expect(qualifiesForRefund(purchase(30800), { ...korea, refundRate: 0 })).toBe(false);
+  });
+});
+
+/**
+ * 「還是有好幾筆沒有出現在這上面」.
+ *
+ * 給écho的杯子 and 涼草幸運草 were absent from the refund card altogether,
+ * because the filter counted 購物 and nothing else — while a traveller files a
+ * cup as 伴手禮 and a ring as 飾品配件. Korea refunds goods; which drawer this
+ * app put them in is not the counter's business.
+ */
+describe('a purchase filed under another kind of shopping', () => {
+  const goods = [
+    Category.SOUVENIR,
+    Category.COSMETICS,
+    Category.ELECTRONICS,
+    Category.FASHION,
+    Category.ACCESSORIES,
+    Category.HELP_BUY,
+  ];
+
+  goods.forEach(category => {
+    it(`counts ${category}`, () => {
+      expect(qualifiesForRefund(purchase(18900, { category }), korea)).toBe(true);
+    });
+  });
+
+  it('still says nothing about what was never goods', () => {
+    // 其他 is where a tip, a fee or a service lands as often as a thing, and a
+    // refund prompt on those is a wrong answer rather than a missing one.
+    expect(qualifiesForRefund(purchase(40000, { category: Category.FOOD }), korea)).toBe(false);
+    expect(qualifiesForRefund(purchase(40000, { category: Category.TRANSPORT }), korea)).toBe(false);
+    expect(qualifiesForRefund(purchase(40000, { category: Category.TICKET }), korea)).toBe(false);
+    expect(qualifiesForRefund(purchase(40000, { category: Category.OTHER }), korea)).toBe(false);
   });
 });
