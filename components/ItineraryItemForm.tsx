@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
-import { ItineraryItem } from '../types';
+import { ItineraryItem, ItineraryVisibility } from '../types';
+import { visibilityOf } from '../services/itineraryVisibility';
 import { autocompletePlaces, getPlaceDetails, PlaceSuggestion, ResolvedPlace } from '../services/placeService';
-import { Activity, CalendarDays, Car, Check, Clock3, Hotel, MapPin, MapPinned, Plane, Search, Utensils, X } from 'lucide-react';
+import { Activity, CalendarDays, Car, Check, Clock3, Hotel, MapPin, MapPinned, Plane, Search, User, Users, Utensils, X } from 'lucide-react';
 
 interface Props {
   item?: ItineraryItem;
@@ -15,6 +16,8 @@ interface Props {
   destinationCountry?: string;
   travelCountry?: string;
   initialDate?: string;
+  /** Who is editing, so a personal item can record whose it is. */
+  viewerUserId?: string;
 }
 
 const TYPES: ItineraryItem['type'][] = ['ACTIVITY', 'FOOD', 'TRANSPORT', 'FLIGHT', 'HOTEL'];
@@ -26,11 +29,19 @@ const TYPE_META: Record<ItineraryItem['type'], { label: string; icon: React.Reac
   FLIGHT: { label: '航班', icon: <Plane size={14} /> },
 };
 
-const ItineraryItemForm: React.FC<Props> = ({ item, startDate, endDate, onSave, onCancel, destinationLatitude, destinationLongitude, destinationCountry, travelCountry, initialDate }) => {
+const ItineraryItemForm: React.FC<Props> = ({ item, startDate, endDate, onSave, onCancel, destinationLatitude, destinationLongitude, destinationCountry, travelCountry, initialDate, viewerUserId }) => {
   const [form, setForm] = useState({
     title: item?.title || '', location: item?.location || '', date: item?.date || initialDate || startDate || '',
     time: item?.time || '09:00', type: item?.type || 'ACTIVITY' as ItineraryItem['type'], notes: item?.notes || ''
   });
+  /*
+    共同 or 個人.
+
+    「行程並不是所有人的都會相同，所以要有可以共享本行程或是個人行程的選項」. Shared
+    by default, because that is what the trip is for and what every existing
+    item is; personal is the exception somebody chooses.
+  */
+  const [visibility, setVisibility] = useState<ItineraryVisibility>(visibilityOf(item ?? {}));
   const [error, setError] = useState('');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [place, setPlace] = useState<ResolvedPlace & { location: string } | null>(item?.latitude != null && item.longitude != null ? { location: item.location, address: item.address, placeId: item.placeId, latitude: item.latitude, longitude: item.longitude } : null);
@@ -63,7 +74,13 @@ const ItineraryItemForm: React.FC<Props> = ({ item, startDate, endDate, onSave, 
     onSave({
       id: item?.id || '', title: form.title.trim(), location: (place?.location || form.location).trim(), date: form.date,
       time: form.time, type: form.type, notes: form.notes.trim(),
-      isCompleted: item?.isCompleted === true, ...(item?.linkedExpenseId ? { linkedExpenseId: item.linkedExpenseId } : {}), ...(place ? { placeId: place.placeId, address: place.address, latitude: place.latitude, longitude: place.longitude } : {})
+      isCompleted: item?.isCompleted === true,
+      // Only a personal item carries an owner. A shared one belongs to the
+      // trip, not to whoever typed it, so stamping a name on it would be a
+      // claim nobody made. An edit keeps the original owner.
+      ...(visibility === 'personal'
+        ? { visibility, ownerUserId: item?.ownerUserId || viewerUserId || undefined }
+        : {}), ...(item?.linkedExpenseId ? { linkedExpenseId: item.linkedExpenseId } : {}), ...(place ? { placeId: place.placeId, address: place.address, latitude: place.latitude, longitude: place.longitude } : {})
     });
   };
 
@@ -75,6 +92,33 @@ const ItineraryItemForm: React.FC<Props> = ({ item, startDate, endDate, onSave, 
         <label className="block text-[11px] font-bold text-slate-500">標題<input required value={form.title} onChange={e => update('title', e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-[#111A4A] outline-none focus:border-brand-300" /></label>
         <div className="grid grid-cols-2 gap-2.5"><label className="text-[11px] font-bold text-slate-500"><span className="flex items-center gap-1"><CalendarDays size={12} />日期</span><input required type="date" min={startDate} max={endDate} value={form.date} onChange={e => update('date', e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-sm text-[#111A4A] outline-none focus:border-brand-300" /></label><label className="text-[11px] font-bold text-slate-500"><span className="flex items-center gap-1"><Clock3 size={12} />時間</span><input required type="time" value={form.time} onChange={e => update('time', e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2 py-2 text-sm text-[#111A4A] outline-none focus:border-brand-300" /></label></div>
         <fieldset><legend className="mb-1.5 text-[11px] font-bold text-slate-500">類型</legend><div className="flex flex-wrap gap-1.5">{TYPES.map(type => <button type="button" key={type} onClick={() => update('type', type)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${form.type === type ? 'border-brand-500 bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-white shadow-[0_5px_14px_rgba(91,61,245,0.2)]' : 'border-slate-200 bg-white text-slate-500 hover:border-brand-200 hover:text-brand-600'}`}>{TYPE_META[type].icon}{TYPE_META[type].label}</button>)}</div></fieldset>
+        <fieldset>
+          <legend className="mb-1.5 text-[11px] font-bold text-slate-500">誰的行程</legend>
+          <div className="flex gap-1.5">
+            {([
+              { value: 'shared' as const, label: '共同行程', hint: '同行的人都算' },
+              { value: 'personal' as const, label: '我的個人行程', hint: '只佔我的時間' },
+            ]).map(choice => (
+              <button
+                type="button"
+                key={choice.value}
+                onClick={() => setVisibility(choice.value)}
+                aria-pressed={visibility === choice.value}
+                data-testid={`item-visibility-${choice.value}`}
+                className={`flex-1 rounded-2xl border px-3 py-2 text-left transition-colors ${
+                  visibility === choice.value
+                    ? 'border-brand-500 bg-brand-50/70 text-brand-700'
+                    : 'border-slate-200 bg-white text-slate-500 hover:border-brand-200'
+                }`}
+              >
+                <span className="flex items-center gap-1.5 text-[11px] font-black">
+                  {choice.value === 'shared' ? <Users size={12} /> : <User size={12} />}{choice.label}
+                </span>
+                <span className="mt-0.5 block text-[10px] font-medium text-slate-400">{choice.hint}</span>
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <label className="block text-[11px] font-bold text-slate-500">備註（選填）<span className="relative block"><textarea maxLength={200} value={form.notes} onChange={e => update('notes', e.target.value)} rows={2} className="mt-1 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 pb-5 text-sm text-[#111A4A] outline-none focus:border-brand-300" /><span className="pointer-events-none absolute bottom-1.5 right-2 text-[9px] font-medium text-slate-400">{form.notes.length}/200</span></span></label>
       </div>
       {error && <p className="text-xs font-bold text-rose-600">{error}</p>}

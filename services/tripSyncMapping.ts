@@ -212,6 +212,10 @@ export interface ItineraryItemRow {
   derived_from_flight_anchor_id: string | null;
   source_inspiration_ids: unknown;
   saved_travel_notes: unknown;
+  /** 共同 or 個人; null means shared, as every pre-existing row is. */
+  visibility: string | null;
+  /** Whose item it is, when it is personal. */
+  owner_user_id: string | null;
 }
 
 const ITEM_TYPES = ['FLIGHT', 'HOTEL', 'ACTIVITY', 'FOOD', 'TRANSPORT'] as const;
@@ -243,6 +247,11 @@ export const toItineraryRow = (item: ItineraryItem, tripId: string): ItineraryIt
   derived_from_flight_anchor_id: item.derivedFromFlightAnchorId ?? null,
   source_inspiration_ids: item.sourceInspirationIds ?? [],
   saved_travel_notes: item.savedTravelNotes ?? [],
+  // Null rather than 'shared', so a row written by an older client and a row
+  // written by this one are the same row — otherwise the fingerprints differ
+  // and every open republishes the whole itinerary.
+  visibility: item.visibility === 'personal' ? 'personal' : null,
+  owner_user_id: item.visibility === 'personal' ? item.ownerUserId ?? null : null,
 });
 
 export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
@@ -274,6 +283,8 @@ export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
   savedTravelNotes: Array.isArray(row.saved_travel_notes)
     ? (row.saved_travel_notes as ItineraryItem['savedTravelNotes'])
     : undefined,
+  visibility: row.visibility === 'personal' ? 'personal' : undefined,
+  ownerUserId: row.visibility === 'personal' ? row.owner_user_id ?? undefined : undefined,
 });
 
 export interface FlightAnchorRow {

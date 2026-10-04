@@ -639,6 +639,9 @@ export type ScheduleFlexibility = 'fixed' | 'flexible';
  */
 export type FixedEventKind = 'flight' | 'train' | 'reservation' | 'ticketed_event' | 'accommodation';
 
+/** 共同行程 or 個人行程. See `services/itineraryVisibility.ts` for the rules. */
+export type ItineraryVisibility = 'shared' | 'personal';
+
 export interface ItineraryItem {
   id: string;
   time: string;
@@ -685,6 +688,20 @@ export interface ItineraryItem {
    * field changes nothing until someone actually reorders something.
    */
   sortOrder?: number;
+  /**
+   * Whether this is the trip's item or one person's.
+   *
+   * 「行程並不是所有人的都會相同，所以要有可以共享本行程或是個人行程的選項」. Absent
+   * means shared — which is what every item written before this field was.
+   */
+  visibility?: ItineraryVisibility;
+  /**
+   * Whose item it is, when it is personal.
+   *
+   * Only meaningful alongside `visibility: 'personal'`; a shared item belongs
+   * to the trip, not to whoever happened to type it.
+   */
+  ownerUserId?: string;
   sourceInspirationIds?: string[];
   /**
    * Experience notes copied from the Saved Inspiration this item came from, so the

@@ -3247,6 +3247,24 @@ const App: React.FC = () => {
     companions,
     friends,
   );
+
+  /*
+    The roster, for saying whose a personal itinerary item is.
+
+    Built from the same `buildTripMembers` every other screen uses, so a
+    companion's item is labelled with the name the split screen and the ledger
+    already show them under.
+  */
+  const itineraryRoster = useMemo(
+    () => buildTripMembers(
+      activeDraftId || currentLoadedTripId || "active",
+      settlementOwnerUserId,
+      ownerDisplayName,
+      companions,
+      friends,
+    ),
+    [activeDraftId, currentLoadedTripId, settlementOwnerUserId, ownerDisplayName, companions, friends],
+  );
   // Who is actually looking at this trip. Previously hard-wired to the owner,
   // which made every ownership check trivially true. It now resolves against
   // the roster and only falls back to the owner when the account has no seat
@@ -6060,6 +6078,8 @@ const App: React.FC = () => {
           </p>
         </div>
         <ItineraryCalendar
+          viewerUserId={currentUserId}
+          members={itineraryRoster}
           areas={tripAreas}
           savedPlaces={blockPlannerPlaces}
           onFillBlock={handleFillDayBlock}
@@ -6093,6 +6113,7 @@ const App: React.FC = () => {
         />
         {itineraryFormItem !== undefined && (
           <ItineraryItemForm
+            viewerUserId={currentUserId}
             item={itineraryFormItem || undefined}
             initialDate={itineraryFormDate}
             startDate={tripStartDate}
@@ -6893,6 +6914,8 @@ const App: React.FC = () => {
               /* Standard Phase Views */
               <>
                 <ItineraryCalendar
+                  viewerUserId={currentUserId}
+                  members={itineraryRoster}
                   areas={tripAreas}
                   savedPlaces={blockPlannerPlaces}
                   onFillBlock={handleFillDayBlock}
@@ -6922,6 +6945,7 @@ const App: React.FC = () => {
                 />
                 {itineraryFormItem !== undefined && (
                   <ItineraryItemForm
+                    viewerUserId={currentUserId}
                     item={itineraryFormItem || undefined}
                     initialDate={itineraryFormDate}
                     startDate={tripStartDate}

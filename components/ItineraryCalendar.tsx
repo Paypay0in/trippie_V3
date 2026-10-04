@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
-import { ItineraryItem, PlaceCommerceInfo } from '../types';
+import { ItineraryItem, PlaceCommerceInfo, TripMember } from '../types';
+import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
 import { fetchPlaceCommerce, hasDisplayableCommerce } from '../services/placeCommerceService';
@@ -20,7 +21,7 @@ import {
   SNAP_MINUTES,
   timeToMinutes,
 } from '../services/itineraryTimeline';
-import { GripVertical, Lock, AlertTriangle, Pin, PinOff } from 'lucide-react';
+import { GripVertical, Lock, AlertTriangle, Pin, PinOff, User, Users } from 'lucide-react';
 import {
   applyFixedEventAdjustment,
   buildFixedEventAdjustment,
@@ -116,6 +117,17 @@ interface Props {
    * one list holds a place the other does not, which is most of the time.
    */
   areas?: TripAreas;
+  /**
+   * Who is looking.
+   *
+   * 「你的朋友可以在他的行程表上看到你的行程」 — so the same day renders differently
+   * for each traveller: their own plan, plus what their companions are doing
+   * beside it. Absent means every personal item reads as the viewer's own,
+   * which is the right answer for a trip nobody has signed into.
+   */
+  viewerUserId?: string;
+  /** The trip's members, used only to say whose a companion's item is. */
+  members?: TripMember[];
 }
 
 /** One un-accepted AI suggestion, flattened for display. */
@@ -153,7 +165,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, viewerUserId, members = [] }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -207,7 +219,25 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   // The day's cards, in the order the user arranged them (or chronological until
   // they arrange one). This is a journey list, not a calendar: the gap between
   // two cards is always the same, whatever the gap between their times.
-  const dayItems = useMemo(() => orderItemsForDay(itemsForDay(items, activeDate)), [items, activeDate]);
+  /*
+    The day, split by whose it is.
+
+    Everything below — ordering, overlap detection, the blocks, the drag
+    targets, the AI's bounds — runs on `dayItems`, and `dayItems` is only the
+    viewer's own. A companion's haircut is worth seeing but must not make my
+    14:00 look taken, must not trip my overlap warning, and must not be
+    something I can drag.
+  */
+  const dayPartition = useMemo(
+    () => partitionDayByViewer(orderItemsForDay(itemsForDay(items, activeDate)), viewerUserId),
+    [items, activeDate, viewerUserId],
+  );
+  const dayItems = dayPartition.mine;
+  /** What the viewer's companions have on this day, for the strip below. */
+  const companionItems = useMemo(
+    () => dayPartition.theirs.slice().sort((left, right) => (left.time || '99:99').localeCompare(right.time || '99:99')),
+    [dayPartition],
+  );
   const timedItems = useMemo(() => dayItems.filter(isTimedItem), [dayItems]);
   const untimedItems = useMemo(() => dayItems.filter(item => !isTimedItem(item)), [dayItems]);
 
@@ -1099,6 +1129,21 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                       {describeCollision(item, timedItems)}
                     </p>
                   )}
+                  {/*
+                    Mine alone, said on the card.
+
+                    Without it a personal item is indistinguishable from a joint
+                    one on my own plan, and the choice I made when I wrote it
+                    becomes invisible the moment I stop looking at the form.
+                  */}
+                  {isPersonal(item) && (
+                    <p
+                      data-testid={`personal-badge-${item.id}`}
+                      className="mb-1.5 inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500"
+                    >
+                      <User size={11} className="shrink-0" />{OWN_PERSONAL_LABEL}
+                    </p>
+                  )}
                   {renderCard(item)}
                 </div>
               </div>
@@ -1142,6 +1187,43 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               })()}
               </React.Fragment>
             ))}
+          </div>
+        )}
+
+        {/*
+          What the other travellers are doing today.
+
+          「你的朋友可以在他的行程表上看到你的行程」. Read-only and outside the
+          timeline on purpose: it is information about somebody else's day, not
+          a row of mine to drag, retime or delete. Inside the timeline it would
+          take a block, trip the overlap warning, and invite me to edit a plan
+          that is not mine.
+        */}
+        {companionItems.length > 0 && (
+          <div data-testid="companion-itinerary" className="mt-4 rounded-[22px] border border-[#e8e7f4] bg-[#fbfaff] p-3">
+            <h4 className="flex items-center gap-1.5 text-[11px] font-black text-slate-500">
+              <Users size={12} className="text-slate-400" />同行者今天的個人行程
+            </h4>
+            <ul className="mt-2 space-y-1.5">
+              {companionItems.map(item => (
+                <li
+                  key={item.id}
+                  data-testid={`companion-item-${item.id}`}
+                  className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2"
+                >
+                  <span className="w-11 shrink-0 font-mono text-[11px] font-black text-slate-400">{item.time || '—'}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold text-[#11183d]">{item.title || item.location}</span>
+                    {item.location && item.title !== item.location && (
+                      <span className="block truncate text-[10px] font-medium text-slate-400">{item.location}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 rounded-lg bg-slate-100 px-1.5 py-1 text-[10px] font-bold text-slate-500">
+                    {ownerLabelFor(item, members, viewerUserId)}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
