@@ -34,6 +34,7 @@ import { estimateRoute } from '../services/routesService';
 import { defaultItineraryDate, enumerateLocalDates, localToday } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
 import { stayDepartedFrom, stayIsLocated } from '../services/dayOrigin';
+import { isStayItem, stayRoleOf } from '../services/stayConflicts';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
 import DayBlockPlanner from './DayBlockPlanner';
@@ -246,7 +247,23 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     () => partitionDayByViewer(orderItemsForDay(itemsForDay(items, activeDate)), viewerUserId),
     [items, activeDate, viewerUserId],
   );
-  const dayItems = dayPartition.mine;
+  /*
+    入住 and 退房 are reminders, not stops.
+
+    「入住與退房 不是一個行程 是一個提醒事項」. As timeline cards they took a slot
+    on the day, sat between two real stops in the sequence, and made the
+    journey either side uncomputable — a 11:00 退房 card is why a day read as
+    though the traveller travelled to their own hotel room in the middle of the
+    afternoon. They are still the same items, still the thing the stay is
+    derived from; they simply do not belong in the line of places visited.
+  */
+  const dayItems = useMemo(() => dayPartition.mine.filter(entry => !isStayItem(entry)), [dayPartition]);
+  /** The day's check-in / check-out, shown as a line rather than a stop. */
+  const stayReminders = useMemo(
+    () => dayPartition.mine.filter(isStayItem).slice()
+      .sort((left, right) => (left.time || '').localeCompare(right.time || '')),
+    [dayPartition],
+  );
   /** What the viewer's companions have on this day, for the strip below. */
   const companionItems = useMemo(
     () => dayPartition.theirs.slice().sort((left, right) => (left.time || '99:99').localeCompare(right.time || '99:99')),
@@ -1035,6 +1052,29 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         the traveller is staying. This is derived from the same two cards, so
         it needs no extra data and stays true when either one is edited.
       */}
+      {/*
+        The two times the room decides, said as reminders.
+
+        Beside the property rather than inside the day: 「入住與退房 不是一個行程
+        是一個提醒事項」. They answer 「when do I have to be out」, which is a
+        constraint on the day, not a place in it.
+      */}
+      {stayReminders.length > 0 && (
+        <div data-testid="stay-reminders" className="mb-2 flex flex-wrap gap-1.5">
+          {stayReminders.map(reminder => (
+            <span
+              key={reminder.id}
+              data-testid={`stay-reminder-${reminder.id}`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#ecebf5] bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-500"
+            >
+              <BedDouble size={12} className="shrink-0 text-[#5b3df5]" />
+              {stayRoleOf(reminder) === 'check_out' ? '退房' : '入住'}
+              <span className="font-mono text-[#6b4df6]">{reminder.time}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {tonightsStay ? (
         <button
           type="button"
