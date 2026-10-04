@@ -204,11 +204,20 @@ const ExpenseList: React.FC<Props> = ({
                     const isIncome = item.amount < 0;
                     const Icon = isIncome ? ArrowDownLeft : getCategoryIcon(item.category);
 
-                    // Check Tax Eligibility (Only for positive spendings)
-                    const isRefundable = !isIncome && taxRule &&
-                                         item.phase === 'during' &&
-                                         item.currency === taxRule.currency &&
-                                         item.amount >= taxRule.minSpend;
+                    /*
+                      Still worth carrying to the counter.
+
+                      「這幾個不符合退稅資格 我有標記 但你黃色標籤依然標退稅資格」 —
+                      this row had its own copy of the rule, and that copy knew
+                      nothing about 不可退稅, nothing about 結帳時已退稅, and
+                      nothing about the five other categories a bought thing
+                      lands in. It went on promising a refund on purchases the
+                      traveller had already ruled out.
+
+                      One rule, shared with the estimate: a row that says 退稅
+                      資格 is a row inside the total on the refund card.
+                    */
+                    const isRefundable = !isIncome && qualifiesForRefund(item, taxRule);
 
                     const { payer, involved, isPersonal, sharerCount, viewerShare } =
                         summariseExpenseRow(item, members, viewerMemberId, tripOwnerMemberId);
@@ -308,7 +317,7 @@ const ExpenseList: React.FC<Props> = ({
                                     {isIncome ? '退稅入帳' : isPersonal ? '個人支出' : item.category}
                                 </span>
                                 {isRefundable && (
-                                    <span className="flex items-center gap-0.5 whitespace-nowrap rounded-md border border-amber-200 bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700">
+                                    <span data-testid={`refund-eligible-${item.id}`} className="flex items-center gap-0.5 whitespace-nowrap rounded-md border border-amber-200 bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700">
                                         <Tag size={10} /> 退稅資格
                                     </span>
                                 )}
@@ -371,19 +380,7 @@ const ExpenseList: React.FC<Props> = ({
                                         已退稅 −{Math.round(refunded).toLocaleString()}
                                     </div>
                                 )}
-                                {/*
-                                  Still worth carrying to the counter.
 
-                                  「怎麼都沒跳出可退稅的提示」 — a 30,800 KRW purchase
-                                  looked exactly like the 8,000 KRW one that does
-                                  not qualify. The estimate knew; the row did not
-                                  say, and the row is what gets read while packing.
-                                */}
-                                {qualifiesForRefund(item, taxRule) && (
-                                    <div data-testid={`refund-eligible-${item.id}`} className="text-[11px] font-bold text-amber-600">
-                                        可退稅
-                                    </div>
-                                )}
                                 {/*
                                   A split bill says what it cost you, not only what it cost.
 

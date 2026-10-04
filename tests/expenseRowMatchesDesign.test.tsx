@@ -231,3 +231,47 @@ describe('一筆還能去退稅的購物', () => {
     expect(screen.queryByTestId('refund-eligible-e-case')).toBeNull();
   });
 });
+
+/**
+ * 「這幾個不符合退稅資格 我有標記 但你黃色標籤依然標退稅資格」.
+ *
+ * The row carried its own copy of the rule — one that knew nothing about
+ * 不可退稅, nothing about 結帳時已退稅, and nothing about the other categories a
+ * bought thing lands in. It went on promising a refund on purchases the
+ * traveller had already ruled out, next to a card that had stopped counting
+ * them.
+ */
+describe('退稅資格這個標籤', () => {
+  const korea = { country: '韓國', currency: 'KRW', minSpend: 15000, refundRate: 0.06, notes: '' };
+
+  const bought = (id: string, amount: number, over: Partial<Expense> = {}) => expense({
+    id, description: id, category: Category.SHOPPING, currency: 'KRW', exchangeRate: 0.023,
+    amount, twdAmount: Math.round(amount * 0.023), payerId: ME, beneficiaries: [ME],
+    ...over,
+  });
+
+  it('標記不可退稅之後就不再出現', () => {
+    list([bought('e-ring', 15000, { taxRefundIneligible: true })], { taxRule: korea });
+
+    expect(screen.queryByTestId('refund-eligible-e-ring')).toBeNull();
+    expect(screen.queryByText('退稅資格')).toBeNull();
+  });
+
+  it('結帳時已退稅的也不再出現', () => {
+    list([bought('e-case', 30800, { taxRefundedAtPurchase: true })], { taxRule: korea });
+
+    expect(screen.queryByTestId('refund-eligible-e-case')).toBeNull();
+  });
+
+  it('伴手禮也算，跟退稅卡一致', () => {
+    list([bought('e-cup', 18900, { category: Category.SOUVENIR })], { taxRule: korea });
+
+    expect(screen.getByTestId('refund-eligible-e-cup')).toBeTruthy();
+  });
+
+  it('餐飲永遠不會被標成可退稅', () => {
+    list([bought('e-dinner', 40000, { category: Category.FOOD })], { taxRule: korea });
+
+    expect(screen.queryByTestId('refund-eligible-e-dinner')).toBeNull();
+  });
+});
