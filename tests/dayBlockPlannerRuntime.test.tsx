@@ -159,3 +159,50 @@ describe('what the day adds up to', () => {
     expect(screen.getByText(/航班佔掉了/)).toBeTruthy();
   });
 });
+
+/**
+ * 「這個表 不是刪掉行程就會消失 要固定存在 欄位可以寫『無』」.
+ *
+ * The table used to start at the first item's time, so a day whose first stop
+ * was at 17:00 had no morning at all — and deleting that stop took its block
+ * away with it. The table is the day; the items are only what is in it.
+ */
+describe('the table itself', () => {
+  const evening = [item('it-cheongsapo', 'Cheongsapo', '17:00', {
+    latitude: 35.1607, longitude: 129.1919, address: '12 Cheongsapo-ro, Haeundae, Busan',
+  })];
+
+  it('covers the whole day even when the only stop is in the evening', () => {
+    renderPlanner({ items: evening });
+
+    expect(screen.getByTestId('day-block-0').textContent).toContain('10:00–12:00');
+  });
+
+  it('puts that stop in the block its time falls in', () => {
+    renderPlanner({ items: evening });
+
+    expect(screen.getByTestId('day-block-3').textContent).toContain('Cheongsapo');
+  });
+
+  it('still shows every block when the day is empty', () => {
+    renderPlanner({ items: [], areas: undefined });
+
+    expect(screen.getByTestId('day-block-0')).toBeTruthy();
+    expect(screen.getByTestId('day-block-4')).toBeTruthy();
+  });
+
+  it('writes 無 in a block with nothing in it', () => {
+    renderPlanner({ items: evening });
+
+    expect(screen.getByTestId('day-block-0').textContent).toContain('無');
+  });
+
+  it('never leaves an early stop outside the grid', () => {
+    // An 08:00 item on a day that opens at 10:00 would otherwise have no block
+    // to sit in, and would read as though it had been deleted.
+    renderPlanner({ items: [item('it-early', '早市', '08:00')] });
+
+    expect(screen.getByTestId('day-block-0').textContent).toContain('早市');
+    expect(screen.getByTestId('day-block-0').textContent).toContain('08:00–10:00');
+  });
+});

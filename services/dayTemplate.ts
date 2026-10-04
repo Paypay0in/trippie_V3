@@ -38,6 +38,8 @@ export interface DaySlot {
   startTime: string;
   endTime: string;
   durationMinutes: number;
+  /** The itinerary item in this block, where there is one. */
+  occupantId?: string;
 }
 
 /** 「一個行程都預設抓 2 小時」, meals included — until the traveller says otherwise. */
@@ -101,6 +103,19 @@ export interface DayTemplateInput {
    * the morning and the afternoon moves with it, rather than overlapping it.
    */
   durations?: Record<number, number>;
+  /**
+   * What is already on this day, by the clock.
+   *
+   * 「這個表 不是刪掉行程就會消失 要固定存在」. The blocks are the day, not a
+   * rendering of the items in it — so an item is placed into whichever block
+   * its time falls in, and the blocks before and after it exist either way. A
+   * day whose first item is at 17:00 still has a morning.
+   *
+   * An occupant's own length wins for the block it sits in, and everything
+   * after it moves: that is the same cascade a traveller gets by changing a
+   * length by hand.
+   */
+  occupants?: Array<{ id: string; time?: string; durationMinutes?: number }>;
 }
 
 export interface DayTemplate {
@@ -128,6 +143,7 @@ export const buildDayTemplate = ({
   fixedSchedule = [],
   blockMinutes = BLOCK_MINUTES,
   durations = {},
+  occupants = [],
 }: DayTemplateInput): DayTemplate => {
   /*
     The flights decide the edges, and the traveller decides the middle.
@@ -141,7 +157,18 @@ export const buildDayTemplate = ({
   const ceiling = latestFreeStartByDate(fixedSchedule)[date];
 
   const requested = isClock(dayStart) ? dayStart : DEFAULT_DAY_START;
-  const start = floor && floor > requested ? floor : requested;
+  /*
+    Nothing already on the day may fall outside the grid.
+
+    An item at 08:00 on a day that starts at 10:00 would otherwise have no
+    block to sit in, and would read as though it had been deleted.
+  */
+  const earliestOccupant = occupants
+    .map(entry => entry.time)
+    .filter(isClock)
+    .sort()[0];
+  const openAt = earliestOccupant && earliestOccupant < requested ? earliestOccupant : requested;
+  const start = floor && floor > openAt ? floor : openAt;
   const end = (() => {
     const wanted = isClock(dayEnd) ? dayEnd : DEFAULT_DAY_END;
     return ceiling && ceiling < wanted ? ceiling : wanted;
@@ -152,6 +179,7 @@ export const buildDayTemplate = ({
   const limit = toMinutes(end);
   let index = 0;
   let ranOutOfDay = false;
+  const used = new Set<string>();
 
   /*
     Each block starts where the one before it ended.
@@ -163,9 +191,24 @@ export const buildDayTemplate = ({
   */
   const MAX_BLOCKS = 12;
   while (index < MAX_BLOCKS) {
-    const minutes = Number.isFinite(durations[index]) && (durations[index] as number) > 0
-      ? (durations[index] as number)
-      : blockMinutes;
+    /*
+      Whatever is already here decides how long this block runs.
+
+      An occupant's own length wins, because the card and the block have to
+      agree; a length set by hand comes next; the default is the fallback.
+    */
+    const occupant = occupants.find(entry =>
+      isClock(entry.time)
+      && !used.has(entry.id)
+      && toMinutes(entry.time as string) >= cursor
+      && toMinutes(entry.time as string) < cursor + blockMinutes);
+    if (occupant) used.add(occupant.id);
+
+    const minutes = occupant && Number.isFinite(occupant.durationMinutes) && (occupant.durationMinutes as number) > 0
+      ? (occupant.durationMinutes as number)
+      : Number.isFinite(durations[index]) && (durations[index] as number) > 0
+        ? (durations[index] as number)
+        : blockMinutes;
 
     if (cursor + minutes > limit) {
       /*
@@ -188,6 +231,7 @@ export const buildDayTemplate = ({
       startTime: toClock(cursor),
       endTime: toClock(cursor + minutes),
       durationMinutes: minutes,
+      ...(occupant ? { occupantId: occupant.id } : {}),
     });
     cursor += minutes;
     index += 1;

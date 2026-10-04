@@ -64,35 +64,37 @@ const DayBlockPlanner: React.FC<Props> = ({
   isFixed,
 }) => {
   /*
-    The day starts when its first item does, or when the traveller says.
+    The day starts when the traveller says, and runs to the evening regardless.
 
-    「可以跟用戶確定每天出發旅遊的時間」 — but a day that already has something in
-    it has answered that question, and asking again would let the two answers
-    disagree. The control only appears while the day is still empty.
+    「這個表 不是刪掉行程就會消失 要固定存在」. It used to start at the first item's
+    time, so a day whose first item was at 17:00 had no morning at all — and
+    deleting that item took its block with it. The table is the day; the items
+    are what is in it.
   */
-  const firstTimed = items.find(item => /^([01]\d|2[0-3]):[0-5]\d$/.test(item.time || ''));
   const [chosenStart, setChosenStart] = useState('');
-  const dayStart = firstTimed?.time || chosenStart || undefined;
 
   /*
-    The lengths of the blocks already filled.
+    The items, by the clock.
 
-    Read off the items rather than stored: an item is where its length lives,
-    and a block's length is that item's. A separate record of 「block 2 is 90
-    minutes」 would disagree with the card the first time one was dragged.
+    Placed into whichever block their time falls in rather than by position, so
+    a gap in the day is a gap in the table rather than a shift of everything
+    after it.
   */
-  const durations = useMemo(() => {
-    const byIndex: Record<number, number> = {};
-    items.forEach((item, index) => {
-      if (Number.isFinite(item.durationMinutes)) byIndex[index] = Number(item.durationMinutes);
-    });
-    return byIndex;
-  }, [items]);
+  const occupants = useMemo(
+    () => items.map(item => ({
+      id: item.id,
+      time: item.time,
+      durationMinutes: Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : undefined,
+    })),
+    [items],
+  );
 
   const { slots, ranOutOfDay } = useMemo(
-    () => buildDayTemplate({ date, dayStart, fixedSchedule, durations }),
-    [date, dayStart, fixedSchedule, durations],
+    () => buildDayTemplate({ date, dayStart: chosenStart || undefined, fixedSchedule, occupants }),
+    [date, chosenStart, fixedSchedule, occupants],
   );
+
+  const itemById = useMemo(() => new Map(items.map(item => [item.id, item])), [items]);
 
   const spread = useMemo(() => (areas ? dayAreaSpread(items, areas) : undefined), [items, areas]);
 
@@ -118,7 +120,7 @@ const DayBlockPlanner: React.FC<Props> = ({
         <h3 className="flex items-center gap-1.5 text-sm font-black text-[#11183d]">
           <Clock3 size={14} className="text-[#5b3df5]" />排今天
         </h3>
-        {!firstTimed && (
+        {(
           <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
             幾點出門
             <input
@@ -161,7 +163,7 @@ const DayBlockPlanner: React.FC<Props> = ({
       ) : (
         <div className="mt-2 space-y-1.5">
           {slots.map(slot => {
-            const occupant = items[slot.index];
+            const occupant = slot.occupantId ? itemById.get(slot.occupantId) : undefined;
             const area = occupant && areas ? areas.areaOfItem(occupant.id) : undefined;
             const fixed = occupant ? Boolean(isFixed?.(occupant)) : false;
 
@@ -190,6 +192,9 @@ const DayBlockPlanner: React.FC<Props> = ({
                     </span>
                   </span>
                 ) : (
+                  <>
+                  {/* 「欄位可以寫『無』」: an empty block is a stated answer, not a gap. */}
+                  <span className="shrink-0 text-[11px] font-bold text-slate-300">無</span>
                   <select
                     data-testid={`fill-block-${slot.index}`}
                     aria-label={`${slot.startTime} ${slot.label}`}
@@ -205,6 +210,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                       </option>
                     ))}
                   </select>
+                  </>
                 )}
 
                 {/*
