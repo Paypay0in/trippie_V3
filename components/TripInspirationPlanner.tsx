@@ -34,6 +34,7 @@ import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsS
 import { localToday } from '../services/localDate';
 import { findPlaceCandidates, PlaceCandidate, resolveCandidate } from '../services/placeCandidates';
 import { clusterSavedPlaces } from '../services/placeClusters';
+import { findMisplacedPlaces } from '../services/misplacedPlaces';
 
 export interface ProposalAcceptanceResult {
   ok: boolean;
@@ -443,6 +444,32 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     [groups],
   );
 
+  /*
+    Saved places bound somewhere this trip is not.
+
+    「錯的就刪了（但要用戶知道）」 — 다고소님 was bound to Danyang-gun, 200km away,
+    because the screenshot misread the name and the search answered with its
+    best guess at a name that does not exist.
+
+    Shown rather than silently repaired: the binding is removed because it is
+    provably wrong, and the row says so, because a list that quietly edits
+    itself is a list nobody can trust the rest of.
+  */
+  const misplaced = useMemo(
+    () => findMisplacedPlaces(groups.map(group => ({
+      id: group.id,
+      placeName: group.placeName,
+      latitude: group.coordinates?.latitude,
+      longitude: group.coordinates?.longitude,
+      formattedAddress: group.formattedAddress,
+    }))),
+    [groups],
+  );
+  const misplacedGroupIds = useMemo(
+    () => new Set(misplaced.map(entry => entry.place.id)),
+    [misplaced],
+  );
+
   /** Which area each row belongs to, and therefore which colour it wears. */
   const areaOfGroup = useMemo(() => {
     const byGroupId = new Map<string, { label: string; colorIndex: number }>();
@@ -668,6 +695,46 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         {/* Already-planned places cannot be selected, so they are out of the tally too. */}
         {selectableCount > 0 && <span className="shrink-0 rounded-xl bg-violet-50 px-2.5 py-1 text-[11px] font-black text-violet-600">已選 {selected.length} / {selectableCount}</span>}
       </div>
+
+      {/*
+        The saved places bound somewhere this trip is not.
+
+        「錯的就刪了（但要用戶知道）」. Named, with the distance, because 「something
+        was wrong and I fixed it」 is not something a traveller can check. The
+        removal is one tap and theirs to make: the name and the notes came off
+        their own screenshot, and only the map binding was ever wrong.
+      */}
+      {misplaced.length > 0 && onRemoveInspirations && (
+        <div data-testid="misplaced-notice" className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+          <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            有 {misplaced.length} 個地點對到了很遠的地方，可能是搜尋時挑錯了
+          </p>
+          <ul className="mt-1.5 space-y-0.5">
+            {misplaced.map(entry => (
+              <li key={entry.place.id} className="text-[11px] font-bold text-amber-700">
+                {entry.place.placeName}
+                <span className="ml-1.5 font-medium text-amber-700/70">
+                  離其他地點約 {entry.distanceFromTripKm.toLocaleString()} 公里
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-[10px] leading-4 text-amber-700/70">
+            點進去可以重新搜尋，改綁正確的店；整筆不要了就按下面移除。
+          </p>
+          <button
+            type="button"
+            data-testid="remove-misplaced"
+            onClick={() => onRemoveInspirations(
+              groups.filter(group => misplacedGroupIds.has(group.id)).flatMap(group => group.inspirationIds),
+            )}
+            className="mt-2 min-h-9 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
+          >
+            移除這 {misplaced.length} 筆
+          </button>
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-5 text-center">
