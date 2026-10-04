@@ -35,6 +35,8 @@ import { localToday } from '../services/localDate';
 import { findPlaceCandidates, PlaceCandidate, resolveCandidate } from '../services/placeCandidates';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
+import { AREA_COLORS } from '../constants/areaColors';
+import { TripAreas } from '../services/tripAreas';
 
 export interface ProposalAcceptanceResult {
   ok: boolean;
@@ -117,6 +119,14 @@ interface Props {
     inspirationIds: string[],
     resolved: { placeId: string; placeName: string; address?: string; latitude?: number; longitude?: number },
   ) => void;
+  /**
+   * The trip's areas, computed from the plan and this list together.
+   *
+   * 「行程就需要也有分顏色」 — an area is only a useful colour if it is the same
+   * colour on both screens. Optional so this component still groups on its own
+   * when nobody has worked them out for it.
+   */
+  areas?: TripAreas;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -124,23 +134,6 @@ const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; su
   { mode: 'fill', label: '把空白的日子排滿', subtitle: '航班、住宿與我固定的項目都不動，其他日子幫我排成完整的一天' },
   { mode: 'reorder', label: '重新安排路線', subtitle: '保留目前想去的景點，調整日期、時間與順序，讓動線更順' },
   { mode: 'replan', label: '重新規劃', subtitle: '參考目前行程、收藏靈感與我的偏好，提出一份新的完整版本' },
-];
-
-/**
- * One colour per area of the city.
- *
- * 「將地址相近的直接分配到同一個顏色區塊」 — the colour is what makes a day's worth
- * of places findable at a glance, so it is carried on the row as a stripe as
- * well as on the heading. Six is enough for a city: a trip with more areas than
- * that is not being planned a day at a time.
- */
-const AREA_COLORS = [
-  { dot: 'bg-violet-500', bar: 'bg-violet-400' },
-  { dot: 'bg-sky-500', bar: 'bg-sky-400' },
-  { dot: 'bg-emerald-500', bar: 'bg-emerald-400' },
-  { dot: 'bg-amber-500', bar: 'bg-amber-400' },
-  { dot: 'bg-rose-500', bar: 'bg-rose-400' },
-  { dot: 'bg-teal-500', bar: 'bg-teal-400' },
 ];
 
 const NOTE_TYPE_LABELS: Partial<Record<ExperienceNoteType, string>> = {
@@ -168,7 +161,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -470,14 +463,42 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     [misplaced],
   );
 
-  /** Which area each row belongs to, and therefore which colour it wears. */
+  /**
+   * Which area each row belongs to, and therefore which colour it wears.
+   *
+   * The trip's own areas when the caller worked them out — they take the plan
+   * into account too, and an area has to be one colour on both screens.
+   */
   const areaOfGroup = useMemo(() => {
     const byGroupId = new Map<string, { label: string; colorIndex: number }>();
+    if (areas) {
+      groups.forEach(group => {
+        const cluster = areas.areaOfInspiration(group.id);
+        if (cluster) byGroupId.set(group.id, { label: cluster.label, colorIndex: cluster.colorIndex });
+      });
+      return byGroupId;
+    }
     areaClusters.forEach(cluster => {
       cluster.places.forEach(place => byGroupId.set(place.id, { label: cluster.label, colorIndex: cluster.colorIndex }));
     });
     return byGroupId;
-  }, [areaClusters]);
+  }, [areas, groups, areaClusters]);
+
+  /*
+    How many saved places are in each area.
+
+    Counted from this list rather than from the cluster, because a shared
+    cluster also holds itinerary items — a heading reading 「5 個」 above three
+    rows is a heading nobody believes.
+  */
+  const areaSizes = useMemo(() => {
+    const counts = new Map<string, number>();
+    groups.forEach(group => {
+      const label = areaOfGroup.get(group.id)?.label;
+      if (label) counts.set(label, (counts.get(label) || 0) + 1);
+    });
+    return counts;
+  }, [groups, areaOfGroup]);
 
   /*
     Ordered by area, so places that belong to the same day sit together.
@@ -488,13 +509,10 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     they cannot be placed on a day until they are placed on a map.
   */
   const orderedGroups = useMemo(() => {
-    const rank = new Map<string, number>();
-    areaClusters.forEach(cluster => {
-      cluster.places.forEach(place => rank.set(place.id, cluster.colorIndex));
-    });
     return [...groups].sort((left, right) =>
-      (rank.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.id) ?? Number.MAX_SAFE_INTEGER));
-  }, [groups, areaClusters]);
+      (areaOfGroup.get(left.id)?.colorIndex ?? Number.MAX_SAFE_INTEGER)
+      - (areaOfGroup.get(right.id)?.colorIndex ?? Number.MAX_SAFE_INTEGER));
+  }, [groups, areaOfGroup]);
 
   const creatorById = useMemo(() => {
     const map = new Map<string, { name: string; avatar?: string }>();
@@ -756,7 +774,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             const area = areaOfGroup.get(group.id);
             const previousArea = orderedIndex > 0 ? areaOfGroup.get(orderedGroups[orderedIndex - 1].id) : undefined;
             const startsArea = (area?.label || '') !== (previousArea?.label || '') || orderedIndex === 0;
-            const areaSize = area ? areaClusters[area.colorIndex]?.places.length ?? 0 : 0;
+            const areaSize = area ? areaSizes.get(area.label) ?? 0 : 0;
             const isPlanned = plannedGroupIds.has(group.id);
             const isSelected = !isPlanned && selected.includes(group.id);
             return (

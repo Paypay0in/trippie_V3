@@ -166,8 +166,9 @@ import {
 } from "./services/screenshotInspiration";
 import { applyTripInspirations } from "./services/applyTripInspirations";
 import { effectiveTaxRule } from "./services/effectiveTaxRule";
+import { buildTripAreas } from "./services/tripAreas";
 import { mergeSharedTaxRule, toSharedTaxRule } from "./services/sharedTaxRule";
-import { matchesTripDestination } from "./services/tripInspirationSelection";
+import { matchesTripDestination, selectTripInspirationGroups } from "./services/tripInspirationSelection";
 import { flightModeFromAnchors } from "./services/tripSyncMapping";
 import ItineraryPlanningAssistant from "./components/ItineraryPlanningAssistant";
 import TravelBookView from "./components/TravelBookView";
@@ -2387,6 +2388,22 @@ const App: React.FC = () => {
    * other, so the form stayed silent about a purchase the refund card was
    * already estimating.
    */
+  /*
+    The trip's areas, computed once from the plan and the collection together.
+
+    「行程就需要也有分顏色 讓用戶知道大行程在哪區」. Clustered here rather than inside
+    each screen so one area wears one colour everywhere: a list clustering only
+    its own places would give 海雲台 purple on the plan and blue in the
+    collection the moment one list holds a place the other does not.
+  */
+  const tripAreas = useMemo(
+    () => buildTripAreas({
+      itinerary,
+      inspirationGroups: selectTripInspirationGroups(tripScopedInspirations, tripInspirationContext),
+    }),
+    [itinerary, tripScopedInspirations, tripInspirationContext],
+  );
+
   const resolvedTaxRule = useMemo(
     () => effectiveTaxRule(taxRule, travelRules, tripDestination || travelCountry),
     [taxRule, travelRules, tripDestination, travelCountry],
@@ -5971,6 +5988,7 @@ const App: React.FC = () => {
           </p>
         </div>
         <ItineraryCalendar
+          areas={tripAreas}
           items={itinerary}
           startDate={tripStartDate}
           endDate={tripEndDate}
@@ -6047,6 +6065,7 @@ const App: React.FC = () => {
           onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
           onRemoveInspirations={handleRemoveInspirations}
           onResolveInspirationPlace={handleResolveInspirationPlace}
+          areas={tripAreas}
           onProposalAccepted={() => setWorkspaceSection("overview")}
         />
         {/*
@@ -6799,6 +6818,7 @@ const App: React.FC = () => {
               /* Standard Phase Views */
               <>
                 <ItineraryCalendar
+                  areas={tripAreas}
                   items={itinerary}
                   startDate={tripStartDate}
                   endDate={tripEndDate}

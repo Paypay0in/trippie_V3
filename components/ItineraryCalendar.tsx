@@ -32,6 +32,8 @@ import {
 import { estimateRoute } from '../services/routesService';
 import { enumerateLocalDates, localToday } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
+import { AREA_COLORS } from '../constants/areaColors';
+import { TripAreas } from '../services/tripAreas';
 import SavedPlaceCard from './SavedPlaceCard';
 import StayDetailSheet from './StayDetailSheet';
 import TransportLeg from './TransportLeg';
@@ -88,6 +90,15 @@ interface Props {
   onAcceptSuggestion?: (suggestionId: string) => Promise<string | null>;
   /** Removes one suggestion without writing anything. */
   onDismissSuggestion?: (suggestionId: string) => void;
+  /**
+   * The trip's areas, computed once from the plan and the collection together.
+   *
+   * 「行程就需要也有分顏色 讓用戶知道大行程在哪區」. Passed in rather than computed
+   * here so 海雲台 is the same colour on this screen as on the collection —
+   * each list clustering its own would give one area two colours the moment
+   * one list holds a place the other does not, which is most of the time.
+   */
+  areas?: TripAreas;
 }
 
 /** One un-accepted AI suggestion, flattened for display. */
@@ -125,7 +136,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -580,6 +591,26 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                       Same card as the collection uses, deliberately: a place is
                       a place, and a second one would drift from this one.
                     */}
+                    {/*
+                      Which part of the city this is, in the colour that area
+                      wears everywhere else.
+
+                      「讓用戶知道大行程在哪區」 — a day reads as a sequence of names
+                      until the colours show that two of them are the same
+                      afternoon and the third is forty minutes away.
+                    */}
+                    {(() => {
+                      const area = areas?.areaOfItem(item.id);
+                      return area ? (
+                        <span
+                          data-testid={`item-area-${item.id}`}
+                          className={`mb-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black ${AREA_COLORS[area.colorIndex % AREA_COLORS.length].soft}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${AREA_COLORS[area.colorIndex % AREA_COLORS.length].dot}`} />
+                          {area.label}
+                        </span>
+                      ) : null;
+                    })()}
                     <button
                       type="button"
                       data-testid={`open-itinerary-place-${item.id}`}
