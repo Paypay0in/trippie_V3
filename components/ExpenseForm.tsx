@@ -1114,27 +1114,52 @@ const ExpenseForm: React.FC<Props> = ({
                       <div className="text-sm font-bold text-emerald-800">
                           {initialData.taxRefundedAtPurchase ? '結帳時已退稅' : '已收到退稅'}
                       </div>
-                      <div className="mt-2 space-y-1 text-xs text-emerald-900">
-                          <div className="flex justify-between">
-                              <span>原始金額</span>
-                              <span className="font-mono">NT$ {Math.round(initialData.twdAmount).toLocaleString()}</span>
+                      {/*
+                        The subtraction happens in the currency it happened in.
+
+                        「消費是韓幣 我覺得退稅計算要用韓幣 最後才估台幣 不然這樣使用
+                        不直覺」. The shop charged 112,800 KRW and handed back 7,000
+                        KRW — both of those are on paper, in won. Showing the
+                        sum as NT$2,673 − NT$166 asks the reader to verify a
+                        subtraction neither of whose terms they have ever seen.
+
+                        TWD is what the trip settles in, so it closes the block
+                        as one converted line rather than disappearing.
+                      */}
+                      {(() => {
+                        const refundEntry = initialData.taxRefundActual;
+                        const foreign = initialData.currency !== 'TWD'
+                          && Number.isFinite(refundEntry as number)
+                          && (refundEntry as number) > 0;
+                        const unit = foreign ? initialData.currency : 'NT$';
+                        const gross = foreign ? initialData.amount : initialData.twdAmount;
+                        const back = foreign ? (refundEntry as number) : refundReceivedInTwd(initialData);
+                        const money = (value: number) => (foreign
+                          ? `${Math.round(value).toLocaleString()} ${unit}`
+                          : `NT$ ${Math.round(value).toLocaleString()}`);
+                        return (
+                          <div className="mt-2 space-y-1 text-xs text-emerald-900">
+                              <div className="flex justify-between">
+                                  <span>原始金額</span>
+                                  <span className="font-mono">{money(gross)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                  <span>已退稅</span>
+                                  <span className="font-mono">− {money(back)}</span>
+                              </div>
+                              <div className="flex justify-between border-t border-emerald-200 pt-1 font-bold">
+                                  <span>實際支出</span>
+                                  <span className="font-mono">{money(Math.max(0, gross - back))}</span>
+                              </div>
+                              {foreign && (
+                                  <div className="flex justify-between text-emerald-700/70">
+                                      <span>約計</span>
+                                      <span className="font-mono">NT$ {Math.round(expenseNetAmount(initialData)).toLocaleString()}</span>
+                                  </div>
+                              )}
                           </div>
-                          <div className="flex justify-between">
-                              <span>
-                                  已退稅
-                                  {initialData.currency !== 'TWD' && initialData.taxRefundActual !== undefined && (
-                                      <span className="ml-1 text-emerald-700/70">
-                                          （{Math.round(initialData.taxRefundActual).toLocaleString()} {initialData.currency}）
-                                      </span>
-                                  )}
-                              </span>
-                              <span className="font-mono">− NT$ {Math.round(refundReceivedInTwd(initialData)).toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between border-t border-emerald-200 pt-1 font-bold">
-                              <span>實際支出</span>
-                              <span className="font-mono">NT$ {Math.round(expenseNetAmount(initialData)).toLocaleString()}</span>
-                          </div>
-                      </div>
+                        );
+                      })()}
                       <p className="mt-2 text-[10px] leading-4 text-emerald-700/70">
                           各項總計與分帳都以「實際支出」計算。退稅金額可在退稅清單裡修改。
                       </p>
