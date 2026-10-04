@@ -32,7 +32,7 @@ import {
 import { ItineraryAcceptanceMode } from '../services/itineraryAcceptance';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { localToday } from '../services/localDate';
-import { findPlaceCandidates, PlaceCandidate, resolveCandidate } from '../services/placeCandidates';
+import { findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
 import { AREA_COLORS } from '../constants/areaColors';
@@ -127,6 +127,14 @@ interface Props {
    * when nobody has worked them out for it.
    */
   areas?: TripAreas;
+  /**
+   * Saves a place the traveller found by hand.
+   *
+   * 「這裡要有可以手動加入的功能」 — until now the only way in was a screenshot, so
+   * a place somebody simply knows about had to be screenshotted first. Omit to
+   * hide the control entirely.
+   */
+  onAddSavedPlace?: (resolved: ResolvedCandidate) => void;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -161,7 +169,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,6 +197,57 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [openPlaceGroupId, setOpenPlaceGroupId] = useState<string | null>(null);
   /** Google's one-line description, for the saved places that carry no points. */
   const [basicsByGroupId, setBasicsByGroupId] = useState<Record<string, string>>({});
+  /*
+    Adding a place by hand, which is its own search.
+
+    Kept apart from the per-row lookup state: they are two different questions —
+    「which place is this saved row really」 and 「what else do I want to add」 —
+    and sharing one box would make opening the second close the first.
+  */
+  const [addOpen, setAddOpen] = useState(false);
+  const [addQuery, setAddQuery] = useState('');
+  const [addResults, setAddResults] = useState<PlaceCandidate[]>([]);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState('');
+
+  const runAddSearch = async () => {
+    const typed = addQuery.trim();
+    if (!typed) return;
+    setAddBusy(true);
+    setAddError('');
+    try {
+      const found = await findPlaceCandidates(typed, {
+        city: trip.destination,
+        country: trip.destinationCountry || trip.travelCountry,
+        latitude: trip.destinationLatitude,
+        longitude: trip.destinationLongitude,
+      });
+      setAddResults(found);
+      if (found.length === 0) setAddError('找不到這個地點，換個說法試試。');
+    } catch {
+      setAddError('現在查不到，請稍後再試。');
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
+  const addChosen = async (candidate: PlaceCandidate) => {
+    if (!onAddSavedPlace) return;
+    setAddBusy(true);
+    try {
+      const resolved = await resolveCandidate(candidate);
+      if (!resolved) { setAddError('這個地點的資料讀不到，換一個試試。'); return; }
+      onAddSavedPlace(resolved);
+      setAddOpen(false);
+      setAddQuery('');
+      setAddResults([]);
+    } catch {
+      setAddError('這個地點的資料讀不到，換一個試試。');
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
   /** The place currently being searched for, and what came back. */
   const [lookupGroupId, setLookupGroupId] = useState<string | null>(null);
   const [lookupQuery, setLookupQuery] = useState('');
@@ -713,6 +772,76 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         {/* Already-planned places cannot be selected, so they are out of the tally too. */}
         {selectableCount > 0 && <span className="shrink-0 rounded-xl bg-violet-50 px-2.5 py-1 text-[11px] font-black text-violet-600">已選 {selected.length} / {selectableCount}</span>}
       </div>
+
+      {/*
+        A place the traveller simply knows about.
+
+        「這裡要有可以手動加入的功能」. The same search the repair flow uses, because
+        it is the same question — which real place is this — and two searches
+        would eventually disagree about the answer.
+      */}
+      {onAddSavedPlace && (
+        <div className="mt-3">
+          {!addOpen ? (
+            <button
+              type="button"
+              data-testid="open-add-place"
+              onClick={() => { setAddOpen(true); setAddError(''); }}
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50/50 px-3 text-xs font-black text-[#5b3df5]"
+            >
+              <Plus size={14} />手動新增地點
+            </button>
+          ) : (
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
+              <div className="flex gap-1.5">
+                <input
+                  autoFocus
+                  value={addQuery}
+                  onChange={event => setAddQuery(event.target.value)}
+                  onKeyDown={event => { if (event.key === 'Enter') void runAddSearch(); }}
+                  placeholder="店名或景點名稱"
+                  aria-label="手動新增地點"
+                  data-testid="add-place-input"
+                  className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-2.5 py-1.5 text-xs font-bold text-[#11183d] outline-none"
+                />
+                <button
+                  type="button"
+                  data-testid="add-place-search"
+                  onClick={() => void runAddSearch()}
+                  disabled={addBusy}
+                  className="shrink-0 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
+                >
+                  {addBusy ? '搜尋中' : '搜尋'}
+                </button>
+              </div>
+              {addError && <p className="mt-1.5 text-[11px] font-bold text-amber-600">{addError}</p>}
+              {addResults.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {addResults.map(candidate => (
+                    <button
+                      type="button"
+                      key={candidate.placeId}
+                      data-testid={`add-place-pick-${candidate.placeId}`}
+                      onClick={() => void addChosen(candidate)}
+                      className="block w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left"
+                    >
+                      <span className="block text-xs font-black text-[#11183d]">{candidate.name}</span>
+                      {candidate.detail && <span className="mt-0.5 block text-[10px] text-slate-500">{candidate.detail}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => { setAddOpen(false); setAddResults([]); setAddError(''); }}
+                className="mt-2 text-[11px] font-black text-slate-500"
+              >
+                取消
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/*
         The saved places bound somewhere this trip is not.

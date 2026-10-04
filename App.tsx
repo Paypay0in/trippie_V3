@@ -166,6 +166,7 @@ import {
 } from "./services/screenshotInspiration";
 import { applyTripInspirations } from "./services/applyTripInspirations";
 import { effectiveTaxRule } from "./services/effectiveTaxRule";
+import { manualInspirationFrom } from "./services/manualInspiration";
 import { buildTripAreas } from "./services/tripAreas";
 import { inspirationGroupToItineraryItem } from "./services/inspirationToItinerary";
 import { mergeSharedTaxRule, toSharedTaxRule } from "./services/sharedTaxRule";
@@ -2454,6 +2455,31 @@ const App: React.FC = () => {
     () => effectiveTaxRule(taxRule, travelRules, tripDestination || travelCountry),
     [taxRule, travelRules, tripDestination, travelCountry],
   );
+
+  /**
+   * Saves a place the traveller searched for themselves.
+   *
+   * 「這裡要有可以手動加入的功能」 — the collection could only be filled from a
+   * screenshot, so a place somebody simply knows about had to be screenshotted
+   * first. It lands in the same store, folded against what is already there so
+   * adding a place twice does not list it twice.
+   */
+  const handleAddSavedPlace = (resolved: {
+    placeId: string; placeName: string; address?: string; latitude?: number; longitude?: number;
+  }) => {
+    const savedByUserId =
+      authUser?.id || localStorage.getItem("trippie_user_id") || anonymousUserId;
+    const saved = manualInspirationFrom(resolved, {
+      savedByUserId,
+      country: tripInspirationContext.destinationCountry || travelCountry || "",
+      city: tripDestination || "",
+      makeId: generateId,
+    });
+
+    setSavedTravelInspirations((current) =>
+      mergeScreenshotInspirations(current, [saved]));
+    showToast(`已加入收藏：${resolved.placeName}`);
+  };
 
   const handleRemoveInspirations = (inspirationIds: string[]) => {
     const removing = new Set(inspirationIds);
@@ -6113,6 +6139,7 @@ const App: React.FC = () => {
           onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
           onRemoveInspirations={handleRemoveInspirations}
           onResolveInspirationPlace={handleResolveInspirationPlace}
+          onAddSavedPlace={handleAddSavedPlace}
           areas={tripAreas}
           onProposalAccepted={() => setWorkspaceSection("overview")}
         />
