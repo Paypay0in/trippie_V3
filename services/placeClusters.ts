@@ -127,6 +127,73 @@ export const labelForCluster = (places: ClusterablePlace[]): string => {
   return places[0] ? `${places[0].placeName} 一帶` : '這一區';
 };
 
+/*
+  Two areas, one name.
+
+  「海雲台好像有兩個」. 清沙浦 and the market by 海雲台站 are 2.8km apart — far
+  enough to be two different afternoons, and both addressed 「Haeundae」. Two
+  headings reading the same word is worse than one heading covering both: the
+  reader assumes a bug and stops trusting the grouping.
+
+  The street the places sit on is what separates them, because it is also what
+  separates them on the ground: Cheongsapo-ro is the cove, Gunam-ro is the
+  market. Only applied where a name actually collides — an unambiguous area
+  keeps its short name.
+*/
+const STREET_PATTERNS: RegExp[] = [
+  /\b([A-Z][a-zA-Z]+)-(?:daero|ro|gil)\b/,
+  /([一-鿿]{2,4})[路街洞]/,
+  /([가-힣]{2,4})[로길동]/,
+];
+
+const streetOf = (address?: string): string | undefined => {
+  const text = (address || '').trim();
+  if (!text) return undefined;
+  for (const pattern of STREET_PATTERNS) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  return undefined;
+};
+
+/** The street most of a group's places sit on. */
+const commonStreet = (places: ClusterablePlace[]): string | undefined => {
+  const counts = new Map<string, number>();
+  places.forEach(place => {
+    const street = streetOf(place.formattedAddress);
+    if (street) counts.set(street, (counts.get(street) || 0) + 1);
+  });
+  return Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0]?.[0];
+};
+
+/**
+ * Tells apart two areas that the addresses give the same name.
+ *
+ * Qualified with the street where that separates them, and numbered only when
+ * nothing does — a reader can act on 「Haeundae · Cheongsapo」 and can at least
+ * tell 「Haeundae ②」 is a different place, which a bare repeat cannot.
+ */
+export const disambiguateLabels = <T extends ClusterablePlace>(
+  clusters: PlaceCluster<T>[],
+): PlaceCluster<T>[] => {
+  const counts = new Map<string, number>();
+  clusters.forEach(cluster => counts.set(cluster.label, (counts.get(cluster.label) || 0) + 1));
+
+  const seen = new Map<string, number>();
+  return clusters.map(cluster => {
+    if ((counts.get(cluster.label) || 0) < 2) return cluster;
+
+    const street = commonStreet(cluster.places);
+    const taken = (seen.get(cluster.label) || 0) + 1;
+    seen.set(cluster.label, taken);
+
+    const qualified = street && street !== cluster.label
+      ? `${cluster.label} · ${street}`
+      : `${cluster.label} ${['①', '②', '③', '④', '⑤', '⑥'][taken - 1] || taken}`;
+    return { ...cluster, label: qualified, id: `area-${qualified}-${cluster.places.length}` };
+  });
+};
+
 /**
  * Groups places that are within walking-or-short-ride distance of each other.
  *
@@ -186,7 +253,7 @@ export const clusterSavedPlaces = <T extends ClusterablePlace>(
     },
   }));
 
-  return { clusters, unlocated };
+  return { clusters: disambiguateLabels(clusters), unlocated };
 };
 
 /**

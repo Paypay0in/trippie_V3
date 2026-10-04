@@ -128,3 +128,49 @@ describe('clusterOfPlace', () => {
     expect(clusterOfPlace(clusters, 'nope')).toBeUndefined();
   });
 });
+
+/**
+ * 「海雲台好像有兩個」.
+ *
+ * 清沙浦 and the market by 海雲台站 are 2.8km apart — far enough to be two
+ * different afternoons, and both addressed 「Haeundae」. Two headings reading
+ * the same word is worse than one covering both: the reader assumes a bug.
+ */
+describe('two areas the addresses call the same thing', () => {
+  const cheongsapo = [
+    place('DIART', 35.1607, 129.1919, '12 Cheongsapo-ro 128beon-gil, Haeundae, Busan, 南韓'),
+    place('Photowave', 35.1607, 129.1924, '2 Cheongsapo-ro 128beon-gil, Haeundae, 부산시 南韓'),
+  ];
+  const market = [
+    place('WeiZan', 35.1610, 129.1590, '46 Haeun-daero 608beon-gil, Haeundae, Busan, 南韓'),
+    place('Market', 35.1615, 129.1622, '22-1 Gunam-ro 41beon-gil, Haeundae, Busan, 南韓'),
+    place('Ant', 35.1611, 129.1607, '34 Gunam-ro, Haeundae, Busan, 南韓'),
+  ];
+
+  it('keeps them as two areas, because they are', () => {
+    expect(clusterSavedPlaces([...cheongsapo, ...market]).clusters).toHaveLength(2);
+  });
+
+  it('tells them apart by the street, which is what tells them apart on the ground', () => {
+    const { clusters } = clusterSavedPlaces([...cheongsapo, ...market]);
+
+    expect(clusters.map(cluster => cluster.label).sort())
+      .toEqual(['Haeundae · Cheongsapo', 'Haeundae · Gunam']);
+  });
+
+  it('leaves an area that collides with nothing alone', () => {
+    const { clusters } = clusterSavedPlaces([...cheongsapo, ...gwangalli]);
+
+    expect(clusters.map(cluster => cluster.label).sort()).toEqual(['Haeundae', 'Suyeong-gu']);
+  });
+
+  it('numbers them when no street separates them either', () => {
+    // 「Haeundae ②」 at least says it is a different place; a bare repeat does not.
+    const { clusters } = clusterSavedPlaces([
+      place('a', 35.1607, 129.1919, 'Haeundae, Busan'),
+      place('b', 35.1900, 129.2300, 'Haeundae, Busan'),
+    ]);
+
+    expect(clusters.map(cluster => cluster.label)).toEqual(['Haeundae ①', 'Haeundae ②']);
+  });
+});
