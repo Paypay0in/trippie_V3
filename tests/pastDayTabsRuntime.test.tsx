@@ -76,3 +76,47 @@ describe('the day tabs', () => {
     expect(screen.getAllByText('甘川文化村').length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * 「比方說今日已經 day 3 打開行程表的時候 預設就不要再從 day1 開始」.
+ *
+ * Opening on the first day is right exactly once — before the trip starts. On
+ * the third morning it is two taps before the screen says anything about
+ * today, every time the app is opened.
+ */
+describe('the day the itinerary opens on', () => {
+  it('is today, when the trip is running', () => {
+    render(<ItineraryCalendar items={items} startDate={isoDay(-2)} endDate={TOMORROW} />);
+
+    expect(screen.getByTestId(`day-tab-${TODAY}`).className).toContain('bg-[#f4f1ff]');
+  });
+
+  it('is not the first day', () => {
+    render(<ItineraryCalendar items={items} startDate={isoDay(-2)} endDate={TOMORROW} />);
+
+    expect(screen.getByTestId(`day-tab-${isoDay(-2)}`).className).not.toContain('bg-[#f4f1ff]');
+  });
+
+  it('is the first day before the trip starts', () => {
+    // Nothing has happened yet, and the first day is the one being planned.
+    render(<ItineraryCalendar items={[]} startDate={isoDay(10)} endDate={isoDay(13)} />);
+
+    expect(screen.getByTestId(`day-tab-${isoDay(10)}`).className).toContain('bg-[#f4f1ff]');
+  });
+
+  it('is the last day once the trip is over', () => {
+    render(<ItineraryCalendar items={[]} startDate={isoDay(-10)} endDate={isoDay(-7)} />);
+
+    expect(screen.getByTestId(`day-tab-${isoDay(-7)}`).className).toContain('bg-[#f4f1ff]');
+  });
+
+  it('still follows the day the traveller taps', async () => {
+    const user = userEvent.setup();
+    render(<ItineraryCalendar items={items} startDate={isoDay(-2)} endDate={TOMORROW} />);
+
+    await user.click(screen.getByTestId(`day-tab-${YESTERDAY}`));
+
+    expect(screen.getByTestId(`day-tab-${YESTERDAY}`).className).toContain('bg-[#f4f1ff]');
+    expect(screen.getByTestId(`day-tab-${TODAY}`).className).not.toContain('bg-[#f4f1ff]');
+  });
+});

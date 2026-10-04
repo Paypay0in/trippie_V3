@@ -15,8 +15,22 @@ import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 
-const DAY_1 = '2026-10-03';
-const DAY_2 = '2026-10-04';
+/*
+  Dated from the clock, not written down.
+
+  The itinerary opens on today when the trip is running — 「今日已經 day 3 打開行
+  程表的時候 預設就不要再從 day1 開始」 — so a fixture with fixed dates stops
+  exercising the screen it is about the moment the real date passes it.
+*/
+const isoDay = (offset: number): string => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const DAY_1 = isoDay(0);
+const DAY_2 = isoDay(1);
 const DRAFT_ID = 'draft-unlinked';
 
 const itinerary: ItineraryItem[] = [

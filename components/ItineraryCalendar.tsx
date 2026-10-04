@@ -30,7 +30,7 @@ import {
   isFixedItem,
 } from '../services/itineraryFixedEvents';
 import { estimateRoute } from '../services/routesService';
-import { enumerateLocalDates, localToday } from '../services/localDate';
+import { defaultItineraryDate, enumerateLocalDates, localToday } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
@@ -153,8 +153,20 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     currently living.
   */
   const today = localToday();
-  const [selectedDate, setSelectedDate] = useState<string | undefined>(dates[0]);
-  const activeDate = dates.includes(selectedDate || '') ? selectedDate : dates[0];
+  /*
+    The day on screen: whichever one the traveller tapped, or today.
+
+    「比方說今日已經 day 3 打開行程表的時候 預設就不要再從 day1 開始」. Opening on the
+    first day is right exactly once — before the trip starts. On the third
+    morning it is two taps before the screen says anything about today, every
+    time the app is opened.
+
+    Derived rather than set in an effect: the trip's dates arrive after the
+    first render, and a default written into state then would either flicker
+    through Day 1 or overwrite a day the traveller had already tapped.
+  */
+  const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
+  const activeDate = dates.includes(selectedDate || '') ? selectedDate : defaultItineraryDate(dates);
 
   /**
    * The suggestions proposed for the day on screen. A suggestion with no date is

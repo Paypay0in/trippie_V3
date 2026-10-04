@@ -63,3 +63,21 @@ export const enumerateLocalDates = (startDate: string, endDate: string, limit = 
   }
   return dates;
 };
+
+/**
+ * The day an itinerary should open on.
+ *
+ * 「比方說今日已經 day 3 打開行程表的時候 預設就不要再從 day1 開始」. Opening on the
+ * first day is right exactly once — before the trip starts. On the third
+ * morning it means two taps before the screen says anything about today, every
+ * single time the app is opened.
+ *
+ * Before the trip: the first day, which is the one being planned. After it: the
+ * last, because that is where the trip ended and where its final notes are.
+ */
+export const defaultItineraryDate = (dates: string[], now: Date = new Date()): string | undefined => {
+  if (dates.length === 0) return undefined;
+  const today = localToday(now);
+  if (dates.includes(today)) return today;
+  return today < dates[0] ? dates[0] : dates[dates.length - 1];
+};

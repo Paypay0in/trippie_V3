@@ -127,15 +127,29 @@ describe('the transport leg', () => {
  * StayUploadCard shipped beside the wrong one of App's two render sites and was
  * unreachable. So this asserts against the 規劃 screen itself.
  */
+/*
+  Dated from the clock, not written down.
+
+  The itinerary opens on today when the trip is running — 「今日已經 day 3 打開行
+  程表的時候 預設就不要再從 day1 開始」 — so a fixture with fixed dates stops
+  exercising the screen it is about the moment the real date passes it.
+*/
+const isoDay = (offset: number): string => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
 describe('the transport leg, on the planning screen', () => {
-  const DAY = '2026-10-03';
+  const DAY = isoDay(0);
   const DRAFT_ID = 'draft-transport';
 
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem('trippie_drafts_v1', JSON.stringify([{
       id: DRAFT_ID, name: '釜山測試行程', destination: '釜山',
-      startDate: DAY, endDate: '2026-10-04',
+      startDate: DAY, endDate: isoDay(1),
       expenses: [], companions: [], shoppingList: [],
       itinerary: [
         { id: 'it-a', date: DAY, time: '09:00', durationMinutes: 60, title: '甘川文化村', location: '甘川文化村', notes: '', type: 'ACTIVITY', placeId: 'p-a', latitude: 35.0975, longitude: 129.0107 },
