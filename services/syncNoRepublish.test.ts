@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 interface Recorded { table: string; ids: string[] }
 
 const upserts: Recorded[] = [];
+const deletes: Array<{ table: string; ids: string[] }> = [];
 let existingInspirationRows: Array<{ id: string; place_id: string | null; place_name: string }> = [];
 
 vi.mock('./supabaseClient', () => {
@@ -31,8 +32,22 @@ vi.mock('./supabaseClient', () => {
       delete: () => self(),
       order: () => read,
       maybeSingle: () => Promise.resolve({ data: null, error: null }),
-      eq: () => (table === 'trip_inspirations' ? read : self()),
-      in: () => Promise.resolve({ error: null }),
+      /*
+        Both chainable and awaitable.
+
+        The read is `.select().eq()` and awaits there; the delete is
+        `.delete().eq().in()` and carries on. An `eq` that returned the read
+        promise broke the delete chain silently — which is how the first version
+        of this test passed while the delete never ran.
+      */
+      eq: () => self(),
+      then: table === 'trip_inspirations'
+        ? (resolve: (value: unknown) => unknown) => read.then(resolve)
+        : undefined,
+      in: (_column: string, ids: string[]) => {
+        deletes.push({ table, ids });
+        return Promise.resolve({ error: null });
+      },
       not: () => Promise.resolve({ error: null }),
     });
     return chain;
@@ -61,7 +76,7 @@ const snapshot = (expenses: unknown[], itinerary: unknown[] = []) => ({
 
 const idsFor = (table: string): string[] => upserts.filter(entry => entry.table === table).flatMap(entry => entry.ids);
 
-beforeEach(() => { upserts.length = 0; existingInspirationRows = []; });
+beforeEach(() => { upserts.length = 0; deletes.length = 0; existingInspirationRows = []; });
 
 describe('opening a trip that has not changed', () => {
   it('writes nothing at all', async () => {
@@ -178,6 +193,69 @@ describe('a saved place the server knows under another id', () => {
     upserts.length = 0;
 
     await pushOnce(first.data.fingerprints);
+
+    expect(idsFor('trip_inspirations')).toEqual([]);
+  });
+});
+
+/**
+ * 「一直出現」.
+ *
+ * 打車 10 分鐘 kept coming back after being deleted, and the database showed the
+ * row still there. The no-republish guard returned early when no row had
+ * changed — and deleting one place leaves every other place identical, which is
+ * exactly that case. The prune after it never ran, so the row survived for the
+ * next read to bring back.
+ */
+describe('a push that only deletes', () => {
+  const place = (id: string, name: string) => ({
+    id, savedByUserId: 'north', country: '韓國', city: '釜山', placeName: name,
+    sourcePostId: 'screenshot:a', sourceSliceId: 'screenshot:a', sourceCreatorId: 'north',
+    sourceNoteIds: [], savedAt: '2026-10-03T09:00:00.000Z', notes: [],
+  }) as never;
+
+  it('still deletes', async () => {
+    const { toTripInspirationRow } = await import('./tripSyncMapping');
+    const kept = place('i-keep', '味贊王鹽烤肉');
+    const removed = place('i-junk', '打車 10 分鐘');
+    const fingerprints = withFingerprints(
+      undefined,
+      'trip_inspirations',
+      [kept, removed].map(entry => toTripInspirationRow(entry, 'trip')),
+    );
+    existingInspirationRows = [
+      { id: 'i-keep', place_id: null, place_name: '味贊王鹽烤肉' },
+      { id: 'i-junk', place_id: null, place_name: '打車 10 分鐘' },
+    ];
+
+    await pushTripSnapshot(
+      { members: [], expenses: [], itinerary: [], flightAnchors: [], inspirations: [kept] } as never,
+      'trip',
+      {
+        expenses: new Set(), itinerary: new Set(), flightAnchors: new Set(),
+        inspirations: new Set(['i-keep', 'i-junk']), fingerprints,
+      },
+    );
+
+    expect(deletes.filter(entry => entry.table === 'trip_inspirations')[0]?.ids).toEqual(['i-junk']);
+  });
+
+  it('writes nothing while doing it', async () => {
+    // The place that stayed is unchanged, and rewriting it would overwrite
+    // whatever the other traveller saved in the meantime.
+    const { toTripInspirationRow } = await import('./tripSyncMapping');
+    const kept = place('i-keep', '味贊王鹽烤肉');
+    const fingerprints = withFingerprints(undefined, 'trip_inspirations', [toTripInspirationRow(kept, 'trip')]);
+    existingInspirationRows = [{ id: 'i-keep', place_id: null, place_name: '味贊王鹽烤肉' }];
+
+    await pushTripSnapshot(
+      { members: [], expenses: [], itinerary: [], flightAnchors: [], inspirations: [kept] } as never,
+      'trip',
+      {
+        expenses: new Set(), itinerary: new Set(), flightAnchors: new Set(),
+        inspirations: new Set(['i-keep', 'i-junk']), fingerprints,
+      },
+    );
 
     expect(idsFor('trip_inspirations')).toEqual([]);
   });

@@ -584,11 +584,21 @@ export const pushTripSnapshot = async (
       const rows = changedRows('trip_inspirations', aligned, known?.fingerprints);
       // Recorded against the aligned ids, which are the ids the server uses.
       written = withFingerprints(written, 'trip_inspirations', aligned);
-      if (rows.length === 0) return done();
 
-      const { error } = await supabase
-        .from('trip_inspirations')
-        .upsert(rows, { onConflict: 'id', ignoreDuplicates: false });
+      /*
+        Nothing to write is not nothing to do.
+
+        「一直出現」 — 打車 10 分鐘 kept coming back after being deleted, because
+        this returned early when no row had changed. Deleting one place leaves
+        every other place identical, which is exactly that case, so the prune
+        below never ran and the row stayed on the server for the next read to
+        bring back.
+      */
+      const { error } = rows.length === 0
+        ? { error: null }
+        : await supabase
+          .from('trip_inspirations')
+          .upsert(rows, { onConflict: 'id', ignoreDuplicates: false });
       /*
         Only a table that does not exist yet is tolerated.
 
