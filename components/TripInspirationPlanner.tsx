@@ -33,6 +33,7 @@ import { ItineraryAcceptanceMode } from '../services/itineraryAcceptance';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { localToday } from '../services/localDate';
 import { findPlaceCandidates, PlaceCandidate, resolveCandidate } from '../services/placeCandidates';
+import { clusterSavedPlaces } from '../services/placeClusters';
 
 export interface ProposalAcceptanceResult {
   ok: boolean;
@@ -122,6 +123,23 @@ const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; su
   { mode: 'fill', label: '把空白的日子排滿', subtitle: '航班、住宿與我固定的項目都不動，其他日子幫我排成完整的一天' },
   { mode: 'reorder', label: '重新安排路線', subtitle: '保留目前想去的景點，調整日期、時間與順序，讓動線更順' },
   { mode: 'replan', label: '重新規劃', subtitle: '參考目前行程、收藏靈感與我的偏好，提出一份新的完整版本' },
+];
+
+/**
+ * One colour per area of the city.
+ *
+ * 「將地址相近的直接分配到同一個顏色區塊」 — the colour is what makes a day's worth
+ * of places findable at a glance, so it is carried on the row as a stripe as
+ * well as on the heading. Six is enough for a city: a trip with more areas than
+ * that is not being planned a day at a time.
+ */
+const AREA_COLORS = [
+  { dot: 'bg-violet-500', bar: 'bg-violet-400' },
+  { dot: 'bg-sky-500', bar: 'bg-sky-400' },
+  { dot: 'bg-emerald-500', bar: 'bg-emerald-400' },
+  { dot: 'bg-amber-500', bar: 'bg-amber-400' },
+  { dot: 'bg-rose-500', bar: 'bg-rose-400' },
+  { dot: 'bg-teal-500', bar: 'bg-teal-400' },
 ];
 
 const NOTE_TYPE_LABELS: Partial<Record<ExperienceNoteType, string>> = {
@@ -406,6 +424,51 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     return () => { cancelled = true; };
   }, [emptyGroupKey]);
 
+  /*
+    The saved places, grouped by how close together they are.
+
+    「能不能夠讓收藏的景點被分區顯示 … 將地址相近的直接分配到同一個顏色區塊」. An
+    alphabetical list hides the fact that decides a day: four of these are on
+    one beach and one is forty minutes up the coast. Computed from the groups
+    rather than the raw saves so a place folded from two phones is one dot.
+  */
+  const { clusters: areaClusters, unlocated: unplacedGroups } = useMemo(
+    () => clusterSavedPlaces(groups.map(group => ({
+      id: group.id,
+      placeName: group.placeName,
+      latitude: group.coordinates?.latitude,
+      longitude: group.coordinates?.longitude,
+      formattedAddress: group.formattedAddress,
+    }))),
+    [groups],
+  );
+
+  /** Which area each row belongs to, and therefore which colour it wears. */
+  const areaOfGroup = useMemo(() => {
+    const byGroupId = new Map<string, { label: string; colorIndex: number }>();
+    areaClusters.forEach(cluster => {
+      cluster.places.forEach(place => byGroupId.set(place.id, { label: cluster.label, colorIndex: cluster.colorIndex }));
+    });
+    return byGroupId;
+  }, [areaClusters]);
+
+  /*
+    Ordered by area, so places that belong to the same day sit together.
+
+    Within an area the original order stands: it is the order they were saved
+    in, and reshuffling inside a group would lose the only other ordering the
+    traveller has. Places with no coordinates go last under their own heading —
+    they cannot be placed on a day until they are placed on a map.
+  */
+  const orderedGroups = useMemo(() => {
+    const rank = new Map<string, number>();
+    areaClusters.forEach(cluster => {
+      cluster.places.forEach(place => rank.set(place.id, cluster.colorIndex));
+    });
+    return [...groups].sort((left, right) =>
+      (rank.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.id) ?? Number.MAX_SAFE_INTEGER));
+  }, [groups, areaClusters]);
+
   const creatorById = useMemo(() => {
     const map = new Map<string, { name: string; avatar?: string }>();
     communityPosts.forEach(post => map.set(post.creatorId, { name: post.authorName, avatar: post.authorAvatar }));
@@ -615,11 +678,32 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         </div>
       ) : (
         <div className="mt-4 space-y-2">
-          {groups.map(group => {
+          {orderedGroups.map((group, orderedIndex) => {
+            /*
+              The area heading, shown once above the first place in it.
+
+              Rendered inside the list rather than by nesting the rows in a
+              section, so the existing row markup — selection, notes, delete,
+              the place card — keeps working untouched.
+            */
+            const area = areaOfGroup.get(group.id);
+            const previousArea = orderedIndex > 0 ? areaOfGroup.get(orderedGroups[orderedIndex - 1].id) : undefined;
+            const startsArea = (area?.label || '') !== (previousArea?.label || '') || orderedIndex === 0;
+            const areaSize = area ? areaClusters[area.colorIndex]?.places.length ?? 0 : 0;
             const isPlanned = plannedGroupIds.has(group.id);
             const isSelected = !isPlanned && selected.includes(group.id);
             return (
-              <div key={group.id} data-testid={`inspiration-card-${group.id}`} className={`rounded-2xl border transition ${isPlanned ? 'border-slate-100 bg-slate-50' : isSelected ? 'border-violet-300 bg-violet-50/50' : 'border-slate-100 bg-white'}`}>
+              <React.Fragment key={group.id}>
+              {startsArea && (
+                <div data-testid={`area-heading-${area?.label || 'unplaced'}`} className={`flex items-center gap-2 pt-2 ${orderedIndex === 0 ? '' : 'mt-1'}`}>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${AREA_COLORS[(area?.colorIndex ?? 0) % AREA_COLORS.length].dot}`} />
+                  <span className="text-xs font-black text-[#11183d]">{area?.label || '還沒定位的地點'}</span>
+                  {areaSize > 0 && <span className="text-[11px] font-bold text-slate-400">{areaSize} 個</span>}
+                </div>
+              )}
+              <div data-testid={`inspiration-card-${group.id}`} className={`relative overflow-hidden rounded-2xl border transition ${isPlanned ? 'border-slate-100 bg-slate-50' : isSelected ? 'border-violet-300 bg-violet-50/50' : 'border-slate-100 bg-white'}`}>
+                {/* The area's colour, so a day's worth of places is findable at a glance. */}
+                {area && <span className={`absolute bottom-0 left-0 top-0 w-1 ${AREA_COLORS[area.colorIndex % AREA_COLORS.length].bar}`} />}
                 <div className="flex items-start">
                 {/*
                   The tick and the place are two different questions.
@@ -863,6 +947,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   );
                 })()}
               </div>
+              </React.Fragment>
             );
           })}
 
