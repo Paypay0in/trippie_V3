@@ -116,6 +116,8 @@ const ExpenseForm: React.FC<Props> = ({
   const ownCategories = customCategories[currentPhase] ?? [];
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod);
   const [date, setDate] = useState(initialData?.date || localToday());
+  /** 「這個欄位不能輸入」: the 備註 box, which until now was decoration. */
+  const [note, setNote] = useState(initialData?.note || '');
   const [expenseSaveDebug, setExpenseSaveDebug] = useState({ submitClicked: false, formValid: false, validationError: '', expenseObjectCreated: false, onSubmitCalled: false });
   const [beneficiaryDebug, setBeneficiaryDebug] = useState({ clickedMemberId: '', previous: [] as string[], next: [] as string[] });
   
@@ -696,6 +698,10 @@ const ExpenseForm: React.FC<Props> = ({
       splitMethod: splitEnabled ? splitMethod : 'EQUAL',
       splitAllocations: splitEnabled ? submittedSplitAllocations.values : {},
       receiptPhotos,
+      // Trimmed to nothing rather than stored as spaces: an empty note and a
+      // note made of whitespace are the same thing, and only one of them
+      // renders as a blank line under the bill.
+      ...(note.trim() ? { note: note.trim() } : {}),
       needsReview: false // Manual entry assumes review is done
     };
     setExpenseSaveDebug(current => ({ ...current, formValid: true, expenseObjectCreated: true, onSubmitCalled: true }));
@@ -1372,11 +1378,20 @@ const ExpenseForm: React.FC<Props> = ({
                 <div>
                   <label className="mb-2 block text-sm font-bold text-[#11183d]">備註（選填）</label>
                   <div className="flex items-stretch gap-3">
+                    {/*
+                      「這個欄位不能輸入」 — it was `disabled`, with no value, no
+                      handler and no column behind it. The label had been
+                      promising something the form could not do.
+                    */}
                     <textarea
-                      disabled
                       rows={3}
+                      maxLength={300}
+                      value={note}
+                      onChange={event => setNote(event.target.value)}
+                      aria-label="備註"
+                      data-testid="expense-note"
                       placeholder="輸入備註..."
-                      className="min-h-[92px] flex-1 resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 outline-none placeholder:text-slate-300"
+                      className="min-h-[92px] flex-1 resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-[#11183d] outline-none placeholder:text-slate-300 focus:border-violet-300"
                     />
                     <input
                       type="file"

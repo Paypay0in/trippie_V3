@@ -352,6 +352,21 @@ const ExpenseList: React.FC<Props> = ({
                                     </span>
                                 )}
                             </div>
+
+                            {/*
+                              Whatever the traveller wrote about this bill.
+
+                              A note nobody can see is a note nobody writes a
+                              second time, so it reads on the row rather than
+                              only inside the edit sheet. Clamped to two lines:
+                              the row is a list entry, and the whole note is one
+                              tap away.
+                            */}
+                            {item.note && (
+                                <p data-testid={`expense-note-${item.id}`} className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-slate-500">
+                                    {item.note}
+                                </p>
+                            )}
                         </div>
 
                         {/* The amount, against a hairline, as the design has it. */}

@@ -194,6 +194,17 @@ export interface Expense {
    * Absent means not deducted, which is the common case and the safe default:
    * an unmarked purchase is still worth taking to the counter.
    */
+  /**
+   * Whatever the traveller wanted to remember about this bill.
+   *
+   * 「這個欄位不能輸入」. The box was on the form, labelled 備註（選填）, and
+   * `disabled` with nothing behind it — so 「這筆是跟 Gina 平分的那頓」 or 「收據在
+   * 背包側袋」 had nowhere to go at the moment somebody wanted to write it.
+   *
+   * Separate from `description`, which names the purchase and is what every
+   * list shows. This is the sentence that explains it.
+   */
+  note?: string;
   taxRefundedAtPurchase?: boolean;
   /**
    * This purchase cannot be refunded at all.
