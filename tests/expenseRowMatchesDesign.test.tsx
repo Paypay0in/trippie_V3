@@ -189,3 +189,45 @@ describe('已經退稅的那一筆', () => {
     expect(screen.queryByTestId('refund-deducted-e-plain')).toBeNull();
   });
 });
+
+/**
+ * 「怎麼都沒跳出可退稅的提示」.
+ *
+ * 耳機殼+手機殼 at 30,800 KRW sat in the ledger looking exactly like the 8,000
+ * KRW card that does not qualify. The refund estimate knew about it; the row,
+ * which is what gets read while packing, said nothing.
+ */
+describe('一筆還能去退稅的購物', () => {
+  const korea = { country: '韓國', currency: 'KRW', minSpend: 15000, refundRate: 0.06, notes: '' };
+
+  const shopping = (id: string, amount: number, over: Partial<Expense> = {}) => expense({
+    id, description: id, category: Category.SHOPPING, currency: 'KRW', exchangeRate: 0.023,
+    amount, twdAmount: Math.round(amount * 0.023), payerId: ME, beneficiaries: [ME],
+    ...over,
+  });
+
+  it('在那一列說「可退稅」', () => {
+    list([shopping('e-case', 30800)], { taxRule: korea });
+
+    expect(screen.getByTestId('refund-eligible-e-case')).toBeTruthy();
+  });
+
+  it('門檻以下的不說', () => {
+    list([shopping('e-card', 8000)], { taxRule: korea });
+
+    expect(screen.queryByTestId('refund-eligible-e-card')).toBeNull();
+  });
+
+  it('已經標記過的不再說', () => {
+    // 不可退稅 is an answer; repeating the suggestion after it is noise.
+    list([shopping('e-case', 30800, { taxRefundIneligible: true })], { taxRule: korea });
+
+    expect(screen.queryByTestId('refund-eligible-e-case')).toBeNull();
+  });
+
+  it('沒有退稅規則時什麼都不說', () => {
+    list([shopping('e-case', 30800)]);
+
+    expect(screen.queryByTestId('refund-eligible-e-case')).toBeNull();
+  });
+});

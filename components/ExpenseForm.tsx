@@ -719,11 +719,20 @@ const ExpenseForm: React.FC<Props> = ({
   };
 
   // Tax Refund Calculation Logic
-  const isEligibleForRefund = taxRule && 
-                              taxRule.refundRate > 0 && 
-                              currentPhase === 'during' && 
-                              parseFloat(amount || '0') >= taxRule.minSpend && 
-                              (currency.toUpperCase() === taxRule.currency.toUpperCase()); 
+  /*
+    Shopping only, like every other refund screen.
+
+    The estimate, the list and the 不可退稅 mark all filter on 購物, because a
+    meal is not refundable however much it cost. Without the same filter here a
+    40,000 KRW dinner was told it qualified — which is the opposite of helpful
+    beside a number somebody is deciding whether to queue for.
+  */
+  const isEligibleForRefund = taxRule
+                              && taxRule.refundRate > 0
+                              && currentPhase === 'during'
+                              && category === Category.SHOPPING
+                              && parseFloat(amount || '0') >= taxRule.minSpend
+                              && (currency.toUpperCase() === taxRule.currency.toUpperCase()); 
 
   const estimatedRefund = isEligibleForRefund ? parseFloat(amount || '0') * taxRule.refundRate : 0;
   const taxRefundGuidance = category === Category.SHOPPING ? travelRules?.taxRefund : undefined;

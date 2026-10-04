@@ -165,6 +165,7 @@ import {
   slicesToSavedInspirations,
 } from "./services/screenshotInspiration";
 import { applyTripInspirations } from "./services/applyTripInspirations";
+import { effectiveTaxRule } from "./services/effectiveTaxRule";
 import { mergeSharedTaxRule, toSharedTaxRule } from "./services/sharedTaxRule";
 import { matchesTripDestination } from "./services/tripInspirationSelection";
 import { flightModeFromAnchors } from "./services/tripSyncMapping";
@@ -2376,6 +2377,20 @@ const App: React.FC = () => {
           : inspiration));
     showToast(`已連結到「${resolved.placeName}」`);
   };
+
+  /**
+   * The refund rule every screen should be reading.
+   *
+   * 「怎麼都沒跳出可退稅的提示」 — the form asked `taxRule`, which only the country
+   * picker fills in, while every refund screen built since reads the grounded
+   * research. A trip that was researched rather than picked has one and not the
+   * other, so the form stayed silent about a purchase the refund card was
+   * already estimating.
+   */
+  const resolvedTaxRule = useMemo(
+    () => effectiveTaxRule(taxRule, travelRules, tripDestination || travelCountry),
+    [taxRule, travelRules, tripDestination, travelCountry],
+  );
 
   const handleRemoveInspirations = (inspirationIds: string[]) => {
     const removing = new Set(inspirationIds);
@@ -6086,14 +6101,14 @@ const App: React.FC = () => {
             members={settlementMembers}
             onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
             onEditExpense={handleEditExpense}
-            taxRule={taxRule}
+            taxRule={resolvedTaxRule}
           />
         )}
         {walletPhase === "return" && (
           <WalletReturnScreen
             expenses={expenses}
             shoppingList={shoppingList}
-            taxRule={taxRule}
+            taxRule={resolvedTaxRule}
             travelRules={travelRules}
             onSettleRefund={() => handleOpenRefundSettlement()}
             onToggleRefundedAtPurchase={handleToggleRefundedAtPurchase}
@@ -6146,7 +6161,7 @@ const App: React.FC = () => {
               // under different headings makes a reader check which to trust.
               settlementOnly={walletPhase === "summary"}
               currentPhase={walletExpensePhase || "summary"}
-              taxRule={taxRule}
+              taxRule={resolvedTaxRule}
               travelRules={travelRules}
               visaInfo={visaInfo}
             />
@@ -6159,7 +6174,7 @@ const App: React.FC = () => {
                 expenses={walletExpenses}
                 onDelete={handleDeleteExpense}
                 onEdit={handleEditExpense}
-                taxRule={taxRule}
+                taxRule={resolvedTaxRule}
                 viewerMemberId={viewerMemberId}
                 tripOwnerMemberId={activeOwnerMemberId}
                 members={settlementMembers}
@@ -6175,7 +6190,7 @@ const App: React.FC = () => {
           <TripSummaryModal
             expenses={expenses}
             onArchive={handleArchiveTrip}
-            taxRule={taxRule}
+            taxRule={resolvedTaxRule}
             variant="embedded"
             initialTripName={currentTripName}
             allowArchive={!currentLoadedTripId}
@@ -6444,7 +6459,7 @@ const App: React.FC = () => {
               initialCurrency={initialFormCurrency}
               linkedItemId={formLinkedItemId}
               initialData={editingExpense}
-              taxRule={taxRule}
+              taxRule={resolvedTaxRule}
               travelRules={travelRules}
               onSubmit={handleSaveExpense}
               onClose={handleCloseForm}
@@ -6766,7 +6781,7 @@ const App: React.FC = () => {
                 <TripSummaryModal
                   expenses={expenses}
                   onArchive={handleArchiveTrip}
-                  taxRule={taxRule}
+                  taxRule={resolvedTaxRule}
                   variant="embedded"
                   initialTripName={currentTripName}
                   allowArchive={!currentLoadedTripId}
@@ -6866,7 +6881,7 @@ const App: React.FC = () => {
                   onAddCash={() => handleQuickAdd(Category.EXCHANGE)}
                   onAddExpense={handleSaveExpense}
                   currentPhase={currentPhase}
-                  taxRule={taxRule}
+                  taxRule={resolvedTaxRule}
                   travelRules={travelRules}
                   visaInfo={visaInfo}
                   onOpenSettlement={handleOpenSettlement}
@@ -6952,7 +6967,7 @@ const App: React.FC = () => {
                     expenses={filteredExpenses}
                     onDelete={handleDeleteExpense}
                     onEdit={handleEditExpense}
-                    taxRule={taxRule}
+                    taxRule={resolvedTaxRule}
                     viewerMemberId={viewerMemberId}
                     tripOwnerMemberId={activeOwnerMemberId}
                     members={settlementMembers}
@@ -7003,7 +7018,7 @@ const App: React.FC = () => {
           initialCurrency={initialFormCurrency}
           linkedItemId={formLinkedItemId}
           initialData={editingExpense}
-          taxRule={taxRule}
+          taxRule={resolvedTaxRule}
           travelRules={travelRules}
           onSubmit={handleSaveExpense}
           onClose={handleCloseForm}

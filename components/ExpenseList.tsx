@@ -11,6 +11,7 @@ import { canRaiseDispute, getOpenDisputes } from '../services/expenseDisputes';
 import { partitionByConcern } from '../services/expenseConcernsMember';
 import { calculateExpenseLedger } from '../services/splitCalculator';
 import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
+import { qualifiesForRefund } from '../services/refundHint';
 
 interface Props {
   expenses: Expense[];
@@ -368,6 +369,19 @@ const ExpenseList: React.FC<Props> = ({
                                 {refunded > 0 && (
                                     <div data-testid={`refund-deducted-${item.id}`} className="text-[11px] font-bold text-emerald-600">
                                         已退稅 −{Math.round(refunded).toLocaleString()}
+                                    </div>
+                                )}
+                                {/*
+                                  Still worth carrying to the counter.
+
+                                  「怎麼都沒跳出可退稅的提示」 — a 30,800 KRW purchase
+                                  looked exactly like the 8,000 KRW one that does
+                                  not qualify. The estimate knew; the row did not
+                                  say, and the row is what gets read while packing.
+                                */}
+                                {qualifiesForRefund(item, taxRule) && (
+                                    <div data-testid={`refund-eligible-${item.id}`} className="text-[11px] font-bold text-amber-600">
+                                        可退稅
                                     </div>
                                 )}
                                 {/*
