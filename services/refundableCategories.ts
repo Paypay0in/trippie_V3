@@ -1,4 +1,5 @@
 import { Category } from '../types';
+import { CustomCategoryRefundability, isCustomCategoryRefundable } from './refundableCustomCategories';
 
 /**
  * The categories a tax refund can apply to.
@@ -29,5 +30,19 @@ export const REFUNDABLE_CATEGORIES: ReadonlySet<Category> = new Set([
   Category.HELP_BUY,
 ]);
 
-export const isRefundableCategory = (category?: Category): boolean =>
-  Boolean(category) && REFUNDABLE_CATEGORIES.has(category as Category);
+/**
+ * Whether a category holds the kind of thing a counter refunds.
+ *
+ * The built-in buckets are known. A category the traveller invented is not —
+ * 保養美妝品 holds lipstick and 溫泉 holds nothing at all — so it counts only
+ * once they have said so. 「這個符合退稅資格但沒有顯示」 was every custom category
+ * falling silently outside the refund card.
+ */
+export const isRefundableCategory = (
+  category?: Category,
+  customDecisions: CustomCategoryRefundability = {},
+): boolean => {
+  if (!category) return false;
+  if (REFUNDABLE_CATEGORIES.has(category)) return true;
+  return isCustomCategoryRefundable(customDecisions, String(category));
+};

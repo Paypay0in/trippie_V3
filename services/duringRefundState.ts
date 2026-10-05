@@ -1,5 +1,6 @@
 import { Expense, TravelRules } from '../types';
 import { isRefundableCategory } from './refundableCategories';
+import { CustomCategoryRefundability } from './refundableCustomCategories';
 import { calculateExpenseLedger } from './splitCalculator';
 import { rateForAmount, refundObservationsFrom, ruleLooksWrong } from './refundObservations';
 
@@ -85,6 +86,7 @@ export const deriveDuringRefundState = ({
   travelRules,
   viewerMemberId,
   tripOwnerMemberId,
+  customDecisions = {},
 }: {
   expenses: Expense[];
   travelRules?: TravelRules | null;
@@ -103,6 +105,8 @@ export const deriveDuringRefundState = ({
    */
   viewerMemberId?: string;
   tripOwnerMemberId?: string;
+  /** What the traveller has said about their own categories. */
+  customDecisions?: CustomCategoryRefundability;
 }): DuringRefundState => {
   const rule = getValidRule(travelRules);
   if (!rule) return { status: 'no_rule' };
@@ -122,7 +126,7 @@ export const deriveDuringRefundState = ({
     飾品配件 were absent from the card altogether. Korea refunds goods; which
     drawer this app put them in is not the counter's business.
   */
-  const shoppingExpenses = mine.filter(expense => expense.phase === 'during' && isRefundableCategory(expense.category));
+  const shoppingExpenses = mine.filter(expense => expense.phase === 'during' && isRefundableCategory(expense.category, customDecisions));
   const targetCurrencyRate = shoppingExpenses.find(expense => expense.currency.toUpperCase() === rule.currency && Number.isFinite(expense.exchangeRate) && expense.exchangeRate > 0)?.exchangeRate;
   const normalizeAmount = (expense: Expense): number | undefined => {
     if (expense.currency.toUpperCase() === rule.currency) return expense.amount;

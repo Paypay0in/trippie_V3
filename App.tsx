@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { OVERLAY } from './constants/layers';
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -80,6 +80,12 @@ import {
   removeCustomCategory,
   saveCustomCategories,
 } from "./services/customCategories";
+import {
+  CustomCategoryRefundability,
+  decideCustomCategory,
+  loadRefundableCustomCategories,
+  saveRefundableCustomCategories,
+} from "./services/refundableCustomCategories";
 import {
   destinationLabel,
   detectDestinationFromTripName,
@@ -712,6 +718,23 @@ const App: React.FC = () => {
   const [customCategories, setCustomCategories] = useState<CustomCategories>(
     () => loadCustomCategories(),
   );
+  /*
+    Which of the traveller's own categories hold goods.
+
+    「這個符合退稅資格但沒有顯示」 — 保養美妝品 is a category they invented, so the
+    refund rules, which know only the built-in buckets, could not see a
+    lipstick inside it. Answered once per category and kept here beside the
+    categories themselves.
+  */
+  const [refundableCustomCategories, setRefundableCustomCategories] =
+    useState<CustomCategoryRefundability>(() => loadRefundableCustomCategories());
+  const decideCustomCategoryRefundable = useCallback((name: string, refundable: boolean) => {
+    setRefundableCustomCategories(current => {
+      const next = decideCustomCategory(current, name, refundable);
+      saveRefundableCustomCategories(next);
+      return next;
+    });
+  }, []);
   const [expenseFormPhase, setExpenseFormPhase] = useState<Phase | undefined>(
     undefined,
   );
@@ -6221,6 +6244,7 @@ const App: React.FC = () => {
         )}
         {walletPhase === "return" && (
           <WalletReturnScreen
+            refundableCustomCategories={refundableCustomCategories}
             expenses={expenses}
             shoppingList={shoppingList}
             taxRule={resolvedTaxRule}
@@ -6244,6 +6268,7 @@ const App: React.FC = () => {
         {walletPhase !== "pre" && walletPhase !== "return" && (
           <>
             <Dashboard
+              refundableCustomCategories={refundableCustomCategories}
               batches={settlementBatches}
               // Spending totals read the raw ledger: settling a debt must never
               // erase the spending record. `batches` drives the debt block only.
@@ -6286,6 +6311,7 @@ const App: React.FC = () => {
                 buried the totals. */}
             {walletPhase !== "summary" && (
               <ExpenseList
+                refundableCustomCategories={refundableCustomCategories}
                 expenses={walletExpenses}
                 onDelete={handleDeleteExpense}
                 onEdit={handleEditExpense}
@@ -6559,6 +6585,10 @@ const App: React.FC = () => {
             <ExpenseForm
               currentPhase={expenseFormPhase || currentPhase}
               customCategories={customCategories}
+          refundableCustomCategories={refundableCustomCategories}
+          onDecideCustomCategory={decideCustomCategoryRefundable}
+              refundableCustomCategories={refundableCustomCategories}
+              onDecideCustomCategory={decideCustomCategoryRefundable}
               onAddCustomCategory={handleAddCustomCategory}
               onRemoveCustomCategory={handleRemoveCustomCategory}
               existingExpenses={expenses}
@@ -6988,6 +7018,7 @@ const App: React.FC = () => {
                 />
 
                 <Dashboard
+                  refundableCustomCategories={refundableCustomCategories}
                   members={buildTripMembers(
                     activeDraftId || currentLoadedTripId || "active",
                     settlementOwnerUserId,
@@ -7085,6 +7116,7 @@ const App: React.FC = () => {
                   </div>
 
                   <ExpenseList
+                    refundableCustomCategories={refundableCustomCategories}
                     expenses={filteredExpenses}
                     onDelete={handleDeleteExpense}
                     onEdit={handleEditExpense}

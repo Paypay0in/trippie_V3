@@ -12,12 +12,15 @@ import { partitionByConcern } from '../services/expenseConcernsMember';
 import { calculateExpenseLedger } from '../services/splitCalculator';
 import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
 import { qualifiesForRefund } from '../services/refundHint';
+import { CustomCategoryRefundability } from '../services/refundableCustomCategories';
 
 interface Props {
   expenses: Expense[];
   onDelete: (id: string) => void;
   onEdit: (expense: Expense) => void;
   taxRule?: TaxRule | null;
+  /** What the traveller has said about their own categories. */
+  refundableCustomCategories?: CustomCategoryRefundability;
   /**
    * Who is looking at the ledger, and who owns the trip. Optional so existing
    * single-user call sites keep working; when both are given, edit/delete
@@ -39,6 +42,7 @@ const ExpenseList: React.FC<Props> = ({
   onDelete,
   onEdit,
   taxRule,
+  refundableCustomCategories = {},
   viewerMemberId,
   tripOwnerMemberId,
   onOpenDisputes,
@@ -217,7 +221,7 @@ const ExpenseList: React.FC<Props> = ({
                       One rule, shared with the estimate: a row that says 退稅
                       資格 is a row inside the total on the refund card.
                     */
-                    const isRefundable = !isIncome && qualifiesForRefund(item, taxRule);
+                    const isRefundable = !isIncome && qualifiesForRefund(item, taxRule, refundableCustomCategories);
 
                     const { payer, involved, isPersonal, sharerCount, viewerShare } =
                         summariseExpenseRow(item, members, viewerMemberId, tripOwnerMemberId);

@@ -7,6 +7,7 @@ import { PHASES, COMMON_CURRENCIES } from '../constants';
 import { Wallet, TrendingDown, Coins, PlusCircle, Users, Tag, ChevronDown, ChevronUp, CreditCard, Banknote, ArrowRight, ArrowDownLeft, History, X, ArrowUpRight, Receipt, CheckCircle, HandHelping, AlertCircle, Ban } from 'lucide-react';
 import TravelAdvisoryWidget from './TravelAdvisoryWidget';
 import { deriveDuringRefundState } from '../services/duringRefundState';
+import { CustomCategoryRefundability } from '../services/refundableCustomCategories';
 import TaxRefundSummaryCard from './TaxRefundSummaryCard';
 import { expenseCostToViewer, ownerMemberIdOf } from '../services/viewerSpend';
 import { calculateOutstandingDebts } from '../services/settlementConsumption';
@@ -56,6 +57,8 @@ interface Props {
    * are owed money they actually owe.
    */
   viewerMemberId?: string;
+  /** What the traveller has said about their own categories. */
+  refundableCustomCategories?: CustomCategoryRefundability;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'];
@@ -63,7 +66,7 @@ const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6'
 const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members, batches, onExport, onAddCash, onAddExpense, currentPhase, taxRule, travelRules, visaInfo, onSettleRefund,
   onToggleRefundedAtPurchase,
   onToggleRefundIneligible,
-  onRecordActualRefund, onOpenSettlement, viewerMemberId, settlementOnly }) => {
+  onRecordActualRefund, onOpenSettlement, viewerMemberId, settlementOnly, refundableCustomCategories = {} }) => {
   const [isRefundListExpanded, setIsRefundListExpanded] = useState(false);
   
   // Wallet History State
@@ -80,8 +83,9 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
       travelRules,
       viewerMemberId,
       tripOwnerMemberId: ownerMemberIdOf(members || []),
+      customDecisions: refundableCustomCategories,
     }),
-    [expenses, travelRules, viewerMemberId, members],
+    [expenses, travelRules, viewerMemberId, members, refundableCustomCategories],
   );
   const shoppingExpenses = expenses.filter(expense => expense.phase === 'during' && expense.category === Category.SHOPPING);
   const qualifiedRefundCandidates = 'eligibleExpenses' in duringRefundState ? duringRefundState.eligibleExpenses : [];

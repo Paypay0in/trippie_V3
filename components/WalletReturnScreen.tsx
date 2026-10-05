@@ -5,6 +5,7 @@ import ExpenseList from './ExpenseList';
 import PostTripChecklist from './PostTripChecklist';
 import ShoppingListPanel from './ShoppingListPanel';
 import { deriveDuringRefundState } from '../services/duringRefundState';
+import { CustomCategoryRefundability } from '../services/refundableCustomCategories';
 import TaxRefundSummaryCard from './TaxRefundSummaryCard';
 
 interface Props {
@@ -27,6 +28,8 @@ interface Props {
   onEditExpense: (expense: Expense) => void;
   /** Identity pair for expense ownership; forwarded straight to ExpenseList. */
   viewerMemberId?: string;
+  /** What the traveller has said about their own categories. */
+  refundableCustomCategories?: CustomCategoryRefundability;
   tripOwnerMemberId?: string;
   onOpenDisputes?: (expense: Expense) => void;
   /** The travellers, so each row can name who paid. Forwarded to ExpenseList. */
@@ -34,6 +37,7 @@ interface Props {
 }
 
 const WalletReturnScreen: React.FC<Props> = ({
+  refundableCustomCategories = {},
   expenses,
   shoppingList,
   taxRule,
@@ -58,7 +62,10 @@ const WalletReturnScreen: React.FC<Props> = ({
   const returnShoppingList = useMemo(() => shoppingList.filter(item => item.phase === 'post'), [shoppingList]);
   // Same rule as the during-trip card: a refund is claimed by whoever paid.
   const refundState = useMemo(
-    () => deriveDuringRefundState({ expenses, travelRules, viewerMemberId, tripOwnerMemberId }),
+    () => deriveDuringRefundState({
+      expenses, travelRules, viewerMemberId, tripOwnerMemberId,
+      customDecisions: refundableCustomCategories,
+    }),
     [expenses, travelRules, viewerMemberId, tripOwnerMemberId],
   );
 

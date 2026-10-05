@@ -2,6 +2,7 @@
 import { OVERLAY } from '../constants/layers';
 import { isForeignSplit, resolveExactSplit, splitTwdToEntry } from '../services/exactSplitCurrency';
 import { isRefundableCategory } from '../services/refundableCategories';
+import { CustomCategoryRefundability, customCategoryUndecided } from '../services/refundableCustomCategories';
 import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
@@ -16,6 +17,16 @@ import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
 interface Props {
   currentPhase: Phase;
   customCategories: CustomCategories;
+  /**
+   * What the traveller has already said about their own categories, and the
+   * way to answer for a new one.
+   *
+   * 「這個符合退稅資格但沒有顯示」 — a bill filed under 保養美妝品 fell outside the
+   * refund rules entirely, because a category somebody invented is opaque to a
+   * list of built-in buckets.
+   */
+  refundableCustomCategories?: CustomCategoryRefundability;
+  onDecideCustomCategory?: (name: string, refundable: boolean) => void;
   onAddCustomCategory: (phase: Phase, name: string) => void;
   onRemoveCustomCategory: (phase: Phase, name: string) => void;
   existingExpenses: Expense[];
@@ -69,6 +80,8 @@ const PHASE_LABELS: Record<Phase, string> = {
 const ExpenseForm: React.FC<Props> = ({ 
   currentPhase,
   customCategories,
+  refundableCustomCategories = {},
+  onDecideCustomCategory,
   onAddCustomCategory,
   onRemoveCustomCategory, 
   existingExpenses, 
@@ -737,12 +750,29 @@ const ExpenseForm: React.FC<Props> = ({
   const isEligibleForRefund = taxRule
                               && taxRule.refundRate > 0
                               && currentPhase === 'during'
-                              && isRefundableCategory(category)
+                              && isRefundableCategory(category, refundableCustomCategories)
                               && parseFloat(amount || '0') >= taxRule.minSpend
                               && (currency.toUpperCase() === taxRule.currency.toUpperCase()); 
 
   const estimatedRefund = isEligibleForRefund ? parseFloat(amount || '0') * taxRule.refundRate : 0;
-  const taxRefundGuidance = isRefundableCategory(category) ? travelRules?.taxRefund : undefined;
+  const taxRefundGuidance = isRefundableCategory(category, refundableCustomCategories) ? travelRules?.taxRefund : undefined;
+
+  /*
+    One question, on the first bill filed under a category nobody has judged.
+
+    Guessing is wrong both ways: every custom category counted as goods would
+    promise a refund on a massage, and none counted is exactly what hid the
+    lipstick. The answer belongs to the category, not to this bill, so it is
+    asked once and remembered.
+  */
+  const askAboutCategory = Boolean(
+    onDecideCustomCategory
+    && currentPhase === 'during'
+    && taxRule
+    && taxRule.refundRate > 0
+    && ownCategories.includes(String(category))
+    && customCategoryUndecided(refundableCustomCategories, String(category)),
+  );
 
   // Section heading shared by the three form groups, so the grouping reads as
   // one system rather than three ad-hoc labels.
@@ -990,6 +1020,21 @@ const ExpenseForm: React.FC<Props> = ({
                            {ownCategories.map(name => (
                              <span key={name} className="flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">
                                {name}
+                               {/* Changeable here too: an answer given in a hurry
+                                   beside one bill should not be permanent. */}
+                               {onDecideCustomCategory && (
+                                 <button
+                                   type="button"
+                                   data-testid={`toggle-category-refundable-${name}`}
+                                   aria-pressed={refundableCustomCategories[name] === true}
+                                   onClick={() => onDecideCustomCategory(name, refundableCustomCategories[name] !== true)}
+                                   className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                                     refundableCustomCategories[name] === true
+                                       ? 'bg-violet-100 text-violet-700'
+                                       : 'bg-slate-100 text-slate-400'
+                                   }`}
+                                 >可退稅</button>
+                               )}
                                <button type="button" aria-label={`刪除分類：${name}`} onClick={() => onRemoveCustomCategory(currentPhase, name)} className="text-slate-400">
                                  <X size={13} />
                                </button>
@@ -1001,6 +1046,38 @@ const ExpenseForm: React.FC<Props> = ({
                        )}
                      </div>
                    )}
+                   {/*
+                     Asked where the bill is, not in a settings screen.
+
+                     This is the moment somebody knows the answer: they are
+                     looking at a lipstick they just bought. 「這個符合退稅資格但
+                     沒有顯示」 was found on the expense, not in a menu.
+                   */}
+                   {askAboutCategory && (
+                     <div data-testid="ask-category-refundable" className="mb-2 rounded-2xl border border-violet-200 bg-violet-50/60 px-3 py-2.5">
+                       <p className="text-[11px] font-bold leading-5 text-[#11183d]">
+                         「{String(category)}」買的是可以退稅的商品嗎？
+                       </p>
+                       <div className="mt-1.5 flex gap-1.5">
+                         <button
+                           type="button"
+                           data-testid="category-refundable-yes"
+                           onClick={() => onDecideCustomCategory?.(String(category), true)}
+                           className="flex-1 rounded-xl bg-violet-600 px-3 py-2 text-[11px] font-black text-white"
+                         >是，算入退稅</button>
+                         <button
+                           type="button"
+                           data-testid="category-refundable-no"
+                           onClick={() => onDecideCustomCategory?.(String(category), false)}
+                           className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-500"
+                         >不是（服務類）</button>
+                       </div>
+                       <p className="mt-1.5 text-[10px] font-medium leading-4 text-slate-400">
+                         這個答案記在分類上，之後同分類的消費就不會再問。
+                       </p>
+                     </div>
+                   )}
+
                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                      {phaseCategories.map(cat => (
                        <button
