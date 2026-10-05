@@ -81,6 +81,14 @@ import {
   saveCustomCategories,
 } from "./services/customCategories";
 import {
+  DisputeNotice,
+  disputeNoticesFor,
+  loadSeenNotices,
+  saveSeenNotices,
+  unseenNotices,
+} from "./services/disputeInbox";
+import DisputeNoticeBanner from "./components/DisputeNoticeBanner";
+import {
   CustomCategoryRefundability,
   decideCustomCategory,
   loadRefundableCustomCategories,
@@ -864,6 +872,21 @@ const App: React.FC = () => {
   // Expense whose dispute thread is open. Stored by id so the modal always
   // renders the current record rather than a stale copy.
   const [disputeExpenseId, setDisputeExpenseId] = useState<string | null>(null);
+  /*
+    Questions waiting on somebody.
+
+    「我提出疑問後，希望對方要收到疑問的通知📢」 — a dispute used to be written onto
+    the expense and then sit there, visible only as a badge on one row of one
+    list, on the phone of whoever happened to scroll to that day.
+  */
+  const [seenDisputeNotices, setSeenDisputeNotices] = useState<string[]>(() => loadSeenNotices());
+  const dismissDisputeNotice = useCallback((noticeId: string) => {
+    setSeenDisputeNotices(current => {
+      const next = current.includes(noticeId) ? current : [...current, noticeId];
+      saveSeenNotices(next);
+      return next;
+    });
+  }, []);
   // The edit form is open as a proposal: the submitted values become a request
   // for the creator to approve, never a direct write.
   const [isProposalMode, setIsProposalMode] = useState(false);
@@ -3319,6 +3342,30 @@ const App: React.FC = () => {
   const defaultPayerMemberId = viewerResolution.isResolved
     ? viewerMemberId
     : activeOwnerMemberId;
+
+  /*
+    What is waiting on whoever is holding this phone.
+
+    Both directions: a question on a record I created, which is work I owe
+    somebody, and an answer to a question I asked, which I would otherwise
+    never go back and look for.
+  */
+  const disputeNotices = useMemo(
+    () => unseenNotices(
+      disputeNoticesFor({
+        expenses,
+        viewerMemberId,
+        tripOwnerMemberId: activeOwnerMemberId,
+        members: settlementMembers,
+      }),
+      seenDisputeNotices,
+    ),
+    [expenses, viewerMemberId, activeOwnerMemberId, settlementMembers, seenDisputeNotices],
+  );
+  const openDisputeNotice = useCallback((notice: DisputeNotice) => {
+    dismissDisputeNotice(notice.id);
+    setDisputeExpenseId(notice.expenseId);
+  }, [dismissDisputeNotice]);
   // Settlement is consumed per Expense x Member. An expense leaves the
   // outstanding set only when every non-owner participant is settled, so
   // settling Gina can no longer take V's share with it. Legacy unmarked
@@ -6310,6 +6357,12 @@ const App: React.FC = () => {
                 ledger is what the other tabs are for, and repeating it here
                 buried the totals. */}
             {walletPhase !== "summary" && (
+              <>
+              <DisputeNoticeBanner
+                notices={disputeNotices}
+                onOpen={openDisputeNotice}
+                onDismiss={notice => dismissDisputeNotice(notice.id)}
+              />
               <ExpenseList
                 refundableCustomCategories={refundableCustomCategories}
                 expenses={walletExpenses}
@@ -6321,6 +6374,7 @@ const App: React.FC = () => {
                 members={settlementMembers}
                 onOpenDisputes={(expense) => setDisputeExpenseId(expense.id)}
               />
+              </>
             )}
           </>
         )}
@@ -7115,6 +7169,11 @@ const App: React.FC = () => {
                     </span>
                   </div>
 
+                  <DisputeNoticeBanner
+                    notices={disputeNotices}
+                    onOpen={openDisputeNotice}
+                    onDismiss={notice => dismissDisputeNotice(notice.id)}
+                  />
                   <ExpenseList
                     refundableCustomCategories={refundableCustomCategories}
                     expenses={filteredExpenses}
