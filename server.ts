@@ -223,6 +223,24 @@ async function startServer() {
               travelEndDate: { type: Type.STRING, description: "Actual Travel End Date (Flights/Hotels)" },
               paymentMethod: { type: Type.STRING },
               country: { type: Type.STRING, description: "Inferred country in Traditional Chinese" },
+              merchant: { type: Type.STRING, description: "Shop name exactly as printed" },
+              // 「幫用戶條列商品項目並翻譯用戶使用的語言」: both names, never one
+              // replacing the other — the original is what is printed on the
+              // paper in the traveller's hand.
+              items: {
+                type: Type.ARRAY,
+                description: "Every product line on the receipt, in printed order",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING, description: "Exactly as printed, untranslated" },
+                    translatedName: { type: Type.STRING, description: "Same product in Traditional Chinese" },
+                    quantity: { type: Type.NUMBER },
+                    amount: { type: Type.NUMBER, description: "Line total in the receipt currency; negative for a discount" },
+                  },
+                  required: ["name"],
+                },
+              },
               isUncertain: { type: Type.BOOLEAN, description: "True if low confidence" },
             },
             required: ["amount", "currency"],

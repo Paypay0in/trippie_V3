@@ -44,6 +44,29 @@ export const INTAKE_MODELS = [
 const CATEGORIES = Object.values(Category) as string[];
 const PAYMENT_METHODS = Object.values(PaymentMethod) as string[];
 
+/**
+ * One line off the receipt, as printed and as the traveller reads.
+ *
+ * 「幫用戶條列商品項目並翻譯用戶使用的語言」. A Korean pharmacy receipt is a column
+ * of 블루CPR, 큐립연고, 닥터리쥬몰 — and a week later nobody can say what the
+ * 107,000 원 was, which is exactly when it matters: at the refund counter, in
+ * the settlement, or when deciding whether that category holds goods.
+ *
+ * Both names are kept. The original is what is printed on the paper somebody
+ * is holding up to a counter; the translation is what they understand. A
+ * translation that replaced the original would make the receipt and the app
+ * impossible to match line by line.
+ */
+export interface ParsedReceiptItem {
+  /** As printed, in the receipt's own script. */
+  name: string;
+  /** The same thing in Traditional Chinese, when the model could say. */
+  translatedName?: string;
+  quantity?: number;
+  /** What this line came to, in the receipt's currency. */
+  amount?: number;
+}
+
 export interface ParsedExpense {
   description?: string;
   amount?: number;
@@ -55,6 +78,10 @@ export interface ParsedExpense {
   isUncertain?: boolean;
   travelStartDate?: string;
   travelEndDate?: string;
+  /** The receipt's own lines, when it had any. */
+  items?: ParsedReceiptItem[];
+  /** The shop, as printed. */
+  merchant?: string;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -100,6 +127,42 @@ export const normalizeParsedExpense = (raw: unknown): ParsedExpense | null => {
     result.country = value.country.trim().slice(0, 40);
   }
 
+  if (typeof value.merchant === 'string' && value.merchant.trim()) {
+    result.merchant = value.merchant.trim().slice(0, 60);
+  }
+
+  /*
+    Lines are kept only when they have a name.
+
+    A row of blank names with numbers beside them is worse than no itemisation:
+    it looks like data and says nothing. Discounts come through as negative
+    amounts and are kept — 「-30,000원 일반의약품」 is why the total is not the
+    sum of the lines, and hiding it would make the receipt look wrong.
+  */
+  if (Array.isArray(value.items)) {
+    const items = value.items
+      .map(entry => (entry && typeof entry === 'object' ? entry as Record<string, unknown> : null))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+      .map(entry => {
+        const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, 80) : '';
+        if (!name) return null;
+        const translated = typeof entry.translatedName === 'string' ? entry.translatedName.trim().slice(0, 80) : '';
+        const quantity = Number(entry.quantity);
+        const amount = Number(entry.amount);
+        return {
+          name,
+          // A 「translation」 identical to the original is not one, and showing
+          // the same string twice reads as a rendering fault.
+          ...(translated && translated !== name ? { translatedName: translated } : {}),
+          ...(Number.isFinite(quantity) && quantity > 0 ? { quantity } : {}),
+          ...(Number.isFinite(amount) ? { amount } : {}),
+        } as ParsedReceiptItem;
+      })
+      .filter((entry): entry is ParsedReceiptItem => entry !== null)
+      .slice(0, 40);
+    if (items.length) result.items = items;
+  }
+
   if (value.isUncertain === true) result.isUncertain = true;
 
   // An amount is the one field the form cannot fill in from context. Without
@@ -139,6 +202,14 @@ export const imageExpensePrompt = () => `
       4. Category: Choose strictly from: ${CATEGORIES.join(', ')}.
       5. Payment Method: Infer Credit Card, Cash, or IC Card.
       6. Country: Infer the country in Traditional Chinese.
+      7. Merchant: the shop name exactly as printed.
+      8. Items: every product line on the receipt, in the order printed.
+         - "name": exactly as printed, in the receipt's own script. Do not translate this field.
+         - "translatedName": the same product in Traditional Chinese (zh-TW), as a shopper would name it.
+           Omit it only when you genuinely cannot tell what the product is. Never transliterate blindly.
+         - "quantity" and "amount": the line's quantity and its line total, as numbers in the receipt currency.
+         - Include discount lines, with a negative amount, so the lines explain the total.
+         - If the image is not an itemised receipt, return an empty list rather than inventing lines.
 
       CRITICAL DATE PARSING:
       - "date": The specific date when the TRANSACTION/PAYMENT happened (or the invoice date). This is for the ledger.

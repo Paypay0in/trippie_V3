@@ -420,6 +420,14 @@ const ExpenseForm: React.FC<Props> = ({
                       payerAllocations: { [effectiveViewerMemberId]: twdVal },
                       splitMethod: 'EQUAL',
                       splitAllocations: {},
+                      /*
+                        What was actually bought, kept with the bill.
+
+                        「幫用戶條列商品項目並翻譯用戶使用的語言」 — without the lines
+                        the record is a number and a shop name, which is
+                        unreadable by the time anybody needs it.
+                      */
+                      ...(result.items?.length ? { receiptItems: result.items } : {}),
                       needsReview: result.isUncertain
                   };
 
@@ -954,6 +962,45 @@ const ExpenseForm: React.FC<Props> = ({
                   </div>
                 </div>
               )}
+
+              {/*
+                What the receipt said, in both languages.
+
+                「幫用戶條列商品項目並翻譯用戶使用的語言」. Beside the total, because
+                the question being asked of this screen is 「what was this
+                107,000 원」 — and the printed name stays next to the translation
+                so the line can still be matched against the paper itself.
+              */}
+              {initialData?.receiptItems?.length ? (
+                <div data-testid="receipt-items" className="rounded-2xl border border-slate-100 bg-white p-3">
+                  <p className="text-[11px] font-black text-slate-500">收據明細</p>
+                  <ul className="mt-1.5 space-y-1">
+                    {initialData.receiptItems.map((line, index) => (
+                      <li key={`${line.name}-${index}`} className="flex items-start gap-2 text-xs">
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-bold text-[#11183d]">
+                            {line.translatedName || line.name}
+                            {line.quantity && line.quantity > 1 ? ` × ${line.quantity}` : ''}
+                          </span>
+                          {line.translatedName && (
+                            <span className="block text-[10px] font-medium text-slate-400">{line.name}</span>
+                          )}
+                        </span>
+                        {Number.isFinite(line.amount) && (
+                          <span className={`shrink-0 font-mono text-[11px] font-bold ${
+                            (line.amount as number) < 0 ? 'text-emerald-600' : 'text-slate-600'
+                          }`}>
+                            {(line.amount as number).toLocaleString()}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1.5 text-[10px] font-medium leading-4 text-slate-400">
+                    由收據照片辨識，金額為收據原幣。折扣會是負數，所以明細加總不一定等於總額。
+                  </p>
+                </div>
+              ) : null}
 
               {proposalMode && (
                 <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-medium leading-relaxed text-amber-900 ring-1 ring-amber-100">

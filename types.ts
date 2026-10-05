@@ -146,6 +146,25 @@ export interface ExpenseDispute {
   appliedAt?: string;
 }
 
+/**
+ * One line off a photographed receipt, in both languages.
+ *
+ * 「記帳部分新增可以讓用戶直接拍照上傳收據，幫用戶條列商品項目並翻譯用戶使用的語言」.
+ * The ledger kept a total and a shop name, so 107,000 원 at a Busan pharmacy
+ * was unreadable a week later — at the refund counter, in the settlement, or
+ * when deciding whether that purchase was goods at all.
+ *
+ * The printed name is kept beside the translation, never replaced by it: the
+ * original is what is on the paper in the traveller's hand.
+ */
+export interface ReceiptItem {
+  name: string;
+  translatedName?: string;
+  quantity?: number;
+  /** Line total in the receipt's currency; negative on a discount line. */
+  amount?: number;
+}
+
 export interface Expense {
   id: string;
   description: string;
@@ -205,6 +224,8 @@ export interface Expense {
    * list shows. This is the sentence that explains it.
    */
   note?: string;
+  /** The receipt's own lines, when one was photographed. */
+  receiptItems?: ReceiptItem[];
   taxRefundedAtPurchase?: boolean;
   /**
    * This purchase cannot be refunded at all.

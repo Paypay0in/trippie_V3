@@ -102,6 +102,9 @@ export const parseImageExpenseWithGemini = async (base64Data: string, mimeType: 
   isUncertain?: boolean;
   travelStartDate?: string;
   travelEndDate?: string;
+  /** Every product line the receipt listed, printed name and translation. */
+  items?: Array<{ name: string; translatedName?: string; quantity?: number; amount?: number }>;
+  merchant?: string;
 } | null> => {
   if (!base64Data) return null;
   return postExpenseIntake('/api/expenses/parse-image', { base64Data, mimeType });

@@ -1,0 +1,24 @@
+-- What was actually bought, line by line.
+--
+-- 「記帳部分新增可以讓用戶直接拍照上傳收據，幫用戶條列商品項目並翻譯用戶使用的語言」.
+--
+-- The ledger kept a total and a shop name, so 107,000 원 at a Busan pharmacy
+-- was unreadable a week later — at the refund counter, in the settlement, or
+-- when deciding whether that purchase was goods at all.
+--
+-- JSONB rather than a child table: these lines are never queried, filtered or
+-- joined on. They are read back whole, with the expense, and only ever written
+-- by the parse that produced them. A table would buy nothing and cost a second
+-- thing to sync and prune.
+--
+-- Each entry carries the printed name and the translation side by side —
+-- `{ name, translatedName, quantity, amount }`. The original is what is on the
+-- paper in the traveller's hand, so it is never replaced by the translation,
+-- and a negative `amount` is a discount line, which is why the lines may not
+-- sum to the total.
+--
+-- Syncs with the expense: both travellers settle from the same bill, so what
+-- the bill was for belongs on it rather than on whichever phone photographed
+-- the receipt.
+alter table public.expenses
+  add column if not exists receipt_items jsonb;
