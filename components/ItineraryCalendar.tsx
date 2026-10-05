@@ -38,6 +38,7 @@ import { isStayItem, stayRoleOf } from '../services/stayConflicts';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
 import DayBlockPlanner from './DayBlockPlanner';
+import DayTransportCheck from './DayTransportCheck';
 import { fixedAnchorSchedule } from '../services/itineraryDayFloor';
 import SavedPlaceCard from './SavedPlaceCard';
 import StayDetailSheet from './StayDetailSheet';
@@ -893,6 +894,22 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       return count > 0 ? <span data-testid={`suggestion-badge-${date}`} className="absolute right-2 top-2 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">{count}</span> : null;
     })()}</button>;
       })}</div>}
+
+      {/*
+        Whether today's travel actually works, on one tap.
+
+        「最後再確認行程時，可以一鍵點選AI確認當日行程的交通規劃是否順暢」. Not gated
+        on the collection the block planner needs: checking the day you have is
+        a different question from building the day you do not.
+      */}
+      {activeDate && (
+        <DayTransportCheck
+          date={activeDate}
+          items={timedItems}
+          areas={areas}
+          destinationCountry={destinationCountry}
+        />
+      )}
 
       {/*
         The day as blocks, above the day as cards.
