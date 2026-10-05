@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDaySlots, buildDayTemplate, slotForTime } from './dayTemplate';
+import { buildDaySlots, buildDayTemplate, DEFAULT_ITEM_MINUTES, slotForTime } from './dayTemplate';
 import { FixedScheduleEntry } from './itineraryDayFloor';
 
 /**
@@ -178,5 +178,91 @@ describe('a block the traveller lengthened', () => {
 
   it('is not an overflow when the day simply ends', () => {
     expect(buildDayTemplate({ date: DAY, dayStart: '10:00', dayEnd: '20:00' }).ranOutOfDay).toBe(false);
+  });
+});
+
+/**
+ * 「這裡的時間線 跟行程表的不一樣」.
+ *
+ * The table is a view of the itinerary, so it may not hold a second opinion
+ * about when anything is. Packing blocks end to end gave it one: an item at
+ * 12:00 appeared in a block labelled 11:30, and a 60-minute stop was drawn as
+ * two hours.
+ */
+describe('a day that already has plans in it', () => {
+  const planned = [
+    { id: 'morning', time: '10:00', durationMinutes: 90 },
+    { id: 'store', time: '12:00', durationMinutes: 150 },
+    { id: 'market', time: '15:30', durationMinutes: 60 },
+  ];
+
+  it('reports each item at the time the itinerary holds it', () => {
+    const { slots } = buildDayTemplate({ date: DAY, dayStart: '10:00', dayEnd: '21:00', occupants: planned });
+
+    const occupied = slots.filter(slot => slot.occupantId);
+
+    expect(occupied.map(slot => `${slot.occupantId} ${slot.startTime}-${slot.endTime}`)).toEqual([
+      'morning 10:00-11:30', 'store 12:00-14:30', 'market 15:30-16:30',
+    ]);
+  });
+
+  it('offers the gaps between them, and only the gaps', () => {
+    // The tail is 90 minutes, short of a block, so it is not offered — the
+    // same rule an empty day follows at its own end.
+    const { slots } = buildDayTemplate({ date: DAY, dayStart: '10:00', dayEnd: '18:00', occupants: planned });
+
+    expect(slots.filter(slot => !slot.occupantId).map(slot => `${slot.startTime}-${slot.endTime}`)).toEqual([
+      '11:30-12:00', '14:30-15:30',
+    ]);
+  });
+
+  it('offers the evening after the last plan when there is room for it', () => {
+    const { slots } = buildDayTemplate({ date: DAY, dayStart: '10:00', dayEnd: '21:00', occupants: planned });
+
+    expect(slots.filter(slot => !slot.occupantId).map(slot => `${slot.startTime}-${slot.endTime}`)).toEqual([
+      '11:30-12:00', '14:30-15:30', '16:30-18:30', '18:30-20:30',
+    ]);
+  });
+
+  it('gives an item with no stated length the same hour the timeline draws', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY, dayStart: '10:00', dayEnd: '14:00', occupants: [{ id: 'coffee', time: '10:00' }],
+    });
+
+    expect(slots[0].durationMinutes).toBe(DEFAULT_ITEM_MINUTES);
+    expect(slots[0].endTime).toBe('11:00');
+  });
+
+  it('does not offer a gap too short to put anything in', () => {
+    // 15 minutes between two bookings is not a slot, and a dropdown over it
+    // would promise room the day does not have.
+    const { slots } = buildDayTemplate({
+      date: DAY, dayStart: '10:00', dayEnd: '14:00',
+      occupants: [
+        { id: 'a', time: '10:00', durationMinutes: 60 },
+        { id: 'b', time: '11:15', durationMinutes: 60 },
+      ],
+    });
+
+    expect(slots.map(slot => slot.occupantId)).toEqual(['a', 'b']);
+  });
+
+  it('keeps a morning that starts before the day does', () => {
+    // 「八點的早市在十點開始的那天」 — otherwise it has no block to sit in and
+    // reads as deleted.
+    const { slots } = buildDayTemplate({
+      date: DAY, dayStart: '10:00', dayEnd: '14:00', occupants: [{ id: 'market', time: '08:00', durationMinutes: 60 }],
+    });
+
+    expect(slots[0].occupantId).toBe('market');
+    expect(slots[0].startTime).toBe('08:00');
+  });
+
+  it('labels an occupied block by the item own clock', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY, dayStart: '10:00', dayEnd: '21:00', occupants: [{ id: 'lunch', time: '12:30', durationMinutes: 60 }],
+    });
+
+    expect(slots.find(slot => slot.occupantId === 'lunch')?.label).toBe('午餐');
   });
 });

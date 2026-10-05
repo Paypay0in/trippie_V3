@@ -51,6 +51,19 @@ export const DEFAULT_DAY_START = '10:00';
 /** Nothing is scheduled past this; a block starting later is one nobody uses. */
 export const DEFAULT_DAY_END = '21:00';
 
+/**
+ * What an itinerary item with no stated length runs for.
+ *
+ * Sixty minutes, which is what the timeline already draws and what the overlap
+ * warnings already assume — `DEFAULT_DURATION_MINUTES` in `itineraryTimeline`.
+ * Repeated as a constant rather than imported to keep this module free of the
+ * timeline's types; the two are checked against each other in the tests.
+ */
+export const DEFAULT_ITEM_MINUTES = 60;
+
+/** Shorter than this between two plans is not a slot anyone can fill. */
+export const MIN_FREE_MINUTES = 30;
+
 const toMinutes = (clock: string): number => {
   const [hours, minutes] = clock.split(':').map(Number);
   return hours * 60 + minutes;
@@ -182,43 +195,90 @@ export const buildDayTemplate = ({
   const used = new Set<string>();
 
   /*
-    Each block starts where the one before it ended.
+    What is already planned keeps its own clock; the free time between is cut
+    into blocks.
 
-    That is the whole of 「自動提前或順延」: a length is set, every later start
-    time follows from it, and nothing has to be dragged. The label is read off
-    the resulting clock, so a morning that runs long turns the next block into
-    lunch by itself.
+    「這裡的時間線 跟行程表的不一樣」. Packing every block end to end made the
+    table disagree with the timeline it is a view of: an item at 12:00 landed in
+    a block labelled 11:30, and a 60-minute stop appeared as two hours, because
+    the block's start was an accumulation of lengths rather than the item's own
+    time. Two answers to 「when is 新世界百貨」 is one too many — and the one the
+    traveller is actually standing in is the itinerary's.
+
+    So an occupied block reports the item: its time, its length. Only the gaps
+    between items are ours to shape, and only there does 「a length is an input,
+    a start time is an output」 apply.
   */
+  const planned = occupants
+    .filter(entry => isClock(entry.time))
+    .map(entry => ({
+      id: entry.id,
+      from: toMinutes(entry.time as string),
+      /*
+        The same fallback the timeline draws with.
+
+        An item with no length is sixty minutes everywhere else on this screen;
+        a block that called it two hours would be the disagreement again, one
+        layer down.
+      */
+      minutes: Number.isFinite(entry.durationMinutes) && (entry.durationMinutes as number) > 0
+        ? (entry.durationMinutes as number)
+        : DEFAULT_ITEM_MINUTES,
+    }))
+    .sort((left, right) => left.from - right.from);
+
   const MAX_BLOCKS = 12;
-  while (index < MAX_BLOCKS) {
+  while (index < MAX_BLOCKS && cursor < limit) {
+    const next = planned.find(entry => !used.has(entry.id) && entry.from + entry.minutes > cursor);
+
+    if (next && next.from <= cursor) {
+      // Standing in it now. Reported exactly as the itinerary holds it, even
+      // when it started before the day's grid or runs past the end of it:
+      // trimming an item to fit a block would be the table editing the plan.
+      used.add(next.id);
+      const meal = mealAt(next.from);
+      slots.push({
+        id: `${date}#${index}`,
+        index,
+        kind: meal ? 'meal' : 'activity',
+        label: meal || activityLabel(next.from),
+        startTime: toClock(next.from),
+        endTime: toClock(next.from + next.minutes),
+        durationMinutes: next.minutes,
+        occupantId: next.id,
+      });
+      cursor = Math.max(cursor, next.from + next.minutes);
+      index += 1;
+      continue;
+    }
+
     /*
-      Whatever is already here decides how long this block runs.
+      Free time, cut to the block size — but never past whatever comes next.
 
-      An occupant's own length wins, because the card and the block have to
-      agree; a length set by hand comes next; the default is the fallback.
+      A gap too short to put anything in is not offered: a 15-minute hole
+      between two bookings is not a slot, and a dropdown over it would promise
+      room the day does not have.
     */
-    const occupant = occupants.find(entry =>
-      isClock(entry.time)
-      && !used.has(entry.id)
-      && toMinutes(entry.time as string) >= cursor
-      && toMinutes(entry.time as string) < cursor + blockMinutes);
-    if (occupant) used.add(occupant.id);
+    const wanted = Number.isFinite(durations[index]) && (durations[index] as number) > 0
+      ? (durations[index] as number)
+      : blockMinutes;
+    const until = next ? Math.min(next.from, cursor + wanted) : cursor + wanted;
+    const free = until - cursor;
 
-    const minutes = occupant && Number.isFinite(occupant.durationMinutes) && (occupant.durationMinutes as number) > 0
-      ? (occupant.durationMinutes as number)
-      : Number.isFinite(durations[index]) && (durations[index] as number) > 0
-        ? (durations[index] as number)
-        : blockMinutes;
+    if (next && free < MIN_FREE_MINUTES) {
+      cursor = next.from;
+      continue;
+    }
 
-    if (cursor + minutes > limit) {
+    if (cursor + free > limit || free <= 0) {
       /*
         A block the day has no room for. Said rather than squeezed.
 
-        Only when the custom length is what pushed it out: a day that simply
-        ends is not an overflow, and reporting one would put a warning on every
+        Only when a custom length is what pushed it out: a day that simply ends
+        is not an overflow, and reporting one would put a warning on every
         ordinary evening.
       */
-      ranOutOfDay = cursor + blockMinutes <= limit;
+      ranOutOfDay = free > blockMinutes && cursor + blockMinutes <= limit;
       break;
     }
 
@@ -229,11 +289,10 @@ export const buildDayTemplate = ({
       kind: meal ? 'meal' : 'activity',
       label: meal || activityLabel(cursor),
       startTime: toClock(cursor),
-      endTime: toClock(cursor + minutes),
-      durationMinutes: minutes,
-      ...(occupant ? { occupantId: occupant.id } : {}),
+      endTime: toClock(cursor + free),
+      durationMinutes: free,
     });
-    cursor += minutes;
+    cursor += free;
     index += 1;
   }
 

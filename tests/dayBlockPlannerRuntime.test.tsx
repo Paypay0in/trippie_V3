@@ -178,10 +178,15 @@ describe('the table itself', () => {
     expect(screen.getByTestId('day-block-0').textContent).toContain('10:00–12:00');
   });
 
-  it('puts that stop in the block its time falls in', () => {
+  it('puts that stop in a block of its own, at its own time', () => {
+    // 「這裡的時間線 跟行程表的不一樣」: the block reports the itinerary rather
+    // than a position arrived at by stacking lengths, so it says 17:00 — and
+    // the free time before it is a block of its own, not a block it sits in.
     renderPlanner({ items: evening });
 
-    expect(screen.getByTestId('day-block-3').textContent).toContain('Cheongsapo');
+    const block = screen.getByText('Cheongsapo').closest('[data-testid^="day-block-"]');
+
+    expect(block?.textContent).toContain('17:00–19:00');
   });
 
   it('still shows every block when the day is empty', () => {
