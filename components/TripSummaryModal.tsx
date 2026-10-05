@@ -6,7 +6,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { expenseCostToViewer } from '../services/viewerSpend';
 import { calculateExpenseLedger } from '../services/splitCalculator';
 import { partitionByConcern } from '../services/expenseConcernsMember';
-import { X, Trophy, Wallet, Receipt, CreditCard, Printer, Archive, Save, List, PieChart as PieIcon, Tag, CheckCircle, HandHelping, Calculator, CheckSquare, Square, Share, MousePointerClick, Percent } from 'lucide-react';
+import { X, Trophy, Wallet, Receipt, CreditCard, Printer, Archive, Save, List, PieChart as PieIcon, Tag, CheckCircle, HandHelping, Calculator, CheckSquare, Square, Share, MousePointerClick, Percent, ChevronDown } from 'lucide-react';
 
 interface Props {
   expenses: Expense[];
@@ -57,6 +57,8 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
   const [tripName, setTripName] = useState(initialTripName);
 
   // Bill Generation State
+  /** Which category row is open, so its bills can be read. */
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [showBillPreview, setShowBillPreview] = useState(false);
@@ -108,6 +110,16 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
     // Help Buy List now includes refundDeduction
     const helpBuy: { id: string; date: string; desc: string; amount: number; currency: string; foreignAmount: number; refundDeduction?: number }[] = [];
     const duringCatMap: Record<string, number> = {};
+    /*
+      The bills behind each category.
+
+      「這個購物寫了我花了8000多 我怎麼完全找不到這樣的總額」. The row was a correct
+      number with nothing underneath it: a share of each bill, summed across
+      every day of the trip, and no screen anywhere lists that. A total nobody
+      can trace is a total nobody can believe — and the one thing worth knowing
+      about 購物 $8,579 is which purchases are in it.
+    */
+    const duringCatItems: Record<string, Array<{ id: string; date: string; desc: string; amount: number; full: number; currency: string; foreignAmount: number }>> = {};
     let duringSum = 0;
     let helpBuySum = 0;
 
@@ -200,6 +212,17 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
           } else if (e.phase === 'during') {
               duringCatMap[e.category] = (duringCatMap[e.category] || 0) + realCost;
               duringSum += realCost;
+              (duringCatItems[e.category] ||= []).push({
+                id: e.id,
+                date: e.date,
+                desc: e.description,
+                amount: realCost,
+                // Kept beside the share so a split bill explains itself: 「你的
+                // 475」 is unrecognisable next to a receipt that says 950.
+                full: e.twdAmount,
+                currency: e.currency,
+                foreignAmount: e.amount,
+              });
           }
       }
 
@@ -238,7 +261,12 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
 
     // Process During Stats
     const dStats = Object.entries(duringCatMap)
-        .map(([cat, val]) => ({ category: cat, amount: val, percentage: duringSum > 0 ? val/duringSum : 0 }))
+        .map(([cat, val]) => ({
+          category: cat,
+          amount: val,
+          percentage: duringSum > 0 ? val/duringSum : 0,
+          items: (duringCatItems[cat] || []).slice().sort((a, b) => b.amount - a.amount),
+        }))
         .sort((a,b) => b.amount - a.amount);
 
     // Process Chart Data
@@ -595,20 +623,75 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                   <div className="space-y-3">
                     {duringCategoryStats.map((stat, idx) => (
                       <div key={idx}>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="font-medium text-gray-700 flex items-center gap-1">
-                             {stat.category}
-                          </span>
-                          <span className="text-gray-500 font-mono">
-                            {(stat.percentage * 100).toFixed(1)}% <span className="text-gray-300 mx-1">|</span> ${Math.round(stat.amount).toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
-                            style={{ width: `${stat.percentage * 100}%` }}
-                          ></div>
-                        </div>
+                        {/*
+                          A total you can open.
+
+                          「我怎麼完全找不到這樣的總額」 — the row was a share of each
+                          bill summed across every day, and no screen listed
+                          that. A number nobody can trace is a number nobody can
+                          believe.
+                        */}
+                        <button
+                          type="button"
+                          data-testid={`category-row-${stat.category}`}
+                          aria-expanded={openCategory === stat.category}
+                          onClick={() => setOpenCategory(current => (current === stat.category ? null : stat.category))}
+                          className="w-full text-left"
+                        >
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="font-medium text-gray-700 flex items-center gap-1">
+                               {stat.category}
+                               <ChevronDown
+                                 size={12}
+                                 className={`text-gray-300 transition-transform ${openCategory === stat.category ? 'rotate-180' : ''}`}
+                               />
+                            </span>
+                            <span className="text-gray-500 font-mono">
+                              {(stat.percentage * 100).toFixed(1)}% <span className="text-gray-300 mx-1">|</span> ${Math.round(stat.amount).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                              style={{ width: `${stat.percentage * 100}%` }}
+                            ></div>
+                          </div>
+                        </button>
+
+                        {openCategory === stat.category && (
+                          <div data-testid={`category-items-${stat.category}`} className="mt-2 space-y-1 rounded-xl bg-gray-50 p-2">
+                            {stat.items.map(item => (
+                              <div key={item.id} className="flex items-start justify-between gap-2 text-[11px]">
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate font-bold text-gray-700">{item.desc}</span>
+                                  <span className="block text-[10px] text-gray-400">
+                                    {item.date}
+                                    {item.currency !== 'TWD' && ` · ${Math.round(item.foreignAmount).toLocaleString()} ${item.currency}`}
+                                  </span>
+                                </span>
+                                <span className="shrink-0 text-right">
+                                  <span className="block font-mono font-bold text-gray-700">
+                                    ${Math.round(item.amount).toLocaleString()}
+                                  </span>
+                                  {/*
+                                    The whole bill, when the share is only part
+                                    of it: 「你的 475」 is unrecognisable beside a
+                                    receipt that says 950.
+                                  */}
+                                  {Math.round(item.full) !== Math.round(item.amount) && (
+                                    <span className="block text-[9px] text-gray-400">
+                                      全額 ${Math.round(item.full).toLocaleString()}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            ))}
+                            <div className="flex justify-between border-t border-gray-200 pt-1 text-[11px] font-black text-gray-700">
+                              <span>這一類合計</span>
+                              <span className="font-mono">${Math.round(stat.amount).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                      <div className="border-t border-gray-100 pt-2 flex justify-between items-center font-bold text-gray-900 mt-2 text-sm bg-gray-50 p-2 rounded">
