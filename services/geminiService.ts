@@ -107,6 +107,10 @@ export const parseImageExpenseWithGemini = async (base64Data: string, mimeType: 
   merchant?: string;
   /** The shop's address, as printed on the receipt. */
   merchantAddress?: string;
+  /** The shop resolved to a place, when the address could be matched. */
+  merchantPlaceId?: string;
+  merchantLatitude?: number;
+  merchantLongitude?: number;
   /** The till already refunded the tax, and how much it took off. */
   taxRefundedAtPurchase?: boolean;
   taxRefundActual?: number;

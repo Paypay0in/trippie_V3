@@ -273,3 +273,35 @@ describe('where the shop is', () => {
     expect(fromExpenseRow(toExpenseRow(expense, 'trip-1') as never).merchantAddress).toBe(ADDRESS);
   });
 });
+
+/**
+ * 「把地址解析成座標 + 商家 Place ID … 好啊」.
+ */
+describe('the shop as a place', () => {
+  const expense = {
+    id: 'e-oy2', description: 'OLIVE YOUNG 購物', merchant: 'CJ올리브영(주) 서면역사점',
+    merchantAddress: '부산광역시 부산진구 중앙대로 737', merchantPlaceId: 'g-oliveyoung-seomyeon',
+    merchantLatitude: 35.1578, merchantLongitude: 129.0594,
+    amount: 19000, currency: 'KRW', exchangeRate: 0.023, twdAmount: 437,
+    category: '美妝保養', paymentMethod: '信用卡', phase: 'during', date: '2026-10-06',
+    payerId: 'me', beneficiaries: ['me'], splitMethod: 'EQUAL', splitAllocations: {},
+  } as unknown as Expense;
+
+  it('travels with the bill, id and coordinates together', () => {
+    const back = fromExpenseRow(toExpenseRow(expense, 'trip-1') as never);
+
+    expect(back.merchantPlaceId).toBe('g-oliveyoung-seomyeon');
+    expect(back.merchantLatitude).toBe(35.1578);
+    expect(back.merchantLongitude).toBe(129.0594);
+  });
+
+  it('reads a bill nobody could pin down as having no place', () => {
+    // Absent is the honest record for a shop the lookup could not confirm.
+    const { merchantPlaceId: _id, merchantLatitude: _lat, merchantLongitude: _lng, ...unpinned } = expense;
+
+    const back = fromExpenseRow(toExpenseRow(unpinned as Expense, 'trip-1') as never);
+
+    expect(back.merchantPlaceId).toBeUndefined();
+    expect(back.merchantLatitude).toBeUndefined();
+  });
+});

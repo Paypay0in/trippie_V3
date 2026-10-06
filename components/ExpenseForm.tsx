@@ -441,6 +441,11 @@ const ExpenseForm: React.FC<Props> = ({
                       // 「地址更能協助大數據分析」: a shop name is only a name until
                       // something says where it is.
                       ...(result.merchantAddress ? { merchantAddress: result.merchantAddress } : {}),
+                      ...(result.merchantPlaceId ? {
+                        merchantPlaceId: result.merchantPlaceId,
+                        merchantLatitude: result.merchantLatitude,
+                        merchantLongitude: result.merchantLongitude,
+                      } : {}),
                       /*
                         What the till already gave back.
 

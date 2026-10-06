@@ -10,6 +10,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
 import { isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
+import { chooseMerchantPlace, merchantSearchQuery } from "./services/merchantPlaceQuery";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
   exchangeRatePrompt,
@@ -181,6 +182,45 @@ async function startServer() {
     throw lastError;
   };
 
+  /**
+   * Looks the shop up, and accepts the answer only if it is the same address.
+   *
+   * A place lookup always returns something. A confidently wrong coordinate is
+   * worse than an empty column: it does not look missing, so nobody checks it,
+   * and it lands in whatever is aggregated later.
+   */
+  const resolveMerchantPlace = async (
+    merchant?: string,
+    address?: string,
+  ): Promise<{ merchantPlaceId: string; merchantLatitude: number; merchantLongitude: number } | undefined> => {
+    const query = merchantSearchQuery({ merchant, address });
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!query || !apiKey) return undefined;
+    const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "places.id,places.formattedAddress,places.location",
+      },
+      body: JSON.stringify({ textQuery: query, languageCode: "zh-TW", maxResultCount: 5 }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) return undefined;
+    const data = await response.json() as {
+      places?: Array<{ id?: string; formattedAddress?: string; location?: { latitude?: number; longitude?: number } }>;
+    };
+    const chosen = chooseMerchantPlace(address, (data.places || []).map(place => ({
+      placeId: place.id,
+      latitude: place.location?.latitude,
+      longitude: place.location?.longitude,
+      formattedAddress: place.formattedAddress,
+    })));
+    return chosen
+      ? { merchantPlaceId: chosen.placeId, merchantLatitude: chosen.latitude, merchantLongitude: chosen.longitude }
+      : undefined;
+  };
+
   // A receipt photo is base64, so it arrives far larger than any other body
   // this server accepts. Its parser is mounted *before* the global 16kb one
   // because the global parser would reject the request first — express.json
@@ -245,7 +285,16 @@ async function startServer() {
       }));
       const parsed = normalizeParsedExpense(JSON.parse(cleanModelJson(response.text ?? "")));
       if (!parsed) { res.status(422).json({ error: "這張照片看不出金額，請手動輸入。" }); return; }
-      res.json(parsed);
+      /*
+        The shop, pinned to a place the app can count with.
+
+        「地址更能協助大數據分析」: a text address is enough to read and useless to
+        aggregate, because the same branch prints differently on every receipt.
+        Never allowed to fail the parse — the bill is the answer somebody asked
+        for, and a place id is a bonus on top of it.
+      */
+      const place = await resolveMerchantPlace(parsed.merchant, parsed.merchantAddress).catch(() => undefined);
+      res.json(place ? { ...parsed, ...place } : parsed);
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
       res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識收據，請手動輸入。" });

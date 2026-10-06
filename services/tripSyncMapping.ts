@@ -39,6 +39,10 @@ export interface ExpenseRow {
   merchant?: unknown;
   /** The shop's address, as printed. */
   merchant_address?: unknown;
+  /** The shop as a place, for aggregating across receipts. */
+  merchant_place_id?: unknown;
+  merchant_latitude?: unknown;
+  merchant_longitude?: unknown;
   note?: unknown;
   tax_refunded_at_purchase?: unknown;
   tax_refund_ineligible?: unknown;
@@ -88,6 +92,9 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   receipt_items: expense.receiptItems ?? [],
   merchant: expense.merchant?.trim() || null,
   merchant_address: expense.merchantAddress?.trim() || null,
+  merchant_place_id: expense.merchantPlaceId?.trim() || null,
+  merchant_latitude: Number.isFinite(expense.merchantLatitude) ? expense.merchantLatitude : null,
+  merchant_longitude: Number.isFinite(expense.merchantLongitude) ? expense.merchantLongitude : null,
   // Both travellers read the same ledger, so a note explaining a bill belongs
   // on the bill rather than on whichever phone typed it.
   note: expense.note?.trim() || null,
@@ -159,6 +166,11 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   merchantAddress: typeof row.merchant_address === 'string' && row.merchant_address.trim()
     ? row.merchant_address
     : undefined,
+  merchantPlaceId: typeof row.merchant_place_id === 'string' && row.merchant_place_id.trim()
+    ? row.merchant_place_id
+    : undefined,
+  merchantLatitude: typeof row.merchant_latitude === 'number' ? row.merchant_latitude : undefined,
+  merchantLongitude: typeof row.merchant_longitude === 'number' ? row.merchant_longitude : undefined,
   taxRefundedAtPurchase: row.tax_refunded_at_purchase === true ? true : undefined,
   taxRefundIneligible: row.tax_refund_ineligible === true ? true : undefined,
   taxRefundActual: Number.isFinite(Number(row.tax_refund_actual)) && row.tax_refund_actual !== null

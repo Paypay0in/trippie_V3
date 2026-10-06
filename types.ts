@@ -246,6 +246,21 @@ export interface Expense {
    * them later without having guessed at the time.
    */
   merchantAddress?: string;
+  /**
+   * The shop as a place, rather than as a line of text.
+   *
+   * 「地址更能協助大數據分析」. A printed address is enough to read and useless to
+   * count with — the same branch prints differently on every receipt — so the
+   * aggregation this is for needs an id two receipts can agree on.
+   *
+   * Only ever set when the place service returned an address bearing the same
+   * street number the receipt printed. Absent means nobody could pin the shop
+   * down, which is an honest record; a confidently wrong coordinate would not
+   * look missing and so would never be checked.
+   */
+  merchantPlaceId?: string;
+  merchantLatitude?: number;
+  merchantLongitude?: number;
   taxRefundedAtPurchase?: boolean;
   /**
    * This purchase cannot be refunded at all.

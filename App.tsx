@@ -4906,6 +4906,11 @@ const App: React.FC = () => {
               ...(result.items?.length ? { receiptItems: result.items } : {}),
               ...(result.merchant ? { merchant: result.merchant } : {}),
               ...(result.merchantAddress ? { merchantAddress: result.merchantAddress } : {}),
+              ...(result.merchantPlaceId ? {
+                merchantPlaceId: result.merchantPlaceId,
+                merchantLatitude: result.merchantLatitude,
+                merchantLongitude: result.merchantLongitude,
+              } : {}),
               ...(result.taxRefundedAtPurchase
                 ? { taxRefundedAtPurchase: true, ...(result.taxRefundActual ? { taxRefundActual: result.taxRefundActual } : {}) }
                 : {}),
@@ -4948,6 +4953,11 @@ const App: React.FC = () => {
               ...(result.items?.length ? { receiptItems: result.items } : {}),
               ...(result.merchant ? { merchant: result.merchant } : {}),
               ...(result.merchantAddress ? { merchantAddress: result.merchantAddress } : {}),
+              ...(result.merchantPlaceId ? {
+                merchantPlaceId: result.merchantPlaceId,
+                merchantLatitude: result.merchantLatitude,
+                merchantLongitude: result.merchantLongitude,
+              } : {}),
               ...(result.taxRefundedAtPurchase
                 ? { taxRefundedAtPurchase: true, ...(result.taxRefundActual ? { taxRefundActual: result.taxRefundActual } : {}) }
                 : {}),
