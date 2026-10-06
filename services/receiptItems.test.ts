@@ -305,3 +305,62 @@ describe('the shop as a place', () => {
     expect(back.merchantLatitude).toBeUndefined();
   });
 });
+
+/**
+ * 「這筆有確定的退稅金額在收據中 沒有直接在帳上扣除」.
+ *
+ * His Olive Young till receipt: six lines adding to 40,500, 판매 계 40,500,
+ * 텍스리펀드 2,000, 결제금액 38,500 — and the live parse came back with a total
+ * of 42,500, a plain misreading of the one figure the whole record rests on.
+ */
+describe('a total the rest of the receipt disagrees with', () => {
+  const lines = [
+    { name: '닥터 포켓몬 콤부차 포도', amount: 5000 },
+    { name: '닥터 포켓몬 콤부차 납작복숭', amount: 5000 },
+    { name: '닥터 포켓몬 콤부차 레몬', amount: 5000 },
+    { name: '테트라스 망고씨드버터 퍼퓸', amount: 8900 },
+    { name: '케이트리스 커버업 블레미쉬', amount: 4900 },
+    { name: '라운드랩 1025 독도 클렌저', amount: 11700 },
+  ];
+  const TILL = {
+    currency: 'KRW', items: lines,
+    taxRefundedAtPurchase: true, taxRefundActual: 2000, amountChargedAfterRefund: 38500,
+  };
+
+  it('corrects the total when the lines and the charged amount both say otherwise', () => {
+    // 38,500 + 2,000 = 40,500, and the six lines add to 40,500. Two
+    // independent figures agreeing against one is not a tie.
+    expect(normalizeParsedExpense({ ...TILL, amount: 42500 })?.amount).toBe(40500);
+  });
+
+  it('records the refund against the corrected total', () => {
+    const parsed = normalizeParsedExpense({ ...TILL, amount: 42500 });
+
+    expect(parsed?.taxRefundActual).toBe(2000);
+    expect(parsed?.taxRefundedAtPurchase).toBe(true);
+  });
+
+  it('leaves a total alone when only one witness is present', () => {
+    // One of them could just as easily be the misread, and rewriting an amount
+    // on that would be the app inventing what somebody spent.
+    const noItems = normalizeParsedExpense({ ...TILL, items: [], amount: 42500 });
+    const noCharged = normalizeParsedExpense({
+      ...TILL, amountChargedAfterRefund: undefined, amount: 42500,
+    });
+
+    expect(noItems?.amount).toBe(42500);
+    expect(noCharged?.amount).toBe(42500);
+  });
+
+  it('leaves a total alone when the witnesses disagree with each other', () => {
+    const mismatched = normalizeParsedExpense({
+      ...TILL, items: [{ name: 'x', amount: 1000 }], amount: 42500,
+    });
+
+    expect(mismatched?.amount).toBe(42500);
+  });
+
+  it('changes nothing on a receipt that already adds up', () => {
+    expect(normalizeParsedExpense({ ...TILL, amount: 40500 })?.amount).toBe(40500);
+  });
+});

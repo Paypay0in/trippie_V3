@@ -231,6 +231,33 @@ export const normalizeParsedExpense = (raw: unknown): ParsedExpense | null => {
   */
   const refund = Number(value.taxRefundActual);
   const charged = Number(value.amountChargedAfterRefund);
+
+  /*
+    The total, corrected when the receipt's other numbers outvote it.
+
+    His Olive Young till receipt came back as 42,500 against a 판매 계 of
+    40,500 — a plain misreading of the one figure the whole record is built
+    on. But the same receipt also printed 결제금액 38,500 and 텍스리펀드 2,000,
+    and its six item lines add to exactly 40,500. Two independent figures
+    agreeing against one is not a tie.
+
+    Only ever applied with both witnesses present and in agreement. One of them
+    alone could just as easily be the misread, and quietly rewriting an amount
+    on weaker evidence than that would be the app inventing what somebody
+    spent.
+  */
+  const itemsTotal = (result.items || [])
+    .filter(line => Number.isFinite(line.amount))
+    .reduce((sum, line) => sum + (line.amount as number), 0);
+  const impliedTotal = Number.isFinite(charged) && Number.isFinite(refund) ? charged + refund : undefined;
+  if (impliedTotal !== undefined
+      && result.items?.length
+      && Math.abs(itemsTotal - impliedTotal) <= 1
+      && result.amount !== undefined
+      && Math.abs(result.amount - impliedTotal) > 1) {
+    result.amount = impliedTotal;
+  }
+
   const total = result.amount;
   if (value.taxRefundedAtPurchase === true
       && Number.isFinite(refund) && refund > 0
@@ -303,8 +330,9 @@ export const imageExpensePrompt = () => `
            prints such a subtotal AND the products above it, transcribe the products; a summary
            line on its own tells the reader nothing they did not already know from the total.
          - If the image is not an itemised receipt, return an empty list rather than inventing lines.
-      9. Immediate tax refund, only when the receipt itself shows one (즉시환급,
-         Immediate Tax Refund, Refund value):
+      9. Tax refund already deducted, only when the receipt itself shows one. The labels
+         vary by till: 즉시환급, 텍스리펀드, 택스리펀드, Immediate Tax Refund, Refund value,
+         Tax Refund. A store receipt shows it between 판매 계 and 결제금액:
          - "taxRefundedAtPurchase": true when the shop already deducted the tax.
          - "taxRefundActual": the refunded amount, in the receipt's currency (즉시환급 / Refund value).
          - "amountChargedAfterRefund": the amount actually charged (결제금액 / Purchase Price).
