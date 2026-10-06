@@ -47,7 +47,14 @@ interface Props {
   /** Deletes one trip by stable id. Returns false when the delete failed. */
   onDeleteDraft: (id: string) => boolean;
   onRenameTrip: (id: string | null, newName: string) => void;
-  onSmartScan: (files: FileList) => Promise<void>;
+  /**
+   * Reads a batch of photographs. The progress callback is how the overlay
+   * says which of them it is on — 「解析到第幾張要顯示出來」.
+   */
+  onSmartScan: (
+    files: FileList,
+    onProgress?: (done: number, total: number) => void,
+  ) => Promise<void>;
   onBatchAddShoppingItems: (
     items: string[],
     targetTripId: string | 'new' | 'draft',
@@ -303,7 +310,7 @@ const TripSelectionScreen: React.FC<Props> = ({
     setIsScanning(true);
     setScanProgress({ current: 0, total: files.length });
     try {
-      await onSmartScan(files);
+      await onSmartScan(files, (current, total) => setScanProgress({ current, total }));
     } finally {
       setIsScanning(false);
       setScanProgress(null);
@@ -412,7 +419,9 @@ const TripSelectionScreen: React.FC<Props> = ({
         <div className={`fixed inset-0 ${OVERLAY.sheet} flex flex-col items-center justify-center bg-[#08152f]/80 text-white backdrop-blur-sm`}>
           <Loader2 size={44} className="mb-4 animate-spin text-cyan-300" />
           <h3 className="text-lg font-bold">
-            {scanProgress && scanProgress.total > 1 ? '正在批次處理資料…' : '正在分析圖片…'}
+            {scanProgress && scanProgress.total > 1
+              ? `正在批次處理… 第 ${Math.min(scanProgress.current + 1, scanProgress.total)}/${scanProgress.total} 張`
+              : '正在分析圖片…'}
           </h3>
           <p className="mt-2 text-sm text-white/70">AI 正在辨識內容並歸入適合的旅程</p>
         </div>

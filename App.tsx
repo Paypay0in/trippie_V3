@@ -935,6 +935,7 @@ const App: React.FC = () => {
   /** The ledger's own way into the batch receipt reader. */
   const batchReceiptInputRef = useRef<HTMLInputElement>(null);
   const [isBatchScanning, setIsBatchScanning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
   const activeDraftIdRef = useRef<string | null>(
     initialDraftStore.activeDraftId,
   );
@@ -4815,7 +4816,17 @@ const App: React.FC = () => {
   };
 
   // Smart Scan Handler Logic - REFACTORED FOR BATCH PROCESSING
-  const handleSmartScanBatch = async (files: FileList) => {
+  const handleSmartScanBatch = async (
+    files: FileList,
+    /*
+      How far through the pile it is.
+
+      「解析到第幾張要顯示出來」 — nine receipts take long enough that a spinner
+      alone is indistinguishable from a stuck screen, and the one question
+      somebody staring at it has is whether it is still moving.
+    */
+    onProgress?: (done: number, total: number) => void,
+  ) => {
     // Helper to convert file to Base64
     const toBase64 = (file: File) =>
       new Promise<string>((resolve, reject) => {
@@ -4842,6 +4853,7 @@ const App: React.FC = () => {
     };
 
     // PROCESS FILES SEQUENTIALLY to avoid rate limits and logic race conditions
+    onProgress?.(0, files.length);
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       try {
@@ -4995,6 +5007,9 @@ const App: React.FC = () => {
         console.error(`Error parsing file ${file.name}`, e);
         // Continue to next file even if one fails
       }
+      // Counted whether it read or not: the number says how far through the
+      // pile this is, not how many of them worked.
+      onProgress?.(i + 1, files.length);
     }
 
     // --- BATCH STATE UPDATES ---
@@ -6856,10 +6871,14 @@ const App: React.FC = () => {
               const files = event.target.files;
               if (!files?.length) return;
               setIsBatchScanning(true);
+              setBatchProgress({ done: 0, total: files.length });
               try {
-                await handleSmartScanBatch(files);
+                await handleSmartScanBatch(files, (done, total) =>
+                  setBatchProgress({ done, total }),
+                );
               } finally {
                 setIsBatchScanning(false);
+                setBatchProgress({ done: 0, total: 0 });
                 event.target.value = "";
               }
             }}
@@ -6875,7 +6894,20 @@ const App: React.FC = () => {
               className={`fixed inset-0 ${OVERLAY.modal} flex flex-col items-center justify-center gap-3 bg-slate-950/50`}
             >
               <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/30 border-t-white" />
-              <p className="text-sm font-black text-white">辨識收據中…</p>
+              <p data-testid="batch-progress" className="text-sm font-black text-white">
+                {batchProgress.total > 0
+                  ? `辨識收據中… 第 ${Math.min(batchProgress.done + 1, batchProgress.total)}/${batchProgress.total} 張`
+                  : "辨識收據中…"}
+              </p>
+              {/* A bar as well as a number: at a glance, is it moving. */}
+              {batchProgress.total > 0 && (
+                <div className="h-1.5 w-44 overflow-hidden rounded-full bg-white/25">
+                  <div
+                    className="h-full rounded-full bg-white transition-all duration-300"
+                    style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%` }}
+                  />
+                </div>
+              )}
               <p className="text-xs text-white/70">張數多時需要一點時間，請不要關閉</p>
             </div>
           )}
