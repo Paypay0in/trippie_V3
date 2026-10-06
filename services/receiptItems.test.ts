@@ -494,3 +494,53 @@ describe('a receipt with a discount as well as a refund', () => {
     expect(parsed?.taxRefundActual).toBeUndefined();
   });
 });
+
+/**
+ * 「54500這筆又錯了」, with the screen to show it: 條碼編號 8800313321043 listed as
+ * a product, four times, each wearing the amount from the line below it — and
+ * the receipt's own totals, 54,500 and 50,500, sitting in the list as items.
+ *
+ * Receipts print the product on one line and its code on the next. A
+ * transcription that takes both ends up with twice as many lines as the
+ * receipt has products, and every amount attached to the wrong one.
+ */
+describe('a barcode is not a product', () => {
+  it('drops a line that is only a code', () => {
+    const parsed = normalizeParsedExpense({
+      amount: 53500, currency: 'KRW',
+      items: [
+        { name: '(부산 전용) 라운드어라운드', amount: 5900 },
+        { name: '8800313321043', amount: 7900 },
+        { name: '필라밀리 뜯어쓰는퍼프미니평', amount: 7900 },
+        { name: '8800353608234', amount: -1000 },
+      ],
+    });
+
+    expect(parsed?.items?.map(line => line.name))
+      .toEqual(['(부산 전용) 라운드어라운드', '필라밀리 뜯어쓰는퍼프미니평']);
+  });
+
+  it('drops a line labelled as a code, whatever follows the label', () => {
+    const parsed = normalizeParsedExpense({
+      amount: 100, currency: 'KRW',
+      items: [{ name: '바코드 8806011619581', amount: 54500 }, { name: '條碼編號', amount: 50500 }],
+    });
+
+    expect(parsed?.items).toBeUndefined();
+  });
+
+  it('keeps a product whose name happens to carry digits', () => {
+    // 1025 독도 and 10+3 are parts of real names; only a bare run of eight or
+    // more digits is a code.
+    const parsed = normalizeParsedExpense({
+      amount: 100, currency: 'KRW',
+      items: [
+        { name: '라운드랩 1025 독도 클렌저', amount: 11700 },
+        { name: '닥터 포켓몬 콤부차 포도 10+3', amount: 5000 },
+        { name: '가그린 후레쉬브레스 민트 15ml', amount: 15800 },
+      ],
+    });
+
+    expect(parsed?.items).toHaveLength(3);
+  });
+});

@@ -142,6 +142,23 @@ const TRANSLATION_SLACK = 8;
  * Dropped rather than truncated: half an explanation is not a name either, and
  * the printed line is still shown, which is the honest fallback.
  */
+/**
+ * A barcode is not a product.
+ *
+ * 「54500這筆又錯了」, and the screen showed why: 條碼編號 8800313321043 sitting in
+ * the list as an item, four times, each wearing the amount from the line below
+ * it. Receipts print the product on one line and its code on the next, and a
+ * transcription that takes both ends up with twice as many lines as the
+ * receipt has products and every amount attached to the wrong one.
+ */
+const isCodeLine = (name: string): boolean => {
+  const bare = name.replace(/[\s-]/g, '');
+  // Eight digits or more with nothing else in them: an EAN, a till code, an
+  // approval number. No product is named that.
+  if (/^\d{8,}$/.test(bare)) return true;
+  return /^(바코드|상품코드|條碼編號|条码编号|barcode)/i.test(name.trim());
+};
+
 const usableTranslation = (translated: string, printed: string): string => {
   if (!translated || translated === printed) return '';
   if (translated.length > MAX_TRANSLATED_NAME) return '';
@@ -208,7 +225,7 @@ export const normalizeParsedExpense = (raw: unknown): ParsedExpense | null => {
       .filter((entry): entry is Record<string, unknown> => entry !== null)
       .map(entry => {
         const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, 80) : '';
-        if (!name) return null;
+        if (!name || isCodeLine(name)) return null;
         const translated = usableTranslation(
           typeof entry.translatedName === 'string' ? entry.translatedName.trim() : '',
           name,
@@ -352,7 +369,12 @@ export const imageExpensePrompt = () => `
           business registration number (주소, 소재지, 住所). Omit it when the receipt does not
           print one — never infer an address from the shop's name.
       8. Items: TRANSCRIBE the product lines, one entry per line printed on the paper.
-         - "name": exactly as printed, in the receipt's own script. Do not translate this field.
+         - "name": the PRODUCT name, exactly as printed, in the receipt's own script. Do not
+           translate this field. Receipts print the product on one line and its barcode or
+           product code on the next: transcribe the product, never the code, or the list ends
+           up twice as long as the receipt and every amount lands on the wrong row.
+         - The amount for a line is the 금액 printed on that SAME line as the product. Never
+           take it from the line below. Totals (판매 계, 결제금액, 승인금액) are not items.
          - "translatedName": the product name in Traditional Chinese (zh-TW), as a shopper would
            say it. A NAME ONLY, at most about 20 characters. Never a sentence, never a caveat,
            never an explanation of what the line is or how you read it. If you cannot tell what
