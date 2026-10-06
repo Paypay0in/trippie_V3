@@ -82,6 +82,18 @@ export interface ParsedExpense {
   items?: ParsedReceiptItem[];
   /** The shop, as printed. */
   merchant?: string;
+  /**
+   * The shop refunded the tax at the till, and by how much.
+   *
+   * 「這收據上已經有實際退稅的資訊 功能應該要識別實際退稅資訊直接帶入」. Korea's
+   * 즉시환급 slip prints all three numbers — 판매 가격 19,000, 즉시환급 1,000,
+   * 결제금액 18,000 — and the traveller was retyping the middle one, or more
+   * often not noticing it and leaving the purchase in a refund estimate it had
+   * already been settled out of.
+   */
+  taxRefundedAtPurchase?: boolean;
+  /** What the till actually took off, in the receipt's currency. */
+  taxRefundActual?: number;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -195,6 +207,26 @@ export const normalizeParsedExpense = (raw: unknown): ParsedExpense | null => {
     if (items.length) result.items = items;
   }
 
+  /*
+    An immediate refund, accepted only when the receipt's own numbers agree.
+
+    The slip prints 판매 가격, 즉시환급 and 결제금액, and the three have to
+    reconcile: total − refund = charged. When they do not, the model has
+    confused two of them — V.A.T for the refund is the easy mistake — and a
+    wrong refund is worse than none, because it silently reduces what this
+    purchase is recorded as having cost.
+  */
+  const refund = Number(value.taxRefundActual);
+  const charged = Number(value.amountChargedAfterRefund);
+  const total = result.amount;
+  if (value.taxRefundedAtPurchase === true
+      && Number.isFinite(refund) && refund > 0
+      && total !== undefined && refund < total
+      && (!Number.isFinite(charged) || Math.abs(total - refund - charged) <= 1)) {
+    result.taxRefundedAtPurchase = true;
+    result.taxRefundActual = refund;
+  }
+
   if (value.isUncertain === true) result.isUncertain = true;
 
   // An amount is the one field the form cannot fill in from context. Without
@@ -232,7 +264,10 @@ export const imageExpensePrompt = () => `
          The reader does not read Korean, Japanese or Thai. 「광안리 대교밀면」 must come
          back as 「廣安里 大橋麥麵」, not copied through untranslated. Keep a recognisable
          brand as-is only when it is already Latin script (Starbucks, UNIQLO).
-      2. Total Amount (Final total).
+      2. Total Amount: the price of the goods BEFORE any tax refund — Korea's
+         「판매 가격 / Total amount」. On an immediate-refund (즉시환급) slip this is
+         NOT the 「결제금액 / Purchase Price」 actually charged; that one is the
+         total minus the refund, and is reported separately in field 9.
       3. Currency Code (ISO 4217).
       4. Category: Choose strictly from: ${CATEGORIES.join(', ')}.
       5. Payment Method: Infer Credit Card, Cash, or IC Card.
@@ -251,6 +286,13 @@ export const imageExpensePrompt = () => `
            prints such a subtotal AND the products above it, transcribe the products; a summary
            line on its own tells the reader nothing they did not already know from the total.
          - If the image is not an itemised receipt, return an empty list rather than inventing lines.
+      9. Immediate tax refund, only when the receipt itself shows one (즉시환급,
+         Immediate Tax Refund, Refund value):
+         - "taxRefundedAtPurchase": true when the shop already deducted the tax.
+         - "taxRefundActual": the refunded amount, in the receipt's currency (즉시환급 / Refund value).
+         - "amountChargedAfterRefund": the amount actually charged (결제금액 / Purchase Price).
+         Leave all three out on an ordinary receipt. V.A.T printed on its own is
+         not a refund — tax paid and tax returned are different numbers.
 
       CRITICAL DATE PARSING:
       - "date": The specific date when the TRANSACTION/PAYMENT happened (or the invoice date). This is for the ledger.

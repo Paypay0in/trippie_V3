@@ -229,6 +229,11 @@ async function startServer() {
                   required: ["name"],
                 },
               },
+              // 「這收據上已經有實際退稅的資訊」: Korea's 즉시환급 slip prints the
+              // refund it already took off, and the traveller was retyping it.
+              taxRefundedAtPurchase: { type: Type.BOOLEAN, description: "Shop deducted the tax refund at the till" },
+              taxRefundActual: { type: Type.NUMBER, description: "Refunded amount in the receipt currency (즉시환급)" },
+              amountChargedAfterRefund: { type: Type.NUMBER, description: "Amount actually charged (결제금액)" },
               isUncertain: { type: Type.BOOLEAN, description: "True if low confidence" },
             },
             required: ["amount", "currency"],

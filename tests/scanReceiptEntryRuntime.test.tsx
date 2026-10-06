@@ -22,6 +22,8 @@ const parsed = {
     { name: '블루CPR 4개', translatedName: 'Blue CPR 4入', amount: 120000 },
     { name: '일반의약품 할인', translatedName: '一般醫藥品折扣', amount: -30000 },
   ],
+  taxRefundedAtPurchase: true,
+  taxRefundActual: 1000,
 };
 
 vi.mock('../services/geminiService', () => ({
@@ -105,6 +107,19 @@ describe('photographing a receipt', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0].description).toBe('貝樂美藥局');
     expect(onSubmit.mock.calls[0][0].merchant).toBe('베러미약국');
+  });
+
+  it('carries a refund the till already gave back onto the bill', async () => {
+    // 「這收據上已經有實際退稅的資訊」 — otherwise the purchase sits in a refund
+    // estimate it has already been settled out of.
+    const user = userEvent.setup();
+    const { onSubmit } = renderForm();
+
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, receipt());
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0].taxRefundedAtPurchase).toBe(true);
+    expect(onSubmit.mock.calls[0][0].taxRefundActual).toBe(1000);
   });
 
   it('is not offered while editing an existing bill', () => {

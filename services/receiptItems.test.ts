@@ -185,3 +185,56 @@ describe('a model explaining itself in a name field', () => {
     expect(parsed?.items?.map(line => line.translatedName)).toEqual(['Q-Lip 軟膏 溫和草本 8g', 'Blue CPR']);
   });
 });
+
+/**
+ * 「這收據上已經有實際退稅的資訊 功能應該要識別實際退稅資訊直接帶入」.
+ *
+ * His Olive Young slip: GLOBAL TAXFREE 즉시환급, 판매 가격 19,000, V.A.T 1,726,
+ * 즉시환급 1,000, 결제금액 18,000. The refund was already settled at the till and
+ * the traveller was retyping it — or, more often, not noticing it and leaving
+ * the purchase inside a refund estimate it had already been taken out of.
+ */
+describe('a refund the till already gave back', () => {
+  const SLIP = {
+    amount: 19000, currency: 'KRW', merchant: 'CJ올리브영(주) 서면역사점',
+    taxRefundedAtPurchase: true, taxRefundActual: 1000, amountChargedAfterRefund: 18000,
+  };
+
+  it('records the refund and that it was settled at the till', () => {
+    const parsed = normalizeParsedExpense(SLIP);
+
+    expect(parsed?.taxRefundedAtPurchase).toBe(true);
+    expect(parsed?.taxRefundActual).toBe(1000);
+  });
+
+  it('keeps the gross price as the amount, not what was charged', () => {
+    // The ledger subtracts the refund from the amount wherever it asks what a
+    // bill cost, so recording 18,000 here would take the 1,000 off twice.
+    expect(normalizeParsedExpense(SLIP)?.amount).toBe(19000);
+  });
+
+  it('refuses a refund the receipt own numbers do not support', () => {
+    // V.A.T mistaken for the refund: 19,000 − 1,726 is not 18,000, so one of
+    // the three was misread and a wrong refund silently shrinks the bill.
+    const parsed = normalizeParsedExpense({ ...SLIP, taxRefundActual: 1726 });
+
+    expect(parsed?.taxRefundActual).toBeUndefined();
+    expect(parsed?.taxRefundedAtPurchase).toBeUndefined();
+  });
+
+  it('accepts a slip that does not print the charged amount', () => {
+    const { amountChargedAfterRefund: _unused, ...withoutCharged } = SLIP;
+
+    expect(normalizeParsedExpense(withoutCharged)?.taxRefundActual).toBe(1000);
+  });
+
+  it('records nothing on an ordinary receipt', () => {
+    expect(normalizeParsedExpense({ amount: 19000, currency: 'KRW' })?.taxRefundedAtPurchase).toBeUndefined();
+  });
+
+  it('refuses a refund larger than the purchase', () => {
+    expect(normalizeParsedExpense({
+      amount: 900, currency: 'KRW', taxRefundedAtPurchase: true, taxRefundActual: 1000,
+    })?.taxRefundActual).toBeUndefined();
+  });
+});

@@ -105,6 +105,9 @@ export const parseImageExpenseWithGemini = async (base64Data: string, mimeType: 
   /** Every product line the receipt listed, printed name and translation. */
   items?: Array<{ name: string; translatedName?: string; quantity?: number; amount?: number }>;
   merchant?: string;
+  /** The till already refunded the tax, and how much it took off. */
+  taxRefundedAtPurchase?: boolean;
+  taxRefundActual?: number;
 } | null> => {
   if (!base64Data) return null;
   return postExpenseIntake('/api/expenses/parse-image', { base64Data, mimeType });

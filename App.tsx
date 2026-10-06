@@ -4905,6 +4905,9 @@ const App: React.FC = () => {
               // total the parse was there to explain.
               ...(result.items?.length ? { receiptItems: result.items } : {}),
               ...(result.merchant ? { merchant: result.merchant } : {}),
+              ...(result.taxRefundedAtPurchase
+                ? { taxRefundedAtPurchase: true, ...(result.taxRefundActual ? { taxRefundActual: result.taxRefundActual } : {}) }
+                : {}),
               needsReview: result.isUncertain,
             };
             historyUpdates.push({ id: matchedTripId, expense: newExpense });
@@ -4943,6 +4946,9 @@ const App: React.FC = () => {
               // total the parse was there to explain.
               ...(result.items?.length ? { receiptItems: result.items } : {}),
               ...(result.merchant ? { merchant: result.merchant } : {}),
+              ...(result.taxRefundedAtPurchase
+                ? { taxRefundedAtPurchase: true, ...(result.taxRefundActual ? { taxRefundActual: result.taxRefundActual } : {}) }
+                : {}),
               needsReview: result.isUncertain,
             };
             newDraftExpenses.push(newExpense);

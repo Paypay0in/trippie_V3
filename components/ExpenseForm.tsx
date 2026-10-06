@@ -438,6 +438,17 @@ const ExpenseForm: React.FC<Props> = ({
                       // translated: 「會代入但不會翻譯」 asked for the Chinese, and
                       // the receipt in hand still says 광안리 대교밀면.
                       ...(result.merchant ? { merchant: result.merchant } : {}),
+                      /*
+                        What the till already gave back.
+
+                        「這收據上已經有實際退稅的資訊 功能應該要識別實際退稅資訊直接
+                        帶入」. The amount stays the gross price, which is what the
+                        rest of the ledger expects — the refund is subtracted
+                        from it everywhere that asks what this bill cost.
+                      */
+                      ...(result.taxRefundedAtPurchase
+                        ? { taxRefundedAtPurchase: true, ...(result.taxRefundActual ? { taxRefundActual: result.taxRefundActual } : {}) }
+                        : {}),
                       needsReview: result.isUncertain
                   };
 
