@@ -14,6 +14,7 @@ import { withFingerprints } from '../services/rowFingerprints';
 import { toExpenseRow, toItineraryRow, toTripInspirationRow } from '../services/tripSyncMapping';
 import { nextKnownIds } from '../services/syncPrune';
 import { mergeWithUnpushed } from '../services/syncMerge';
+import { EverSeenIds, loadEverSeen, rememberSeen, saveEverSeen } from '../services/everSeenRemoteIds';
 import { BUILD_ID } from '../services/buildStamp';
 import { expenseConcernsMember } from '../services/expenseConcernsMember';
 
@@ -202,6 +203,37 @@ export const useTripSync = ({
    */
   const knownRef = useRef<KnownRemoteIds>({ members: new Set<string>(), expenses: new Set<string>(), itinerary: new Set<string>(), flightAnchors: new Set<string>() });
 
+  /*
+    Every row this device has ever seen on the server, which is a different
+    question from what the server holds now.
+
+    「刪掉的帳又一直出現了」. A record here but not there is either new and unsent
+    — keep it — or deleted by the other traveller — let it go, and the only
+    thing that tells them apart is whether this device ever watched the server
+    hold it. `knownRef` is rebuilt from the latest snapshot, so the moment Gina
+    deleted a bill it stopped being 「something the server had」, his copy read
+    as unsent, and it was published again. Both phones doing that to each other
+    is why it came back every time.
+
+    Separate from `knownRef` on purpose: the prune needs 「what is there now」
+    and the merge needs 「what was ever there」, and one set cannot be both.
+    Persisted, because a reload must not forget that a row once existed —
+    a deletion leaves no row anywhere, so this memory is the only trace of it.
+  */
+  const everSeenRef = useRef<EverSeenIds>({
+    members: [], expenses: [], itinerary: [], flightAnchors: [], inspirations: [],
+  });
+
+  const rememberEverSeen = (seen: Partial<Record<keyof EverSeenIds, Iterable<string>>>) => {
+    const next: EverSeenIds = { ...everSeenRef.current };
+    (Object.keys(next) as Array<keyof EverSeenIds>).forEach(table => {
+      if (!seen[table]) return;
+      next[table] = Array.from(rememberSeen(next[table], seen[table] as Iterable<string>));
+    });
+    everSeenRef.current = next;
+    if (tripId) saveEverSeen(tripId, next);
+  };
+
   // The last read and the last write, kept as text because that is all the
   // panel does with them.
   const lastReadRef = useRef('尚未讀取');
@@ -242,6 +274,18 @@ export const useTripSync = ({
         .forEach(([key, value]) => { fingerprints[key] = value; });
     }
 
+    /*
+      Seen is seen. A snapshot that no longer carries a row does not unsee it —
+      that is precisely the deletion this has to be able to notice.
+    */
+    rememberEverSeen({
+      members: snapshot.members.map(member => member.id),
+      expenses: snapshot.expenses.map(expense => expense.id),
+      itinerary: snapshot.itinerary.map(item => item.id),
+      flightAnchors: snapshot.flightAnchors.map(anchor => anchor.id),
+      ...(snapshot.inspirations ? { inspirations: snapshot.inspirations.map(entry => entry.id) } : {}),
+    });
+
     knownRef.current = {
       fingerprints,
       members: new Set(snapshot.members.map(member => member.id)),
@@ -262,6 +306,15 @@ export const useTripSync = ({
       setState('off');
       return;
     }
+
+    /*
+      What this device saw of this trip before it was last closed.
+
+      Without it a reload forgets that a row ever existed on the server, and
+      every bill the other traveller deleted while this phone was shut reads as
+      unsent and gets published again.
+    */
+    everSeenRef.current = loadEverSeen(tripId);
 
     let cancelled = false;
     let inFlight = false;
@@ -387,6 +440,14 @@ export const useTripSync = ({
             flightAnchors: nextKnownIds(knownRef.current.flightAnchors, f.map(anchor => anchor.id)),
             inspirations: nextKnownIds(knownRef.current.inspirations ?? [], s.map(entry => entry.id)),
           };
+          // What this device just put there, it has now seen there.
+          rememberEverSeen({
+            members: m.map(member => member.id),
+            expenses: e.map(expense => expense.id),
+            itinerary: i.map(item => item.id),
+            flightAnchors: f.map(anchor => anchor.id),
+            inspirations: s.map(entry => entry.id),
+          });
         }
         if (result.status === 'error') {
           if (import.meta.env.DEV) console.warn('[tripSync] write failed', result.message);
@@ -434,12 +495,15 @@ export const useTripSync = ({
           // landing between a new record and the push that carries it would
           // wipe it off its author's own screen.
           const local = payloadRef.current;
-          const known = knownRef.current;
+          // Asked of 「ever seen」, not 「currently holds」: a row that has just
+          // disappeared from the server is the case being detected, and the
+          // current snapshot cannot describe it.
+          const seen = everSeenRef.current;
           const merged: TripSyncSnapshot = {
             members: remote.data.members,
-            expenses: mergeWithUnpushed(local.expenses, remote.data.expenses, known.expenses),
-            itinerary: mergeWithUnpushed(local.itinerary, remote.data.itinerary, known.itinerary),
-            flightAnchors: mergeWithUnpushed(local.flightAnchors, remote.data.flightAnchors, known.flightAnchors),
+            expenses: mergeWithUnpushed(local.expenses, remote.data.expenses, seen.expenses),
+            itinerary: mergeWithUnpushed(local.itinerary, remote.data.itinerary, seen.itinerary),
+            flightAnchors: mergeWithUnpushed(local.flightAnchors, remote.data.flightAnchors, seen.flightAnchors),
             /*
               Saved places go through the same rule as everything else now.
 
@@ -452,7 +516,7 @@ export const useTripSync = ({
               which must not be read as an emptied list.
             */
             ...(remote.data.inspirations
-              ? { inspirations: mergeWithUnpushed(local.inspirations ?? [], remote.data.inspirations, known.inspirations ?? []) }
+              ? { inspirations: mergeWithUnpushed(local.inspirations ?? [], remote.data.inspirations, seen.inspirations ?? []) }
               : {}),
           };
           onRemoteSnapshotRef.current(merged);
