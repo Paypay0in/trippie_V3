@@ -443,3 +443,54 @@ describe('an answer that is only a number', () => {
     expect(parseIsThin(null)).toBe(true);
   });
 });
+
+/**
+ * 「這筆」 — the Olive Young receipt that carries a shop discount as well as a
+ * refund, which is why its refund was being thrown away.
+ *
+ * 판매 계 54,500, OY할인 1,000, 텍스리펀드 3,000, 승인금액 50,500. The two-term
+ * identity the check was built on — total − refund = charged — cannot hold on
+ * a receipt with a discount in the middle of it.
+ */
+describe('a receipt with a discount as well as a refund', () => {
+  const lines = [
+    { name: '(부산 전용) 라운드어라운드', amount: 5900 },
+    { name: '빌리밀리 톤어쓰는 머프미니밈', amount: 7900 },
+    { name: '1,000원 할인쿠폰', amount: -1000 },
+    { name: '카그린 후레쉬브레스 민트 15ml', amount: 15800 },
+    { name: '빌리밀리 히팅부러 충전타입', amount: 24900 },
+  ];
+
+  it('keeps the refund when the amount is the one after discounts', () => {
+    // 53,500 − 3,000 = 50,500, which is what the card was charged.
+    const parsed = normalizeParsedExpense({
+      amount: 53500, currency: 'KRW', items: lines,
+      taxRefundedAtPurchase: true, taxRefundActual: 3000, amountChargedAfterRefund: 50500,
+    });
+
+    expect(parsed?.amount).toBe(53500);
+    expect(parsed?.taxRefundActual).toBe(3000);
+  });
+
+  it('corrects a total read before the discount, since the lines include it', () => {
+    // The lines add to 53,500 with the coupon in them, and so does charged
+    // plus refund. 54,500 is the goods before the coupon, which is not what
+    // this bill cost.
+    const parsed = normalizeParsedExpense({
+      amount: 54500, currency: 'KRW', items: lines,
+      taxRefundedAtPurchase: true, taxRefundActual: 3000, amountChargedAfterRefund: 50500,
+    });
+
+    expect(parsed?.amount).toBe(53500);
+    expect(parsed?.taxRefundActual).toBe(3000);
+  });
+
+  it('still refuses a refund the numbers do not support', () => {
+    const parsed = normalizeParsedExpense({
+      amount: 53500, currency: 'KRW', items: lines,
+      taxRefundedAtPurchase: true, taxRefundActual: 4863, amountChargedAfterRefund: 50500,
+    });
+
+    expect(parsed?.taxRefundActual).toBeUndefined();
+  });
+});

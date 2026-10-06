@@ -330,15 +330,18 @@ export const imageExpensePrompt = () => `
          The reader does not read Korean, Japanese or Thai. 「광안리 대교밀면」 must come
          back as 「廣安里 大橋麥麵」, not copied through untranslated. Keep a recognisable
          brand as-is only when it is already Latin script (Starbucks, UNIQLO).
-      2. Total Amount: the price of the goods BEFORE any tax refund — Korea's
-         「판매 가격 / 판매 계 / Total amount」. On an immediate-refund (즉시환급) slip this
-         is NOT the 「결제금액 / Purchase Price」 actually charged; that one is the
-         total minus the refund, and is reported separately in field 9.
-         CHECK THIS FIGURE before answering: it should equal the sum of the item
-         lines you transcribe in field 8, and it should equal the charged amount plus
-         the refund in field 9. If either disagrees, re-read the digits on the
-         receipt rather than reporting the first reading — every other number in this
-         record is built on this one.
+      2. Total Amount: what the goods cost AFTER any shop discounts or coupons but
+         BEFORE any tax refund. This is the figure the ledger is built on.
+         Korean receipts label the parts inconsistently, so work from the meaning:
+           - 판매 가격 / 판매 계 / Total amount = goods before discounts
+           - a discount line (OY할인, 할인쿠폰, 쿠폰) comes off that
+           - 텍스리펀드 / 즉시환급 = the tax refund, reported in field 9, NOT a discount
+           - 승인금액 / 신용카드 / Purchase Price = what was actually charged
+         So: Total Amount = goods − discounts, and Total Amount − refund = charged.
+         CHECK IT before answering: it should equal the sum of the lines you transcribe
+         in field 8 (including any negative coupon lines), and it should equal the
+         charged amount plus the refund. If either disagrees, re-read the digits rather
+         than reporting your first reading — every other number here rests on this one.
       3. Currency Code (ISO 4217).
       4. Category: Choose strictly from: ${CATEGORIES.join(', ')}.
       5. Payment Method: Infer Credit Card, Cash, or IC Card.
@@ -366,7 +369,9 @@ export const imageExpensePrompt = () => `
          Tax Refund. A store receipt shows it between 판매 계 and 결제금액:
          - "taxRefundedAtPurchase": true when the shop already deducted the tax.
          - "taxRefundActual": the refunded amount, in the receipt's currency (즉시환급 / Refund value).
-         - "amountChargedAfterRefund": the amount actually charged (결제금액 / Purchase Price).
+         - "amountChargedAfterRefund": the amount actually charged to the card or paid in
+           cash (승인금액 / 신용카드 / Purchase Price). On a receipt carrying both a discount
+           and a refund this is the smallest of the printed totals.
          Leave all three out on an ordinary receipt. V.A.T printed on its own is
          not a refund — tax paid and tax returned are different numbers.
 

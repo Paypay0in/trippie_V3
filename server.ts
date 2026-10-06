@@ -313,7 +313,7 @@ async function startServer() {
               // refund it already took off, and the traveller was retyping it.
               taxRefundedAtPurchase: { type: Type.BOOLEAN, description: "Shop deducted the tax refund at the till" },
               taxRefundActual: { type: Type.NUMBER, description: "Refunded amount in the receipt currency (즉시환급)" },
-              amountChargedAfterRefund: { type: Type.NUMBER, description: "Amount actually charged (결제금액)" },
+              amountChargedAfterRefund: { type: Type.NUMBER, description: "Amount actually charged to the card (승인금액 / 신용카드)" },
               isUncertain: { type: Type.BOOLEAN, description: "True if low confidence" },
             },
             required: ["amount", "currency"],
