@@ -88,6 +88,7 @@ import {
   unseenNotices,
 } from "./services/disputeInbox";
 import DisputeNoticeBanner from "./components/DisputeNoticeBanner";
+import StaleBuildBanner from "./components/StaleBuildBanner";
 import {
   CustomCategoryRefundability,
   decideCustomCategory,
@@ -6840,6 +6841,14 @@ const App: React.FC = () => {
 
   return (
     <div className={containerClass}>
+      {/*
+        Whether this phone is running the build being discussed.
+
+        An evening went to a fault fixed on the server while the phone kept
+        running the bundle from before the fix, with nothing on either side
+        able to say so.
+      */}
+      <StaleBuildBanner />
       {import.meta.env.DEV && (
         <DevViewerSwitcher
           roster={settlementMembers}
