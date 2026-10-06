@@ -13,6 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen } from '@testing-library/react';
 import TripSummaryModal from '../components/TripSummaryModal';
 import { Category, Expense } from '../types';
+import { vi } from 'vitest';
 
 const TRIP = 'trip-busan';
 const OWNER = `${TRIP}:owner`;
@@ -32,13 +33,14 @@ const ledger = [
   expense({ id: 'e-hers', description: 'Gina 自己的購物', amount: 20000, twdAmount: 500, currency: 'KRW', payerId: GINA, beneficiaries: [GINA] }),
 ];
 
-const renderReport = () => render(
+const renderReport = (props: Record<string, unknown> = {}) => render(
   <TripSummaryModal
     expenses={ledger}
     onArchive={() => undefined}
     variant="embedded"
     viewerMemberId={OWNER}
     ownerMemberId={OWNER}
+    {...props}
   />,
 );
 
@@ -96,6 +98,27 @@ describe('a category total', () => {
     await user.click(screen.getByTestId('category-row-購物'));
 
     expect(screen.queryByTestId('category-items-購物')).toBeNull();
+  });
+
+  it('點一筆就打開那筆帳', async () => {
+    // 「點擊可以打開該帳」.
+    const onOpenExpense = vi.fn();
+    const user = userEvent.setup();
+    renderReport({ onOpenExpense });
+
+    await user.click(screen.getByTestId('category-row-購物'));
+    await user.click(screen.getByTestId('category-item-e-elephant'));
+
+    expect(onOpenExpense).toHaveBeenCalledWith(expect.objectContaining({ id: 'e-elephant' }));
+  });
+
+  it('沒有給打開的方法時，那一行就只是文字', async () => {
+    const user = userEvent.setup();
+    renderReport();
+
+    await user.click(screen.getByTestId('category-row-購物'));
+
+    expect(screen.queryByTestId('category-item-e-elephant')).toBeNull();
   });
 
   it('stays closed until asked', () => {

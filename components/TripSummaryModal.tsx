@@ -25,11 +25,25 @@ interface Props {
   ownerMemberId?: string;
   initialTripName?: string;
   allowArchive?: boolean;
+  /**
+   * Opens one bill from the category breakdown.
+   *
+   * 「點擊可以打開該帳」 — the breakdown is where a figure gets questioned, and
+   * until now the only way to act on a line in it was to close the report,
+   * find the ledger, and scroll to the day. Optional: a report rendered
+   * without a way to open a bill still lists them.
+   */
+  onOpenExpense?: (expense: Expense) => void;
 }
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#84cc16'];
 
-const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true, viewerMemberId, ownerMemberId }) => {
+const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true, viewerMemberId, ownerMemberId, onOpenExpense }) => {
+  /** The bill behind a line of the breakdown, for opening it. */
+  const expenseById = React.useMemo(
+    () => new Map(expenses.map(expense => [expense.id, expense])),
+    [expenses],
+  );
   /** What this reader is actually responsible for, out of the trip's total. */
   const viewerShare = React.useMemo(() => {
     if (!viewerMemberId) return undefined;
@@ -660,8 +674,32 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
 
                         {openCategory === stat.category && (
                           <div data-testid={`category-items-${stat.category}`} className="mt-2 space-y-1 rounded-xl bg-gray-50 p-2">
-                            {stat.items.map(item => (
-                              <div key={item.id} className="flex items-start justify-between gap-2 text-[11px]">
+                            {stat.items.map(item => {
+                              /*
+                                A line you can act on.
+
+                                「點擊可以打開該帳」 — tapping opens that bill. Where
+                                the report is handed a bill it cannot find, or no
+                                way to open one, the line stays plain text rather
+                                than a button that does nothing.
+                              */
+                              const openable = onOpenExpense && expenseById.has(item.id);
+                              const RowTag = openable ? 'button' : 'div';
+                              return (
+                              <RowTag
+                                key={item.id}
+                                {...(openable
+                                  ? {
+                                      type: 'button' as const,
+                                      'data-testid': `category-item-${item.id}`,
+                                      onClick: () => onOpenExpense!(expenseById.get(item.id)!),
+                                      'aria-label': `打開 ${item.desc}`,
+                                    }
+                                  : {})}
+                                className={`flex w-full items-start justify-between gap-2 text-left text-[11px] ${
+                                  openable ? 'rounded-lg px-1 -mx-1 py-0.5 active:bg-gray-200' : ''
+                                }`}
+                              >
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate font-bold text-gray-700">{item.desc}</span>
                                   <span className="block text-[10px] text-gray-400">
@@ -684,8 +722,9 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                     </span>
                                   )}
                                 </span>
-                              </div>
-                            ))}
+                              </RowTag>
+                              );
+                            })}
                             <div className="flex justify-between border-t border-gray-200 pt-1 text-[11px] font-black text-gray-700">
                               <span>這一類合計</span>
                               <span className="font-mono">${Math.round(stat.amount).toLocaleString()}</span>
