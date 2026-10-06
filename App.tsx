@@ -149,6 +149,12 @@ import TravelIdentityModal from "./components/TravelIdentityModal";
 import TripSelectionScreen from "./components/TripSelectionScreen";
 import VisaCheckModal from "./components/VisaCheckModal";
 import CommunityFeed from "./components/CommunityFeed";
+import DuplicateReceiptPrompt from "./components/DuplicateReceiptPrompt";
+import {
+  DuplicatePair,
+  findDuplicateReceipts,
+  mergeDuplicate,
+} from "./services/duplicateReceipts";
 import CommunityHome from "./components/CommunityHome";
 import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
@@ -936,6 +942,26 @@ const App: React.FC = () => {
   const batchReceiptInputRef = useRef<HTMLInputElement>(null);
   const [isBatchScanning, setIsBatchScanning] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0 });
+  /**
+   * Receipts that may be two photographs of one purchase, and the import
+   * waiting on an answer about them.
+   */
+  const [duplicatePrompt, setDuplicatePrompt] = useState<{
+    pairs: DuplicatePair[];
+    resolve: (mergeIndexes: number[]) => void;
+  } | null>(null);
+  /*
+    Defined here, used in several returns. The import can be started from the
+    ledger or from the bookshelf, and those are different screens with
+    different early returns — a prompt mounted in only one of them would never
+    appear for half the people who triggered it.
+  */
+  const duplicatePromptOverlay = duplicatePrompt ? (
+    <DuplicateReceiptPrompt
+      pairs={duplicatePrompt.pairs}
+      onResolve={duplicatePrompt.resolve}
+    />
+  ) : null;
   const activeDraftIdRef = useRef<string | null>(
     initialDraftStore.activeDraftId,
   );
@@ -4838,7 +4864,7 @@ const App: React.FC = () => {
 
     // Temporary storage for results before updating state
     let newDraftExpenses: Expense[] = [];
-    const historyUpdates: { id: string; expense: Expense }[] = [];
+    let historyUpdates: { id: string; expense: Expense }[] = [];
     let detectedCountry = "";
     let successCount = 0;
 
@@ -5010,6 +5036,52 @@ const App: React.FC = () => {
       // Counted whether it read or not: the number says how far through the
       // pile this is, not how many of them worked.
       onProgress?.(i + 1, files.length);
+    }
+
+    /*
+      Two photographs of one purchase.
+
+      「一張是店家票據 一張是信用卡收據 會被建立成兩筆」. Asked before anything is
+      written: once the pair is in the ledger it is counted in every total, and
+      on a shared trip in what somebody else owes.
+    */
+    const incoming = [
+      ...newDraftExpenses,
+      ...historyUpdates.map((update) => update.expense),
+    ];
+    const duplicates = findDuplicateReceipts({
+      incoming,
+      existing: [...expenses, ...tripHistory.flatMap((trip) => trip.expenses)],
+    });
+    if (duplicates.length > 0) {
+      const chosen = await new Promise<number[]>((resolve) => {
+        setDuplicatePrompt({ pairs: duplicates, resolve });
+      });
+      setDuplicatePrompt(null);
+
+      const dropped = new Set<string>();
+      const merged = new Map<string, Expense>();
+      chosen.forEach((index) => {
+        const pair = duplicates[index];
+        if (!pair) return;
+        dropped.add(pair.drop.id);
+        // Only where the survivor is one of the new readings. A bill already in
+        // the ledger keeps whatever it holds; the duplicate simply never lands.
+        if (!pair.againstExisting) {
+          merged.set(pair.keep.id, mergeDuplicate(merged.get(pair.keep.id) || pair.keep, pair.drop));
+        }
+      });
+
+      if (dropped.size > 0 || merged.size > 0) {
+        const settle = (expense: Expense) => merged.get(expense.id) || expense;
+        newDraftExpenses = newDraftExpenses
+          .filter((expense) => !dropped.has(expense.id))
+          .map(settle);
+        historyUpdates = historyUpdates
+          .filter((update) => !dropped.has(update.expense.id))
+          .map((update) => ({ ...update, expense: settle(update.expense) }));
+        successCount -= dropped.size;
+      }
     }
 
     // --- BATCH STATE UPDATES ---
@@ -5789,6 +5861,7 @@ const App: React.FC = () => {
 
     return (
       <div className="min-h-screen mx-auto bg-[#f7f9fd] flex flex-col relative w-full md:max-w-2xl transition-all duration-300 pb-24">
+        {duplicatePromptOverlay}
         <main className="flex-1 overflow-y-auto">
           <TripSelectionScreen
             currentDraftExpenses={expenses}
@@ -6909,6 +6982,7 @@ const App: React.FC = () => {
                 </div>
               )}
               <p className="text-xs text-white/70">張數多時需要一點時間，請不要關閉</p>
+
             </div>
           )}
           {isSettlementOpen && (
@@ -6953,6 +7027,7 @@ const App: React.FC = () => {
         able to say so.
       */}
       <StaleBuildBanner />
+      {duplicatePromptOverlay}
       {import.meta.env.DEV && (
         <DevViewerSwitcher
           roster={settlementMembers}
