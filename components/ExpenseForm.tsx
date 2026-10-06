@@ -863,10 +863,42 @@ const ExpenseForm: React.FC<Props> = ({
             <input 
                 type="file" 
                 accept="image/*" 
+                capture="environment"
                 ref={fileInputRef} 
                 className="hidden" 
                 onChange={handleImageUpload}
             />
+
+            {/*
+              Where a receipt is actually photographed.
+
+              「在哪可以用這個功能」 — nowhere, as it turned out. The parser, the
+              itemisation and the translation all worked, and the only control
+              that reached them sat inside a `hidden` div on this form and on a
+              batch importer two screens away. A feature with no entry point is
+              a feature nobody has.
+
+              On a new expense only: the photo creates the record, so offering
+              it while editing one would mean replacing a bill the traveller is
+              in the middle of correcting.
+            */}
+            {!isEditing && !locked && (
+              <button
+                type="button"
+                data-testid="scan-receipt"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isAiLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-blue-50 px-4 py-3 text-sm font-black text-violet-700 disabled:opacity-60"
+              >
+                <Camera size={17} />
+                {isAiLoading ? (statusMessage || '辨識中…') : '拍收據自動記帳'}
+              </button>
+            )}
+            {!isEditing && !locked && (
+              <p className="-mt-3 text-center text-[10px] font-medium leading-4 text-slate-400">
+                會讀出金額、幣別、日期，並把商品一行一行列出來翻成中文
+              </p>
+            )}
 
             {!showAiInput ? (
                <div className="hidden">

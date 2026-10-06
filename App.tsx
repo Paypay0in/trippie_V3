@@ -4900,6 +4900,10 @@ const App: React.FC = () => {
               splitMethod: "EQUAL",
               splitAllocations: {},
               handlingFee: 0,
+              // The receipt's own lines travel with the bill, on this path too:
+              // a batch import that drops them records the same unreadable
+              // total the parse was there to explain.
+              ...(result.items?.length ? { receiptItems: result.items } : {}),
               needsReview: result.isUncertain,
             };
             historyUpdates.push({ id: matchedTripId, expense: newExpense });
@@ -4933,6 +4937,10 @@ const App: React.FC = () => {
               splitMethod: "EQUAL",
               splitAllocations: {},
               handlingFee: 0,
+              // The receipt's own lines travel with the bill, on this path too:
+              // a batch import that drops them records the same unreadable
+              // total the parse was there to explain.
+              ...(result.items?.length ? { receiptItems: result.items } : {}),
               needsReview: result.isUncertain,
             };
             newDraftExpenses.push(newExpense);
