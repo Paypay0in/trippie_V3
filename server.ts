@@ -19,6 +19,7 @@ import {
   isCurrencyCode,
   isSupportedImageMime,
   normalizeParsedExpense,
+  parseIsThin,
   INTAKE_MODELS,
   rateFromFxResponse,
   resolveImageMime,
@@ -158,11 +159,33 @@ async function startServer() {
    * straight to the next model instead of sleeping. Other transient failures
    * still get the backoff, per model.
    */
-  const withModelFallback = async <T>(call: (model: string) => Promise<T>): Promise<T> => {
+  const withModelFallback = async <T>(
+    call: (model: string) => Promise<T>,
+    /*
+      Whether this answer is worth settling for.
+
+      Separate from failure: a model can succeed and still hand back almost
+      nothing — 「未命名消費 54,500」, no name, no lines — because the schema only
+      requires an amount and a currency, and the weaker models in the list will
+      meet exactly that bar. Trying the next one costs a second; accepting the
+      thin answer costs the traveller the whole receipt.
+
+      The last model's answer is returned whatever it says: by then there is
+      nobody left to ask, and a number is better than an error.
+    */
+    accept?: (value: T) => boolean,
+  ): Promise<T> => {
     let lastError: unknown;
+    let thin: { value: T } | undefined;
     for (const model of INTAKE_MODELS) {
       try {
-        return await withRetry(() => call(model));
+        const value = await withRetry(() => call(model));
+        if (!accept || accept(value)) return value;
+        thin = { value };
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(`[intake] ${model} answered thinly, trying the next model`);
+        }
+        continue;
       } catch (error) {
         lastError = error;
         /*
@@ -179,6 +202,7 @@ async function startServer() {
         }
       }
     }
+    if (thin) return thin.value;
     throw lastError;
   };
 
@@ -295,7 +319,20 @@ async function startServer() {
             required: ["amount", "currency"],
           },
         },
-      }));
+      }), result => {
+        /*
+          A number with nothing around it is not a read receipt.
+
+          「又沒有翻譯了」 traced to a stored record of 「未命名消費 54,500, 0 lines」:
+          the schema requires only an amount and a currency, and the weaker
+          models in the fallback list will return exactly that and no more.
+        */
+        try {
+          return !parseIsThin(normalizeParsedExpense(JSON.parse(cleanModelJson(result.text ?? ""))));
+        } catch {
+          return false;
+        }
+      });
       const parsed = normalizeParsedExpense(JSON.parse(cleanModelJson(response.text ?? "")));
       if (!parsed) { res.status(422).json({ error: "這張照片看不出金額，請手動輸入。" }); return; }
       /*

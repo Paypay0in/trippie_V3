@@ -284,6 +284,23 @@ export const normalizeParsedExpense = (raw: unknown): ParsedExpense | null => {
   return result.amount === undefined ? null : result;
 };
 
+/**
+ * Whether a receipt parse is worth handing back, or worth asking again for.
+ *
+ * 「又沒有翻譯了」, with the record to show for it: 「未命名消費 54,500, 0 lines, 0
+ * translations」. `未命名消費` is the fallback the form writes when the model
+ * returned no name at all — so that answer carried a number and nothing else,
+ * and the four models in the list are not equally good at this. A weaker one
+ * can satisfy the schema by filling in only the two required fields.
+ *
+ * An amount alone is a legitimate answer for a card slip or a handwritten
+ * note, so this never rejects anything — it only says 「ask the next model
+ * before settling for this」. A receipt that genuinely has no name and no lines
+ * still gets recorded, after the better models have had their turn.
+ */
+export const parseIsThin = (parsed: ParsedExpense | null): boolean =>
+  !parsed || (!parsed.description && !parsed.merchant && !parsed.items?.length);
+
 export const textExpensePrompt = (text: string) => `
       Extract expense details from this text: "${text}".
       Identify the description, amount, currency code (ISO 4217), and fit it into one of these categories:

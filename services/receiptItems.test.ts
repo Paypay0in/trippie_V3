@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeParsedExpense } from './expenseIntake';
+import { normalizeParsedExpense, parseIsThin } from './expenseIntake';
 import { fromExpenseRow, toExpenseRow } from './tripSyncMapping';
 import { Expense } from '../types';
 
@@ -408,5 +408,38 @@ describe('a long product name is still a name', () => {
     });
 
     expect(parsed?.items?.every(line => Boolean(line.translatedName))).toBe(true);
+  });
+});
+
+/**
+ * 「又沒有翻譯了」, traced to the record it produced: 「未命名消費 54,500」, zero
+ * lines, zero translations.
+ *
+ * `未命名消費` is the fallback the form writes when no name came back at all,
+ * so that answer carried a number and nothing else — the schema requires only
+ * an amount and a currency, and the weaker models in the fallback list meet
+ * exactly that bar.
+ */
+describe('an answer that is only a number', () => {
+  it('is recognised as worth asking another model about', () => {
+    expect(parseIsThin(normalizeParsedExpense({ amount: 54500, currency: 'KRW' }))).toBe(true);
+  });
+
+  it('is not rejected on its own — a card slip really can be just a number', () => {
+    // Recognising it as thin only means 「ask the next model first」; the last
+    // model's answer is recorded whatever it says.
+    expect(normalizeParsedExpense({ amount: 54500, currency: 'KRW' })?.amount).toBe(54500);
+  });
+
+  it('counts a receipt with a name, a shop, or lines as a real answer', () => {
+    expect(parseIsThin(normalizeParsedExpense({ amount: 1, currency: 'KRW', description: '咖啡' }))).toBe(false);
+    expect(parseIsThin(normalizeParsedExpense({ amount: 1, currency: 'KRW', merchant: '올리브영' }))).toBe(false);
+    expect(parseIsThin(normalizeParsedExpense({
+      amount: 1, currency: 'KRW', items: [{ name: '화장품' }],
+    }))).toBe(false);
+  });
+
+  it('counts a failed parse as thin', () => {
+    expect(parseIsThin(null)).toBe(true);
   });
 });
