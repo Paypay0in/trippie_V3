@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
+import { isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
   exchangeRatePrompt,
@@ -96,18 +97,8 @@ async function startServer() {
    * otherwise undefined. The Gemini SDK surfaces this inconsistently — sometimes
    * as `status`, sometimes only in the message — so check both.
    */
-  const quotaStatusOf = (error: unknown): number | undefined => {
-    if (!error || typeof error !== 'object') return undefined;
-    const candidate = error as { status?: unknown; code?: unknown; message?: unknown };
-    // The SDK reports this as a number, a numeric string, or a status enum
-    // depending on the failure, so check each shape rather than just one.
-    for (const value of [candidate.status, candidate.code]) {
-      if (value === 429 || value === '429') return 429;
-      if (typeof value === 'string' && /RESOURCE_EXHAUSTED/i.test(value)) return 429;
-    }
-    const message = typeof candidate.message === 'string' ? candidate.message : '';
-    return /\b429\b|RESOURCE_EXHAUSTED|rate.?limit|quota/i.test(message) ? 429 : undefined;
-  };
+  const quotaStatusOf = (error: unknown): number | undefined =>
+    (isQuotaError(error) ? 429 : undefined);
 
   /** Models wrap JSON in a markdown fence often enough to be worth stripping. */
   const cleanModelJson = (raw: string) => raw.replace(/```json|```/g, "").trim() || "null";
@@ -120,18 +111,7 @@ async function startServer() {
    * error costs two seconds; refusing to retry a transient one costs the
    * feature.
    */
-  const isRetryable = (error: unknown): boolean => {
-    if (quotaStatusOf(error) === 429) return true;
-    if (!error || typeof error !== "object") return false;
-    const candidate = error as { status?: unknown; code?: unknown; message?: unknown };
-    for (const value of [candidate.status, candidate.code]) {
-      const numeric = Number(value);
-      if (Number.isFinite(numeric) && numeric >= 500 && numeric < 600) return true;
-      if (typeof value === "string" && /UNAVAILABLE|INTERNAL|DEADLINE_EXCEEDED/i.test(value)) return true;
-    }
-    const message = typeof candidate.message === "string" ? candidate.message : "";
-    return /\b(500|502|503|504)\b|unavailable|internal error|overloaded|timed? ?out|try again/i.test(message);
-  };
+  const isRetryable = isRetryableProviderError;
 
   /**
    * Retries a provider call through the transient failures the free tier
@@ -184,9 +164,17 @@ async function startServer() {
         return await withRetry(() => call(model));
       } catch (error) {
         lastError = error;
-        if (quotaStatusOf(error) !== 429) throw error;
+        /*
+          Step aside for anything the next model could survive.
+
+          「他剛說無法解析」: one model answered `fetch failed` and the next 503
+          高需求, and the fall-through only moved on for a quota error — so an
+          overloaded model ended the request while three untouched models sat
+          below it in the list.
+        */
+        if (!shouldTryNextModel(error)) throw error;
         if (process.env.NODE_ENV !== "production") {
-          console.warn(`[intake] ${model} out of quota, trying the next model`);
+          console.warn(`[intake] ${model} unavailable, trying the next model`);
         }
       }
     }
