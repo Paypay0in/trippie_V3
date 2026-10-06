@@ -80,12 +80,21 @@ describe('一筆分帳的帳目', () => {
     expect(row.getByText('A')).toBeTruthy();
   });
 
-  it('說出這筆還欠誰多少', () => {
-    // 「用這個新的UI 百分之百還原設計」: the row ends in who owes whom, which the
-    // amount alone never said.
+  it('分帳金額是大的那一行，總額縮在下面', () => {
+    // 「反過來 1.放大我分帳金額 2.將總額放下方縮小」.
+    list([noodles]);
+    const row = within(screen.getByTestId('expense-row-e-noodle'));
+
+    expect(row.getByText('分帳・你 $363').className).toContain('text-base');
+    expect(row.getByText('TWD 726').className).toContain('text-[11px]');
+  });
+
+  it('不再另外寫一行誰需付誰多少', () => {
+    // 「3.不需要另寫Gina需付xxx」.
     list([noodles]);
 
-    expect(screen.getByTestId('settlement-pill-e-noodle').textContent).toContain('NT$');
+    expect(screen.queryByTestId('settlement-pill-e-noodle')).toBeNull();
+    expect(document.body.textContent).not.toContain('需付');
   });
 
   it('你自己付的帳寫「你 先付」，不是你的名字', () => {

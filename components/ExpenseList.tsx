@@ -12,7 +12,6 @@ import { partitionByConcern } from '../services/expenseConcernsMember';
 import { calculateExpenseLedger } from '../services/splitCalculator';
 import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
 import { qualifiesForRefund } from '../services/refundHint';
-import { settlementPillFor } from '../services/splitSettlementPill';
 import { CustomCategoryRefundability } from '../services/refundableCustomCategories';
 
 interface Props {
@@ -231,14 +230,6 @@ const ExpenseList: React.FC<Props> = ({
                     const netAmount = expenseNetAmount(item);
                     const isSplit = sharerCount > 1;
                     /*
-                      Which way the money still has to move.
-
-                      「用這個新的UI 百分之百還原設計」 — the design ends a split row
-                      with this instead of 「分帳・你 $264」, which said what the
-                      bill cost the reader without saying who owes whom.
-                    */
-                    const pill = settlementPillFor({ summary, netAmount, viewerMemberId });
-                    /*
                       One tap target instead of a row of small ones.
 
                       The design ends each row with a chevron, and the cluster of
@@ -395,12 +386,30 @@ const ExpenseList: React.FC<Props> = ({
                                   a number matching neither the receipt nor the card
                                   is a row nobody can reconcile.
                                 */}
+                                {/*
+                                  On a shared bill, your share is the headline.
+
+                                  「反過來 1.放大我分帳金額 2.將總額放下方縮小」 — what the
+                                  reader spends is what they are scanning for; the
+                                  full bill is the context underneath it. On a bill
+                                  nobody shares the two are the same number, so the
+                                  row keeps its single total.
+                                */}
+                                {isSplit && viewerShare !== undefined && (
+                                    <div className="text-base font-black text-violet-600">
+                                        分帳・你 ${Math.round(viewerShare).toLocaleString()}
+                                    </div>
+                                )}
                                 {refunded > 0 && (
                                     <div className="text-[11px] font-medium text-slate-400 line-through">
                                         TWD {Math.abs(Math.round(item.twdAmount)).toLocaleString()}
                                     </div>
                                 )}
-                                <div className={`text-base font-black ${isIncome ? 'text-emerald-600' : 'text-[#11183d]'}`}>
+                                <div className={
+                                    isSplit && viewerShare !== undefined
+                                        ? 'text-[11px] font-bold text-slate-400'
+                                        : `text-base font-black ${isIncome ? 'text-emerald-600' : 'text-[#11183d]'}`
+                                }>
                                     {isIncome ? '+' : ''}TWD {Math.abs(Math.round(netAmount)).toLocaleString()}
                                 </div>
                                 {refunded > 0 && (
@@ -409,28 +418,6 @@ const ExpenseList: React.FC<Props> = ({
                                     </div>
                                 )}
 
-                                {/*
-                                  A split bill says what it cost you, not only what it cost.
-
-                                  「分帳完 我只出一半 所以 12000 我只花 6000」 — the one
-                                  thing kept beyond the mockup, because a row showing
-                                  only the full amount is the complaint it answers.
-                                */}
-                                {/*
-                                  What the bill cost the reader.
-
-                                  Kept beside the design's pill rather than
-                                  replaced by it. 「分帳完 我只出一半 所以 12000 我
-                                  只花 6000」 asked for this number, and the pill
-                                  answers a different question — what is still
-                                  owed, which on a three-way bill is not the
-                                  same figure at all.
-                                */}
-                                {isSplit && viewerShare !== undefined && (
-                                    <div className="text-[11px] font-bold text-violet-600">
-                                        分帳・你 ${Math.round(viewerShare).toLocaleString()}
-                                    </div>
-                                )}
                                 {isIncome && <div className="text-[10px] font-bold text-emerald-500">入帳完成</div>}
                                 {!isIncome && item.category === Category.EXCHANGE && item.handlingFee ? (
                                     <div className="text-[10px] text-orange-500">含手續費 ${item.handlingFee}</div>
@@ -441,35 +428,6 @@ const ExpenseList: React.FC<Props> = ({
                                     </div>
                                 )}
 
-                                {/*
-                                  Who owes whom, in a pill of its own.
-
-                                  Under the amount rather than beside it: the
-                                  numbers answer 「what did this cost」 and this
-                                  answers 「what is still outstanding」, and the
-                                  design keeps those apart.
-                                */}
-                                {pill && (
-                                    <div
-                                        data-testid={`settlement-pill-${item.id}`}
-                                        className={`mt-1.5 flex items-center justify-end gap-1.5 rounded-xl px-2 py-1 ${
-                                            pill.direction === 'owed_to_viewer'
-                                                ? 'bg-violet-50 text-violet-700'
-                                                : 'bg-amber-50 text-amber-700'
-                                        }`}
-                                    >
-                                        {pill.counterpart && (
-                                            <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-black ${
-                                                pill.direction === 'owed_to_viewer'
-                                                    ? 'bg-violet-200 text-violet-800'
-                                                    : 'bg-amber-200 text-amber-800'
-                                            }`}>
-                                                {initialOf(pill.counterpart)}
-                                            </span>
-                                        )}
-                                        <span className="whitespace-nowrap text-[11px] font-black">{pill.label}</span>
-                                    </div>
-                                )}
                             </div>
                             {open && (
                                 <button
