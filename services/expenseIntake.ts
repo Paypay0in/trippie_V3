@@ -92,6 +92,35 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * Anything that fails to be one of ours is dropped rather than coerced —
  * a blank field the traveller fills in beats a wrong one they don't notice.
  */
+/**
+ * Longer than this is prose, not a name.
+ *
+ * Measured against the real ones off his receipts: 「Q-Lip 軟膏 溫和草本 8g」 is 16
+ * characters and 「Dr. Rejumol 泥漾唇部精華」 is 18. A product name needing more
+ * than twenty is rare; an explanation fitting in fewer is rarer.
+ */
+const MAX_TRANSLATED_NAME = 20;
+
+/**
+ * A translation, or the model talking about its own work.
+ *
+ * 「這沒有翻譯跟項目解析」. An Olive Young receipt came back with 「化妝品類商品組合
+ * 包裝/化妝品類商品總計(代稱分類，非單一品項，可能包含多項美妝商品，此處依據收據直接
+ * 列示其金額/數量總計)」 in a field that is supposed to hold a product name. The
+ * caveat may even be true; it is still not what the field is for, and a
+ * paragraph where 「護唇膏」 belongs is unreadable in a list.
+ *
+ * Dropped rather than truncated: half an explanation is not a name either, and
+ * the printed line is still shown, which is the honest fallback.
+ */
+const usableTranslation = (translated: string, printed: string): string => {
+  if (!translated || translated === printed) return '';
+  if (translated.length > MAX_TRANSLATED_NAME) return '';
+  // A name does not explain itself in parentheses, and does not need commas.
+  if (/[（(][^）)]{8,}/.test(translated) || /[，,、。]/.test(translated)) return '';
+  return translated;
+};
+
 export const normalizeParsedExpense = (raw: unknown): ParsedExpense | null => {
   if (!raw || typeof raw !== 'object') return null;
   const value = raw as Record<string, unknown>;
@@ -146,14 +175,17 @@ export const normalizeParsedExpense = (raw: unknown): ParsedExpense | null => {
       .map(entry => {
         const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, 80) : '';
         if (!name) return null;
-        const translated = typeof entry.translatedName === 'string' ? entry.translatedName.trim().slice(0, 80) : '';
+        const translated = usableTranslation(
+          typeof entry.translatedName === 'string' ? entry.translatedName.trim() : '',
+          name,
+        );
         const quantity = Number(entry.quantity);
         const amount = Number(entry.amount);
         return {
           name,
           // A 「translation」 identical to the original is not one, and showing
           // the same string twice reads as a rendering fault.
-          ...(translated && translated !== name ? { translatedName: translated } : {}),
+          ...(translated ? { translatedName: translated } : {}),
           ...(Number.isFinite(quantity) && quantity > 0 ? { quantity } : {}),
           ...(Number.isFinite(amount) ? { amount } : {}),
         } as ParsedReceiptItem;
@@ -206,12 +238,18 @@ export const imageExpensePrompt = () => `
       5. Payment Method: Infer Credit Card, Cash, or IC Card.
       6. Country: Infer the country in Traditional Chinese.
       7. Merchant: the shop name EXACTLY as printed, in its own script, untranslated.
-      8. Items: every product line on the receipt, in the order printed.
+      8. Items: TRANSCRIBE the product lines, one entry per line printed on the paper.
          - "name": exactly as printed, in the receipt's own script. Do not translate this field.
-         - "translatedName": the same product in Traditional Chinese (zh-TW), as a shopper would name it.
-           Omit it only when you genuinely cannot tell what the product is. Never transliterate blindly.
+         - "translatedName": the product name in Traditional Chinese (zh-TW), as a shopper would
+           say it. A NAME ONLY, at most about 20 characters. Never a sentence, never a caveat,
+           never an explanation of what the line is or how you read it. If you cannot tell what
+           the product is, omit this field — saying nothing is correct, explaining yourself is not.
          - "quantity" and "amount": the line's quantity and its line total, as numbers in the receipt currency.
          - Include discount lines, with a negative amount, so the lines explain the total.
+         - NEVER merge several products into one entry, and never replace the products with a
+           department or category summary line (화장품, 잡화, 일반의약품, 食品). If the receipt
+           prints such a subtotal AND the products above it, transcribe the products; a summary
+           line on its own tells the reader nothing they did not already know from the total.
          - If the image is not an itemised receipt, return an empty list rather than inventing lines.
 
       CRITICAL DATE PARSING:

@@ -133,3 +133,55 @@ describe('the shop, in both languages', () => {
     expect(normalizeParsedExpense({ amount: 100, currency: 'KRW' })?.merchant).toBeUndefined();
   });
 });
+
+/**
+ * 「這沒有翻譯跟項目解析」 — an Olive Young receipt.
+ *
+ * The lines came back as the department subtotals the shop prints (화장품,
+ * 잡화) rather than the products, and the translation field held a paragraph
+ * explaining that very fact.
+ */
+describe('a model explaining itself in a name field', () => {
+  const essay = '化妝品類商品組合包裝/化妝品類商品總計(代稱分類，非單一品項，可能包含多項美妝商品)';
+
+  it('drops the explanation and keeps the printed line', () => {
+    // The caveat may even be true. It is still not what the field is for, and
+    // a paragraph where 「護唇膏」 belongs is unreadable in a list.
+    const parsed = normalizeParsedExpense({
+      amount: 19900, currency: 'KRW', items: [{ name: '화장품', translatedName: essay, amount: 19900 }],
+    });
+
+    expect(parsed?.items?.[0].name).toBe('화장품');
+    expect(parsed?.items?.[0].translatedName).toBeUndefined();
+  });
+
+  it('drops a name that explains itself in parentheses', () => {
+    const parsed = normalizeParsedExpense({
+      amount: 100, currency: 'KRW',
+      items: [{ name: '잡화', translatedName: '雜貨（這是收據上的分類小計）' }],
+    });
+
+    expect(parsed?.items?.[0].translatedName).toBeUndefined();
+  });
+
+  it('drops a translation long enough to be a sentence, punctuation or not', () => {
+    const parsed = normalizeParsedExpense({
+      amount: 100, currency: 'KRW',
+      items: [{ name: '화장품', translatedName: '化妝品類商品組合包裝與總計金額依照收據直接列示' }],
+    });
+
+    expect(parsed?.items?.[0].translatedName).toBeUndefined();
+  });
+
+  it('keeps an ordinary product name', () => {
+    const parsed = normalizeParsedExpense({
+      amount: 100, currency: 'KRW',
+      items: [
+        { name: '큐립연고 마일드허브향 8g', translatedName: 'Q-Lip 軟膏 溫和草本 8g' },
+        { name: '블루CPR', translatedName: 'Blue CPR' },
+      ],
+    });
+
+    expect(parsed?.items?.map(line => line.translatedName)).toEqual(['Q-Lip 軟膏 溫和草本 8g', 'Blue CPR']);
+  });
+});
