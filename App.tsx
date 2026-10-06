@@ -5614,6 +5614,14 @@ const App: React.FC = () => {
             setCommunityView("detail");
           }}
           onCreatePost={openCommunityComposer}
+          notices={disputeNotices}
+          onOpenNotice={(notice) => {
+            // The thread lives in the ledger, so the notice has to take the
+            // reader there as well as open it — otherwise tapping dismisses
+            // the one sign that anything was asked.
+            setAppSection("trips");
+            openDisputeNotice(notice);
+          }}
           onSectionChange={(section) => {
             if (section === "profile" && authStatus !== "authenticated") {
               setAuthEntryContext("account");
@@ -6420,6 +6428,7 @@ const App: React.FC = () => {
             allowArchive={!currentLoadedTripId}
             viewerMemberId={viewerMemberId}
             ownerMemberId={activeOwnerMemberId}
+            onOpenExpense={handleEditExpense}
           />
         )}
         {import.meta.env.DEV && (
@@ -7023,6 +7032,7 @@ const App: React.FC = () => {
                   allowArchive={!currentLoadedTripId}
                   viewerMemberId={viewerMemberId}
                   ownerMemberId={activeOwnerMemberId}
+                  onOpenExpense={handleEditExpense}
                 />
                 <button
                   onClick={handleGenerateTravelBook}
