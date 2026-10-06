@@ -23,9 +23,18 @@ interface Props {
    * add an item to.
    */
   onAddItineraryItem?: () => void;
+  /**
+   * A pocket of receipts, read in one go.
+   *
+   * 「在這加批次匯入的入口吧」 — the batch reader existed, two screens away on the
+   * bookshelf, which is the wrong place for it: the pile of paper is in your
+   * hand mid-trip, with the ledger open. Omitted outside the ledger, where the
+   * import has no trip to land in.
+   */
+  onBatchImport?: () => void;
 }
 
-const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCreatePost, onCreateTrip, onOpenBookshelf, onAiImport, onAddExpense, onAddItineraryItem }) => {
+const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCreatePost, onCreateTrip, onOpenBookshelf, onAiImport, onAddExpense, onAddItineraryItem, onBatchImport }) => {
   const actions = context === 'community'
     ? [['發布旅行貼文', onCreatePost], ['分享一趟旅程', onClose], ['從相簿建立', onClose], ['儲存為草稿', onCreatePost]]
     : context === 'travel'
@@ -51,7 +60,12 @@ const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCr
           ['旅行書架', onOpenBookshelf],
           ['AI 匯入', onAiImport],
         ]
-      : [['新增支出', onAddExpense]];
+      : [
+          ['新增支出', onAddExpense] as [string, () => void],
+          ...(onBatchImport
+            ? [['批次匯入收據', onBatchImport] as [string, () => void]]
+            : []),
+        ];
   return <div className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-950/35 p-4`} onClick={onClose}>
     <div className="w-full max-w-2xl rounded-[28px] bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()}>
       <div className="mx-auto mb-5 h-1.5 w-12 rounded-full bg-slate-200" />

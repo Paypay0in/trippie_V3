@@ -932,6 +932,9 @@ const App: React.FC = () => {
     string | undefined
   >(() => initialActiveDraft?.selectedPassportId);
   const isHydratingTripRef = useRef(false);
+  /** The ledger's own way into the batch receipt reader. */
+  const batchReceiptInputRef = useRef<HTMLInputElement>(null);
+  const [isBatchScanning, setIsBatchScanning] = useState(false);
   const activeDraftIdRef = useRef<string | null>(
     initialDraftStore.activeDraftId,
   );
@@ -4940,11 +4943,20 @@ const App: React.FC = () => {
               phase: inferredPhase,
               date: parsedDate,
               payerId: defaultPayerMemberId,
-              // If current companions exist, include them, otherwise just me
-              beneficiaries:
-                companions.length > 0
-                  ? Array.from(new Set([defaultPayerMemberId, activeOwnerMemberId, ...companions.map((c) => c.id)]))
-                  : [defaultPayerMemberId],
+              /*
+                Whose bill it is, not whose trip it is.
+
+                「分帳不用猜」. A batch import used to split every imported receipt
+                across everybody on the trip the moment a companion existed, so
+                ten photographs of one traveller's own shopping arrived as ten
+                bills the other one owed half of. The model can read a total off
+                a photograph; it cannot read who ate the meal.
+
+                Unsplit, filed to whoever imported it. Splitting one bill
+                afterwards is a few taps; finding the ten that were split by
+                guess means re-reading every receipt.
+              */
+              beneficiaries: [defaultPayerMemberId],
               splitMethod: "EQUAL",
               splitAllocations: {},
               handlingFee: 0,
@@ -6801,6 +6813,19 @@ const App: React.FC = () => {
                 setViewMode("bookshelf");
               }}
               onAddItineraryItem={activeDraftId ? openQuickItineraryAdd : undefined}
+              /*
+                「在這加批次匯入的入口吧」 — the reader is here, holding the pile.
+                Only in the ledger: elsewhere the sheet offers 新增旅程 and friends,
+                and an import with no trip open has nowhere to land.
+              */
+              onBatchImport={
+                workspaceSection === "records"
+                  ? () => {
+                      setIsGlobalActionOpen(false);
+                      batchReceiptInputRef.current?.click();
+                    }
+                  : undefined
+              }
               onAiImport={() => {
                 setIsGlobalActionOpen(false);
                 setViewMode("tripSetup");
@@ -6815,6 +6840,44 @@ const App: React.FC = () => {
                 setIsFormOpen(true);
               }}
             />
+          )}
+          {/*
+            The picker behind 批次匯入收據. Multiple on purpose: the whole point
+            is the pile, and one at a time is the thing being replaced.
+          */}
+          <input
+            ref={batchReceiptInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            data-testid="ledger-batch-receipts"
+            className="hidden"
+            onChange={async (event) => {
+              const files = event.target.files;
+              if (!files?.length) return;
+              setIsBatchScanning(true);
+              try {
+                await handleSmartScanBatch(files);
+              } finally {
+                setIsBatchScanning(false);
+                event.target.value = "";
+              }
+            }}
+          />
+          {/*
+            Reading ten receipts takes long enough that a silent screen reads as
+            a screen that did nothing, and a second tap starts the whole batch
+            over.
+          */}
+          {isBatchScanning && (
+            <div
+              data-testid="batch-scanning"
+              className={`fixed inset-0 ${OVERLAY.modal} flex flex-col items-center justify-center gap-3 bg-slate-950/50`}
+            >
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/30 border-t-white" />
+              <p className="text-sm font-black text-white">辨識收據中…</p>
+              <p className="text-xs text-white/70">張數多時需要一點時間，請不要關閉</p>
+            </div>
           )}
           {isSettlementOpen && (
             <div className={`fixed inset-0 ${OVERLAY.sheet} flex items-center justify-center bg-slate-950/40 p-3 sm:p-6`}>
