@@ -212,6 +212,8 @@ const ExpenseForm: React.FC<Props> = ({
   
   // Image Upload Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /** The same parse, from the photo library: 「最好可以上傳收據 相簿中的」. */
+  const libraryInputRef = useRef<HTMLInputElement>(null);
   /**
    * Receipts kept with the expense.
    *
@@ -428,6 +430,10 @@ const ExpenseForm: React.FC<Props> = ({
                         unreadable by the time anybody needs it.
                       */
                       ...(result.items?.length ? { receiptItems: result.items } : {}),
+                      // The shop as printed, beside a title that is now
+                      // translated: 「會代入但不會翻譯」 asked for the Chinese, and
+                      // the receipt in hand still says 광안리 대교밀면.
+                      ...(result.merchant ? { merchant: result.merchant } : {}),
                       needsReview: result.isUncertain
                   };
 
@@ -868,6 +874,22 @@ const ExpenseForm: React.FC<Props> = ({
                 className="hidden" 
                 onChange={handleImageUpload}
             />
+            {/*
+              The same parse, from the photo library.
+
+              「最好可以上傳收據 相簿中的」. `capture` is not a hint — it takes the
+              chooser away, so a receipt photographed an hour ago could not be
+              used at all. Two inputs rather than one: the attribute cannot be
+              toggled per tap on iOS.
+            */}
+            <input
+                type="file"
+                accept="image/*"
+                ref={libraryInputRef}
+                className="hidden"
+                data-testid="receipt-library-input"
+                onChange={handleImageUpload}
+            />
 
             {/*
               Where a receipt is actually photographed.
@@ -883,16 +905,28 @@ const ExpenseForm: React.FC<Props> = ({
               in the middle of correcting.
             */}
             {!isEditing && !locked && (
-              <button
-                type="button"
-                data-testid="scan-receipt"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isAiLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-blue-50 px-4 py-3 text-sm font-black text-violet-700 disabled:opacity-60"
-              >
-                <Camera size={17} />
-                {isAiLoading ? (statusMessage || '辨識中…') : '拍收據自動記帳'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  data-testid="scan-receipt"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isAiLoading}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-blue-50 px-3 py-3 text-sm font-black text-violet-700 disabled:opacity-60"
+                >
+                  <Camera size={17} />
+                  {isAiLoading ? (statusMessage || '辨識中…') : '拍收據'}
+                </button>
+                <button
+                  type="button"
+                  data-testid="pick-receipt"
+                  onClick={() => libraryInputRef.current?.click()}
+                  disabled={isAiLoading}
+                  className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-600 disabled:opacity-60"
+                >
+                  <ImageIcon size={17} />
+                  從相簿
+                </button>
+              </div>
             )}
             {!isEditing && !locked && (
               <p className="-mt-3 text-center text-[10px] font-medium leading-4 text-slate-400">
@@ -987,6 +1021,19 @@ const ExpenseForm: React.FC<Props> = ({
                     </div>
                     <div className="mt-0.5 text-xs font-medium text-slate-500">
                       {initialData.date.replace(/-/g, '/')}
+                      {/*
+                        The shop as printed, under a translated title.
+
+                        「會代入但不會翻譯」 asked for the Chinese name; this is what
+                        still matches the paper in hand and the line on the card
+                        statement. Omitted when it is the same string, which is
+                        most of a trip at home.
+                      */}
+                      {initialData.merchant && initialData.merchant !== initialData.description && (
+                        <span data-testid="expense-merchant" className="ml-1.5 text-slate-400">
+                          · {initialData.merchant}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex-shrink-0 whitespace-nowrap text-base font-black text-[#11183d]">

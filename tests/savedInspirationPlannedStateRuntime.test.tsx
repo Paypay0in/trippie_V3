@@ -11,7 +11,21 @@ import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 
-const TRIP_DAY = '2026-10-05';
+/*
+  Derived from the clock, not written down.
+
+  The itinerary only offers days that have not happened yet — 「ai排行程會排到已經
+  失效的日期」 — so a fixture with fixed dates stops exercising this the moment the
+  real date passes it. These did, overnight.
+*/
+const isoDay = (offset: number): string => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const TRIP_DAY = isoDay(1);
 const DRAFT_ID = 'draft-planned-state';
 
 /** The itinerary already holds 海雲台海水浴場 under placeId X. */

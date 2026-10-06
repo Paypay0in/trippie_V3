@@ -226,6 +226,14 @@ export interface Expense {
   note?: string;
   /** The receipt's own lines, when one was photographed. */
   receiptItems?: ReceiptItem[];
+  /**
+   * The shop as printed on the receipt, in its own script.
+   *
+   * 「會代入但不會翻譯」 — the title is translated so the ledger can be read at a
+   * glance, which leaves nothing matching the paper or the card statement.
+   * Both, then: 廣安里 大橋麥麵 as the name, 광안리 대교밀면 underneath it.
+   */
+  merchant?: string;
   taxRefundedAtPurchase?: boolean;
   /**
    * This purchase cannot be refunded at all.

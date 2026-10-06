@@ -16,7 +16,7 @@ import ExpenseForm from '../components/ExpenseForm';
 import { Category, Expense } from '../types';
 
 const parsed = {
-  description: '베러미약국', amount: 107000, currency: 'KRW', category: '購物',
+  description: '貝樂美藥局', merchant: '베러미약국', amount: 107000, currency: 'KRW', category: '購物',
   paymentMethod: '信用卡', date: '2026-10-05',
   items: [
     { name: '블루CPR 4개', translatedName: 'Blue CPR 4入', amount: 120000 },
@@ -80,6 +80,33 @@ describe('photographing a receipt', () => {
     expect(saved.receiptItems).toEqual(parsed.items);
   });
 
+  it('can take a receipt out of the photo library', async () => {
+    // 「最好可以上傳收據 相簿中的」 — `capture` is not a hint, it removes the
+    // chooser, so a receipt photographed an hour ago could not be used at all.
+    const user = userEvent.setup();
+    const { onSubmit } = renderForm();
+
+    expect(screen.getByTestId('pick-receipt')).toBeTruthy();
+    const library = screen.getByTestId('receipt-library-input') as HTMLInputElement;
+    expect(library.hasAttribute('capture')).toBe(false);
+
+    await user.upload(library, receipt());
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+  });
+
+  it('names the bill in the reader own language, and keeps the printed name', async () => {
+    // 「會代入但不會翻譯」: 광안리 대교밀면 went straight into the title.
+    const user = userEvent.setup();
+    const { onSubmit } = renderForm();
+
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, receipt());
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0].description).toBe('貝樂美藥局');
+    expect(onSubmit.mock.calls[0][0].merchant).toBe('베러미약국');
+  });
+
   it('is not offered while editing an existing bill', () => {
     // The photo creates the record; offering it here would mean replacing a
     // bill somebody is in the middle of correcting.
@@ -90,5 +117,6 @@ describe('photographing a receipt', () => {
     } as Expense);
 
     expect(screen.queryByTestId('scan-receipt')).toBeNull();
+    expect(screen.queryByTestId('pick-receipt')).toBeNull();
   });
 });

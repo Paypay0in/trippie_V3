@@ -196,13 +196,16 @@ export const imageExpensePrompt = () => `
       Analyze this image (receipt, flight ticket, hotel booking, or screen capture).
 
       Extract the following details:
-      1. Merchant Name or Short Description.
+      1. Description: a short name for this expense IN TRADITIONAL CHINESE (zh-TW).
+         The reader does not read Korean, Japanese or Thai. 「광안리 대교밀면」 must come
+         back as 「廣安里 大橋麥麵」, not copied through untranslated. Keep a recognisable
+         brand as-is only when it is already Latin script (Starbucks, UNIQLO).
       2. Total Amount (Final total).
       3. Currency Code (ISO 4217).
       4. Category: Choose strictly from: ${CATEGORIES.join(', ')}.
       5. Payment Method: Infer Credit Card, Cash, or IC Card.
       6. Country: Infer the country in Traditional Chinese.
-      7. Merchant: the shop name exactly as printed.
+      7. Merchant: the shop name EXACTLY as printed, in its own script, untranslated.
       8. Items: every product line on the receipt, in the order printed.
          - "name": exactly as printed, in the receipt's own script. Do not translate this field.
          - "translatedName": the same product in Traditional Chinese (zh-TW), as a shopper would name it.

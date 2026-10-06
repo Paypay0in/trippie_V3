@@ -4904,6 +4904,7 @@ const App: React.FC = () => {
               // a batch import that drops them records the same unreadable
               // total the parse was there to explain.
               ...(result.items?.length ? { receiptItems: result.items } : {}),
+              ...(result.merchant ? { merchant: result.merchant } : {}),
               needsReview: result.isUncertain,
             };
             historyUpdates.push({ id: matchedTripId, expense: newExpense });
@@ -4941,6 +4942,7 @@ const App: React.FC = () => {
               // a batch import that drops them records the same unreadable
               // total the parse was there to explain.
               ...(result.items?.length ? { receiptItems: result.items } : {}),
+              ...(result.merchant ? { merchant: result.merchant } : {}),
               needsReview: result.isUncertain,
             };
             newDraftExpenses.push(newExpense);

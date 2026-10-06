@@ -11,8 +11,22 @@ import userEvent from '@testing-library/user-event';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 
-const DAY_5 = '2026-10-05';
-const DAY_6 = '2026-10-06';
+/*
+  Derived from the clock, not written down.
+
+  The itinerary only offers days that have not happened yet — 「ai排行程會排到已經
+  失效的日期」 — so a fixture with fixed dates stops exercising this the moment the
+  real date passes it. These did, overnight.
+*/
+const isoDay = (offset: number): string => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const DAY_5 = isoDay(1);
+const DAY_6 = isoDay(2);
 const DRAFT_ID = 'draft-list';
 
 /** The ticket's fixture, plus one Day 5 item to drag across to. */
@@ -643,7 +657,7 @@ describe('a night with no room booked', () => {
 describe('two hotels on one trip', () => {
   beforeEach(() => seedStorage([
     {
-      id: 'a-in', date: '2026-10-03', time: '15:00', title: '入住 海雲台格蘭飯店',
+      id: 'a-in', date: isoDay(0), time: '15:00', title: '入住 海雲台格蘭飯店',
       location: '海雲台', notes: '', type: 'HOTEL',
       fixedEventKind: 'accommodation',
     },
@@ -658,7 +672,7 @@ describe('two hotels on one trip', () => {
       fixedEventKind: 'accommodation',
     },
     {
-      id: 'b-out', date: '2026-10-07', time: '11:00', title: '退房 西面商務旅館',
+      id: 'b-out', date: isoDay(3), time: '11:00', title: '退房 西面商務旅館',
       location: '西面', notes: '', type: 'HOTEL',
       fixedEventKind: 'accommodation',
     },
@@ -670,8 +684,8 @@ describe('two hotels on one trip', () => {
     render(<App />);
     await openPlanning(user);
 
-    // Day 1 is 2026-10-05: out of the first hotel that morning, into the
-    // second that afternoon. Tonight is the second one.
+    // The first tab is the changeover day: out of the first hotel that
+    // morning, into the second that afternoon. Tonight is the second one.
     const banner = screen.getByTestId('stay-banner');
     expect(within(banner).getByText('西面商務旅館')).toBeTruthy();
     expect(within(banner).queryByText('海雲台格蘭飯店')).toBeNull();

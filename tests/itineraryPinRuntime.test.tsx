@@ -10,8 +10,22 @@ import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 
-const DAY_5 = '2026-10-05';
-const DAY_6 = '2026-10-06';
+/*
+  Derived from the clock, not written down.
+
+  The itinerary only offers days that have not happened yet — 「ai排行程會排到已經
+  失效的日期」 — so a fixture with fixed dates stops exercising this the moment the
+  real date passes it. These did, overnight.
+*/
+const isoDay = (offset: number): string => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const DAY_5 = isoDay(1);
+const DAY_6 = isoDay(2);
 const DRAFT_ID = 'draft-pin';
 
 /** §10 fixture, all on the first trip day, which the calendar opens on. */

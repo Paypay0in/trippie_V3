@@ -103,3 +103,33 @@ describe('the lines travelling with the bill', () => {
     expect(fromExpenseRow(row as never).receiptItems).toBeUndefined();
   });
 });
+
+/**
+ * 「會代入但不會翻譯」 — 광안리 대교밀면 went into the title untranslated, so the
+ * ledger could not be read at a glance.
+ */
+describe('the shop, in both languages', () => {
+  it('keeps the printed name alongside the translated title', () => {
+    const parsed = normalizeParsedExpense({
+      amount: 22000, currency: 'KRW', description: '廣安里 大橋麥麵', merchant: '광안리 대교밀면',
+    });
+
+    expect(parsed?.description).toBe('廣安里 大橋麥麵');
+    expect(parsed?.merchant).toBe('광안리 대교밀면');
+  });
+
+  it('carries the shop through the shared table', () => {
+    const expense = {
+      id: 'e-noodles', description: '廣安里 大橋麥麵', merchant: '광안리 대교밀면',
+      amount: 22000, currency: 'KRW', exchangeRate: 0.023, twdAmount: 528,
+      category: '餐飲', paymentMethod: '信用卡', phase: 'during', date: '2026-10-06',
+      payerId: 'me', beneficiaries: ['me'], splitMethod: 'EQUAL', splitAllocations: {},
+    } as unknown as Expense;
+
+    expect(fromExpenseRow(toExpenseRow(expense, 'trip-1') as never).merchant).toBe('광안리 대교밀면');
+  });
+
+  it('reads a bill with no shop recorded as having none', () => {
+    expect(normalizeParsedExpense({ amount: 100, currency: 'KRW' })?.merchant).toBeUndefined();
+  });
+});

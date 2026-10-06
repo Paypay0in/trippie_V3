@@ -35,6 +35,8 @@ export interface ExpenseRow {
   receipt_photos?: unknown;
   /** The receipt's own lines, both languages, as the model read them. */
   receipt_items?: unknown;
+  /** The shop as printed, untranslated. */
+  merchant?: unknown;
   note?: unknown;
   tax_refunded_at_purchase?: unknown;
   tax_refund_ineligible?: unknown;
@@ -82,6 +84,7 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   linked_shopping_item_id: expense.linkedShoppingItemId ?? null,
   receipt_photos: expense.receiptPhotos ?? [],
   receipt_items: expense.receiptItems ?? [],
+  merchant: expense.merchant?.trim() || null,
   // Both travellers read the same ledger, so a note explaining a bill belongs
   // on the bill rather than on whichever phone typed it.
   note: expense.note?.trim() || null,
@@ -149,6 +152,7 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   receiptItems: Array.isArray(row.receipt_items) && row.receipt_items.length
     ? (row.receipt_items as ReceiptItem[])
     : undefined,
+  merchant: typeof row.merchant === 'string' && row.merchant.trim() ? row.merchant : undefined,
   taxRefundedAtPurchase: row.tax_refunded_at_purchase === true ? true : undefined,
   taxRefundIneligible: row.tax_refund_ineligible === true ? true : undefined,
   taxRefundActual: Number.isFinite(Number(row.tax_refund_actual)) && row.tax_refund_actual !== null
