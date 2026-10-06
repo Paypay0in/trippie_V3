@@ -10,7 +10,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
 import { isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
-import { chooseMerchantPlace, merchantSearchQuery } from "./services/merchantPlaceQuery";
+import { chooseMerchantPlace, merchantSearchQuery, placeLanguageFor } from "./services/merchantPlaceQuery";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
   exchangeRatePrompt,
@@ -192,6 +192,7 @@ async function startServer() {
   const resolveMerchantPlace = async (
     merchant?: string,
     address?: string,
+    country?: string,
   ): Promise<{ merchantPlaceId: string; merchantLatitude: number; merchantLongitude: number } | undefined> => {
     const query = merchantSearchQuery({ merchant, address });
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -201,21 +202,33 @@ async function startServer() {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.id,places.formattedAddress,places.location",
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
       },
-      body: JSON.stringify({ textQuery: query, languageCode: "zh-TW", maxResultCount: 5 }),
+      /*
+        Answered in the receipt's own language, which is the whole trick.
+
+        Asked in zh-TW the live API returns 「Busanjin District, Jungang-daero」 —
+        romanised, sharing no character with the Korean on the paper — and the
+        comparison below has nothing to work with.
+      */
+      body: JSON.stringify({
+        textQuery: query,
+        maxResultCount: 5,
+        ...(placeLanguageFor(address, country) ? { languageCode: placeLanguageFor(address, country) } : {}),
+      }),
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return undefined;
     const data = await response.json() as {
-      places?: Array<{ id?: string; formattedAddress?: string; location?: { latitude?: number; longitude?: number } }>;
+      places?: Array<{ id?: string; formattedAddress?: string; displayName?: { text?: string }; location?: { latitude?: number; longitude?: number } }>;
     };
     const chosen = chooseMerchantPlace(address, (data.places || []).map(place => ({
       placeId: place.id,
       latitude: place.location?.latitude,
       longitude: place.location?.longitude,
       formattedAddress: place.formattedAddress,
-    })));
+      displayName: place.displayName?.text,
+    })), merchant);
     return chosen
       ? { merchantPlaceId: chosen.placeId, merchantLatitude: chosen.latitude, merchantLongitude: chosen.longitude }
       : undefined;
@@ -293,7 +306,7 @@ async function startServer() {
         Never allowed to fail the parse — the bill is the answer somebody asked
         for, and a place id is a bonus on top of it.
       */
-      const place = await resolveMerchantPlace(parsed.merchant, parsed.merchantAddress).catch(() => undefined);
+      const place = await resolveMerchantPlace(parsed.merchant, parsed.merchantAddress, parsed.country).catch(() => undefined);
       res.json(place ? { ...parsed, ...place } : parsed);
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
