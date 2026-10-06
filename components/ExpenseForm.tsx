@@ -1116,6 +1116,21 @@ const ExpenseForm: React.FC<Props> = ({
                 107,000 원」 — and the printed name stays next to the translation
                 so the line can still be matched against the paper itself.
               */}
+              {/*
+                Said when there is nothing to say.
+
+                「又沒有翻譯了」 — asked of a bill that simply has no receipt
+                lines, because nothing distinguished 「this bill was not created
+                from a photo」 from 「the parser failed you again」. An empty
+                space answers neither question, and the traveller has no way to
+                tell which one they are looking at.
+              */}
+              {initialData && !initialData.receiptItems?.length && (
+                <p data-testid="no-receipt-items" className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-medium leading-4 text-slate-400">
+                  這筆沒有收據明細。用「拍收據」或「從相簿」建立的帳才會逐項列出並翻譯；手動輸入或更早記的帳沒有。
+                </p>
+              )}
+
               {initialData?.receiptItems?.length ? (
                 <div data-testid="receipt-items" className="rounded-2xl border border-slate-100 bg-white p-3">
                   <p className="text-[11px] font-black text-slate-500">收據明細</p>

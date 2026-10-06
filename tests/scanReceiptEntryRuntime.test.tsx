@@ -122,6 +122,30 @@ describe('photographing a receipt', () => {
     expect(onSubmit.mock.calls[0][0].taxRefundActual).toBe(1000);
   });
 
+  it('says why a bill has no receipt detail, instead of showing nothing', () => {
+    // 「又沒有翻譯了」 was asked of a bill that simply had no lines. An empty
+    // space cannot tell 「not created from a photo」 from 「the parser failed」.
+    renderForm({
+      id: 'e1', description: '計程車', amount: 10900, currency: 'KRW', exchangeRate: 0.023,
+      twdAmount: 250, category: Category.TRANSPORT, phase: 'during', date: '2026-10-06',
+      payerId: 'me', beneficiaries: ['me'], splitMethod: 'EQUAL', splitAllocations: {},
+    } as Expense);
+
+    expect(screen.getByTestId('no-receipt-items').textContent).toContain('沒有收據明細');
+  });
+
+  it('says nothing of the sort when the lines are there', () => {
+    renderForm({
+      id: 'e2', description: 'OLIVE YOUNG', amount: 40500, currency: 'KRW', exchangeRate: 0.023,
+      twdAmount: 924, category: Category.SHOPPING, phase: 'during', date: '2026-10-06',
+      payerId: 'me', beneficiaries: ['me'], splitMethod: 'EQUAL', splitAllocations: {},
+      receiptItems: [{ name: '라운드랩 1025 독도 클렌저', translatedName: 'Round Lab 1025 獨島洗面乳', amount: 11700 }],
+    } as Expense);
+
+    expect(screen.queryByTestId('no-receipt-items')).toBeNull();
+    expect(screen.getByTestId('receipt-items').textContent).toContain('Round Lab 1025 獨島洗面乳');
+  });
+
   it('is not offered while editing an existing bill', () => {
     // The photo creates the record; offering it here would mean replacing a
     // bill somebody is in the middle of correcting.
