@@ -238,3 +238,38 @@ describe('a refund the till already gave back', () => {
     })?.taxRefundActual).toBeUndefined();
   });
 });
+
+/**
+ * 「收據上如果有地址 我希望帳上可以記錄地址，因為未來有一個功能會希望用戶願意分享
+ * 帳本給其他用戶參考，能有實際經驗。地址更能協助大數據分析」.
+ */
+describe('where the shop is', () => {
+  const ADDRESS = '부산광역시 부산진구 중앙대로 737 2-02호(부전동, 서면역구내)';
+
+  it('keeps the address as printed', () => {
+    // As printed, not geocoded: the characters on the paper are the fact, and
+    // a lookup can be run over them later.
+    const parsed = normalizeParsedExpense({
+      amount: 19000, currency: 'KRW', merchant: 'CJ올리브영(주) 서면역사점', merchantAddress: ADDRESS,
+    });
+
+    expect(parsed?.merchantAddress).toBe(ADDRESS);
+  });
+
+  it('records none when the receipt printed none', () => {
+    // Never inferred from the shop's name.
+    expect(normalizeParsedExpense({ amount: 19000, currency: 'KRW', merchant: 'OLIVE YOUNG' })?.merchantAddress)
+      .toBeUndefined();
+  });
+
+  it('travels with the bill to the shared table', () => {
+    const expense = {
+      id: 'e-oy', description: 'OLIVE YOUNG 購物', merchant: 'CJ올리브영(주) 서면역사점',
+      merchantAddress: ADDRESS, amount: 19000, currency: 'KRW', exchangeRate: 0.023, twdAmount: 437,
+      category: '美妝保養', paymentMethod: '信用卡', phase: 'during', date: '2026-10-06',
+      payerId: 'me', beneficiaries: ['me'], splitMethod: 'EQUAL', splitAllocations: {},
+    } as unknown as Expense;
+
+    expect(fromExpenseRow(toExpenseRow(expense, 'trip-1') as never).merchantAddress).toBe(ADDRESS);
+  });
+});

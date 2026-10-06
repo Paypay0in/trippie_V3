@@ -83,6 +83,15 @@ export interface ParsedExpense {
   /** The shop, as printed. */
   merchant?: string;
   /**
+   * The shop's address, as printed on the receipt.
+   *
+   * 「收據上如果有地址 我希望帳上可以記錄地址 … 地址更能協助大數據分析」. A ledger
+   * shared with another traveller is 「someone actually went here and paid
+   * this」, and 「CJ올리브영(주) 서면역사점」 is only a name until something says
+   * where it is.
+   */
+  merchantAddress?: string;
+  /**
    * The shop refunded the tax at the till, and by how much.
    *
    * 「這收據上已經有實際退稅的資訊 功能應該要識別實際退稅資訊直接帶入」. Korea's
@@ -170,6 +179,10 @@ export const normalizeParsedExpense = (raw: unknown): ParsedExpense | null => {
 
   if (typeof value.merchant === 'string' && value.merchant.trim()) {
     result.merchant = value.merchant.trim().slice(0, 60);
+  }
+
+  if (typeof value.merchantAddress === 'string' && value.merchantAddress.trim()) {
+    result.merchantAddress = value.merchantAddress.trim().slice(0, 160);
   }
 
   /*
@@ -273,6 +286,10 @@ export const imageExpensePrompt = () => `
       5. Payment Method: Infer Credit Card, Cash, or IC Card.
       6. Country: Infer the country in Traditional Chinese.
       7. Merchant: the shop name EXACTLY as printed, in its own script, untranslated.
+      7b. Merchant address: the shop's street address as printed on the receipt, in its own
+          script, untranslated and unabbreviated. Receipts print it near the shop name or the
+          business registration number (주소, 소재지, 住所). Omit it when the receipt does not
+          print one — never infer an address from the shop's name.
       8. Items: TRANSCRIBE the product lines, one entry per line printed on the paper.
          - "name": exactly as printed, in the receipt's own script. Do not translate this field.
          - "translatedName": the product name in Traditional Chinese (zh-TW), as a shopper would

@@ -105,6 +105,8 @@ export const parseImageExpenseWithGemini = async (base64Data: string, mimeType: 
   /** Every product line the receipt listed, printed name and translation. */
   items?: Array<{ name: string; translatedName?: string; quantity?: number; amount?: number }>;
   merchant?: string;
+  /** The shop's address, as printed on the receipt. */
+  merchantAddress?: string;
   /** The till already refunded the tax, and how much it took off. */
   taxRefundedAtPurchase?: boolean;
   taxRefundActual?: number;

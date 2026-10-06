@@ -4905,6 +4905,7 @@ const App: React.FC = () => {
               // total the parse was there to explain.
               ...(result.items?.length ? { receiptItems: result.items } : {}),
               ...(result.merchant ? { merchant: result.merchant } : {}),
+              ...(result.merchantAddress ? { merchantAddress: result.merchantAddress } : {}),
               ...(result.taxRefundedAtPurchase
                 ? { taxRefundedAtPurchase: true, ...(result.taxRefundActual ? { taxRefundActual: result.taxRefundActual } : {}) }
                 : {}),
@@ -4946,6 +4947,7 @@ const App: React.FC = () => {
               // total the parse was there to explain.
               ...(result.items?.length ? { receiptItems: result.items } : {}),
               ...(result.merchant ? { merchant: result.merchant } : {}),
+              ...(result.merchantAddress ? { merchantAddress: result.merchantAddress } : {}),
               ...(result.taxRefundedAtPurchase
                 ? { taxRefundedAtPurchase: true, ...(result.taxRefundActual ? { taxRefundActual: result.taxRefundActual } : {}) }
                 : {}),

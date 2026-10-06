@@ -37,6 +37,8 @@ export interface ExpenseRow {
   receipt_items?: unknown;
   /** The shop as printed, untranslated. */
   merchant?: unknown;
+  /** The shop's address, as printed. */
+  merchant_address?: unknown;
   note?: unknown;
   tax_refunded_at_purchase?: unknown;
   tax_refund_ineligible?: unknown;
@@ -85,6 +87,7 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   receipt_photos: expense.receiptPhotos ?? [],
   receipt_items: expense.receiptItems ?? [],
   merchant: expense.merchant?.trim() || null,
+  merchant_address: expense.merchantAddress?.trim() || null,
   // Both travellers read the same ledger, so a note explaining a bill belongs
   // on the bill rather than on whichever phone typed it.
   note: expense.note?.trim() || null,
@@ -153,6 +156,9 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
     ? (row.receipt_items as ReceiptItem[])
     : undefined,
   merchant: typeof row.merchant === 'string' && row.merchant.trim() ? row.merchant : undefined,
+  merchantAddress: typeof row.merchant_address === 'string' && row.merchant_address.trim()
+    ? row.merchant_address
+    : undefined,
   taxRefundedAtPurchase: row.tax_refunded_at_purchase === true ? true : undefined,
   taxRefundIneligible: row.tax_refund_ineligible === true ? true : undefined,
   taxRefundActual: Number.isFinite(Number(row.tax_refund_actual)) && row.tax_refund_actual !== null

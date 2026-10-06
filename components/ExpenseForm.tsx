@@ -9,7 +9,7 @@ import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCate
 import { CustomCategories, categoriesForPhase } from '../services/customCategories';
 import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
-import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, MapPin, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle } from 'lucide-react';
 import { localToday } from '../services/localDate';
 import { remainderMemberFor } from '../services/splitRemainderMember';
 import { readAndDownscale } from '../services/postPhotos';
@@ -438,6 +438,9 @@ const ExpenseForm: React.FC<Props> = ({
                       // translated: 「會代入但不會翻譯」 asked for the Chinese, and
                       // the receipt in hand still says 광안리 대교밀면.
                       ...(result.merchant ? { merchant: result.merchant } : {}),
+                      // 「地址更能協助大數據分析」: a shop name is only a name until
+                      // something says where it is.
+                      ...(result.merchantAddress ? { merchantAddress: result.merchantAddress } : {}),
                       /*
                         What the till already gave back.
 
@@ -1086,6 +1089,13 @@ const ExpenseForm: React.FC<Props> = ({
                         </span>
                       )}
                     </div>
+                    {/* Where it was, when the receipt printed it. */}
+                    {initialData.merchantAddress && (
+                      <div data-testid="expense-merchant-address" className="mt-0.5 flex items-start gap-1 text-[10px] font-medium leading-4 text-slate-400">
+                        <MapPin size={10} className="mt-0.5 shrink-0" />
+                        <span className="min-w-0 flex-1">{initialData.merchantAddress}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex-shrink-0 whitespace-nowrap text-base font-black text-[#11183d]">
                     NT$ {Math.round(initialData.twdAmount).toLocaleString()}

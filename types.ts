@@ -234,6 +234,18 @@ export interface Expense {
    * Both, then: 廣安里 大橋麥麵 as the name, 광안리 대교밀면 underneath it.
    */
   merchant?: string;
+  /**
+   * Where the shop is, as printed on the receipt.
+   *
+   * 「收據上如果有地址 我希望帳上可以記錄地址，因為未來有一個功能會希望用戶願意分享
+   * 帳本給其他用戶參考，能有實際經驗。地址更能協助大數據分析」.
+   *
+   * A shop's address, not a person's: this is the same information printed on
+   * a receipt anyone could be handed. Kept as printed rather than geocoded —
+   * the characters on the paper are the fact, and a lookup can be run over
+   * them later without having guessed at the time.
+   */
+  merchantAddress?: string;
   taxRefundedAtPurchase?: boolean;
   /**
    * This purchase cannot be refunded at all.

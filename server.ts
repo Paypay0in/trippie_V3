@@ -212,6 +212,9 @@ async function startServer() {
               paymentMethod: { type: Type.STRING },
               country: { type: Type.STRING, description: "Inferred country in Traditional Chinese" },
               merchant: { type: Type.STRING, description: "Shop name exactly as printed" },
+              // 「地址更能協助大數據分析」: a shared ledger is 「somebody actually went
+              // here」, and a shop name is only a name until something says where.
+              merchantAddress: { type: Type.STRING, description: "Shop address exactly as printed; omit when absent" },
               // 「幫用戶條列商品項目並翻譯用戶使用的語言」: both names, never one
               // replacing the other — the original is what is printed on the
               // paper in the traveller's hand.
