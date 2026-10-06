@@ -314,9 +314,14 @@ export const imageExpensePrompt = () => `
          back as 「廣安里 大橋麥麵」, not copied through untranslated. Keep a recognisable
          brand as-is only when it is already Latin script (Starbucks, UNIQLO).
       2. Total Amount: the price of the goods BEFORE any tax refund — Korea's
-         「판매 가격 / Total amount」. On an immediate-refund (즉시환급) slip this is
-         NOT the 「결제금액 / Purchase Price」 actually charged; that one is the
+         「판매 가격 / 판매 계 / Total amount」. On an immediate-refund (즉시환급) slip this
+         is NOT the 「결제금액 / Purchase Price」 actually charged; that one is the
          total minus the refund, and is reported separately in field 9.
+         CHECK THIS FIGURE before answering: it should equal the sum of the item
+         lines you transcribe in field 8, and it should equal the charged amount plus
+         the refund in field 9. If either disagrees, re-read the digits on the
+         receipt rather than reporting the first reading — every other number in this
+         record is built on this one.
       3. Currency Code (ISO 4217).
       4. Category: Choose strictly from: ${CATEGORIES.join(', ')}.
       5. Payment Method: Infer Credit Card, Cash, or IC Card.
