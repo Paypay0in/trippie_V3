@@ -11,6 +11,7 @@ import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchan
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
 import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle } from 'lucide-react';
 import { localToday } from '../services/localDate';
+import { remainderMemberFor } from '../services/splitRemainderMember';
 import { readAndDownscale } from '../services/postPhotos';
 import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
 
@@ -123,6 +124,9 @@ const ExpenseForm: React.FC<Props> = ({
   const [exchangeRate, setExchangeRate] = useState<string>(initialData?.exchangeRate.toString() || '1');
   const [handlingFee, setHandlingFee] = useState<string>(initialData?.handlingFee?.toString() || '0');
   const [category, setCategory] = useState<Category>(initialData?.category || initialCategory || CATEGORIES_BY_PHASE[currentPhase][0]);
+  /** The split box most recently typed into, which decides who carries the rest. */
+  const [lastEditedSplitId, setLastEditedSplitId] = useState<string | undefined>(undefined);
+  const [heldRemainderId, setHeldRemainderId] = useState<string | undefined>(undefined);
   const [managingCategories, setManagingCategories] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const phaseCategories = categoriesForPhase(currentPhase, customCategories);
@@ -547,8 +551,31 @@ const ExpenseForm: React.FC<Props> = ({
     });
   };
 
+  /*
+    Typing into a box makes it yours; somebody else carries the rest.
+
+    「我可能更清楚 Gina 的是多少錢 … 我希望是兩個都可以」. The remainder used to be
+    nailed to the last beneficiary, which decided for the traveller which half
+    of the bill they were allowed to know — often the wrong half, because the
+    number they actually have is the one read off the receipt in front of them.
+  */
   const handleCustomInputChange = (id: string, value: string) => {
       setCustomInputs(prev => ({ ...prev, [id]: value }));
+      setLastEditedSplitId(id);
+  };
+
+  /*
+    Tapping the derived box hands it over, empty.
+
+    It was showing a computed number, so the first keystroke would have landed
+    beside it — tap 「19,000」 and type 9 and the box reads 190,009. Clearing it
+    on focus makes it an ordinary empty field, which is what somebody who just
+    tapped it is expecting to fill in.
+  */
+  const handleSplitFocus = (id: string) => {
+      if (id !== remainderMemberId) return;
+      setCustomInputs(prev => ({ ...prev, [id]: '' }));
+      setLastEditedSplitId(id);
   };
 
   const currentTotalTwd = (parseFloat(amount || '0') * parseFloat(exchangeRate || '1')) + (category === Category.EXCHANGE ? parseFloat(handlingFee || '0') : 0);
@@ -571,9 +598,24 @@ const ExpenseForm: React.FC<Props> = ({
     ? (parseFloat(amount || '0') || 0)
     : currentTotalTwd;
 
-  const exactLastBeneficiaryId = splitMethod === 'EXACT' && beneficiaries.length > 0
-      ? beneficiaries[beneficiaries.length - 1]
-      : undefined;
+  /*
+    Who is being derived rather than typed.
+
+    One box has to be the remainder: two free numbers that must add to a fixed
+    total is a form that can disagree with itself, and 10,000 + 10,000 against
+    a 19,000 bill is a record nobody can settle. It just is not a fixed seat
+    any more — it follows whoever is not typing.
+  */
+  const remainderMemberId = remainderMemberFor({
+      beneficiaries,
+      lastEditedId: lastEditedSplitId,
+      currentRemainderId: heldRemainderId,
+  });
+  useEffect(() => {
+      if (remainderMemberId !== heldRemainderId) setHeldRemainderId(remainderMemberId);
+  }, [remainderMemberId, heldRemainderId]);
+
+  const exactLastBeneficiaryId = splitMethod === 'EXACT' ? remainderMemberId : undefined;
 
   const getExactManualTotal = () => beneficiaries
       .filter(id => id !== exactLastBeneficiaryId)
@@ -584,9 +626,7 @@ const ExpenseForm: React.FC<Props> = ({
       : 0;
 
   const exactAllocationExceedsTotal = splitMethod === 'EXACT' && getExactManualTotal() > currentTotalEntry + 0.0001;
-  const percentLastBeneficiaryId = splitMethod === 'PERCENT' && beneficiaries.length > 0
-      ? beneficiaries[beneficiaries.length - 1]
-      : undefined;
+  const percentLastBeneficiaryId = splitMethod === 'PERCENT' ? remainderMemberId : undefined;
   const getPercentManualTotal = () => beneficiaries
       .filter(id => id !== percentLastBeneficiaryId)
       .reduce((sum, id) => sum + Math.max(0, parseFloat(customInputs[id] || '0') || 0), 0);
@@ -1515,11 +1555,12 @@ const ExpenseForm: React.FC<Props> = ({
                                           type="number"
                                       value={effectiveOwnerMemberId === exactLastBeneficiaryId ? Math.round(exactRemainder) : effectiveOwnerMemberId === percentLastBeneficiaryId ? Math.round(percentRemainder) : customInputs[effectiveOwnerMemberId]}
                                           onChange={(e) => handleCustomInputChange(effectiveOwnerMemberId, e.target.value)}
-                                          readOnly={(splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)}
+                                          data-testid={`split-input-${effectiveOwnerMemberId}`}
+                                          onFocus={() => handleSplitFocus(effectiveOwnerMemberId)}
                                           className={`flex-1 border rounded-xl px-2 py-2 text-sm font-mono text-right outline-none focus:border-violet-500 ${((splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)) ? 'border-violet-200 bg-violet-50 text-[#11183d]' : 'border-violet-200 bg-white text-[#11183d]'}`}
                                           placeholder="0"
                                       />
-                                      {((splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)) && <span className="text-[10px] font-bold text-violet-600 whitespace-nowrap">自動計算</span>}
+                                      {((splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)) && <span data-testid={`auto-split-${effectiveOwnerMemberId}`} className="text-[10px] font-bold text-violet-600 whitespace-nowrap">自動計算</span>}
                                   </div>
                                   {companions.filter(c => beneficiaries.includes(c.id)).map((c, companionIndex) => (
                                       <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2">
@@ -1530,11 +1571,12 @@ const ExpenseForm: React.FC<Props> = ({
                                               type="number"
                                               value={c.id === exactLastBeneficiaryId ? Math.round(exactRemainder) : c.id === percentLastBeneficiaryId ? Math.round(percentRemainder) : customInputs[c.id]}
                                               onChange={(e) => handleCustomInputChange(c.id, e.target.value)}
-                                              readOnly={(splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)}
+                                              data-testid={`split-input-${c.id}`}
+                                              onFocus={() => handleSplitFocus(c.id)}
                                               className={`flex-1 border rounded-xl px-2 py-2 text-sm font-mono text-right outline-none focus:border-violet-500 ${((splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)) ? 'border-violet-200 bg-violet-50 text-[#11183d]' : 'border-violet-200 bg-white text-[#11183d]'}`}
                                               placeholder="0"
                                           />
-                                          {((splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)) && <span className="text-[10px] font-bold text-violet-600 whitespace-nowrap">自動計算</span>}
+                                          {((splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)) && <span data-testid={`auto-split-${c.id}`} className="text-[10px] font-bold text-violet-600 whitespace-nowrap">自動計算</span>}
                                       </div>
                                   ))}
                               </div>
