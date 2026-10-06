@@ -71,11 +71,21 @@ describe('一筆分帳的帳目', () => {
   });
 
   it('帶出參與者的頭像', () => {
+    // The settlement pill carries an initial too, so the strip is read on its
+    // own rather than across the whole row.
     list([noodles]);
     const row = within(screen.getByTestId('expense-row-e-noodle'));
 
-    expect(row.getByText('G')).toBeTruthy();
+    expect(row.getAllByText('G').length).toBeGreaterThan(0);
     expect(row.getByText('A')).toBeTruthy();
+  });
+
+  it('說出這筆還欠誰多少', () => {
+    // 「用這個新的UI 百分之百還原設計」: the row ends in who owes whom, which the
+    // amount alone never said.
+    list([noodles]);
+
+    expect(screen.getByTestId('settlement-pill-e-noodle').textContent).toContain('NT$');
   });
 
   it('你自己付的帳寫「你 先付」，不是你的名字', () => {
