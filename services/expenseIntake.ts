@@ -114,13 +114,21 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * a blank field the traveller fills in beats a wrong one they don't notice.
  */
 /**
- * Longer than this is prose, not a name.
+ * Where a name stops being a name.
  *
- * Measured against the real ones off his receipts: 「Q-Lip 軟膏 溫和草本 8g」 is 16
- * characters and 「Dr. Rejumol 泥漾唇部精華」 is 18. A product name needing more
- * than twenty is rare; an explanation fitting in fewer is rarer.
+ * Not an absolute length, which is what the first version used and what then
+ * ate half the translations on an Olive Young till receipt: 「닥터 포켓몬 콤부차
+ * 포도 10+3 매기행사」 is a real product, and no honest translation of it fits in
+ * twenty characters. Brand plus flavour plus size plus promotion is simply how
+ * cosmetics and drinks are named.
+ *
+ * A translation is roughly as long as what it translates. An explanation is
+ * not: 「화장품」 is three characters and the paragraph that replaced it was
+ * forty-four. So the test is proportion, with a slack term so short names are
+ * not held to an impossible ratio, and a generous ceiling for runaway prose.
  */
-const MAX_TRANSLATED_NAME = 20;
+const MAX_TRANSLATED_NAME = 80;
+const TRANSLATION_SLACK = 8;
 
 /**
  * A translation, or the model talking about its own work.
@@ -137,6 +145,7 @@ const MAX_TRANSLATED_NAME = 20;
 const usableTranslation = (translated: string, printed: string): string => {
   if (!translated || translated === printed) return '';
   if (translated.length > MAX_TRANSLATED_NAME) return '';
+  if (translated.length > printed.length * 3 + TRANSLATION_SLACK) return '';
   // A name does not explain itself in parentheses, and does not need commas.
   if (/[（(][^）)]{8,}/.test(translated) || /[，,、。]/.test(translated)) return '';
   return translated;

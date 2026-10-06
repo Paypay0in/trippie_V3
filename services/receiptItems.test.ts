@@ -364,3 +364,49 @@ describe('a total the rest of the receipt disagrees with', () => {
     expect(normalizeParsedExpense({ ...TILL, amount: 40500 })?.amount).toBe(40500);
   });
 });
+
+/**
+ * 「目前又突然沒有翻譯明細了」.
+ *
+ * My own fix for the previous round did this: a flat twenty-character limit on
+ * a translation, measured against two short examples, which then ate half the
+ * lines on a till receipt. Brand plus flavour plus size plus promotion is
+ * simply how these products are named.
+ */
+describe('a long product name is still a name', () => {
+  const longLine = {
+    name: '닥터 포켓몬 콤부차 포도 10+3 매기행사',
+    translatedName: 'Dr. 寶可夢 康普茶 葡萄 10+3 特價活動',
+    amount: 5000,
+  };
+
+  it('keeps a translation that is as long as what it translates', () => {
+    const parsed = normalizeParsedExpense({ amount: 5000, currency: 'KRW', items: [longLine] });
+
+    expect(parsed?.items?.[0].translatedName).toBe('Dr. 寶可夢 康普茶 葡萄 10+3 特價活動');
+  });
+
+  it('still drops a paragraph that replaced a three-character line', () => {
+    // 「화장품」 is three characters; the explanation was forty-four. Proportion
+    // tells the two cases apart where a flat limit could not.
+    const parsed = normalizeParsedExpense({
+      amount: 19900, currency: 'KRW',
+      items: [{ name: '화장품', translatedName: '化妝品類商品組合包裝與總計金額依照收據直接列示其數量' }],
+    });
+
+    expect(parsed?.items?.[0].translatedName).toBeUndefined();
+  });
+
+  it('keeps every line of a real till receipt translated', () => {
+    const parsed = normalizeParsedExpense({
+      amount: 40500, currency: 'KRW',
+      items: [
+        longLine,
+        { name: '테트라스 망고씨드버터 퍼퓸 매기행사', translatedName: 'Tetras 芒果種子奶油香水', amount: 8900 },
+        { name: '라운드랩 1025 독도 클렌저 15 매기행사', translatedName: 'Round Lab 1025 獨島洗面乳', amount: 11700 },
+      ],
+    });
+
+    expect(parsed?.items?.every(line => Boolean(line.translatedName))).toBe(true);
+  });
+});
