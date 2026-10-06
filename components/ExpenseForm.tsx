@@ -135,6 +135,19 @@ const ExpenseForm: React.FC<Props> = ({
   const [date, setDate] = useState(initialData?.date || localToday());
   /** 「這個欄位不能輸入」: the 備註 box, which until now was decoration. */
   const [note, setNote] = useState(initialData?.note || '');
+  /*
+    The refund the till already gave back, by hand.
+
+    「發票有顯示退稅金額 沒讀到」 — the parser reads 즉시환급 off most Korean
+    receipts and misses some, and until now a miss was final: the breakdown only
+    ever rendered a refund that the photograph had produced, and nothing on this
+    form could put one in. A number printed on the paper in your hand should
+    never be unenterable.
+  */
+  const [refundedAtTill, setRefundedAtTill] = useState(Boolean(initialData?.taxRefundedAtPurchase));
+  const [refundAmountInput, setRefundAmountInput] = useState(
+    initialData?.taxRefundActual ? String(initialData.taxRefundActual) : '',
+  );
   const [expenseSaveDebug, setExpenseSaveDebug] = useState({ submitClicked: false, formValid: false, validationError: '', expenseObjectCreated: false, onSubmitCalled: false });
   const [beneficiaryDebug, setBeneficiaryDebug] = useState({ clickedMemberId: '', previous: [] as string[], next: [] as string[] });
   
@@ -755,7 +768,42 @@ const ExpenseForm: React.FC<Props> = ({
         return;
     }
 
+    /*
+      What the form never asks about, and therefore must not destroy.
+
+      「發票有顯示退稅金額」 arrived at a record that had one and lost it: saving an
+      edit replaces the stored bill with exactly what this object carries, and
+      the receipt's own findings — the shop, its address, the product lines, the
+      refund the till already gave back — are not fields anybody types here.
+      Correcting a date silently threw away the reading.
+    */
+    /*
+      Kept in the receipt's own currency, like the amount it comes off.
+
+      Unticking clears it rather than leaving the figure behind: a bill that
+      says 「沒有退稅」 while still carrying a refund would quietly subtract it
+      from every total that asks what this cost.
+    */
+    const typedRefund = parseFloat(refundAmountInput);
+    const refundFields = refundedAtTill && Number.isFinite(typedRefund) && typedRefund > 0
+      ? { taxRefundedAtPurchase: true, taxRefundActual: typedRefund }
+      : { taxRefundedAtPurchase: false, taxRefundActual: undefined };
+
+    const readFromReceipt = initialData ? {
+      ...(initialData.merchant ? { merchant: initialData.merchant } : {}),
+      ...(initialData.merchantAddress ? { merchantAddress: initialData.merchantAddress } : {}),
+      ...(initialData.merchantPlaceId ? {
+        merchantPlaceId: initialData.merchantPlaceId,
+        merchantLatitude: initialData.merchantLatitude,
+        merchantLongitude: initialData.merchantLongitude,
+      } : {}),
+      ...(initialData.receiptItems?.length ? { receiptItems: initialData.receiptItems } : {}),
+      ...(initialData.linkedShoppingItemId ? { linkedShoppingItemId: initialData.linkedShoppingItemId } : {}),
+    } : {};
+
     const nextExpense = {
+      ...readFromReceipt,
+      ...refundFields,
       description,
       amount: amt,
       currency,
@@ -1453,6 +1501,56 @@ const ExpenseForm: React.FC<Props> = ({
                       <p className="mt-2 text-[10px] leading-4 text-emerald-700/70">
                           各項總計與分帳都以「實際支出」計算。退稅金額可在退稅清單裡修改。
                       </p>
+                  </div>
+              )}
+
+              {/*
+                Entering the refund the photograph missed.
+
+                「發票有顯示退稅金額 沒讀到」. The parser finds 즉시환급 on most Korean
+                receipts and misses some, and a miss used to be final — the
+                breakdown above only renders a refund that already exists, and
+                nothing here could create one. Offered on an existing bill,
+                where there is a receipt to read it off.
+              */}
+              {isEditing && (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <label className="flex items-center gap-2.5">
+                          <input
+                              type="checkbox"
+                              data-testid="refunded-at-till"
+                              checked={refundedAtTill}
+                              onChange={event => setRefundedAtTill(event.target.checked)}
+                              className="h-4 w-4 accent-emerald-600"
+                          />
+                          <span className="text-sm font-bold text-[#11183d]">結帳時已退稅</span>
+                      </label>
+                      {refundedAtTill && (
+                          <div className="mt-2.5">
+                              <label className="block text-[11px] font-bold text-slate-500">
+                                  退稅金額（{currency}）
+                              </label>
+                              <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  min="0"
+                                  data-testid="refund-amount"
+                                  value={refundAmountInput}
+                                  onChange={event => setRefundAmountInput(event.target.value)}
+                                  placeholder="收據上的 즉시환급 / Refund"
+                                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
+                              />
+                              {/*
+                                Typed in the currency it was printed in. The
+                                shop handed back won, not NT$, and asking for
+                                the converted figure means checking a number
+                                nobody has ever seen.
+                              */}
+                              <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                                  填收據上印的原幣金額，總額會自動扣掉它。
+                              </p>
+                          </div>
+                      )}
                   </div>
               )}
 
