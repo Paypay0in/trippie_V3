@@ -36,6 +36,7 @@ import {
 } from "./types";
 import {
   fetchTaxRefundRules,
+  lastExpenseIntakeFailure,
   parseImageExpenseWithGemini,
   generateTravelBook,
   extractItineraryFromExpenses,
@@ -149,6 +150,7 @@ import TravelIdentityModal from "./components/TravelIdentityModal";
 import TripSelectionScreen from "./components/TripSelectionScreen";
 import VisaCheckModal from "./components/VisaCheckModal";
 import CommunityFeed from "./components/CommunityFeed";
+import { RECEIPT_SCAN_OPTIONS, readAndDownscale } from "./services/postPhotos";
 import DuplicateReceiptPrompt from "./components/DuplicateReceiptPrompt";
 import {
   DuplicatePair,
@@ -4853,14 +4855,29 @@ const App: React.FC = () => {
     */
     onProgress?: (done: number, total: number) => void,
   ) => {
-    // Helper to convert file to Base64
+    /*
+      Shrunk before it is sent.
+
+      「我剛上傳九張收據 無法解析」 — nine photographs straight off a phone camera
+      are thirty megabytes, and they were being posted at full size, one after
+      another, as base64 (a third larger again). The parser's own body limit is
+      12mb and a single modern photo can approach it; nine in a row is more than
+      the server should be asked to hold at once.
+
+      Resized to a long edge of 1800 at high quality: twenty times smaller, and
+      still enough resolution for 즉시환급 printed at six point.
+    */
     const toBase64 = (file: File) =>
-      new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = (error) => reject(error);
-      });
+      readAndDownscale(file, RECEIPT_SCAN_OPTIONS).catch(() =>
+        // A photo the browser cannot decode into a canvas is still worth
+        // sending as it arrived — losing it outright helps nobody.
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = (error) => reject(error);
+        }),
+      );
 
     // Temporary storage for results before updating state
     let newDraftExpenses: Expense[] = [];
@@ -4885,9 +4902,18 @@ const App: React.FC = () => {
       try {
         const base64String = await toBase64(file);
         const base64Data = base64String.split(",")[1];
+        /*
+          The type of what is actually being sent.
+
+          A downscale re-encodes to JPEG whatever went in, so a HEIC straight
+          off an iPhone arrives as JPEG bytes under a label saying HEIC.
+        */
+        const mimeType = base64String.startsWith("data:")
+          ? base64String.slice(5, base64String.indexOf(";")) || file.type
+          : file.type;
 
         // Call AI
-        const result = await parseImageExpenseWithGemini(base64Data, file.type);
+        const result = await parseImageExpenseWithGemini(base64Data, mimeType);
 
         if (result && result.amount) {
           const parsedAmount = result.amount;
@@ -5162,7 +5188,10 @@ const App: React.FC = () => {
 
     // 3. Navigation & Feedback Logic
     if (successCount === 0) {
-      showToast("所有圖片皆無法識別，請重試", "error");
+      // Why, where the server said why. 「請重試」 on a 12mb payload or an
+      // exhausted quota is advice that cannot work.
+      const reason = lastExpenseIntakeFailure();
+      showToast(reason ? `無法辨識：${reason}` : "所有圖片皆無法識別，請重試", "error");
       return;
     }
 

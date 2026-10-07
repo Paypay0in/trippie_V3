@@ -9,8 +9,17 @@
  */
 
 export const MAX_POST_PHOTOS = 10;
-const MAX_EDGE = 1280;
-const QUALITY = 0.72;
+const DEFAULT_MAX_EDGE = 1280;
+const DEFAULT_QUALITY = 0.72;
+
+/**
+ * What a receipt is downscaled to before it is read.
+ *
+ * Larger than a photo meant for a screen: the labels that matter — 즉시환급,
+ * 판매 가격, the product lines — are small print, and a 1280px pass smeared
+ * them. Still a twentieth of what the camera produced.
+ */
+export const RECEIPT_SCAN_OPTIONS = { maxEdge: 1800, quality: 0.85 };
 
 export interface PhotoAddResult {
   photos: string[];
@@ -30,9 +39,25 @@ export const addPhotos = (current: string[], incoming: string[]): PhotoAddResult
 export const removePhoto = (current: string[], photo: string): string[] =>
   current.filter(item => item !== photo);
 
-/** Reads one file and returns a downscaled JPEG data URL. */
-export const readAndDownscale = (file: File): Promise<string> =>
+export interface DownscaleOptions {
+  /** Longest edge in pixels. */
+  maxEdge?: number;
+  /** JPEG quality, 0 to 1. */
+  quality?: number;
+}
+
+/**
+ * Reads one file and returns a downscaled JPEG data URL.
+ *
+ * The defaults are sized for a photo somebody looks at. A photograph somebody's
+ * eyes never see — a receipt on its way to the parser — wants a different
+ * trade: more pixels, because 즉시환급 is printed at six point, and still far
+ * smaller than the four megabytes a phone camera produces.
+ */
+export const readAndDownscale = (file: File, options: DownscaleOptions = {}): Promise<string> =>
   new Promise((resolve, reject) => {
+    const MAX_EDGE = options.maxEdge ?? DEFAULT_MAX_EDGE;
+    const QUALITY = options.quality ?? DEFAULT_QUALITY;
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('read_failed'));
     reader.onload = () => {

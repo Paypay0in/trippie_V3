@@ -65,6 +65,27 @@ const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3, delay = 2000)
  * Each returns null on failure rather than throwing: every caller already
  * treats null as "leave what the traveller typed alone".
  */
+/**
+ * Why the last read failed, for a message somebody can act on.
+ *
+ * 「我剛上傳九張收據 無法解析」 could not be investigated, because every failure
+ * came back as the same `null`: a payload the server refused, a service still
+ * waking up, a quota, and a genuinely unreadable photograph were one outcome
+ * with one wording — 「所有圖片皆無法識別，請重試」, which was wrong three times out
+ * of four and told nobody what to do.
+ */
+let lastFailure = '';
+
+export const lastExpenseIntakeFailure = (): string => lastFailure;
+
+const describeIntakeStatus = (status: number): string => {
+  if (status === 413) return '照片檔案太大';
+  if (status === 429) return '辨識服務達到使用上限，請稍後再試';
+  if (status === 503) return '辨識服務暫時無法使用';
+  if (status >= 500) return `伺服器錯誤（${status}）`;
+  return `伺服器回應 ${status}`;
+};
+
 const postExpenseIntake = async <T>(path: string, body: unknown): Promise<T | null> => {
   try {
     const response = await fetch(path, {
@@ -72,9 +93,16 @@ const postExpenseIntake = async <T>(path: string, body: unknown): Promise<T | nu
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      lastFailure = describeIntakeStatus(response.status);
+      console.error(`Expense intake failed (${path}): ${response.status}`);
+      return null;
+    }
+    lastFailure = '';
     return await response.json() as T;
   } catch (error) {
+    // A network error, which on a phone mid-trip usually means exactly that.
+    lastFailure = '連線中斷，請確認網路後再試';
     console.error(`Expense intake failed (${path}):`, error);
     return null;
   }
