@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Category, Expense } from '../types';
+import { Category, Expense, PaymentMethod } from '../types';
 import { findDuplicateReceipts, mergeDuplicate } from './duplicateReceipts';
 
 /**
@@ -121,6 +121,33 @@ describe('合併', () => {
     expect(merged.merchant).toBe('OLIVE YOUNG');
     expect(merged.receiptItems?.length).toBe(1);
     expect(merged.taxRefundActual).toBe(1200);
+  });
+
+  it('兩邊都有的欄位，留下的那張說了算', () => {
+    const merged = mergeDuplicate(
+      { ...tillReceipt, note: '藥妝' },
+      { ...cardSlip, note: '刷卡' },
+    );
+
+    expect(merged.merchant).toBe('OLIVE YOUNG');
+    // Both notes survive: neither is a correction of the other.
+    expect(merged.note).toBe('藥妝\n刷卡');
+  });
+
+  it('只有一邊知道的事情也補過去', () => {
+    const merged = mergeDuplicate(
+      { ...tillReceipt, paymentMethod: undefined, note: undefined },
+      { ...cardSlip, paymentMethod: PaymentMethod.CREDIT_CARD, note: '末四碼 1234' },
+    );
+
+    expect(merged.paymentMethod).toBe(PaymentMethod.CREDIT_CARD);
+    expect(merged.note).toBe('末四碼 1234');
+  });
+
+  it('任一張讀不確定，合併後仍然標著需確認', () => {
+    const merged = mergeDuplicate(tillReceipt, { ...cardSlip, needsReview: true });
+
+    expect(merged.needsReview).toBe(true);
   });
 
   it('留下的那張自己的金額不會被改掉', () => {

@@ -128,6 +128,20 @@ export const findDuplicateReceipts = ({
  */
 export const mergeDuplicate = (keep: Expense, drop: Expense): Expense => ({
   ...keep,
+  /*
+    Everything either reading knew.
+
+    「兩筆資料是結合兩個的資訊儲存 比方說A有帳目明細 要補去沒有的那份」. The two
+    photographs are of one purchase but they do not say the same things: the
+    till receipt lists the products, names the shop and prints the refund; the
+    card slip is the one that actually knows it went on a card. Taking the
+    richer record wholesale would throw away whatever only the other one had.
+
+    The survivor wins every field it has an answer for; the other fills the
+    blanks. Amount, date and currency are deliberately not merged — they were
+    equal, which is why these two were paired at all.
+  */
+  description: keep.description?.trim() || drop.description,
   merchant: keep.merchant || drop.merchant,
   merchantAddress: keep.merchantAddress || drop.merchantAddress,
   merchantPlaceId: keep.merchantPlaceId || drop.merchantPlaceId,
@@ -136,6 +150,24 @@ export const mergeDuplicate = (keep: Expense, drop: Expense): Expense => ({
   receiptItems: keep.receiptItems?.length ? keep.receiptItems : drop.receiptItems,
   taxRefundedAtPurchase: keep.taxRefundedAtPurchase || drop.taxRefundedAtPurchase,
   taxRefundActual: keep.taxRefundActual ?? drop.taxRefundActual,
+  /*
+    How it was paid is the slip's own subject.
+
+    A store receipt read as cash and a card slip for the same purchase cannot
+    both be right, and only one of them is a record of the payment.
+  */
+  paymentMethod: keep.paymentMethod || drop.paymentMethod,
+  note: [keep.note?.trim(), drop.note?.trim()].filter(Boolean).join('\n') || undefined,
+  linkedShoppingItemId: keep.linkedShoppingItemId || drop.linkedShoppingItemId,
+  /*
+    Doubt survives a merge.
+
+    If either reading was unsure of what it saw, the bill that comes out of
+    them is still worth a second look; clearing the flag because the other copy
+    happened to be confident hides the one record that wanted checking.
+  */
+  needsReview: Boolean(keep.needsReview || drop.needsReview),
+  // Both photographs stay: a merged record is checked against the card slip.
   receiptPhotos: [...(keep.receiptPhotos || []), ...(drop.receiptPhotos || [])],
 });
 
