@@ -4843,6 +4843,45 @@ const App: React.FC = () => {
     return target ? target.defaultRate : 1;
   };
 
+  /**
+   * Folds the pairs the reader chose, in whichever ledger holds them.
+   *
+   * Runs after the import has written everything, so it edits bills rather than
+   * deciding whether they exist. The dropped reading goes; the surviving one
+   * gains whatever the other knew, including its photograph — a merged record
+   * is checked against the card slip, so the slip has to still be there.
+   */
+  const applyDuplicateMerges = (
+    pairs: DuplicatePair[],
+    mergeIndexes: number[],
+  ) => {
+    const dropped = new Set<string>();
+    const merged = new Map<string, Expense>();
+    mergeIndexes.forEach((index) => {
+      const pair = pairs[index];
+      if (!pair) return;
+      dropped.add(pair.drop.id);
+      merged.set(
+        pair.keep.id,
+        mergeDuplicate(merged.get(pair.keep.id) || pair.keep, pair.drop),
+      );
+    });
+    if (dropped.size === 0) return;
+
+    const settle = (list: Expense[]) =>
+      list
+        .filter((expense) => !dropped.has(expense.id))
+        .map((expense) => merged.get(expense.id) || expense);
+
+    setExpenses((prev) => settle(prev));
+    // A receipt whose date put it in a finished trip was written there, so the
+    // merge has to reach that trip too.
+    setTripHistory((prev) =>
+      prev.map((trip) => ({ ...trip, expenses: settle(trip.expenses) })),
+    );
+    showToast(`已合併 ${dropped.size} 筆重複的收據`);
+  };
+
   // Smart Scan Handler Logic - REFACTORED FOR BATCH PROCESSING
   const handleSmartScanBatch = async (
     files: FileList,
@@ -5067,9 +5106,9 @@ const App: React.FC = () => {
     /*
       Two photographs of one purchase.
 
-      「一張是店家票據 一張是信用卡收據 會被建立成兩筆」. Asked before anything is
-      written: once the pair is in the ledger it is counted in every total, and
-      on a shared trip in what somebody else owes.
+      「一張是店家票據 一張是信用卡收據 會被建立成兩筆」. One purchase arriving as
+      two bills inflates the trip's total and, on a shared ledger, what the
+      other traveller owes.
     */
     const incoming = [
       ...newDraftExpenses,
@@ -5079,35 +5118,28 @@ const App: React.FC = () => {
       incoming,
       existing: [...expenses, ...tripHistory.flatMap((trip) => trip.expenses)],
     });
+    /*
+      Asked after the bills land, not instead of them.
+
+      「還是卡在這」, twice. The import used to await the reader's answer before
+      writing anything, which makes the whole operation hostage to one overlay
+      rendering on one screen: when it did not, nine receipts that had already
+      been read correctly sat in memory behind 整理中 and were lost to a
+      force-quit. Importing is the thing that was asked for; merging is a
+      correction, and a correction can happen a moment later.
+
+      So the bills are written, and the question is asked over the top of them.
+      Answering it merges what is already in the ledger — the same decision,
+      with nothing riding on it.
+    */
     if (duplicates.length > 0) {
-      const chosen = await new Promise<number[]>((resolve) => {
-        setDuplicatePrompt({ pairs: duplicates, resolve });
+      setDuplicatePrompt({
+        pairs: duplicates,
+        resolve: (mergeIndexes) => {
+          setDuplicatePrompt(null);
+          applyDuplicateMerges(duplicates, mergeIndexes);
+        },
       });
-      setDuplicatePrompt(null);
-
-      const dropped = new Set<string>();
-      const merged = new Map<string, Expense>();
-      chosen.forEach((index) => {
-        const pair = duplicates[index];
-        if (!pair) return;
-        dropped.add(pair.drop.id);
-        // Only where the survivor is one of the new readings. A bill already in
-        // the ledger keeps whatever it holds; the duplicate simply never lands.
-        if (!pair.againstExisting) {
-          merged.set(pair.keep.id, mergeDuplicate(merged.get(pair.keep.id) || pair.keep, pair.drop));
-        }
-      });
-
-      if (dropped.size > 0 || merged.size > 0) {
-        const settle = (expense: Expense) => merged.get(expense.id) || expense;
-        newDraftExpenses = newDraftExpenses
-          .filter((expense) => !dropped.has(expense.id))
-          .map(settle);
-        historyUpdates = historyUpdates
-          .filter((update) => !dropped.has(update.expense.id))
-          .map((update) => ({ ...update, expense: settle(update.expense) }));
-        successCount -= dropped.size;
-      }
     }
 
     // --- BATCH STATE UPDATES ---
