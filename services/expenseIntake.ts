@@ -359,6 +359,13 @@ export const imageExpensePrompt = () => `
          in field 8 (including any negative coupon lines), and it should equal the
          charged amount plus the refund. If either disagrees, re-read the digits rather
          than reporting your first reading — every other number here rests on this one.
+      2b. Digits, exactly as grouped on the paper. Korean and European tills print the
+          THOUSANDS separator as a dot: 「114.000」 is one hundred and fourteen thousand, not
+          one hundred and fourteen, and 「7.000」 on the refund line is seven thousand. KRW, JPY
+          and VND have no minor unit at all, so a fractional amount in those currencies is
+          always a misread separator. Check the arithmetic: on the slip above, 판매 가격
+          114,000 − 즉시환급 7,000 = 결제금액 107,000, which only holds at the right scale.
+
       3. Currency Code (ISO 4217).
       4. Category: Choose strictly from: ${CATEGORIES.join(', ')}.
       5. Payment Method: Infer Credit Card, Cash, or IC Card.
@@ -379,6 +386,12 @@ export const imageExpensePrompt = () => `
            say it. A NAME ONLY, at most about 20 characters. Never a sentence, never a caveat,
            never an explanation of what the line is or how you read it. If you cannot tell what
            the product is, omit this field — saying nothing is correct, explaining yourself is not.
+           NEVER romanise. 「무지개맨션 오브제 리퀴드」 translated is 「彩虹公寓 唇釉」, not
+           「MUJIGAE MANSION Objet Liquid」 — spelling Korean sounds with Latin letters is not a
+           translation, and the reader cannot read it any better than the original. A brand may
+           stay as-is ONLY where the receipt itself prints it in Latin script (OLIVE YOUNG,
+           CURIP). Where the paper says it in Hangul, so does the product, and the Chinese name
+           is what goes here.
          - "quantity" and "amount": the line's quantity and its line total, as numbers in the receipt currency.
          - Include discount lines, with a negative amount, so the lines explain the total.
          - NEVER merge several products into one entry, and never replace the products with a
