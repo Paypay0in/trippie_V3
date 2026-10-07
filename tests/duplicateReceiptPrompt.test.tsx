@@ -79,3 +79,57 @@ describe('可能重複的提示', () => {
     expect(document.body.textContent).toContain('帳本裡已經有這筆');
   });
 });
+
+describe('點開一筆來看', () => {
+  const withDetail: DuplicatePair = {
+    ...pair,
+    keep: bill({
+      id: 'e-lip', description: '口紅', merchant: 'OLIVE YOUNG',
+      merchantAddress: '부산 수영구 광안해변로 235',
+      receiptItems: [{ name: '립스틱', translatedName: '口紅', amount: 18000 }],
+    }),
+    drop: bill({ id: 'e-body', description: '身體乳' }),
+  };
+
+  it('展開會說出商家和商品明細', async () => {
+    const user = userEvent.setup();
+    render(<DuplicateReceiptPrompt pairs={[withDetail]} onResolve={vi.fn()} />);
+
+    await user.click(screen.getByTestId('duplicate-keep-0'));
+    const detail = screen.getByTestId('duplicate-detail-keep-0');
+
+    expect(detail.textContent).toContain('OLIVE YOUNG');
+    expect(detail.textContent).toContain('口紅');
+    expect(detail.textContent).toContain('18,000');
+  });
+
+  it('沒有明細的那張直接講沒有，不是留白', async () => {
+    const user = userEvent.setup();
+    render(<DuplicateReceiptPrompt pairs={[withDetail]} onResolve={vi.fn()} />);
+
+    await user.click(screen.getByTestId('duplicate-drop-0'));
+
+    expect(screen.getByTestId('duplicate-detail-drop-0').textContent).toContain('沒有讀到商品明細');
+  });
+
+  it('展開不會順手改掉合併與否', async () => {
+    // The card used to be one big button; opening a row changed the answer.
+    const user = userEvent.setup();
+    render(<DuplicateReceiptPrompt pairs={[withDetail]} onResolve={vi.fn()} />);
+
+    await user.click(screen.getByTestId('duplicate-keep-0'));
+
+    expect(screen.getByTestId('duplicate-pair-0').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('一次只開一個', async () => {
+    const user = userEvent.setup();
+    render(<DuplicateReceiptPrompt pairs={[withDetail]} onResolve={vi.fn()} />);
+
+    await user.click(screen.getByTestId('duplicate-keep-0'));
+    await user.click(screen.getByTestId('duplicate-drop-0'));
+
+    expect(screen.queryByTestId('duplicate-detail-keep-0')).toBeNull();
+    expect(screen.getByTestId('duplicate-detail-drop-0')).toBeTruthy();
+  });
+});
