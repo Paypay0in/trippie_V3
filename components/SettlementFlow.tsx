@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Expense, TripMember, SettlementBatch, FrozenSettlementResult } from "../types";
+import { grossPositionFor } from '../services/grossPositions';
 import { buildMinimumSettlementTransfers } from "../services/minimumSettlement";
 import {
   buildCompletedSettlementBatch,
@@ -247,12 +248,32 @@ const SettlementFlow: React.FC<Props> = ({
 
   const viewerName =
     members.find((member) => member.id === viewerId)?.name || "我";
-  const receivable = sumReceivable(overviewRows);
-  const payable = sumPayable(overviewRows);
+  /*
+    What each side of the trip comes to, before they cancel out.
+
+    「結算前 是不是要將目前累積下來的帳先顯示？」 — the two cards used to show the
+    net position, so a reader who had fronted meals and been fronted others saw
+    應收 15,108 and 應付 0. That is the truth about the payment that closes the
+    trip, and it is not the truth about the trip; the money they owe had been
+    subtracted into nothing before it reached the screen.
+
+    The net answer is still here, underneath: the member rows and 最簡結算方式
+    say what actually has to be transferred, which is a different question and
+    now has its own place to be asked.
+  */
+  const gross = grossPositionFor({
+    expenses: outstandingExpenses,
+    viewerMemberId: viewerId,
+    ownerMemberId: ownerId,
+  });
+  const receivable = gross.receivable;
+  const payable = gross.payable;
   // Counts drive the subtitle under each figure; a number alone does not say
   // how many people it involves.
-  const receivableCount = countReceivable(overviewRows);
-  const payableCount = countPayable(overviewRows);
+  const receivableCount = gross.owingMemberCount;
+  const payableCount = gross.owedMemberCount;
+  /** The single figure that closes it, once the two sides are set against each other. */
+  const netToViewer = sumReceivable(overviewRows) - sumPayable(overviewRows);
   const memberDetail = members.find((member) => member.id === selectedMemberId);
   const memberExpenses = memberDetail
     ? outstandingExpenses.filter((expense) => {
@@ -453,7 +474,7 @@ const SettlementFlow: React.FC<Props> = ({
                   <p className="text-sm font-black text-[#11183d]">應付</p>
                   <p className="mt-1.5 text-2xl font-black text-[#11183d]">{money(payable)}</p>
                   <p className="mt-1.5 text-[11px] font-medium text-slate-500">
-                    {payable > 0 ? `你需要支付 ${payableCount} 筆款項` : "你目前不需要支付任何款項"}
+                    {payable > 0 ? `你欠 ${payableCount} 位成員款項` : "你目前不需要支付任何款項"}
                   </p>
                 </div>
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-500">
@@ -461,6 +482,24 @@ const SettlementFlow: React.FC<Props> = ({
                 </span>
               </div>
             </div>
+            {/*
+              And what it comes to. Two gross figures answer 「what has this trip
+              cost between us」; this answers 「what do we actually transfer」,
+              which is the question the rows below are about.
+            */}
+            {(receivable > 0 || payable > 0) && (
+              <div
+                data-testid="settlement-net"
+                className="mt-3 flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-100"
+              >
+                <span className="text-[11px] font-black text-slate-500">
+                  {netToViewer >= 0 ? "兩邊相抵後，應向成員收取" : "兩邊相抵後，你需要支付"}
+                </span>
+                <span className={`text-base font-black ${netToViewer >= 0 ? "text-emerald-700" : "text-[#11183d]"}`}>
+                  {money(Math.abs(netToViewer))}
+                </span>
+              </div>
+            )}
             {disputedExpenses.length > 0 && (
               // Surfaced before the member rows, because this is information
               // you want *before* agreeing to a number. The amounts below still
