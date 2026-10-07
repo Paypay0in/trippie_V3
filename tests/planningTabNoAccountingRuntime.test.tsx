@@ -10,9 +10,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ItineraryItem, ShoppingItem } from '../types';
+import { addLocalDays, localToday } from '../services/localDate';
 
-const DAY_5 = '2026-10-05';
-const DAY_6 = '2026-10-06';
+/*
+  A trip that is running, whenever this is run.
+
+  Pinned dates made every test here fail the morning after the last one: the
+  planning tab only opens for a trip in progress, and 2026-10-05 stopped being
+  in progress on its own.
+*/
+const DAY_5 = localToday();
+const DAY_6 = addLocalDays(DAY_5, 1);
 const DRAFT_ID = 'draft-planning';
 
 const itinerary: ItineraryItem[] = [

@@ -11,8 +11,17 @@ import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 import { clearPlaceCommerceCache } from '../services/placeCommerceService';
+import { localToday } from '../services/localDate';
 
-const TRIP_DAY = '2026-10-06';
+/*
+  The trip is today, whenever today is.
+
+  This was pinned to 2026-10-06 and every test in the file failed the moment
+  the clock passed midnight: the app opens the planning tab for a trip that is
+  running, and a trip that ended yesterday is not. A suite that breaks on a
+  date nobody changed is a suite people learn to ignore.
+*/
+const TRIP_DAY = localToday();
 const DRAFT_ID = 'draft-commerce';
 
 /** SPA LAND is ticketed; the beach is free. Both are on the same day. */
