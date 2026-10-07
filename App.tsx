@@ -6623,6 +6623,16 @@ const App: React.FC = () => {
 
     return (
       <>
+        {/*
+          The ledger has its own return, and the duplicate prompt was not in it.
+
+          「還是卡在這」 — 整理中 forever. The import asks about duplicates by
+          awaiting a promise the prompt resolves, so a screen that never renders
+          the prompt is a screen the import can never leave. It was mounted in
+          the main return and the bookshelf's; this is where 批次匯入收據 is
+          actually started from.
+        */}
+        {duplicatePromptOverlay}
         {debugPanelsEnabled() && (
           <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 font-mono text-[10px] text-slate-700">
             <div className="font-black">SETTLEMENT NAV DEBUG</div>
@@ -6990,7 +7000,12 @@ const App: React.FC = () => {
             a screen that did nothing, and a second tap starts the whole batch
             over.
           */}
-          {isBatchScanning && (
+          {/*
+            Never over a question. The spinner is the batch saying 「still
+            working」, and while it is waiting on an answer about duplicates the
+            thing to show is the answer, not the wait.
+          */}
+          {isBatchScanning && !duplicatePrompt && (
             <div
               data-testid="batch-scanning"
               className={`fixed inset-0 ${OVERLAY.modal} flex flex-col items-center justify-center gap-3 bg-slate-950/50`}
