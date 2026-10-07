@@ -6997,9 +6997,16 @@ const App: React.FC = () => {
             >
               <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/30 border-t-white" />
               <p data-testid="batch-progress" className="text-sm font-black text-white">
-                {batchProgress.total > 0
-                  ? `辨識收據中… 第 ${Math.min(batchProgress.done + 1, batchProgress.total)}/${batchProgress.total} 張`
-                  : "辨識收據中…"}
+                {/*
+                  The last photograph and the work after it are different
+                  states. Both read as 「第 6/6 張」 before, so a batch that was
+                  checking for duplicates looked identical to one that had hung.
+                */}
+                {batchProgress.total === 0
+                  ? "辨識收據中…"
+                  : batchProgress.done >= batchProgress.total
+                    ? "整理中…"
+                    : `辨識收據中… 第 ${batchProgress.done + 1}/${batchProgress.total} 張`}
               </p>
               {/* A bar as well as a number: at a glance, is it moving. */}
               {batchProgress.total > 0 && (

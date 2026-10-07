@@ -86,12 +86,29 @@ const describeIntakeStatus = (status: number): string => {
   return `伺服器回應 ${status}`;
 };
 
+/**
+ * How long one read may take before it is abandoned.
+ *
+ * 「停在這」, on 第 6/6 張, forever. `fetch` has no timeout of its own: a request
+ * that never answers — a phone changing cell on the way back to the hotel, a
+ * server that accepted the body and died — leaves the batch waiting on a
+ * promise that will not settle, with the progress overlay covering the screen
+ * and no way out but killing the app.
+ *
+ * Generous, because a receipt genuinely takes ten to forty seconds. Finite,
+ * because the alternative is a screen somebody has to force-quit.
+ */
+const INTAKE_TIMEOUT_MS = 90_000;
+
 const postExpenseIntake = async <T>(path: string, body: unknown): Promise<T | null> => {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), INTAKE_TIMEOUT_MS);
   try {
     const response = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: abort.signal,
     });
     if (!response.ok) {
       lastFailure = describeIntakeStatus(response.status);
@@ -101,10 +118,14 @@ const postExpenseIntake = async <T>(path: string, body: unknown): Promise<T | nu
     lastFailure = '';
     return await response.json() as T;
   } catch (error) {
-    // A network error, which on a phone mid-trip usually means exactly that.
-    lastFailure = '連線中斷，請確認網路後再試';
+    lastFailure = (error as Error)?.name === 'AbortError'
+      ? '這張等太久，已跳過'
+      // A network error, which on a phone mid-trip usually means exactly that.
+      : '連線中斷，請確認網路後再試';
     console.error(`Expense intake failed (${path}):`, error);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 };
 

@@ -63,3 +63,26 @@ describe('辨識失敗的原因', () => {
     expect(lastExpenseIntakeFailure()).toBe('');
   });
 });
+
+describe('一張讀太久', () => {
+  it('會被放棄，而不是讓整批停在那裡', async () => {
+    // No timeout of its own is what left 「第 6/6 張」 on screen indefinitely.
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      if (init.signal?.aborted) throw error;
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(error));
+      });
+    }));
+    vi.useFakeTimers();
+
+    const read = parseImageExpenseWithGemini('abc', 'image/jpeg');
+    await vi.advanceTimersByTimeAsync(95_000);
+    const result = await read;
+    vi.useRealTimers();
+
+    expect(result).toBeNull();
+    expect(lastExpenseIntakeFailure()).toContain('等太久');
+  });
+});
