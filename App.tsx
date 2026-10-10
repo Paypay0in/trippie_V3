@@ -169,6 +169,12 @@ import {
   mergeDuplicate,
 } from "./services/duplicateReceipts";
 import CommunityHome from "./components/CommunityHome";
+import {
+  deletedTripIds,
+  forgetDeletedTrip,
+  rememberDeletedTrip,
+  withoutDeleted,
+} from "./services/deletedTrips";
 import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
 import Marketplace from "./components/Marketplace";
@@ -1453,6 +1459,8 @@ const App: React.FC = () => {
         createdAt: now,
         updatedAt: now,
       };
+      // Joining it again is asking for it back, in as many words.
+      forgetDeletedTrip(sharedDraft.id);
       setDrafts((prev) => [...prev, sharedDraft]);
       hydrateDraft(sharedDraft);
     }
@@ -1642,7 +1650,16 @@ const App: React.FC = () => {
       }
 
       const known = new Set(draftsRef.current.map((draft) => draft.id));
-      const missing = result.data
+      /*
+        A trip deleted on this device is not a trip this device is missing.
+
+        「我已全部都刪掉過了 但又一直出現」. This merge asks the server for every
+        trip on the account and adds whatever is absent locally — which is the
+        exact description of a trip that was just deleted. Every sign-in put
+        them back, and deleting again only started the loop over.
+      */
+      const forgotten = deletedTripIds();
+      const missing = withoutDeleted(result.data, forgotten)
         .filter((trip) => !known.has(trip.id))
         .map((trip) => ({
           id: trip.id,
@@ -4778,6 +4795,15 @@ const App: React.FC = () => {
       showToast("旅程刪除失敗，這趟旅程沒有被移除，請再試一次。", "error");
       return false;
     }
+
+    /*
+      Recorded only once the delete itself has stuck.
+
+      Marking it before writeDraftStore would leave a trip present on the
+      device and refused by the merge — visible, undeletable, and invisible to
+      the thing meant to restore it.
+    */
+    rememberDeletedTrip(id);
 
     setDrafts(plan.remainingDrafts);
 

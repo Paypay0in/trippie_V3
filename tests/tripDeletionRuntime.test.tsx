@@ -5,6 +5,7 @@
  * confirmation dialog, real localStorage and a real reload. §10 same-name
  * fixture, §11 cancel and §12 failure rollback.
  */
+import { DELETED_TRIPS_STORAGE_KEY } from '../services/deletedTrips';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
@@ -203,26 +204,41 @@ describe('delete trip runtime', () => {
     expect(screen.getByRole('alert').textContent).toContain('旅程刪除失敗');
   });
 
+  /**
+   * The guarantee is that a delete damages nothing it was not asked to touch.
+   *
+   * The tombstone is not damage — it is the delete itself, and 「我已全部都刪掉過了
+   * 但又一直出現」 is what happened while it did not exist: the cloud merge put
+   * back every trip this device could not account for. So it is excluded from
+   * the comparison and then asserted on its own, rather than quietly widening
+   * the rule to 「some new keys are fine」.
+   */
   it('§6 deletes nothing outside the trip collection', async () => {
     const user = await mountApp();
-    // Snapshot every other key AFTER mount, so the app's own startup writes are
-    // not mistaken for deletion damage.
-    const before = Object.fromEntries(
+    const unrelated = () => Object.fromEntries(
       Object.keys(localStorage)
-        .filter(key => key !== DRAFTS_KEY && key !== ACTIVE_KEY)
+        .filter(key => key !== DRAFTS_KEY && key !== ACTIVE_KEY && key !== DELETED_TRIPS_STORAGE_KEY)
         .map(key => [key, localStorage.getItem(key)]),
     );
+    // Snapshot every other key AFTER mount, so the app's own startup writes are
+    // not mistaken for deletion damage.
+    const before = unrelated();
     expect(Object.keys(before).length).toBeGreaterThan(0);
 
     await openDeleteDialog(user, 'A');
     await confirmDelete(user);
 
-    const after = Object.fromEntries(
-      Object.keys(localStorage)
-        .filter(key => key !== DRAFTS_KEY && key !== ACTIVE_KEY)
-        .map(key => [key, localStorage.getItem(key)]),
-    );
-    expect(after).toEqual(before);
+    expect(unrelated()).toEqual(before);
     expect(storedIds()).toEqual(['B']);
+  });
+
+  it('§6 記下這一趟已經被刪掉，否則雲端下次又會把它送回來', async () => {
+    const user = await mountApp();
+
+    await openDeleteDialog(user, 'A');
+    await confirmDelete(user);
+
+    expect(JSON.parse(localStorage.getItem(DELETED_TRIPS_STORAGE_KEY) || '[]'))
+      .toContain('A');
   });
 });
