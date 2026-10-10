@@ -38,14 +38,26 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => (
     role="dialog"
     aria-label="通知"
     data-testid="notification-center"
-    className="fixed inset-0 z-[80] flex flex-col bg-black/40"
+    className="fixed inset-0 z-[80] bg-black/40"
     onClick={onClose}
   >
+    {/*
+      Hung under the bell, not raised from the floor.
+
+      「上移到鈴鐺🔔點擊後就產生 不要在頁腳」. A sheet from the bottom is the shape
+      of something that belongs to the whole screen; this belongs to the control
+      that opened it, and should look like it came from there. Inset from both
+      edges — 「邊框要稍微內縮」 — so the page it floats over stays visible around
+      it, which is the other half of saying where it came from.
+
+      The top offset clears the header the bell sits in, safe area included, so
+      it opens below the bell on a phone with an island and on one without.
+    */}
     <div
-      className="mt-auto max-h-[80vh] w-full overflow-y-auto rounded-t-3xl bg-white pb-8 md:mx-auto md:max-w-2xl"
+      className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top)+3.75rem)] max-h-[70vh] overflow-y-auto rounded-[1.75rem] border border-slate-200/80 bg-white pb-6 shadow-[0_24px_60px_rgba(30,41,90,.22)] md:left-1/2 md:right-auto md:w-full md:max-w-md md:-translate-x-1/2"
       onClick={event => event.stopPropagation()}
     >
-      <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-5 pb-3 pt-5">
+      <div className="sticky top-0 flex items-center justify-between rounded-t-[1.75rem] border-b border-slate-100 bg-white px-5 pb-3 pt-5">
         <h2 className="text-lg font-black text-[#11183d]">通知</h2>
         <button
           type="button"

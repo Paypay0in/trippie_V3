@@ -107,3 +107,34 @@ describe('一則通知', () => {
     expect(screen.queryByTestId('notification-center')).toBeNull();
   });
 });
+
+/**
+ * 「上移到鈴鐺🔔點擊後就產生 不要在頁腳」「邊框要稍微內縮」.
+ *
+ * A sheet rising from the bottom is the shape of something that belongs to the
+ * whole screen. This belongs to the bell that opened it, and reads as having
+ * come from there only if it hangs beneath it — inset from both edges, so the
+ * page it floats over stays visible around it.
+ */
+describe('通知面板的位置', () => {
+  const openPanel = async () => {
+    const user = userEvent.setup();
+    home({ notices: [question] });
+    await user.click(screen.getByTestId('open-notifications'));
+    return screen.getByTestId('notification-center').lastElementChild as HTMLElement;
+  };
+
+  it('掛在鈴鐺下方，不是從頁腳升起', async () => {
+    const panel = await openPanel();
+    expect(panel.className).toContain('absolute');
+    expect(panel.className).toContain('top-[calc(env(safe-area-inset-top)');
+    // mt-auto is what pinned it to the bottom of the screen.
+    expect(panel.className).not.toContain('mt-auto');
+  });
+
+  it('左右內縮，底下的頁面看得到', async () => {
+    const panel = await openPanel();
+    expect(panel.className).toContain('left-3');
+    expect(panel.className).toContain('right-3');
+  });
+});
