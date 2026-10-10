@@ -63,7 +63,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
   const fallback = 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=85';
   const heroImage = image?.imageUrl || fallback;
 
-  return <main className="min-h-screen bg-[#f7f8fc] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
+  return <main data-safe-top style={{ ["--safe-top-base" as string]: "0rem" }} className="min-h-screen bg-[#f7f8fc] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
     <header className="relative h-12 bg-white px-5">
       <button type="button" onClick={onBack} className="absolute left-5 top-3 text-sm font-black text-violet-600">← 旅行</button>
     </header>

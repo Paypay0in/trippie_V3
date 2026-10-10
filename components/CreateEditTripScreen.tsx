@@ -141,7 +141,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-[#fbfcff] text-[#10204a]">
-      <main className="mx-auto min-h-screen w-full max-w-xl px-5 pb-10 pt-7 sm:px-7 sm:pt-9">
+      <main data-safe-top style={{ ["--safe-top-base" as string]: "1.75rem" }} className="mx-auto min-h-screen w-full max-w-xl px-5 pb-10 sm:px-7">
         <header className="relative flex min-h-12 items-center justify-center">
           <button
             type="button"

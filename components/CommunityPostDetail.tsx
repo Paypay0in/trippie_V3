@@ -36,7 +36,7 @@ const CommunityPostDetail: React.FC<{ post: CommunityPost; fallbackImage: string
     setSavedMessage(`已儲存 ${slices.length} 個旅行靈感`);
   };
   const ctaLabel = state === 'analyzing' ? '正在整理旅行靈感…' : state === 'candidates_ready' || state === 'extracted' ? '✓ 已抓出旅行靈感' : state === 'confirmed' ? '✓ 已收藏旅行靈感' : '✨ 抓出這篇值得收藏的旅行靈感';
-  return <main className="min-h-screen bg-[#f7f8fc] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
+  return <main data-safe-top style={{ ["--safe-top-base" as string]: "0rem" }} className="min-h-screen bg-[#f7f8fc] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
     <button type="button" onClick={onBack} className="px-4 pt-6 text-sm font-bold text-violet-600">← 返回社群</button>
     <img src={post.coverImage || fallbackImage} alt={post.title} className="mt-5 h-72 w-full object-cover" />
     <article className="p-5"><div className="text-sm font-bold text-slate-500">{post.authorName} · {post.country}・{post.city}</div><h1 className="mt-2 text-3xl font-black">{post.title}</h1><p className="mt-6 whitespace-pre-wrap text-base leading-8 text-slate-700">{post.content}</p>{post.photos && post.photos.length > 0 && <div className="mt-6 grid grid-cols-2 gap-2">{post.photos.map((photo, index) => <img key={photo.slice(0, 40) + index} src={photo} alt="" className="h-40 w-full rounded-xl object-cover" />)}</div>}<time className="mt-8 block text-xs text-slate-400">{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('zh-TW') : ''}</time>

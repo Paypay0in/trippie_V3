@@ -63,7 +63,7 @@ const AccountScreen: React.FC<Props> = ({
   const signedIn = authStatus === 'authenticated' && profile;
 
   return (
-    <main className="min-h-screen bg-[#f7f8fc] px-4 pb-28 pt-6 text-[#11183d] md:mx-auto md:max-w-2xl">
+    <main data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className="min-h-screen bg-[#f7f8fc] px-4 pb-28 text-[#11183d] md:mx-auto md:max-w-2xl">
       <header className="mb-5 flex items-center justify-between">
         <h1 className="text-2xl font-black">我的</h1>
         {signedIn && (

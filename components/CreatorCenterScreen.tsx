@@ -60,7 +60,7 @@ const CreatorCenterScreen: React.FC<Props> = ({
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7f8fc] px-4 pb-28 pt-6 text-[#11183d] md:mx-auto md:max-w-2xl">
+    <main data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className="min-h-screen bg-[#f7f8fc] px-4 pb-28 text-[#11183d] md:mx-auto md:max-w-2xl">
       <button type="button" onClick={onBack} className="mb-5 flex min-h-11 items-center gap-1.5 text-sm font-bold text-violet-600">
         <ArrowLeft size={16} />返回
       </button>

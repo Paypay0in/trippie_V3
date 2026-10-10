@@ -281,7 +281,7 @@ const TravelHome: React.FC<Props> = ({
 
   return (
     <div className="mx-auto flex min-h-screen w-full flex-col bg-[#f7f8fc] pb-28 text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl">
-      <header className="bg-white px-6 pb-4 pt-6">
+      <header data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className="bg-white px-6 pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-[2rem] font-black tracking-tight">
             <span className="text-3xl text-violet-600">✈</span>Trippie

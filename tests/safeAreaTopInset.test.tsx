@@ -40,10 +40,26 @@ describe('螢幕頂端的安全區域', () => {
 
   it('使用者會碰到的頂端畫面都標記了', () => {
     const marked = (path: string) => read(path).includes('data-safe-top');
-    expect(marked('components/CommunityHome.tsx')).toBe(true);
-    expect(marked('components/TripWorkspaceShell.tsx')).toBe(true);
-    expect(marked('components/TripSelectionScreen.tsx')).toBe(true);
-    expect(marked('App.tsx')).toBe(true);
+    /*
+      Every screen that owns the top of the display. 「這頁則是沒有改到」 — the
+      first pass marked the community header and missed the travel home, which
+      is the one most people open first.
+    */
+    for (const screen of [
+      'components/CommunityHome.tsx',
+      'components/TravelHome.tsx',
+      'components/TripWorkspaceShell.tsx',
+      'components/TripSelectionScreen.tsx',
+      'components/AccountScreen.tsx',
+      'components/CreatorCenterScreen.tsx',
+      'components/CreateCommunityPostScreen.tsx',
+      'components/CommunityPostDetail.tsx',
+      'components/SavedTravelDestinationDetail.tsx',
+      'components/CreateEditTripScreen.tsx',
+      'App.tsx',
+    ]) {
+      expect(marked(screen), screen).toBe(true);
+    }
   });
 
   it('底部的安全區域沒有被動到', () => {
