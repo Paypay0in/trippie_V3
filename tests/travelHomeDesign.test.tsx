@@ -161,6 +161,40 @@ describe('四個快速入口', () => {
     expect(screen.queryByText('快速開始')).toBeNull();
   });
 
+  /**
+   * 「不改動比例」.
+   *
+   * Four tiles fit across a 393pt phone at the page's px-6 with an 8px gap
+   * without touching anything inside them — 80pt each, which is the width the
+   * design has. The first pass grew the icon and the tile to fill the space
+   * instead, which crops nothing and so looks fine in isolation, and wrong
+   * beside the rest of the page.
+   */
+  it('格子維持設計上的比例，沒有為了塞四格而放大', () => {
+    home();
+    const tile = screen.getByTestId('quick-start-新增旅程');
+    expect(tile.className).toContain('min-h-[94px]');
+
+    const icon = tile.firstElementChild as HTMLElement;
+    expect(icon.className).toContain('h-9');
+    expect(icon.className).toContain('w-9');
+  });
+
+  it('標題與說明維持設計上的字級', () => {
+    home();
+    const tile = screen.getByTestId('quick-start-新增旅程');
+    const [, label, hint] = Array.from(tile.children) as HTMLElement[];
+    expect(label.className).toContain('text-[11px]');
+    expect(hint.className).toContain('text-[9px]');
+  });
+
+  it('四格排在一列，不是捲動或換行', () => {
+    home();
+    const row = screen.getByTestId('quick-start-新增旅程').parentElement as HTMLElement;
+    expect(row.className).toContain('grid-cols-4');
+    expect(row.className).toContain('gap-2');
+  });
+
   it('探索目的地會帶去社群，不是一個點了沒反應的格子', async () => {
     const onSectionChange = vi.fn();
     const user = userEvent.setup();

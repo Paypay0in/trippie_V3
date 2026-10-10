@@ -528,13 +528,23 @@ const TravelHome: React.FC<Props> = ({
                 key={label}
                 onClick={action}
                 data-testid={`quick-start-${label}`}
-                className="flex min-h-[124px] flex-col items-center justify-start gap-2 rounded-[1.35rem] border border-slate-100 bg-white px-1.5 pb-3 pt-4 text-center shadow-[0_8px_22px_rgba(15,23,42,.05)]"
+                className="flex min-h-[94px] flex-col items-center justify-start gap-1.5 rounded-[1.35rem] border border-slate-100 bg-white px-1 pb-2.5 pt-3 text-center shadow-[0_8px_22px_rgba(15,23,42,.05)]"
               >
-                <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${color}`}>
-                  <Icon size={22} />
+                {/*
+                  Measured off the reference rather than guessed.
+
+                  「不改動比例」. At 393pt with the page's px-6 and a 8px gap each
+                  tile lands on 80pt, which is what the design has; the parts
+                  inside it are a 36pt icon, an 11px label and a 9px hint, and
+                  the whole tile is 94pt tall. The first pass made the icon 44
+                  and the tile 124 — nothing was cropped, so it looked fine on
+                  its own, and wrong beside everything else on the page.
+                */}
+                <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${color}`}>
+                  <Icon size={19} />
                 </span>
                 <span className="text-[11px] font-black leading-4">{label}</span>
-                <span className="text-[9px] font-bold leading-3 text-slate-400">{hint}</span>
+                <span className="text-[9px] font-bold leading-[0.85rem] text-slate-400">{hint}</span>
               </button>
             ))}
           </div>
