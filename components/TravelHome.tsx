@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from './ConfirmDialog';
 import {
+  ArrowRight,
   Bell,
   CalendarDays,
+  Compass,
   CloudCheck,
   CloudOff,
   Ellipsis,
@@ -15,6 +17,7 @@ import {
   Sparkles,
   Trash2,
   Users,
+  X,
 } from "lucide-react";
 import { CommunityPost, SavedTravelInspiration, Trip } from "../types";
 import { TripDraft } from "../services/tripPersistence";
@@ -24,6 +27,7 @@ import {
   fetchDestinationImage,
 } from "../services/destinationImageService";
 import AppBottomNav, { AppSection } from "./AppBottomNav";
+import { isSearching, matchesQuery } from "../services/travelHomeSearch";
 import NotificationCenter from "./NotificationCenter";
 import { DisputeNotice } from "../services/disputeInbox";
 
@@ -184,6 +188,8 @@ const TravelHome: React.FC<Props> = ({
   onOpenNotice,
 }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const activeDraft =
     drafts.find((draft) => draft.id === activeDraftId) || drafts[0];
   const tripDurationText = getTripDurationText(
@@ -244,6 +250,25 @@ const TravelHome: React.FC<Props> = ({
     return Array.from(groups.values());
   }, [savedTravelInspirations]);
   const savedNotesStorageStatus = getSavedNotesStorageStatus(authStatus);
+  /*
+    What is typed narrows every strip on the page at once, including the trip
+    in progress — a hero card that stays put while everything under it filters
+    reads as a result, and it is the one card a search is most likely to want.
+  */
+  const searching = isSearching(query);
+  const heroMatches = !activeDraft
+    || matchesQuery(query, activeDraft.name, activeDraft.destination);
+  const visibleOtherDrafts = otherDrafts.filter((draft) =>
+    matchesQuery(query, draft.name, draft.destination));
+  const visibleSavedNotes = savedNotes.filter((note) =>
+    matchesQuery(query, note.country, note.city, `${note.country}・${note.city}`));
+  const visibleHistory = tripHistory.filter((trip) =>
+    matchesQuery(query, trip.name, trip.destination));
+  const nothingFound = searching
+    && !heroMatches
+    && visibleOtherDrafts.length === 0
+    && visibleSavedNotes.length === 0
+    && visibleHistory.length === 0;
   /** Which trip's overflow menu is open, and which is awaiting confirmation. */
   const [openMenuDraftId, setOpenMenuDraftId] = useState<string | null>(null);
   const [pendingDeleteDraft, setPendingDeleteDraft] = useState<TripDraft | null>(null);
@@ -318,10 +343,22 @@ const TravelHome: React.FC<Props> = ({
               )}
             </button>
             <button
+              type="button"
+              data-testid="focus-travel-search"
+              onClick={() => searchRef.current?.focus()}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50"
               aria-label="搜尋"
             >
               <Search size={23} />
+            </button>
+            <button
+              type="button"
+              data-testid="travel-more"
+              onClick={() => onSectionChange("profile")}
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50"
+              aria-label="更多"
+            >
+              <Ellipsis size={23} />
             </button>
           </div>
         </div>
@@ -329,9 +366,52 @@ const TravelHome: React.FC<Props> = ({
         <h1 className="mt-1.5 text-[2.65rem] font-black leading-[1.05] tracking-tight">
           下一趟去哪裡？
         </h1>
+        {/*
+          The search the design puts directly under the question.
+
+          It searches what the traveller already has — trips, saved notes, past
+          journeys — rather than opening a destination catalogue that does not
+          exist. A field that answers nothing is worse than no field, and this
+          screen is mostly a list of the reader's own things, which is exactly
+          what someone types a name into a box to find.
+        */}
+        <div className="mt-5 flex items-center gap-2 rounded-[1.6rem] border border-slate-100 bg-white px-4 py-2.5 shadow-[0_8px_26px_rgba(15,23,42,.07)]">
+          <Search size={20} className="shrink-0 text-slate-300" />
+          <input
+            ref={searchRef}
+            data-testid="travel-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜尋目的地、景點或想做的事..."
+            aria-label="搜尋你的旅程與筆記"
+            className="min-w-0 flex-1 bg-transparent py-2 text-[15px] font-medium text-[#11183d] outline-none placeholder:text-slate-300"
+          />
+          {query.trim() ? (
+            <button
+              type="button"
+              data-testid="clear-travel-search"
+              onClick={() => setQuery("")}
+              aria-label="清除搜尋"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+            >
+              <X size={20} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenPlanner}
+              aria-label="讓 AI 幫我排行程"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-lg shadow-violet-500/25"
+            >
+              <ArrowRight size={20} />
+            </button>
+          )}
+        </div>
       </header>
       <main className="flex-1 space-y-5 px-6 py-5">
-        <section>
+        {/* While searching, the hero is a result like any other. */}
+        {(activeDraft ? heroMatches : !searching) && (
+        <section data-testid="travel-hero">
           {activeDraft ? (
           <article className="relative overflow-hidden rounded-[22px] bg-slate-900 shadow-sm">
             <div className="relative h-[244px] w-full">
@@ -406,8 +486,20 @@ const TravelHome: React.FC<Props> = ({
             </div>
           )}
         </section>
+        )}
+        {nothingFound && (
+          <div
+            data-testid="travel-search-empty"
+            className="rounded-[1.8rem] bg-white px-6 py-10 text-center shadow-sm"
+          >
+            <Search className="mx-auto text-slate-300" size={28} />
+            <p className="mt-4 text-base font-black">找不到「{query.trim()}」</p>
+            <p className="mt-2 text-sm font-medium text-slate-400">
+              這裡搜尋的是你自己的旅程、筆記與回憶
+            </p>
+          </div>
+        )}
         <section>
-          <h2 className="mb-3 text-xl font-black">快速開始</h2>
           {/*
             Only the tiles that do something.
 
@@ -417,23 +509,32 @@ const TravelHome: React.FC<Props> = ({
             wire them to. A control that answers a tap with silence costs more
             trust than the blank space where it was.
           */}
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              [Sparkles, "AI 幫我排行程", onOpenPlanner, "bg-violet-50 text-violet-600"],
-              [FileInput, "AI 匯入旅程資料", onAiImport || onCreateNew, "bg-blue-50 text-blue-600"],
-              [Plus, "新增旅程", onCreateNew, "bg-pink-50 text-pink-600"],
-            ].map(([Icon, label, action, color]) => (
+          <div className="grid grid-cols-4 gap-2">
+            {([
+              [Sparkles, "AI 幫我排行程", "快速生成專屬行程", onOpenPlanner, "bg-violet-50 text-violet-600"],
+              [FileInput, "匯入旅程資料", "機票・住宿・訂單", onAiImport || onCreateNew, "bg-blue-50 text-blue-600"],
+              [Plus, "新增旅程", "開始規劃下一趟", onCreateNew, "bg-pink-50 text-pink-600"],
+              /*
+                探索目的地 goes to the community feed, which is where the
+                app's destination inspiration actually lives — 發現 and
+                下一個目的地 are tabs there. A fourth tile pointing at a screen
+                that does not exist would be the thing this list was trimmed
+                to remove.
+              */
+              [Compass, "探索目的地", "發現靈感", () => onSectionChange("community"), "bg-teal-50 text-teal-600"],
+            ] as [React.ElementType, string, string, () => void, string][])
+              .map(([Icon, label, hint, action, color]) => (
               <button
-                key={label as string}
-                onClick={action as () => void}
-                className="flex min-h-[102px] flex-col items-center justify-center gap-2 rounded-[1.35rem] border border-slate-100 bg-white px-1 text-center shadow-[0_8px_22px_rgba(15,23,42,.05)]"
+                key={label}
+                onClick={action}
+                data-testid={`quick-start-${label}`}
+                className="flex min-h-[124px] flex-col items-center justify-start gap-2 rounded-[1.35rem] border border-slate-100 bg-white px-1.5 pb-3 pt-4 text-center shadow-[0_8px_22px_rgba(15,23,42,.05)]"
               >
                 <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${color}`}>
-                  {React.createElement(Icon as React.ElementType, { size: 23 })}
+                  <Icon size={22} />
                 </span>
-                <span className="text-xs font-black leading-5">
-                  {label as string}
-                </span>
+                <span className="text-[11px] font-black leading-4">{label}</span>
+                <span className="text-[9px] font-bold leading-3 text-slate-400">{hint}</span>
               </button>
             ))}
           </div>
@@ -454,9 +555,9 @@ const TravelHome: React.FC<Props> = ({
               <span className="text-xs font-bold text-slate-400">{savedNotes.length} 則</span>
             </div>
           </div>
-          {savedNotes.length ? (
+          {visibleSavedNotes.length ? (
             <div className="flex gap-4 overflow-x-auto pb-2">
-              {savedNotes.map((note) => (
+              {visibleSavedNotes.map((note) => (
                 <button
                   key={note.id}
                   type="button"
@@ -485,11 +586,11 @@ const TravelHome: React.FC<Props> = ({
             </div>
           ) : <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-bold text-slate-400">尚未儲存旅行筆記</div>}
         </section>
-        {otherDrafts.length > 0 && (
+        {visibleOtherDrafts.length > 0 && (
           <section>
             <h2 className="mb-4 text-xl font-black">編輯中的旅行</h2>
             <div className="flex gap-4 overflow-x-auto pb-2">
-              {otherDrafts.map((draft) => (
+              {visibleOtherDrafts.map((draft) => (
                 <div
                   key={draft.id}
                   className="relative h-40 w-52 shrink-0 overflow-hidden rounded-[1.35rem] shadow-md"
@@ -544,9 +645,9 @@ const TravelHome: React.FC<Props> = ({
             <h2 className="text-xl font-black">你的旅行回憶</h2>
             <CalendarDays size={20} className="text-violet-500" />
           </div>
-          {tripHistory.length ? (
+          {visibleHistory.length ? (
             <div className="flex gap-4 overflow-x-auto pb-2">
-              {tripHistory.slice(0, 6).map((trip) => (
+              {visibleHistory.slice(0, 6).map((trip) => (
                 <button
                   key={trip.id}
                   onClick={() => onContinueTrip(trip)}
