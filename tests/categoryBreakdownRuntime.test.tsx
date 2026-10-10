@@ -127,3 +127,51 @@ describe('a category total', () => {
     expect(screen.queryByTestId('category-items-購物')).toBeNull();
   });
 });
+
+describe('行前與回國那兩張清單', () => {
+  const flight = expense({
+    id: 'e-flight', description: '機票', category: Category.FLIGHT, phase: 'pre',
+    amount: 12500, twdAmount: 12500, date: '2026-09-20',
+  });
+  const airport = expense({
+    id: 'e-airport', description: '機場免稅', category: Category.COSMETICS, phase: 'post',
+    amount: 2400, twdAmount: 2400, date: '2026-10-08',
+  });
+
+  it('點一筆就打開那筆帳', async () => {
+    // 「另外點擊後也要可以打開」.
+    const onOpenExpense = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <TripSummaryModal
+        expenses={[flight, airport]}
+        onArchive={() => undefined}
+        variant="embedded"
+        viewerMemberId={OWNER}
+        ownerMemberId={OWNER}
+        onOpenExpense={onOpenExpense}
+      />,
+    );
+
+    await user.click(screen.getByTestId('phase-item-e-flight'));
+    expect(onOpenExpense).toHaveBeenCalledWith(expect.objectContaining({ id: 'e-flight' }));
+
+    await user.click(screen.getByTestId('phase-item-e-airport'));
+    expect(onOpenExpense).toHaveBeenCalledWith(expect.objectContaining({ id: 'e-airport' }));
+  });
+
+  it('沒有給打開的方法時，那一行就只是文字', () => {
+    render(
+      <TripSummaryModal
+        expenses={[flight]}
+        onArchive={() => undefined}
+        variant="embedded"
+        viewerMemberId={OWNER}
+        ownerMemberId={OWNER}
+      />,
+    );
+
+    expect(screen.queryByTestId('phase-item-e-flight')).toBeNull();
+    expect(screen.getByText('機票')).toBeTruthy();
+  });
+});

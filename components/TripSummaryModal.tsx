@@ -119,8 +119,8 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
     const wallet: Record<string, { in: number; out: number; costBasis: number }> = {};
 
     // For breakdown lists
-    const preList: { date: string; desc: string; amount: number; cat: string }[] = [];
-    const postList: { date: string; desc: string; amount: number; cat: string }[] = [];
+    const preList: { id: string; date: string; desc: string; amount: number; cat: string }[] = [];
+    const postList: { id: string; date: string; desc: string; amount: number; cat: string }[] = [];
     // Help Buy List now includes refundDeduction
     const helpBuy: { id: string; date: string; desc: string; amount: number; currency: string; foreignAmount: number; refundDeduction?: number }[] = [];
     const duringCatMap: Record<string, number> = {};
@@ -220,9 +220,9 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
 
           // Breakdown Logic
           if (e.phase === 'pre') {
-              preList.push({ date: e.date, desc: e.description, amount: realCost, cat: e.category });
+              preList.push({ id: e.id, date: e.date, desc: e.description, amount: realCost, cat: e.category });
           } else if (e.phase === 'post') {
-              postList.push({ date: e.date, desc: e.description, amount: realCost, cat: e.category });
+              postList.push({ id: e.id, date: e.date, desc: e.description, amount: realCost, cat: e.category });
           } else if (e.phase === 'during') {
               duringCatMap[e.category] = (duringCatMap[e.category] || 0) + realCost;
               duringSum += realCost;
@@ -606,17 +606,39 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                 </h3>
                 {preExpenses.length > 0 ? (
                   <div className="space-y-2">
-                    {preExpenses.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm group hover:bg-gray-50 p-1 rounded">
-                        <div className="flex flex-col">
+                    {preExpenses.map((item, idx) => {
+                      /*
+                        Openable, like the category breakdown already is.
+
+                        「另外點擊後也要可以打開」 — these two lists are where a bill
+                        filed into the wrong stage gets noticed, and noticing it
+                        was as far as the screen let anybody get.
+                      */
+                      const openable = onOpenExpense && expenseById.has(item.id);
+                      const RowTag = openable ? 'button' : 'div';
+                      return (
+                      <RowTag
+                        key={item.id || idx}
+                        {...(openable
+                          ? {
+                              type: 'button' as const,
+                              'data-testid': `phase-item-${item.id}`,
+                              onClick: () => onOpenExpense!(expenseById.get(item.id)!),
+                              'aria-label': `打開 ${item.desc}`,
+                            }
+                          : {})}
+                        className="flex w-full items-center justify-between rounded p-1 text-left text-sm hover:bg-gray-50 active:bg-gray-100"
+                      >
+                        <span className="flex flex-col">
                           <span className="font-medium text-gray-800">{item.desc}</span>
                           <span className="text-[10px] text-gray-400">{item.date} • {item.cat}</span>
-                        </div>
-                        <div className="font-mono font-bold text-gray-600">
+                        </span>
+                        <span className="font-mono font-bold text-gray-600">
                           ${Math.round(item.amount).toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
+                        </span>
+                      </RowTag>
+                      );
+                    })}
                     <div className="border-t border-gray-100 pt-2 flex justify-between items-center font-bold text-gray-900 mt-2 text-sm bg-gray-50 p-2 rounded">
                       <span>小計</span>
                       <span>${Math.round(preExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</span>
@@ -887,17 +909,39 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                 </h3>
                 {postExpenses.length > 0 ? (
                   <div className="space-y-2">
-                    {postExpenses.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm group hover:bg-gray-50 p-1 rounded">
-                         <div className="flex flex-col">
+                    {postExpenses.map((item, idx) => {
+                      /*
+                        Openable, like the category breakdown already is.
+
+                        「另外點擊後也要可以打開」 — these two lists are where a bill
+                        filed into the wrong stage gets noticed, and noticing it
+                        was as far as the screen let anybody get.
+                      */
+                      const openable = onOpenExpense && expenseById.has(item.id);
+                      const RowTag = openable ? 'button' : 'div';
+                      return (
+                      <RowTag
+                        key={item.id || idx}
+                        {...(openable
+                          ? {
+                              type: 'button' as const,
+                              'data-testid': `phase-item-${item.id}`,
+                              onClick: () => onOpenExpense!(expenseById.get(item.id)!),
+                              'aria-label': `打開 ${item.desc}`,
+                            }
+                          : {})}
+                        className="flex w-full items-center justify-between rounded p-1 text-left text-sm hover:bg-gray-50 active:bg-gray-100"
+                      >
+                        <span className="flex flex-col">
                           <span className="font-medium text-gray-800">{item.desc}</span>
                           <span className="text-[10px] text-gray-400">{item.date} • {item.cat}</span>
-                        </div>
-                        <div className="font-mono font-bold text-gray-600">
+                        </span>
+                        <span className="font-mono font-bold text-gray-600">
                           ${Math.round(item.amount).toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
+                        </span>
+                      </RowTag>
+                      );
+                    })}
                     <div className="border-t border-gray-100 pt-2 flex justify-between items-center font-bold text-gray-900 mt-2 text-sm bg-gray-50 p-2 rounded">
                       <span>小計</span>
                       <span>${Math.round(postExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</span>

@@ -151,6 +151,7 @@ import TripSelectionScreen from "./components/TripSelectionScreen";
 import VisaCheckModal from "./components/VisaCheckModal";
 import CommunityFeed from "./components/CommunityFeed";
 import { RECEIPT_SCAN_OPTIONS, readAndDownscale } from "./services/postPhotos";
+import { phaseForExpenseDate } from "./services/expensePhaseForDate";
 import DuplicateReceiptPrompt from "./components/DuplicateReceiptPrompt";
 import {
   DuplicatePair,
@@ -4970,16 +4971,33 @@ const App: React.FC = () => {
           if (result.country && !detectedCountry)
             detectedCountry = result.country; // Capture first detected country
 
-          let inferredPhase: Phase = "during";
-          if (CATEGORIES_BY_PHASE.pre.includes(parsedCategory))
-            inferredPhase = "pre";
-          if (CATEGORIES_BY_PHASE.post.includes(parsedCategory))
-            inferredPhase = "post";
-
           const newExpenseId = generateId();
 
           // Check History Match
           const matchedTripId = findMatchingTripId(parsedDate);
+
+          /*
+            Which stage of the trip this bill belongs to.
+
+            「上傳的收據要按照時間點歸帳 10/3根本還沒回國」 — it was decided by
+            category, and the category lists overlap deliberately: 美妝保養,
+            服飾鞋包 and 其他 all appear under 回國機場消費 because those are
+            airport purchases, and also day-two purchases. 其他 is in all three
+            lists and the checks ran in order, so it came out 'post' every time.
+
+            Against the dates of whichever trip the receipt is landing in —
+            the matched finished trip, or the one open now.
+          */
+          const destinationTrip = matchedTripId
+            ? tripHistory.find((trip) => trip.id === matchedTripId)
+            : undefined;
+          const inferredPhase: Phase = phaseForExpenseDate(
+            parsedDate,
+            destinationTrip
+              ? { startDate: destinationTrip.startDate, endDate: destinationTrip.endDate }
+              : { startDate: tripStartDate, endDate: tripEndDate },
+            parsedCategory,
+          );
 
           if (matchedTripId) {
             // Get existing expenses for rate calc (need to find from history)
