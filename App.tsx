@@ -83,6 +83,7 @@ import {
   removeCustomCategory,
   saveCustomCategories,
 } from "./services/customCategories";
+import { adoptCategoriesFromLedger } from "./services/customCategoriesFromLedger";
 import {
   DisputeNotice,
   disputeNoticesFor,
@@ -1232,6 +1233,28 @@ const App: React.FC = () => {
   useEffect(() => {
     authUserIdRef.current = authUser?.id;
   }, [authUser?.id]);
+
+  /*
+    Categories this device never saw, learned from the ledger it shares.
+
+    「這兩個分類是我分別在電腦與手機創建的 但我目前用手機是看不到用電腦創建的分類」.
+    Custom categories live in localStorage and nothing syncs them, so one
+    invented on the laptop is missing on the phone — and gets invented again,
+    slightly differently. 美妝保養品 and 保養美妝品 are the same idea under two
+    names that can never be added together.
+
+    The bills sync, and each one names its category, so the names are already
+    here; only the picker was ignoring them.
+  */
+  useEffect(() => {
+    if (expenses.length === 0) return;
+    setCustomCategories((current) => {
+      const next = adoptCategoriesFromLedger(current, expenses);
+      if (next === current) return current;
+      saveCustomCategories(next);
+      return next;
+    });
+  }, [expenses]);
 
   /*
     Bills converted at a rate that was never theirs, put right once per trip.
