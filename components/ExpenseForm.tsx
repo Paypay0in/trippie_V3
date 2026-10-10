@@ -1216,6 +1216,35 @@ const ExpenseForm: React.FC<Props> = ({
                 </p>
               )}
 
+              {proposalMode && (
+                <div>
+                  {/*
+                    「這個分帳建議沒有留言區可以寫留言」.
+
+                    A proposal was sent with the sentence 我想提出以下修正建議。
+                    every time, whoever sent it and whatever they meant. The
+                    numbers say what to change; only the sender can say why, and
+                    the creator reading it is being asked to approve something
+                    on trust without it. The type always carried a message —
+                    「A question plus the exact change」 — the form simply never
+                    asked for one.
+                  */}
+                  <label className="mb-2 block text-sm font-bold text-[#11183d]">
+                    說明（選填）
+                  </label>
+                  <textarea
+                    rows={3}
+                    maxLength={300}
+                    value={note}
+                    onChange={event => setNote(event.target.value)}
+                    aria-label="修正建議說明"
+                    data-testid="proposal-message"
+                    placeholder="例如：這天我不在，這筆應該只有你分攤"
+                    className="min-h-[88px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-[#11183d] outline-none placeholder:text-slate-300 focus:border-violet-300"
+                  />
+                </div>
+              )}
+
               {!locked && <SectionHeading>基本資訊</SectionHeading>}
 
               {!locked && (

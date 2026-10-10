@@ -3407,7 +3407,19 @@ const App: React.FC = () => {
           showToast("沒有可提議的變更，未送出建議。", "error");
           return;
         }
-        handleRaiseDispute(editingExpense, "我想提出以下修正建議。", proposal);
+        /*
+          What they wrote, or the neutral sentence when they wrote nothing.
+
+          「這個分帳建議沒有留言區可以寫留言」 — every proposal used to arrive
+          saying the same thing, so the creator approving it had the numbers and
+          no reason. The note field in proposal mode is that reason; it is never
+          written onto the bill, because a proposal writes nothing.
+        */
+        handleRaiseDispute(
+          editingExpense,
+          data.note?.trim() || "我想提出以下修正建議。",
+          proposal,
+        );
         return;
       }
       if (
