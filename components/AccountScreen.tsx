@@ -65,7 +65,7 @@ const AccountScreen: React.FC<Props> = ({
   const signedIn = authStatus === 'authenticated' && profile;
 
   return (
-    <main data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className={`min-h-screen bg-[#f7f8fc] px-4 text-[#11183d] md:mx-auto md:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
+    <main data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className={`min-h-screen bg-[#f7f8fc] px-[var(--screen-pad)] text-[#11183d] md:mx-auto md:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
       {/*
         The app's name, here too.
 

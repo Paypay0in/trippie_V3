@@ -329,7 +329,7 @@ const TravelHome: React.FC<Props> = ({
 
   return (
     <div className={`mx-auto flex min-h-screen w-full flex-col bg-[#f7f8fc] text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
-      <header data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className="bg-white px-6 pb-4">
+      <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="bg-white px-[var(--screen-pad)] pb-4">
         <div className="flex items-center justify-between">
           <AppWordmark />
           <div className="flex gap-3 text-slate-600">

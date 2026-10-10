@@ -114,3 +114,54 @@ describe('沒有第二個寫死的 Trippie', () => {
     }
   });
 });
+
+/**
+ * 「左上角的 Trippie logo 在每一頁都應該在同一個位置」.
+ *
+ * Same size was only half of it. Four screens drew four headers, so the name
+ * started at 16px from the edge on three of them and 24 on the fourth, and the
+ * gap above it was 20 or 24 depending which. On a phone with a notch the
+ * safe-area inset swallows the vertical difference, so what was left was the
+ * logo stepping sideways each time you changed tab.
+ *
+ * jsdom does no layout, so position is checked where it is decided: both
+ * insets come from the same tokens on every screen, rather than from a number
+ * typed into each header.
+ */
+describe('每一頁的 Trippie 都在同一個位置', () => {
+  const headerScreens = [
+    'components/CommunityHome.tsx',
+    'components/TravelHome.tsx',
+    'components/AccountScreen.tsx',
+    'components/TripSelectionScreen.tsx',
+  ];
+
+  it('左邊的距離都來自同一個 token', () => {
+    for (const file of headerScreens) {
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+      expect(source, file).toContain('px-[var(--screen-pad)]');
+    }
+  });
+
+  it('上面的距離也是', () => {
+    for (const file of headerScreens) {
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+      expect(source, file).toContain('"var(--header-top)"');
+    }
+  });
+
+  it('沒有人再自己寫一個邊距', () => {
+    for (const file of headerScreens) {
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+      const header = source.slice(0, source.indexOf('<AppWordmark />'));
+      // The container that carries the wordmark must not set its own px-N.
+      expect(header.match(/data-safe-top[^>]*\bpx-\d/), file).toBeNull();
+    }
+  });
+
+  it('兩個 token 都定義在 index.css', () => {
+    const css = readFileSync(resolve(process.cwd(), 'index.css'), 'utf8');
+    expect(css).toContain('--screen-pad');
+    expect(css).toContain('--header-top');
+  });
+});

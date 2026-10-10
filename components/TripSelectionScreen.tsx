@@ -415,7 +415,7 @@ const TripSelectionScreen: React.FC<Props> = ({
   };
 
   return (
-    <div data-safe-top className="min-h-full bg-[#fbfcff] px-4 pb-10 text-[#10204a] sm:px-6">
+    <div data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="min-h-full bg-[#fbfcff] px-[var(--screen-pad)] pb-10 text-[#10204a]">
       {isScanning && (
         <div className={`fixed inset-0 ${OVERLAY.sheet} flex flex-col items-center justify-center bg-[#08152f]/80 text-white backdrop-blur-sm`}>
           <Loader2 size={44} className="mb-4 animate-spin text-cyan-300" />

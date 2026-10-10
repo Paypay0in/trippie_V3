@@ -72,6 +72,20 @@
   --cta-h: 3.375rem;          /* 54 — the primary action */
   --card-pad: 1rem;           /* 16 */
   --screen-pad: 1.25rem;      /* 20 */
+  /*
+    Where the wordmark sits, on every screen.
+
+    「左上角的 Trippie logo 在每一頁都應該在同一個位置」. Four screens drew four
+    headers, so the name started at 16px on three of them and 24px on the
+    fourth, and the gap above it was 20 or 24 depending which. On a phone with
+    a notch the safe-area inset swallows the vertical difference and the
+    horizontal one stays — the logo stepping sideways as you move between tabs.
+
+    This is the base used where there is no inset to swallow it; the horizontal
+    position is --screen-pad, shared with the page margin so the name lines up
+    with the content beneath it as well as with itself.
+  */
+  --header-top: 0.75rem;      /* 12 */
 }
 
 /*

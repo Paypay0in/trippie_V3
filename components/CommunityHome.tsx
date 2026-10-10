@@ -35,7 +35,7 @@ const CommunityHome: React.FC<Props> = ({ activeSection, onSectionChange, onPlus
   }, [feed]);
   const tabs: ['discover' | 'following' | 'next', string][] = [['discover', '發現'], ['following', '追蹤'], ['next', '下一個目的地']];
   return <div className={`mx-auto min-h-screen w-full bg-[#f7f8fc] text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
-    <header data-safe-top className="sticky top-0 z-20 border-b border-slate-100 bg-white/95 px-4 pb-2 backdrop-blur-xl"><div className="flex items-center justify-between"><AppWordmark />{/*
+    <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="sticky top-0 z-20 border-b border-slate-100 bg-white/95 px-[var(--screen-pad)] pb-2 backdrop-blur-xl"><div className="flex items-center justify-between"><AppWordmark />{/*
       No bell here.
 
       「這個是「旅行」的通知 不是社群的通知」. Everything behind it — a question on a
