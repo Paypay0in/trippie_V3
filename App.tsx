@@ -6293,7 +6293,7 @@ const App: React.FC = () => {
   if (viewMode === "community") {
     return (
       <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
-        <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+        <header data-safe-top style={{ ["--safe-top-base" as string]: "2rem" }} className="bg-white pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setViewMode("bookshelf")}
@@ -6361,7 +6361,7 @@ const App: React.FC = () => {
   if (viewMode === "marketplace") {
     return (
       <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
-        <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+        <header data-safe-top style={{ ["--safe-top-base" as string]: "2rem" }} className="bg-white pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setViewMode("bookshelf")}
@@ -6442,7 +6442,7 @@ const App: React.FC = () => {
   if (viewMode === "points") {
     return (
       <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
-        <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+        <header data-safe-top style={{ ["--safe-top-base" as string]: "2rem" }} className="bg-white pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setViewMode("bookshelf")}
@@ -6506,7 +6506,7 @@ const App: React.FC = () => {
   if (viewMode === "map") {
     return (
       <div className="min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300 pb-24">
-        <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+        <header data-safe-top style={{ ["--safe-top-base" as string]: "2rem" }} className="bg-white pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setViewMode("bookshelf")}
@@ -7479,7 +7479,7 @@ const App: React.FC = () => {
       )}
 
       {/* Header */}
-      <header className="bg-white pt-8 pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
+      <header data-safe-top style={{ ["--safe-top-base" as string]: "2rem" }} className="bg-white pb-4 px-6 sticky top-0 z-10 border-b border-gray-100">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2 w-full">
             <button

@@ -11,3 +11,32 @@
   --color-phase-during: #10b981;
   --color-phase-post: #f59e0b;
 }
+
+/*
+  The top of the screen belongs to the phone, not to the app.
+
+  「目前app 在手機上使用的時候 邊界太高 根本點不到」. index.html asks for
+  viewport-fit=cover and a translucent status bar, which puts the page under the
+  clock and the Dynamic Island on purpose — that is how a full-bleed photo
+  header is meant to look. The bottom navigation already pays the matching cost
+  with env(safe-area-inset-bottom); nothing ever paid it at the top, so every
+  header sat beneath the island with its buttons unreachable.
+
+  Applied to the headers themselves rather than to a wrapper: a sticky header
+  sticks to the viewport, so padding on an ancestor moves it down once and then
+  it slides straight back up under the island on the first scroll.
+*/
+/*
+  Marked explicitly, never by element name: most <header> elements in this app
+  are inside cards and sheets, and padding every one of them would push a dozen
+  layouts down on devices with no inset at all.
+*/
+[data-safe-top] {
+  padding-top: max(var(--safe-top-base, 1.25rem), env(safe-area-inset-top));
+}
+
+/* A sticky header must also start below the inset, or the first scroll slides
+   it straight back under the island. */
+[data-safe-top].sticky {
+  top: env(safe-area-inset-top);
+}

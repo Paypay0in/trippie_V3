@@ -82,7 +82,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
         it from.
       */}
       <StaleBuildBanner />
-      <header className="mx-auto w-full max-w-2xl bg-white px-4 pb-3 pt-5">
+      <header data-safe-top className="mx-auto w-full max-w-2xl bg-white px-4 pb-3">
         <div className="mb-3 flex items-center justify-between gap-3">
           <button className={actionClass} onClick={onBack} aria-label="回到旅程首頁"><ArrowLeft size={21} /></button>
           <div className="flex min-w-0 flex-1 items-center gap-2 text-lg font-black">
