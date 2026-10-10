@@ -136,6 +136,42 @@ describe('搜尋框', () => {
   });
 });
 
+/**
+ * 「比例要正確 這不正確」.
+ *
+ * The three facts under the destination were one wrapping flex row, so on a
+ * 393pt phone the date broke across two lines and the block reflowed into a
+ * different shape for every trip. The design stacks them, one line each.
+ */
+describe('進行中的旅程卡', () => {
+  const card = () => {
+    home({ drafts: [draft('d1', '釜山之旅', '釜山')], activeDraftId: 'd1' });
+    return screen.getByTestId('travel-hero');
+  };
+
+  it('日期、天數、人數各自一行', () => {
+    const hero = card();
+    const dateRow = hero.querySelector('.whitespace-nowrap');
+    expect(dateRow?.textContent).toContain('2026/10/02');
+    expect(dateRow?.textContent).toContain('2026/10/07');
+    // One row, so the two ends of the range cannot land on separate lines.
+    expect(dateRow?.className).toContain('whitespace-nowrap');
+  });
+
+  it('三行是堆疊的，不是一行擠著換行', () => {
+    const hero = card();
+    const stack = hero.querySelector('.text-\\[13px\\]') as HTMLElement;
+    expect(stack.className).toContain('flex-col');
+    expect(stack.className).not.toContain('flex-wrap');
+  });
+
+  it('結束的旅程說它結束了，而不是只說「旅程」', () => {
+    const hero = card();
+    expect(hero.textContent).toContain('已結束的旅程');
+    expect(hero.textContent).not.toMatch(/進行中的旅程/);
+  });
+});
+
 describe('四個快速入口', () => {
   const labels = ['AI 幫我排行程', '匯入旅程資料', '新增旅程', '探索目的地'];
 
@@ -193,6 +229,14 @@ describe('四個快速入口', () => {
     const row = screen.getByTestId('quick-start-新增旅程').parentElement as HTMLElement;
     expect(row.className).toContain('grid-cols-4');
     expect(row.className).toContain('gap-2');
+  });
+
+  it('標題與說明各自一行，不會被擠到換行', () => {
+    home();
+    const tile = screen.getByTestId('quick-start-AI 幫我排行程');
+    const [, label, hint] = Array.from(tile.children) as HTMLElement[];
+    expect(label.className).toContain('whitespace-nowrap');
+    expect(hint.className).toContain('whitespace-nowrap');
   });
 
   it('探索目的地會帶去社群，不是一個點了沒反應的格子', async () => {

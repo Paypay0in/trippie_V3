@@ -208,12 +208,20 @@ const TravelHome: React.FC<Props> = ({
             : "completed";
       })()
     : "upcoming";
+  /*
+    The badge says which of the three a trip is.
+
+    「旅程」 was the label for a journey already over, which names the category
+    rather than the state — every card is a 旅程. The design's wording for the
+    live one is 進行中的旅程, and a finished one deserves the same courtesy of
+    being told apart from a trip that has not started.
+  */
   const tripStatusLabel =
     tripStatus === "during"
-      ? "旅行中"
+      ? "進行中的旅程"
       : tripStatus === "upcoming"
         ? "即將出發"
-        : "旅程";
+        : "已結束的旅程";
   const today = new Date();
   // Every other trip, not just the ones that have yet to start.
   //
@@ -441,22 +449,31 @@ const TravelHome: React.FC<Props> = ({
                 <h2 className="mb-2 text-[27px] font-black leading-none tracking-tight drop-shadow-sm">
                   {activeDraft.name?.trim() || activeDraft.destination || "未命名旅程"}
                 </h2>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-semibold text-white/95">
-                  <span className="inline-flex items-center gap-1.5">
+                {/*
+                  Three stacked rows, each on one line.
+
+                  「比例要正確 這不正確」. They were one wrapping flex row, so on a
+                  393pt phone the date broke across two lines and the three
+                  facts reflowed into a ragged block that changes shape with
+                  the trip. The design stacks them, which is also the only
+                  arrangement where a date reads as a date.
+                */}
+                <div className="flex flex-col items-start gap-1 text-[13px] font-semibold text-white/95">
+                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                     <CalendarDays className="h-4 w-4" />
                     {formatTripDate(activeDraft.startDate)}
                     {activeDraft.startDate && activeDraft.endDate ? " - " : ""}
                     {formatTripDate(activeDraft.endDate)}
                   </span>
                   {tripDurationText && (
-                    <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                       <span aria-hidden="true">◷</span>
                       {tripDurationText}
                     </span>
                   )}
                   <span
                     data-testid={`trip-shelf-badge-${activeDraft.id}`}
-                    className="inline-flex items-center gap-1.5"
+                    className="inline-flex items-center gap-1.5 whitespace-nowrap"
                   >
                     <Users className="h-4 w-4" />
                     {tripShelfBadgeText(activeDraft)}
@@ -466,7 +483,7 @@ const TravelHome: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onContinueDraft(activeDraft.id)}
-                className="absolute bottom-4 right-4 inline-flex h-[48px] items-center gap-2 rounded-[15px] bg-white px-5 text-[14px] font-extrabold text-[#11183d] shadow-[0_6px_18px_rgba(0,0,0,0.12)] transition active:scale-[0.98]"
+                className="absolute bottom-4 right-4 inline-flex h-[48px] items-center gap-2 rounded-[15px] bg-white px-5 text-[14px] font-extrabold text-violet-600 shadow-[0_6px_18px_rgba(0,0,0,0.12)] transition active:scale-[0.98]"
               >
                 繼續旅程
                 <span aria-hidden="true" className="text-xl leading-none">→</span>
@@ -528,7 +545,7 @@ const TravelHome: React.FC<Props> = ({
                 key={label}
                 onClick={action}
                 data-testid={`quick-start-${label}`}
-                className="flex min-h-[94px] flex-col items-center justify-start gap-1.5 rounded-[1.35rem] border border-slate-100 bg-white px-1 pb-2.5 pt-3 text-center shadow-[0_8px_22px_rgba(15,23,42,.05)]"
+                className="flex min-h-[94px] flex-col items-center justify-start gap-1.5 overflow-hidden rounded-[1.35rem] border border-slate-100 bg-white px-0.5 pb-2.5 pt-3 text-center shadow-[0_8px_22px_rgba(15,23,42,.05)]"
               >
                 {/*
                   Measured off the reference rather than guessed.
@@ -543,8 +560,8 @@ const TravelHome: React.FC<Props> = ({
                 <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${color}`}>
                   <Icon size={19} />
                 </span>
-                <span className="text-[11px] font-black leading-4">{label}</span>
-                <span className="text-[9px] font-bold leading-[0.85rem] text-slate-400">{hint}</span>
+                <span className="whitespace-nowrap text-[11px] font-black leading-4 tracking-tight">{label}</span>
+                <span className="whitespace-nowrap text-[9px] font-bold leading-[0.85rem] tracking-tight text-slate-400">{hint}</span>
               </button>
             ))}
           </div>
