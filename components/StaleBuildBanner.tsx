@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { BUILD_ID } from '../services/buildStamp';
-import { DeployedVersion, isStaleBuild } from '../services/staleBuild';
+import {
+  AUTO_RELOAD_STORAGE_KEY,
+  DeployedVersion,
+  isStaleBuild,
+  shouldAutoReload,
+} from '../services/staleBuild';
 
 /**
  * 「關掉重開」, said once too often.
@@ -19,22 +24,58 @@ import { DeployedVersion, isStaleBuild } from '../services/staleBuild';
 const StaleBuildBanner: React.FC = () => {
   const [stale, setStale] = useState(false);
 
-  const check = useCallback(async () => {
+  const check = useCallback(async (trigger: 'load' | 'foreground') => {
     try {
       // `cache: no-store`, or the check itself can be answered from the same
       // stale cache that caused the problem.
       const response = await fetch('/api/version', { cache: 'no-store' });
       if (!response.ok) return;
       const deployed = await response.json() as DeployedVersion;
-      setStale(isStaleBuild(BUILD_ID, deployed.commit));
+      if (!isStaleBuild(BUILD_ID, deployed.commit)) { setStale(false); return; }
+
+      /*
+        Heal rather than ask, where asking would be a trap.
+
+        The banner only works if it can be tapped, and the evening it shipped
+        with its own tap target under the status bar there was no way out of
+        the app except the app switcher. A stale build that can fix itself does
+        not depend on its own correctness to be fixable.
+
+        Everything that makes this safe lives in shouldAutoReload: never at
+        first paint, never while anything is focused, and once per deployed
+        commit. When it declines, the banner is still there to be tapped.
+      */
+      const commit = (deployed.commit || '').trim();
+      const alreadyReloadedFor = (() => {
+        try { return sessionStorage.getItem(AUTO_RELOAD_STORAGE_KEY); } catch { return null; }
+      })();
+      const active = document.activeElement as HTMLElement | null;
+      if (shouldAutoReload({
+        deployed: commit,
+        trigger,
+        focusedTag: active?.tagName,
+        isEditing: active?.isContentEditable,
+        alreadyReloadedFor,
+      })) {
+        try { sessionStorage.setItem(AUTO_RELOAD_STORAGE_KEY, commit); } catch {
+          // A blocked store costs one extra reload, not a loop: the guard that
+          // matters most is the foreground-only rule above it.
+        }
+        window.location.reload();
+        return;
+      }
+
+      setStale(true);
     } catch {
       // Offline on a Busan subway platform is not evidence of a stale build.
     }
   }, []);
 
   useEffect(() => {
-    void check();
-    const onVisible = () => { if (document.visibilityState === 'visible') void check(); };
+    void check('load');
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void check('foreground');
+    };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [check]);

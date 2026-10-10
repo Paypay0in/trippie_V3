@@ -8,10 +8,10 @@
  * so, so every answer ended in advice rather than an answer.
  */
 import React from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import StaleBuildBanner from '../components/StaleBuildBanner';
-import { isStaleBuild } from '../services/staleBuild';
+import { AUTO_RELOAD_STORAGE_KEY, isStaleBuild, shouldAutoReload } from '../services/staleBuild';
 
 /*
   A test run has no build stamp — vitest never defines `__BUILD_ID__`, so the
@@ -92,5 +92,145 @@ describe('the comparison itself', () => {
   it('reports only a real difference', () => {
     expect(isStaleBuild('abcdef1', 'abcdef1')).toBe(false);
     expect(isStaleBuild('abcdef1', '1234567')).toBe(true);
+  });
+});
+
+/**
+ * 「點不到」, and the deadlock under it.
+ *
+ * The app is a Safari home-screen shortcut, so iOS resumes the page it had
+ * rather than loading a new one. The only control that fetched a newer build
+ * was the update banner — and the evening the banner itself shipped with its
+ * tap target under the status bar, the fix for it could not be reached from
+ * inside the app at all.
+ *
+ * A stale build heals itself now. These are the conditions that keep that from
+ * being worse than the problem it solves.
+ */
+/**
+ * The decision being right does not prove the component asks it.
+ *
+ * What the traveller experiences is the page reloading on its own when they
+ * come back — so that is what is exercised: the real component, a real
+ * visibilitychange, and the reload it is supposed to call.
+ */
+describe('自己把自己救回來', () => {
+  const reload = vi.fn();
+
+  const comeBackToTheApp = async () => {
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+  };
+
+  beforeEach(() => {
+    reload.mockClear();
+    sessionStorage.clear();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+  });
+
+  it('切回 app 時發現版本舊了，就自己重新載入', async () => {
+    serving('abcdef1');
+    render(<StaleBuildBanner />);
+    await screen.findByTestId('stale-build-banner');
+
+    await comeBackToTheApp();
+
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it('第一次開啟不會自己重整 —— 那是會無限循環的那一種', async () => {
+    serving('abcdef1');
+    render(<StaleBuildBanner />);
+    await screen.findByTestId('stale-build-banner');
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('版本一樣的時候不會亂重整', async () => {
+    serving(BUILD_ID);
+    render(<StaleBuildBanner />);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+
+    await comeBackToTheApp();
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('同一個版本只救一次，救不起來就改回問你', async () => {
+    sessionStorage.setItem(AUTO_RELOAD_STORAGE_KEY, 'abcdef1');
+    serving('abcdef1');
+    render(<StaleBuildBanner />);
+    await screen.findByTestId('stale-build-banner');
+
+    await comeBackToTheApp();
+
+    expect(reload).not.toHaveBeenCalled();
+    expect(screen.getByTestId('stale-build-banner')).toBeTruthy();
+  });
+
+  it('重整過以後會記下來，不會每次切回來都重整', async () => {
+    serving('abcdef1');
+    render(<StaleBuildBanner />);
+    await screen.findByTestId('stale-build-banner');
+
+    await comeBackToTheApp();
+
+    await waitFor(() => expect(sessionStorage.getItem(AUTO_RELOAD_STORAGE_KEY)).toBe('abcdef1'));
+  });
+});
+
+describe('shouldAutoReload', () => {
+  const base = {
+    deployed: 'abc1234',
+    trigger: 'foreground' as const,
+    alreadyReloadedFor: null,
+  };
+
+  it('reloads when the reader comes back to a version that has moved on', () => {
+    expect(shouldAutoReload(base)).toBe(true);
+  });
+
+  /**
+   * A reload at first paint is the one that can loop: if something other than
+   * a stale cache is making the versions disagree, the page would reload,
+   * disagree again, and reload again.
+   */
+  it('never on first paint', () => {
+    expect(shouldAutoReload({ ...base, trigger: 'load' })).toBe(false);
+  });
+
+  it('never out from under someone typing', () => {
+    expect(shouldAutoReload({ ...base, focusedTag: 'INPUT' })).toBe(false);
+    expect(shouldAutoReload({ ...base, focusedTag: 'textarea' })).toBe(false);
+    expect(shouldAutoReload({ ...base, focusedTag: 'SELECT' })).toBe(false);
+    expect(shouldAutoReload({ ...base, isEditing: true })).toBe(false);
+  });
+
+  it('a focused button is not someone typing', () => {
+    expect(shouldAutoReload({ ...base, focusedTag: 'BUTTON' })).toBe(true);
+  });
+
+  /**
+   * If one reload does not resolve the disagreement, another will not either,
+   * and an app that reloads every time it is opened is unusable.
+   */
+  it('once per deployed commit, then it goes back to asking', () => {
+    expect(shouldAutoReload({ ...base, alreadyReloadedFor: 'abc1234' })).toBe(false);
+  });
+
+  it('but a newer deploy earns a fresh attempt', () => {
+    expect(shouldAutoReload({ ...base, alreadyReloadedFor: 'older99' })).toBe(true);
+  });
+
+  it('silent in development, like the banner', () => {
+    expect(shouldAutoReload({ ...base, deployed: 'dev' })).toBe(false);
+    expect(shouldAutoReload({ ...base, deployed: '' })).toBe(false);
   });
 });
