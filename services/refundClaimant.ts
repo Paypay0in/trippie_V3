@@ -1,61 +1,53 @@
 import { Expense } from '../types';
-import { normalizeOwnerMemberId } from './memberIdentity';
+import { expenseCostToViewer, expenseNetAmount } from './viewerSpend';
 
 /**
- * Whose refund a purchase's refund is.
+ * How much of a purchase's tax refund is this reader's.
  *
- * 「這是 Gina 的帳 這筆有部分是我的 所以這樣 但不應在這」.
+ * 「這是 Gina 的帳 這筆有部分是我的 所以這樣 但不應在這」, then
+ * 「若某帳一起結帳 但同時可以退稅 請將退稅的總額按比例分配」.
  *
- * The refund list was drawn from everything that concerns the reader, and a
- * bill someone else paid concerns you the moment you are split in on it. So
- * Gina's 75,900 KRW of 藥品 appeared on North's recap offering him 4,554 KRW
- * back — money that will be handed to whoever carries that receipt to the
- * refund desk, which is Gina.
+ * The refund list was built from every bill that concerns the reader, whole.
+ * So Gina's 75,900 KRW of 藥品 — half of which is North's — sat on his recap
+ * offering him the entire 4,554 KRW back, while sitting on hers offering the
+ * same 4,554 again. One receipt, counted twice.
  *
- * Sharing the cost of something and being able to claim its tax back are two
- * different facts. The second follows the receipt, and the receipt follows the
- * person who paid. Being split in on a purchase gives you a share of what it
- * cost; it gives you no claim on the counter.
+ * Hiding it from him instead would have been just as wrong in the other
+ * direction: he is paying for half of that medicine, so half of what the
+ * counter gives back is his, whoever carries the receipt. It reaches him when
+ * the two of them settle rather than at the desk, but it is his money either
+ * way.
  *
- * Unattributed records stay claimable, for the same reason they stay visible:
- * a ledger that quietly drops what it cannot classify is worse than one that
- * shows too much, and a solo trip names nobody anywhere.
+ * So the refund divides exactly as the bill does. A purchase carried alone
+ * returns all of its refund; one split down the middle returns half; one the
+ * reader merely fronted for somebody else returns none, because none of that
+ * cost was ever theirs. The three fall out of the same ratio rather than
+ * needing three rules.
  */
-export const refundClaimableBy = (
+export const refundShareRatio = (
   expense: Expense,
   viewerMemberId?: string,
   ownerMemberId?: string,
-): boolean => {
-  if (!viewerMemberId) return true;
-  const me = normalizeOwnerMemberId(viewerMemberId, ownerMemberId || '');
+): number => {
+  if (!viewerMemberId) return 1;
 
+  const whole = expenseNetAmount(expense);
   /*
-    More than one person put money down, so more than one receipt exists. The
-    reader holds one of them if they fronted any of it.
+    A bill of nothing cannot be divided, and asking would be a division by
+    zero. Nobody is owed a share of a refund on a purchase that cost nothing.
   */
-  const prepaid = expense.payerAllocations || {};
-  if (Object.keys(prepaid).length > 1) {
-    const paid = prepaid[viewerMemberId] ?? prepaid[me];
-    return typeof paid === 'number' && paid !== 0;
-  }
+  if (!Number.isFinite(whole) || whole === 0) return 0;
 
-  if (expense.payerId) {
-    return normalizeOwnerMemberId(expense.payerId, ownerMemberId || '') === me;
-  }
+  const mine = expenseCostToViewer(expense, viewerMemberId, ownerMemberId);
+  if (!Number.isFinite(mine) || mine <= 0) return 0;
 
-  const soleEntry = Object.keys(prepaid)[0];
-  if (soleEntry) {
-    return normalizeOwnerMemberId(soleEntry, ownerMemberId || '') === me;
-  }
-
-  // Nobody paid it on record: not somebody else's receipt, just an unattributed one.
-  return true;
+  // Rounding in the split calculator can land a hair over the whole.
+  return Math.min(1, mine / whole);
 };
 
-/** The purchases whose tax this reader could actually go and claim. */
-export const refundClaimableExpenses = (
-  expenses: Expense[],
+/** Whether any of this refund is the reader's at all. */
+export const refundConcernsViewer = (
+  expense: Expense,
   viewerMemberId?: string,
   ownerMemberId?: string,
-): Expense[] =>
-  expenses.filter(expense => refundClaimableBy(expense, viewerMemberId, ownerMemberId));
+): boolean => refundShareRatio(expense, viewerMemberId, ownerMemberId) > 0;

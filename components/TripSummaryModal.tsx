@@ -3,7 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { isRefundableCategory } from '../services/refundableCategories';
 import { creditedRefundTwd, findDuplicateRefund, isRefundEntry } from '../services/refundSettlement';
-import { refundClaimableBy } from '../services/refundClaimant';
+import { refundShareRatio } from '../services/refundClaimant';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { expenseCostToViewer } from '../services/viewerSpend';
@@ -151,7 +151,8 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
     const allCategoryMap: Record<string, number> = {};
 
     // Refund Logic
-    const refundItems: { date: string; desc: string; spend: number; refund: number; currency: string }[] = [];
+    /** `shared` marks a row that is this reader's portion of a split receipt. */
+    const refundItems: { date: string; desc: string; spend: number; refund: number; currency: string; shared?: boolean }[] = [];
     let totalRefundTwd = 0;
 
     reportExpenses.forEach(e => {
@@ -195,6 +196,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
         that receipt to the desk. Sharing a cost and being able to claim its
         tax back are different facts; the second follows the receipt.
       */
+      const refundShare = refundShareRatio(e, viewerMemberId, ownerMemberId);
       const isEligibleForRefund = taxRule &&
                                   taxRule.refundRate > 0 &&
                                   e.phase === 'during' &&
@@ -203,19 +205,27 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                   isRefundableCategory(e.category) &&
                                   !e.taxRefundIneligible &&
                                   !e.taxRefundedAtPurchase &&
-                                  refundClaimableBy(e, viewerMemberId, ownerMemberId);
+                                  refundShare > 0;
 
       // Add to Refund List if eligible
       if (isEligibleForRefund && taxRule) {
-          const refundForeign = e.amount * taxRule.refundRate;
+          /*
+            「若某帳一起結帳 但同時可以退稅 請將退稅的總額按比例分配」.
+
+            The refund divides exactly as the bill does. The spend is shown the
+            same way, so the row reads as one claim rather than a full receipt
+            paired with a part of its refund.
+          */
+          const refundForeign = e.amount * taxRule.refundRate * refundShare;
           const refundTWD = refundForeign * e.exchangeRate;
-          
+
           refundItems.push({
               date: e.date,
               desc: e.description,
-              spend: e.amount,
+              spend: e.amount * refundShare,
               refund: refundForeign,
-              currency: e.currency
+              currency: e.currency,
+              shared: refundShare < 1
           });
           totalRefundTwd += refundTWD;
       }
@@ -973,7 +983,18 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                           <div key={idx} className={`flex justify-between items-center text-sm group ${hasRefundRecord ? 'hover:bg-emerald-50' : 'hover:bg-amber-50'} p-1 rounded`}>
                              <div className="flex flex-col">
                               <span className="font-medium text-gray-800">{item.desc}</span>
-                              <span className="text-[10px] text-gray-400">{item.date} • 消費 {item.spend.toLocaleString()} {item.currency}</span>
+                              <span className="text-[10px] text-gray-400">
+                                {item.date} • 消費 {Math.round(item.spend).toLocaleString()} {item.currency}
+                                {/*
+                                  Why the number is smaller than the receipt.
+
+                                  「請將退稅的總額按比例分配」 — without saying so, a
+                                  reader comparing this against the slip in
+                                  their pocket finds it short and has no way to
+                                  tell a split from a mistake.
+                                */}
+                                {item.shared && <span className="ml-1 text-emerald-600">· 你的份額</span>}
+                              </span>
                             </div>
                             <div className={`font-mono font-bold ${hasRefundRecord ? 'text-emerald-600' : 'text-amber-600'} text-right`}>
                                 <div>+{Math.floor(item.refund).toLocaleString()} {item.currency}</div>
