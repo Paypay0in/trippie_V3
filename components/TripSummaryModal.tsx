@@ -3,6 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { isRefundableCategory } from '../services/refundableCategories';
 import { creditedRefundTwd, findDuplicateRefund, isRefundEntry } from '../services/refundSettlement';
+import { refundClaimableBy } from '../services/refundClaimant';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { expenseCostToViewer } from '../services/viewerSpend';
@@ -184,6 +185,16 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
         themselves are honoured too: a purchase marked 不可退稅, and one already
         refunded at the till, which cannot be claimed a second time.
       */
+      /*
+        And claimable by the reader.
+
+        「這是 Gina 的帳 這筆有部分是我的 所以這樣 但不應在這」. The list is drawn
+        from everything that concerns the reader, and a bill someone else paid
+        concerns you the moment you are split in on it — so her 藥品 turned up
+        on his recap offering him money that will be handed to whoever carries
+        that receipt to the desk. Sharing a cost and being able to claim its
+        tax back are different facts; the second follows the receipt.
+      */
       const isEligibleForRefund = taxRule &&
                                   taxRule.refundRate > 0 &&
                                   e.phase === 'during' &&
@@ -191,7 +202,8 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                   e.amount >= taxRule.minSpend &&
                                   isRefundableCategory(e.category) &&
                                   !e.taxRefundIneligible &&
-                                  !e.taxRefundedAtPurchase;
+                                  !e.taxRefundedAtPurchase &&
+                                  refundClaimableBy(e, viewerMemberId, ownerMemberId);
 
       // Add to Refund List if eligible
       if (isEligibleForRefund && taxRule) {
