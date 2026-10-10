@@ -10,6 +10,68 @@
   --color-phase-pre: #6366f1;
   --color-phase-during: #10b981;
   --color-phase-post: #f59e0b;
+
+  /*
+    The shared mobile scale.
+
+    「Typography is oversized and inconsistent ... The screen feels like an
+    enlarged responsive website rather than a native mobile app.」 Every screen
+    picked its own sizes out of Tailwind's web defaults, so a section heading
+    was 18px on one screen and 20px on the next and nothing held them together.
+
+    Named by the job rather than the number, so a screen asks for a section
+    heading instead of choosing a size — which is the only way the next screen
+    inherits the decision rather than re-making it.
+
+    Extends the @theme block this file already had; Tailwind v4 generates the
+    utilities from these, so there is no second system to keep in step.
+  */
+  --text-screen-title: 1.375rem;   /* 22 — the name of the screen */
+  --text-screen-title--line-height: 1.25;
+  --text-section: 1.0625rem;       /* 17 — a group of fields */
+  --text-section--line-height: 1.35;
+  --text-field: 0.9375rem;         /* 15 — what the traveller typed */
+  --text-field--line-height: 1.4;
+  --text-body: 0.875rem;           /* 14 */
+  --text-body--line-height: 1.5;
+  --text-support: 0.8125rem;       /* 13 — labels above fields */
+  --text-support--line-height: 1.4;
+  --text-meta: 0.75rem;            /* 12 — attribution, counts */
+  --text-meta--line-height: 1.4;
+  --text-action: 0.9375rem;        /* 15 — button labels */
+  --text-action--line-height: 1.2;
+
+  /*
+    Corner radii, three of them.
+
+    「Consistent corner radii」. Arbitrary values had produced 26px covers beside
+    16px cards beside fully-round buttons on one screen.
+  */
+  --radius-field: 0.875rem;   /* 14 — inputs, selects */
+  --radius-control: 0.9375rem; /* 15 — buttons */
+  --radius-card: 1.125rem;    /* 18 — a group with a border */
+  --radius-cover: 1.25rem;    /* 20 — photography */
+
+  /* Ink, so navy and its muted form are not retyped as hex on every screen. */
+  --color-ink: #10204a;
+  --color-ink-soft: #5b6b8c;
+  --color-hairline: #e6eaf2;
+}
+
+/*
+  Dimensions the type scale cannot express.
+
+  Tailwind v4 generates utilities only for its own namespaces, so control
+  heights and card padding live here and are consumed as var(). Still one
+  place: a screen that wants a standard input height asks for this rather than
+  picking 48, 52 or 64 as three previous screens did.
+*/
+:root {
+  --control-h: 3.125rem;      /* 50 — inputs and selects */
+  --control-h-sm: 2.75rem;    /* 44 — the minimum touch target */
+  --cta-h: 3.375rem;          /* 54 — the primary action */
+  --card-pad: 1rem;           /* 16 */
+  --screen-pad: 1.25rem;      /* 20 */
 }
 
 /*

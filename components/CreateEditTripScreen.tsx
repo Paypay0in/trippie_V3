@@ -140,35 +140,46 @@ const CreateEditTripScreen: React.FC<Props> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#fbfcff] text-[#10204a]">
+    <div className="min-h-screen bg-[#f7f8fc] text-ink">
       {/*
-        Inset further than the screens it sits beside.
+        One screen, one scale.
 
-        「這個就太滿版 需要內縮」. Elsewhere in the app a 20px page margin is right
-        because the content inside it is white cards, which carry their own
-        padding and read as objects lying on the page. Here the fields are the
-        cards: the cover, the selects, the date row and the traveller row all
-        meet the page margin directly, so the same 20px puts every edge on the
-        screen at the same place and the page reads as one slab pushed to the
-        bezel.
+        「The screen feels like an enlarged responsive website rather than a
+        native mobile app.」 Every size here was chosen locally — an 18px heading
+        beside a 16px one, 64px rows beside 48px ones, 26px corners beside 16px
+        ones — so nothing was wrong on its own and none of it agreed.
+
+        Sizes now come from the tokens in index.css, named by the job they do.
+        The screen asks for a section heading rather than picking a number,
+        which is how the next screen inherits the decision instead of making it
+        again.
       */}
-      <main data-safe-top style={{ ["--safe-top-base" as string]: "1.75rem" }} className="mx-auto flex min-h-[100dvh] flex-col w-full max-w-xl px-7 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-9">
-        <header className="relative flex min-h-12 items-center justify-center">
+      <main
+        data-safe-top
+        style={{ ["--safe-top-base" as string]: "1rem" }}
+        className="mx-auto flex min-h-[100dvh] w-full max-w-xl flex-col px-[var(--screen-pad)] pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+      >
+        <header className="relative flex min-h-11 items-center justify-center">
           <button
             type="button"
             onClick={onBack}
-            className="absolute left-0 flex h-11 w-11 items-center justify-center rounded-full text-[#10204a] transition hover:bg-blue-50"
+            className="absolute left-0 flex h-11 w-11 items-center justify-center rounded-full text-ink transition hover:bg-slate-100"
             aria-label="返回"
           >
-            <ArrowLeft size={25} strokeWidth={2.4} />
+            <ArrowLeft size={22} strokeWidth={2.2} />
           </button>
-          <h1 className="px-14 text-center text-xl font-black tracking-tight sm:text-2xl">
+          <h1 className="px-12 text-center text-screen-title font-bold tracking-tight">
             {mode === 'create' ? 'Create a new trip' : 'Edit trip'}
           </h1>
         </header>
 
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-1 flex-col gap-4">
-          <section className="relative h-[clamp(6rem,17vh,9.5rem)] shrink-0 overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-100 via-blue-50 to-cyan-100 shadow-[0_18px_45px_-32px_rgba(15,49,99,0.55)]">
+        <form onSubmit={handleSubmit} className="mt-3 flex flex-1 flex-col gap-5">
+          {/*
+            The cover gives way rather than dictating the page length: it is the
+            one element that was taking space in proportion to the phone instead
+            of in proportion to its job.
+          */}
+          <section className="relative h-[clamp(8rem,20vh,11.5rem)] shrink-0 overflow-hidden rounded-cover bg-gradient-to-br from-slate-100 to-blue-50">
             {destinationImage && !destinationImageFailed ? (
               <>
                 <img
@@ -177,14 +188,15 @@ const CreateEditTripScreen: React.FC<Props> = ({
                   className="absolute inset-0 h-full w-full object-cover"
                   onError={() => setDestinationImageFailed(true)}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#071a3d]/50 via-transparent to-black/5" />
-                <p className="absolute bottom-3 left-4 right-4 z-10 text-[10px] font-semibold text-white/90 drop-shadow">
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent" />
+                {/* Attribution is a licence condition, so it stays legible and its links stay real. */}
+                <p className="absolute bottom-2.5 left-3.5 right-3.5 z-10 text-meta font-medium text-white/90">
                   Photo by{' '}
                   <a
                     href={destinationImage.photographerUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline decoration-white/50 underline-offset-2 hover:text-white"
+                    className="underline decoration-white/50 underline-offset-2"
                   >
                     {destinationImage.photographer}
                   </a>{' '}
@@ -193,45 +205,64 @@ const CreateEditTripScreen: React.FC<Props> = ({
                     href={destinationImage.sourceUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="underline decoration-white/50 underline-offset-2 hover:text-white"
+                    className="underline decoration-white/50 underline-offset-2"
                   >
                     Pexels
                   </a>
                 </p>
               </>
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-blue-300">
+              <div className="absolute inset-0 flex items-center justify-center text-slate-300">
                 {isImageLoading ? (
-                  <Loader2 size={30} className="animate-spin" />
+                  <Loader2 size={24} className="animate-spin" />
                 ) : (
-                  <ImageIcon size={38} strokeWidth={1.6} />
+                  <ImageIcon size={28} strokeWidth={1.6} />
                 )}
               </div>
             )}
           </section>
 
           <section>
-            <p className="text-base font-black tracking-tight">Trip budget</p>
-            <div className="mt-2 grid grid-cols-2 gap-3">
-              <label className="text-xs font-bold text-slate-500">Currency
-                <select value={currency} onChange={event => setCurrency(event.target.value)} className="mt-1 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#10204a] outline-none focus:border-blue-400">
+            <p className="text-section font-semibold tracking-tight">Trip budget</p>
+            {/*
+              Currency is a three-letter code and takes a three-letter column;
+              the amount takes the rest. Two equal halves gave a wide select
+              holding 「TWD」 beside an input that had to hold six digits.
+            */}
+            <div className="mt-2 grid grid-cols-[5.5rem_1fr] gap-2.5">
+              <label className="text-support font-medium text-ink-soft">
+                Currency
+                <select
+                  value={currency}
+                  onChange={event => setCurrency(event.target.value)}
+                  className="mt-1 h-[var(--control-h)] w-full rounded-field border border-hairline bg-white px-2.5 text-field font-medium text-ink outline-none focus:border-violet-400"
+                >
                   {COMMON_CURRENCIES.map(option => <option key={option.code} value={option.code}>{option.code}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-bold text-slate-500">Total budget
-                <input type="number" min="0" step="1" value={budget} onChange={event => setBudget(event.target.value)} placeholder="Optional" className="mt-1 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#10204a] outline-none focus:border-blue-400" />
+              <label className="text-support font-medium text-ink-soft">
+                Total budget
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={budget}
+                  onChange={event => setBudget(event.target.value)}
+                  placeholder="Optional"
+                  className="mt-1 h-[var(--control-h)] w-full rounded-field border border-hairline bg-white px-3 text-field font-medium text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
+                />
               </label>
             </div>
           </section>
 
           <section>
-            <label htmlFor="trip-destination" className="text-base font-black tracking-tight">
+            <label htmlFor="trip-destination" className="text-section font-semibold tracking-tight">
               Where are you going?
             </label>
             <div className="relative mt-2">
               <Search
-                size={22}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                size={18}
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <input
                 id="trip-destination"
@@ -240,32 +271,37 @@ const CreateEditTripScreen: React.FC<Props> = ({
                 onChange={(event) => setDestination(event.target.value)}
                 placeholder="e.g. Tokyo, Japan"
                 autoComplete="off"
-                className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-13 pr-4 text-base font-semibold text-[#10204a] outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                className="h-[var(--control-h)] w-full rounded-field border border-hairline bg-white pl-10 pr-3 text-field font-medium text-ink outline-none transition placeholder:text-slate-300 focus:border-violet-400"
               />
             </div>
           </section>
 
           <section>
-            <p className="text-base font-black tracking-tight">When?</p>
-            <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2.5">
+            <p className="text-section font-semibold tracking-tight">When?</p>
+            {/*
+              Two fields side by side rather than one bordered row holding two
+              more bordered fields — the nested frames were most of why this
+              screen read as heavier than what it contains.
+            */}
+            <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
               <label className="relative min-w-0">
                 <CalendarDays
-                  size={19}
-                  className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={17}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
                   type="date"
                   value={startDate}
                   onChange={(event) => setStartDate(event.target.value)}
                   aria-label="開始日期"
-                  className="h-11 w-full min-w-0 rounded-xl bg-slate-50 pl-8 pr-1 text-xs font-bold text-[#10204a] outline-none focus:ring-2 focus:ring-blue-200 sm:text-sm"
+                  className="h-[var(--control-h)] w-full min-w-0 rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
                 />
               </label>
-              <ArrowRight size={18} className="shrink-0 text-[#10204a]" />
+              <ArrowRight size={15} className="shrink-0 text-slate-400" />
               <label className="relative min-w-0">
                 <CalendarDays
-                  size={19}
-                  className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={17}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
                   type="date"
@@ -273,48 +309,75 @@ const CreateEditTripScreen: React.FC<Props> = ({
                   min={startDate || undefined}
                   onChange={(event) => setEndDate(event.target.value)}
                   aria-label="結束日期"
-                  className="h-11 w-full min-w-0 rounded-xl bg-slate-50 pl-8 pr-1 text-xs font-bold text-[#10204a] outline-none focus:ring-2 focus:ring-blue-200 sm:text-sm"
+                  className="h-[var(--control-h)] w-full min-w-0 rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
                 />
               </label>
             </div>
             {dateRangeInvalid && (
-              <p className="mt-2 px-1 text-xs font-semibold text-red-500">
+              <p className="mt-1.5 text-support font-medium text-red-500">
                 結束日期不能早於開始日期。
               </p>
             )}
           </section>
 
           <section>
-            <p className="text-base font-black tracking-tight">Travelers</p>
-            <button
-              type="button"
-              onClick={() => setIsCompanionsOpen(true)}
-              className="mt-2 flex h-14 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left transition hover:border-blue-200 hover:bg-blue-50/40"
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-[#10204a]">
-                <Users size={21} />
-              </span>
-              <span className="flex-1 text-base font-bold">
+            <p className="text-section font-semibold tracking-tight">Travelers</p>
+            {/*
+              The people, not a count of them.
+
+              「Display travelers horizontally」. A row reading 「2 people」 named a
+              number where the answer is faces: who is on this trip is the thing
+              being edited, and it was being summarised instead of shown. The
+              same sheet opens, so nothing about membership or permissions
+              changes — only what you can see before you open it.
+            */}
+            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
+              {/* The owner is on every trip and is not in the companion list. */}
+              {[{ id: 'owner', name: '我' }, ...draftCompanions].map((person) => (
+                <span
+                  key={person.id}
+                  data-testid={`traveler-${person.id}`}
+                  title={person.name}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-support font-semibold text-violet-700"
+                >
+                  {person.name.trim().charAt(0) || '?'}
+                </span>
+              ))}
+              <button
+                type="button"
+                onClick={() => setIsCompanionsOpen(true)}
+                aria-label="新增旅伴"
+                data-testid="add-traveler"
+                className="flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-slate-300 px-3.5 text-support font-semibold text-ink-soft transition hover:border-violet-300 hover:text-violet-600"
+              >
+                <Users size={16} />
                 {travelerCount} {travelerCount === 1 ? 'person' : 'people'}
-              </span>
-              <MapPin size={17} className="rotate-90 text-slate-300" />
-            </button>
+              </button>
+            </div>
           </section>
 
-          <section className="mt-auto space-y-2 pt-1">
+          {/*
+            The actions take the room left over rather than adding to the pile,
+            so 「不用上下滑就能看完並儲存」 survives the restyle.
+          */}
+          <section className="mt-auto space-y-1 pt-2">
             <button
               type="submit"
               disabled={dateRangeInvalid}
-              className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-blue-600 px-5 py-4 text-base font-black text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-45"
+              className="flex h-[var(--cta-h)] w-full items-center justify-center rounded-control bg-violet-600 px-5 text-action font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {mode === 'create' ? 'Create Trip' : 'Save Changes'}
             </button>
+            {/*
+              Secondary, and shaped like it. A second filled button beside the
+              first asks the traveller which one the screen is for.
+            */}
             <button
               type="button"
               onClick={onOpenAiPlanner}
-              className="flex w-full items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 transition hover:text-blue-700"
+              className="flex h-[var(--control-h-sm)] w-full items-center justify-center gap-1.5 rounded-control text-action font-medium text-ink-soft transition hover:text-violet-600"
             >
-              <Sparkles size={17} className="text-purple-500" />
+              <Sparkles size={16} className="text-violet-500" />
               讓 AI 幫你準備這趟旅程
             </button>
           </section>

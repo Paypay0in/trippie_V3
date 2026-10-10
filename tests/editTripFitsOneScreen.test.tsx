@@ -50,8 +50,21 @@ describe('編輯旅程要一頁看完', () => {
     expect(source).toContain('env(safe-area-inset-bottom)');
   });
 
-  /** The inset he asked for earlier has to survive the re-layout. */
-  it('左右內縮沒有被這次改版吃掉', () => {
-    expect(source).toContain('px-7');
+  /**
+   * The inset survives the restyle, but it is no longer a number typed here.
+   *
+   * 「這個就太滿版 需要內縮」 was answered with 28px, chosen by eye because there
+   * was no system to ask. The design brief that followed set the screen margin
+   * at 20px for every screen and put the breathing room back a different way —
+   * hairline borders and one scale instead of a wider gutter.
+   *
+   * Pinned as the token rather than the value, so the two cannot drift apart
+   * again. If 20 still reads as too full on a real phone, the fix is one line
+   * in index.css and every screen follows.
+   */
+  it('左右內縮來自共用的 token，不是這一頁自己填的數字', () => {
+    expect(source).toContain('px-[var(--screen-pad)]');
+    expect(readFileSync(resolve(process.cwd(), 'index.css'), 'utf8'))
+      .toContain('--screen-pad');
   });
 });
