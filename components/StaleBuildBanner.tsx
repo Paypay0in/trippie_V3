@@ -41,14 +41,30 @@ const StaleBuildBanner: React.FC = () => {
 
   if (!stale) return null;
 
+  /*
+    Under the clock, not behind it.
+
+    「點不到」. The app renders with viewport-fit=cover, so the top of the page
+    is the top of the glass and every screen pads itself past the status bar
+    with data-safe-top. This banner was mounted beside App and never learned
+    the rule, so it drew itself into the strip the clock and the battery own —
+    where iOS takes the taps, and the one control whose entire purpose is to be
+    tapped could not be.
+
+    Fixed rather than in the flow: padding it in place would stack this inset on
+    top of the one the screen below already applies, and the fix for not being
+    tappable would be the gap that was complained about two nights ago. It
+    covers the header for as long as it is there, which is until it is tapped.
+  */
   return (
     <button
       type="button"
       data-testid="stale-build-banner"
       onClick={() => window.location.reload()}
-      className="flex w-full items-center justify-center gap-2 bg-[#5b3df5] px-4 py-2 text-[11px] font-black text-white"
+      className="fixed inset-x-0 top-0 z-[100] flex w-full items-center justify-center gap-2 bg-[#5b3df5] px-4 pb-3 text-[12px] font-black text-white shadow-[0_6px_20px_rgba(37,25,120,.35)]"
+      style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
     >
-      <RefreshCw size={13} />
+      <RefreshCw size={14} />
       有新版本可以更新，點一下重新載入
     </button>
   );

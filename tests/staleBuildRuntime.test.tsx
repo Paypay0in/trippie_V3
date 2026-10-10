@@ -43,6 +43,32 @@ describe('knowing the build is old', () => {
     expect((await screen.findByTestId('stale-build-banner')).textContent).toContain('新版本');
   });
 
+  /**
+   * 「點不到」.
+   *
+   * The app renders with viewport-fit=cover, so the top of the page is the top
+   * of the glass and every screen pads itself past the status bar. This banner
+   * was mounted beside App and never learned the rule, so it drew itself into
+   * the strip the clock owns — where iOS takes the taps, and the one control
+   * whose whole purpose is to be tapped could not be.
+   */
+  it('坐在狀態列底下，不是躲在它後面', async () => {
+    serving('abcdef1');
+    render(<StaleBuildBanner />);
+    const banner = await screen.findByTestId('stale-build-banner');
+
+    expect(banner.style.paddingTop).toContain('env(safe-area-inset-top)');
+  });
+
+  it('浮在畫面上，不是插在版面裡再疊一層留白', async () => {
+    serving('abcdef1');
+    render(<StaleBuildBanner />);
+    const banner = await screen.findByTestId('stale-build-banner');
+
+    expect(banner.className).toContain('fixed');
+    expect(banner.className).toContain('top-0');
+  });
+
   it('stays quiet when the version cannot be fetched', async () => {
     // Offline on a subway platform is not evidence of a stale build.
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
