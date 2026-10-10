@@ -141,7 +141,18 @@ const CreateEditTripScreen: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-[#fbfcff] text-[#10204a]">
-      <main data-safe-top style={{ ["--safe-top-base" as string]: "1.75rem" }} className="mx-auto min-h-screen w-full max-w-xl px-5 pb-10 sm:px-7">
+      {/*
+        Inset further than the screens it sits beside.
+
+        「這個就太滿版 需要內縮」. Elsewhere in the app a 20px page margin is right
+        because the content inside it is white cards, which carry their own
+        padding and read as objects lying on the page. Here the fields are the
+        cards: the cover, the selects, the date row and the traveller row all
+        meet the page margin directly, so the same 20px puts every edge on the
+        screen at the same place and the page reads as one slab pushed to the
+        bezel.
+      */}
+      <main data-safe-top style={{ ["--safe-top-base" as string]: "1.75rem" }} className="mx-auto min-h-screen w-full max-w-xl px-7 pb-10 sm:px-9">
         <header className="relative flex min-h-12 items-center justify-center">
           <button
             type="button"
