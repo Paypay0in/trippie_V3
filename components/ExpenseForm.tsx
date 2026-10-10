@@ -9,7 +9,16 @@ import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCate
 import { CustomCategories, categoriesForPhase } from '../services/customCategories';
 import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
-import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, MapPin, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle } from 'lucide-react';
+import {
+  parseAmount as parsePayerAmount,
+  payerAllocationError,
+  payerAllocationsToSave,
+  payersTotal,
+  principalPayerId,
+  selectedPayerIds,
+  spreadEvenly,
+} from '../services/payerAllocations';
+import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, MapPin, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle, Check } from 'lucide-react';
 import { localToday } from '../services/localDate';
 import { remainderMemberFor } from '../services/splitRemainderMember';
 import { readAndDownscale } from '../services/postPhotos';
@@ -194,6 +203,16 @@ const ExpenseForm: React.FC<Props> = ({
       Object.entries(hydratedPayerAllocations.values).map(([id, value]) => [id, String(value)])
     );
   });
+  /*
+    One payer or several.
+
+    「付款者（可多人）· 單一付款／多人付款」. Opens on whichever the record already
+    is, so editing a bill two people paid for does not quietly collapse it back
+    to one the moment the form loads.
+  */
+  const [payerMode, setPayerMode] = useState<'single' | 'multi'>(
+    Object.keys(hydratedPayerAllocations.values).length > 1 ? 'multi' : 'single'
+  );
   const [splitMethod, setSplitMethod] = useState<SplitMethod>(initialData?.splitMethod || 'EQUAL');
   const [splitEnabled, setSplitEnabled] = useState(Boolean(
     initialData && (initialData.beneficiaries.length > 1 || Object.keys(initialData.splitAllocations || {}).length > 0)
@@ -676,7 +695,18 @@ const ExpenseForm: React.FC<Props> = ({
       ? Math.max(0, 100 - getPercentManualTotal())
       : 0;
   const percentAllocationExceedsTotal = splitMethod === 'PERCENT' && getPercentManualTotal() > 100.0001;
-  const payerIds = Object.keys(payerAllocations).filter(id => memberOptions.some(m => m.id === id));
+  const payerIds = selectedPayerIds(payerAllocations, memberOptions.map(m => m.id));
+  /*
+    What is wrong with the payers, if anything.
+
+    Shown beside the list and checked again on submit. 1,200 and 800 against a
+    2,000 bill is right; 1,200 and 800 against a 2,500 one is a receipt the
+    traveller has misread, and saving it silently makes the settlement wrong by
+    500 with nothing on screen that disagrees.
+  */
+  const payerError = splitEnabled && !locked && payerMode === 'multi'
+    ? payerAllocationError(payerAllocations, memberOptions.map(m => m.id), Math.round(currentTotalTwd))
+    : undefined;
   /*
     Who put the money down, derived rather than entered.
 
@@ -703,6 +733,17 @@ const ExpenseForm: React.FC<Props> = ({
     }
     if (!date) {
         setExpenseSaveDebug(current => ({ ...current, validationError: '日期不可為空' }));
+        return;
+    }
+    /*
+      Payers that do not add up to the bill.
+
+      Checked here as well as shown beside the list, because the message beside
+      the list is advice and this is the thing that stops a settlement being
+      quietly wrong by the difference.
+    */
+    if (payerError) {
+        setExpenseSaveDebug(current => ({ ...current, validationError: payerError }));
         return;
     }
     if (hydrationConflicts.length > 0) {
@@ -834,8 +875,26 @@ const ExpenseForm: React.FC<Props> = ({
         field deeper. 「誰付款的、誰分擔」 is answered by whoever is holding the
         phone when nobody says otherwise.
       */
-      payerId: normalizeMemberId(splitEnabled ? (payerIds[0] || payerId) : effectiveViewerMemberId),
-      payerAllocations: { [normalizeMemberId(splitEnabled ? (payerIds[0] || payerId) : effectiveViewerMemberId)]: totalTwd },
+      /*
+        Everyone who put money down, with what each of them put down.
+
+        This used to take the first name off the map and credit it the whole
+        bill, so a 2,000 dinner North paid 1,200 of and Gina 800 was stored as
+        North paying all of it — and the settlement that followed was out by
+        800 with nothing on any screen to show it. The ledger has always been
+        able to read several payers; only this line could not write them.
+      */
+      payerId: normalizeMemberId(
+        splitEnabled
+          ? (principalPayerId(payerAllocations, memberOptions.map(m => m.id)) || payerIds[0] || payerId)
+          : effectiveViewerMemberId
+      ),
+      payerAllocations: splitEnabled
+        ? normalizeMemberAmountRecord(
+            payerAllocationsToSave(payerAllocations, memberOptions.map(m => m.id), totalTwd),
+            effectiveOwnerMemberId
+          ).values
+        : { [normalizeMemberId(effectiveViewerMemberId)]: totalTwd },
       beneficiaries: splitEnabled
         ? normalizeMemberIds(beneficiaries, effectiveOwnerMemberId)
         : [effectiveViewerMemberId],
@@ -1658,21 +1717,123 @@ const ExpenseForm: React.FC<Props> = ({
                       </div>
                       {!locked && (
                         <div className="space-y-3">
-                          <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">1</span><div><div className="text-sm font-bold text-[#11183d]">付款者</div><div className="text-[11px] text-slate-500">選擇實際付款的人</div></div></div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {memberOptions.map(member => {
-                            const selected = payerIds.includes(member.id);
-                            return <label key={member.id} className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 transition-colors${lockedStyle} ${selected ? 'border-violet-400 bg-violet-50' : 'border-slate-200 bg-white'}`}>
-                              {/* One payer, always. 「誰付款 與 誰分擔 這件事本身
-                                  就已經做完墊付這件事了」 — two people each putting
-                                  money down is two bills, and a second way to say
-                                  who paid is a second thing to go stale. */}
-                              <input type="radio" name="expense-payer" checked={selected} disabled={locked} onChange={() => setPayerAllocations({ [member.id]: '' })} />
-                              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${selected ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{member.name.charAt(0)}</span>
-                              <span className="flex-1 truncate text-xs font-bold text-[#11183d]">{member.name}</span>
-                            </label>;
-                          })}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">1</span>
+                              <div>
+                                <div className="text-sm font-bold text-[#11183d]">付款者（可多人）</div>
+                                <div className="text-[11px] text-slate-500">選擇實際付款的人與金額</div>
+                              </div>
+                            </div>
+                            {/*
+                              One payer or several.
+
+                              「付款者（可多人）」. A 2,000 dinner where each hands
+                              over part of the cash is one receipt and one thing
+                              bought; recording it as two bills to say who paid
+                              would invent a purchase nobody made.
+                            */}
+                            <div className="flex shrink-0 rounded-full bg-white p-0.5 text-[11px] font-bold">
+                              {(['single', 'multi'] as const).map(mode => (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  data-testid={`payer-mode-${mode}`}
+                                  aria-pressed={payerMode === mode}
+                                  onClick={() => {
+                                    setPayerMode(mode);
+                                    if (mode === 'single') {
+                                      const keep = principalPayerId(payerAllocations, memberOptions.map(m => m.id))
+                                        || effectiveViewerMemberId;
+                                      setPayerAllocations({ [keep]: '' });
+                                    }
+                                  }}
+                                  className={`rounded-full px-3 py-1.5 transition-colors ${payerMode === mode ? 'bg-violet-600 text-white' : 'text-slate-500'}`}
+                                >
+                                  {mode === 'single' ? '單一付款' : '多人付款'}
+                                </button>
+                              ))}
+                            </div>
                           </div>
+
+                          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            {memberOptions.map((member, index) => {
+                              const selected = payerIds.includes(member.id);
+                              const only = payerMode === 'single';
+                              return (
+                                <div
+                                  key={member.id}
+                                  data-testid={`payer-row-${member.id}`}
+                                  className={`flex items-center gap-3 px-3 py-2.5 ${index > 0 ? 'border-t border-slate-100' : ''}`}
+                                >
+                                  <button
+                                    type="button"
+                                    aria-label={`選擇 ${member.name} 為付款者`}
+                                    aria-pressed={selected}
+                                    data-testid={`payer-pick-${member.id}`}
+                                    onClick={() => {
+                                      if (only) { setPayerAllocations({ [member.id]: '' }); return; }
+                                      setPayerAllocations(current => {
+                                        const next = { ...current };
+                                        if (next[member.id] !== undefined) delete next[member.id];
+                                        else next[member.id] = '';
+                                        return next;
+                                      });
+                                    }}
+                                    className={`flex h-6 w-6 shrink-0 items-center justify-center text-white ${only ? 'rounded-full' : 'rounded-md'} ${selected ? 'bg-violet-600' : 'border-2 border-slate-300 bg-white'}`}
+                                  >
+                                    {selected && <Check size={14} strokeWidth={3.5} />}
+                                  </button>
+                                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${selected ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'}`}>
+                                    {member.name.charAt(0)}
+                                  </span>
+                                  <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#11183d]">{member.name}</span>
+                                  {/*
+                                    The amount only exists where it can mean
+                                    something. With one payer the bill is theirs
+                                    entire, and a box inviting a figure there is
+                                    a box inviting a wrong one.
+                                  */}
+                                  {payerMode === 'multi' ? (
+                                    <input
+                                      type="number"
+                                      inputMode="decimal"
+                                      data-testid={`payer-amount-${member.id}`}
+                                      aria-label={`${member.name} 付了多少`}
+                                      value={selected ? (payerAllocations[member.id] ?? '') : ''}
+                                      disabled={!selected}
+                                      onChange={event => setPayerAllocations(current => ({ ...current, [member.id]: event.target.value }))}
+                                      placeholder="輸入金額"
+                                      className="w-28 shrink-0 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm font-black text-[#11183d] placeholder:text-[11px] placeholder:font-bold placeholder:text-slate-300 disabled:bg-slate-50"
+                                    />
+                                  ) : (
+                                    <span className="shrink-0 text-sm font-black text-[#11183d]">
+                                      {selected ? `NT$ ${Math.round(currentTotalTwd).toLocaleString()}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {payerMode === 'multi' && (
+                              <div className="flex items-center justify-between gap-2 bg-violet-50 px-3 py-2.5 text-[11px] font-bold">
+                                <span data-testid="payer-summary" className="text-violet-700">
+                                  已選 {payerIds.length} 人 · 總支付 NT$ {Math.round(payersTotal(payerAllocations, memberOptions.map(m => m.id))).toLocaleString()}
+                                </span>
+                                <button
+                                  type="button"
+                                  data-testid="payer-spread-evenly"
+                                  onClick={() => setPayerAllocations(current =>
+                                    spreadEvenly(current, memberOptions.map(m => m.id), Math.round(currentTotalTwd)))}
+                                  className="shrink-0 text-violet-600"
+                                >
+                                  平均分配金額
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {payerError && (
+                            <p data-testid="payer-error" className="text-[11px] font-bold text-rose-600">{payerError}</p>
+                          )}
                         </div>
                       )}
 
