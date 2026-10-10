@@ -6080,6 +6080,7 @@ const App: React.FC = () => {
             setCommunityView("detail");
           }}
           onCreatePost={openCommunityComposer}
+          commentCounts={commentCounts(postComments)}
           onSectionChange={(section) => {
             if (section === "profile" && authStatus !== "authenticated") {
               setAuthEntryContext("account");

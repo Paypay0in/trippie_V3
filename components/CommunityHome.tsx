@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Heart, MapPin, Search, MoreHorizontal } from 'lucide-react';
+import { Heart, MapPin, MessageCircle, Search, MoreHorizontal } from 'lucide-react';
 import { CommunityPost } from '../types';
 import AppBottomNav, { AppSection, BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import { fetchDestinationImage } from '../services/destinationImageService';
 import AppWordmark from './AppWordmark';
+import { hasLikedPost, loadLikedPosts, toggleLikedPost } from '../services/postLikes';
 
 interface Props {
   activeSection: AppSection;
@@ -12,12 +13,14 @@ interface Props {
   posts: CommunityPost[];
   onOpenPost: (postId: string) => void;
   onCreatePost: () => void;
+  /** Real counts from the comments table; 0 is drawn, not hidden. */
+  commentCounts?: Record<string, number>;
 }
 const fallbackImage = 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=900&q=85';
 
-const CommunityHome: React.FC<Props> = ({ activeSection, onSectionChange, onPlus, posts, onOpenPost, onCreatePost }) => {
+const CommunityHome: React.FC<Props> = ({ activeSection, onSectionChange, onPlus, posts, onOpenPost, onCreatePost, commentCounts = {} }) => {
   const [tab, setTab] = useState<'discover' | 'following' | 'next'>('discover');
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const [liked, setLiked] = useState<string[]>(() => loadLikedPosts());
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
   const feed = useMemo(() => posts.filter(post => post.status === 'published').sort((a, b) => new Date(b.publishedAt || b.createdAt).getTime() - new Date(a.publishedAt || a.createdAt).getTime()), [posts, tab]);
   useEffect(() => {
@@ -48,7 +51,18 @@ const CommunityHome: React.FC<Props> = ({ activeSection, onSectionChange, onPlus
       column held it and the second stood empty, which reads as a layout that
       broke rather than a feed with one thing in it. A lone post takes the width
       it was going to take anyway.
-    */}{feed.map(post => { const isLiked = !!liked[post.id]; return <article key={post.id} className="mb-3 break-inside-avoid overflow-hidden rounded-2xl bg-white shadow-sm"><button type="button" onClick={() => onOpenPost(post.id)} className="relative block w-full text-left"><img src={post.coverImage || resolvedImages[`${post.country}・${post.city}`] || fallbackImage} alt={post.title} className="block min-h-32 w-full object-cover" /><span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold text-white">{post.country}・{post.city}</span></button><div className="p-3"><h2 className="text-sm font-black leading-5">{post.title}</h2><div className="mt-3 flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-violet-100 text-[10px] font-black text-violet-700">{post.authorAvatar ? <img src={post.authorAvatar} alt="" className="h-full w-full object-cover" /> : post.authorName.slice(0, 1)}</span><span className="min-w-0 flex-1 truncate text-[11px] font-bold text-slate-500">{post.authorName}</span><button onClick={() => setLiked(prev => ({ ...prev, [post.id]: !isLiked }))} className={`flex items-center gap-1 text-[11px] font-bold ${isLiked ? 'text-rose-500' : 'text-slate-400'}`}><Heart size={14} fill={isLiked ? 'currentColor' : 'none'} />{isLiked ? 1 : 0}</button></div><div className="mt-2 flex items-center gap-1 text-[10px] text-slate-400"><MapPin size={12} />{post.country}・{post.city}</div></div></article>; })}</div>}</main><AppBottomNav active={activeSection} onChange={onSectionChange} onPlus={onPlus} />
+    */}{feed.map(post => { const isLiked = hasLikedPost(liked, post.id); return <article key={post.id} className="mb-3 break-inside-avoid overflow-hidden rounded-2xl bg-white shadow-sm"><button type="button" onClick={() => onOpenPost(post.id)} className="relative block w-full text-left"><img src={post.coverImage || resolvedImages[`${post.country}・${post.city}`] || fallbackImage} alt={post.title} className="block min-h-32 w-full object-cover" /><span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold text-white">{post.country}・{post.city}</span></button><div className="p-3"><h2 className="text-sm font-black leading-5">{post.title}</h2><div className="mt-3 flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-violet-100 text-[10px] font-black text-violet-700">{post.authorAvatar ? <img src={post.authorAvatar} alt="" className="h-full w-full object-cover" /> : post.authorName.slice(0, 1)}</span><span className="min-w-0 flex-1 truncate text-[11px] font-bold text-slate-500">{post.authorName}</span>{/*
+                      A mark, not a tally.
+
+                      「有留言跟愛心數」. This rendered {isLiked ? 1 : 0} — a
+                      public-looking count that was only ever your own tap,
+                      gone on the next reload. A post somebody did like read 0
+                      to its author, and the 1 said 「one person liked this」
+                      when it meant 「you did, for now」. It survives a reload
+                      now and states no number, because the number it had was
+                      not one. Counting everyone's needs post_likes, next to
+                      post_comments.
+                    */}<button type="button" data-testid={`like-${post.id}`} aria-pressed={isLiked} aria-label={isLiked ? `取消喜歡 ${post.title}` : `喜歡 ${post.title}`} onClick={() => setLiked(current => toggleLikedPost(current, post.id))} className={`flex items-center ${isLiked ? 'text-rose-500' : 'text-slate-400'}`}><Heart size={15} fill={isLiked ? 'currentColor' : 'none'} /></button>{/* The one count here that is real. */}<span data-testid={`feed-comments-${post.id}`} className="flex items-center gap-1 text-[11px] font-bold text-slate-400"><MessageCircle size={13} />{commentCounts[post.id] ?? 0}</span></div><div className="mt-2 flex items-center gap-1 text-[10px] text-slate-400"><MapPin size={12} />{post.country}・{post.city}</div></div></article>; })}</div>}</main><AppBottomNav active={activeSection} onChange={onSectionChange} onPlus={onPlus} />
   </div>;
 };
 export default CommunityHome;
