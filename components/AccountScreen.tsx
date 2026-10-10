@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { LogOut, Pencil, Sparkles } from 'lucide-react';
+import { Bell, Image as ImageIcon, LogOut, Pencil, Settings, Sparkles } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
 import MyPostsPanel from './MyPostsPanel';
 import AppWordmark from './AppWordmark';
 import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import { AuthProfile } from '../services/authService';
+import { loadProfileCover, saveProfileCover } from '../services/profileCover';
+import { readAndDownscale } from '../services/postPhotos';
 import { AuthStatus } from '../types';
 
 interface Props {
@@ -52,6 +54,8 @@ const AccountScreen: React.FC<Props> = ({
   onOpenCreatorCenter,
 }) => {
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [cover, setCover] = useState<string | undefined>(() => loadProfileCover(profile?.userId));
   const [name, setName] = useState(profile?.displayName || '');
   const [avatar, setAvatar] = useState(profile?.avatarUrl || '');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -74,72 +78,175 @@ const AccountScreen: React.FC<Props> = ({
         stopped introducing itself — which reads as having been dropped into a
         settings page from somewhere else.
       */}
-      <div className="mb-4 flex items-center">
+      {/*
+        The app's name, here too.
+
+        「這頁沒 logo」. 社群 and 旅行 both open under the wordmark and this one
+        did not, so the tab that holds your account was the one place the app
+        stopped introducing itself.
+      */}
+      <header className="mb-3 flex items-center justify-between">
         <AppWordmark />
-      </div>
-      <header className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-black">我的</h1>
         {signedIn && (
-          <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenCreatorCenter}
-            className="flex min-h-11 items-center gap-1.5 rounded-full bg-violet-600 px-4 text-sm font-black text-white shadow-sm"
-          >
-            <Sparkles size={15} />
-            創作者中心
-          </button>
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="flex min-h-11 items-center gap-1.5 rounded-full bg-white px-4 text-sm font-black text-slate-500 shadow-sm ring-1 ring-slate-100"
-          >
-            <LogOut size={15} />
-            登出
-          </button>
+          <div className="flex gap-3 text-slate-600">
+            <button
+              type="button"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50"
+              aria-label="通知"
+            >
+              <Bell size={21} />
+            </button>
+            {/*
+              A gear, and a gear's worth of things behind it.
+
+              The design puts settings here, and the actions this screen owns
+              that are not 「edit the thing in front of you」 are exactly two:
+              editing the profile, and signing out. 登出 had been a button of
+              its own in the header, which gave a destructive action the same
+              weight as the page title.
+            */}
+            <button
+              type="button"
+              data-testid="account-settings"
+              onClick={() => setMenuOpen(current => !current)}
+              aria-expanded={menuOpen}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50"
+              aria-label="設定"
+            >
+              <Settings size={21} />
+            </button>
           </div>
         )}
       </header>
 
+      {signedIn && menuOpen && (
+        <div data-testid="account-menu" className="mb-3 overflow-hidden rounded-card border border-hairline bg-white">
+          <button
+            type="button"
+            onClick={() => { setMenuOpen(false); setEditing(true); }}
+            className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-field font-semibold"
+          >
+            <Pencil size={16} className="text-slate-400" />編輯個人資料
+          </button>
+          <button
+            type="button"
+            data-testid="sign-out"
+            onClick={onSignOut}
+            className="flex w-full items-center gap-2.5 border-t border-hairline px-4 py-3 text-left text-field font-semibold text-rose-600"
+          >
+            <LogOut size={16} />登出
+          </button>
+        </div>
+      )}
+
       {signedIn ? (
         <>
-          <section className="rounded-[28px] bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-violet-100 text-2xl font-black text-violet-700">
-                {profile.avatarUrl
-                  ? <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
-                  : profile.displayName.slice(0, 1)}
+          <section>
+            {/*
+              A cover, and the avatar sitting on its edge.
+
+              The profile was a white card with a 64px circle in it, which is
+              the shape of a settings row rather than of somebody's page.
+            */}
+            <div className="relative h-[clamp(7rem,17vh,9.5rem)] overflow-hidden rounded-cover bg-gradient-to-br from-violet-100 to-sky-100">
+              {cover && <img src={cover} alt="" className="h-full w-full object-cover" />}
+              <label className="absolute right-3 top-3 flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full bg-white/90 px-3 text-meta font-semibold text-ink shadow-sm backdrop-blur">
+                <ImageIcon size={14} />
+                更換封面
+                <input
+                  type="file"
+                  accept="image/*"
+                  data-testid="change-cover"
+                  className="hidden"
+                  onChange={async event => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (!file) return;
+                    const dataUrl = await readAndDownscale(file, { maxEdge: 1200 });
+                    saveProfileCover(profile.userId, dataUrl);
+                    setCover(dataUrl);
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="-mt-11 flex items-end gap-3 px-1">
+              <div className="relative shrink-0">
+                <div className="flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-4 border-[#f7f8fc] bg-violet-100 text-2xl font-black text-violet-700">
+                  {profile.avatarUrl
+                    ? <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    : profile.displayName.slice(0, 1)}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditing(current => !current)}
+                  aria-label="編輯個人資料"
+                  className="absolute -right-0.5 bottom-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#f7f8fc] bg-white text-slate-500 shadow-sm"
+                >
+                  <Pencil size={13} />
+                </button>
               </div>
+            </div>
+
+            <div className="mt-2 flex items-start gap-3">
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-xl font-black">{profile.displayName}</h2>
-                <p className="mt-0.5 truncate text-sm text-slate-500">{email || '已登入'}</p>
-                <p className="mt-1 text-xs font-bold text-slate-400">完成的旅行 {completedTripCount}</p>
+                <h1 className="truncate text-screen-title font-bold">{profile.displayName}</h1>
+                <p className="mt-0.5 truncate text-support text-ink-soft">{email || '已登入'}</p>
+                {profile.bio && (
+                  <p className="mt-1 text-support text-ink-soft">{profile.bio}</p>
+                )}
               </div>
               <button
                 type="button"
-                onClick={() => setEditing(current => !current)}
-                aria-label="編輯個人資料"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500"
+                onClick={onOpenCreatorCenter}
+                className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 px-3.5 text-meta font-bold text-white shadow-sm"
               >
-                <Pencil size={16} />
+                <Sparkles size={14} />
+                創作者中心
               </button>
             </div>
 
+            {/*
+              Three numbers the app can actually answer.
+
+              The design also shows likes and comments on each post. There is
+              no such thing in this app — no like, no comment, nowhere they
+              could be counted from — so they are left out rather than drawn
+              with invented figures on somebody's own profile.
+            */}
+            <dl className="mt-4 grid grid-cols-3 rounded-card border border-hairline bg-white py-3">
+              {([
+                ['posts', myPosts.length, '貼文'],
+                ['trips', completedTripCount, '完成的旅程'],
+                ['saved', savedInspirations.length, '收藏'],
+              ] as const).map(([key, value, label], index) => (
+                <div
+                  key={key}
+                  data-testid={`account-stat-${key}`}
+                  className={`text-center ${index > 0 ? 'border-l border-hairline' : ''}`}
+                >
+                  <dt className="sr-only">{label}</dt>
+                  <dd className="text-section font-black">{value}</dd>
+                  <dd className="mt-0.5 text-meta text-ink-soft">{label}</dd>
+                </div>
+              ))}
+            </dl>
+
             {editing && (
-              <form onSubmit={save} className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-                <label className="block text-sm font-bold">
+              <form onSubmit={save} className="mt-4 space-y-3 rounded-card border border-hairline bg-white p-4">
+                <label className="block text-support font-semibold">
                   顯示名稱
-                  <input value={name} onChange={event => setName(event.target.value)} required className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3" />
+                  <input value={name} onChange={event => setName(event.target.value)} required className="mt-1.5 h-[var(--control-h)] w-full rounded-field border border-hairline px-3 text-field" />
                 </label>
-                <label className="block text-sm font-bold">
+                <label className="block text-support font-semibold">
                   Avatar URL
-                  <input value={avatar} onChange={event => setAvatar(event.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3" />
+                  <input value={avatar} onChange={event => setAvatar(event.target.value)} className="mt-1.5 h-[var(--control-h)] w-full rounded-field border border-hairline px-3 text-field" />
                 </label>
-                <label className="block text-sm font-bold">
+                <label className="block text-support font-semibold">
                   簡介
-                  <textarea value={bio} onChange={event => setBio(event.target.value)} rows={3} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3" />
+                  <textarea value={bio} onChange={event => setBio(event.target.value)} rows={3} className="mt-1.5 w-full rounded-field border border-hairline px-3 py-2 text-field" />
                 </label>
-                <button className="min-h-11 w-full rounded-2xl bg-violet-600 font-black text-white">儲存</button>
+                <button className="h-[var(--cta-h)] w-full rounded-control bg-violet-600 text-action font-semibold text-white">儲存</button>
               </form>
             )}
           </section>
