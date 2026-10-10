@@ -125,7 +125,8 @@ const TripWorkspaceShell: React.FC<Props> = ({
 
       <main className="mx-auto w-full max-w-2xl px-4 py-4">{children}</main>
 
-      <nav className="fixed bottom-0 left-1/2 z-50 flex w-full max-w-2xl -translate-x-1/2 items-end justify-around border-t border-slate-200 bg-white/95 px-3 pb-[max(.65rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_30px_rgba(30,41,90,.08)] backdrop-blur-xl">
+            {/* Floating, for the same reason as the app bar. See AppBottomNav. */}
+      <nav className="fixed bottom-[max(0.85rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex w-[calc(100%-1.5rem)] max-w-2xl -translate-x-1/2 items-end justify-around rounded-[1.9rem] border border-slate-200/70 bg-white/90 px-3 pb-2.5 pt-2 shadow-[0_14px_40px_rgba(30,41,90,.16)] backdrop-blur-2xl">
         <button onClick={() => onSectionChange('overview')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'overview' ? 'text-blue-600' : 'text-slate-400'}`}><BookOpenText size={20} />總覽</button>
         <button onClick={() => onSectionChange('planning')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'planning' ? 'text-blue-600' : 'text-slate-400'}`}><ListChecks size={20} />規劃</button>
         <button onClick={onQuickAdd} className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-lg shadow-violet-500/30" aria-label="新增記錄"><Plus size={28} /></button>
