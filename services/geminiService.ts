@@ -510,9 +510,24 @@ export const findCheapestTimes = async (location: string, publicTrips: PublicTri
     }
 };
 
-export const fetchCurrentExchangeRate = async (fromCurrency: string, toCurrency: string = 'TWD'): Promise<number | null> => {
+/**
+ * The rate for a purchase, on the day it was made.
+ *
+ * 「10/3的 有辦法讓匯率 就用10/3的嗎」 — `on` is the spending date. Without it the
+ * server answers with today's rate, which is what made the same 18,000 KRW
+ * worth a different number of TWD depending on when the ledger was opened.
+ */
+export const fetchCurrentExchangeRate = async (
+    fromCurrency: string,
+    toCurrency: string = 'TWD',
+    on?: string,
+): Promise<number | null> => {
     if (!fromCurrency || fromCurrency === toCurrency) return null;
-    const result = await postExpenseIntake<{ rate?: number }>('/api/exchange-rate', { from: fromCurrency, to: toCurrency });
+    const result = await postExpenseIntake<{ rate?: number }>('/api/exchange-rate', {
+        from: fromCurrency,
+        to: toCurrency,
+        ...(on ? { date: on } : {}),
+    });
     const rate = result?.rate;
     return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : null;
 };

@@ -151,7 +151,10 @@ import TripSelectionScreen from "./components/TripSelectionScreen";
 import VisaCheckModal from "./components/VisaCheckModal";
 import CommunityFeed from "./components/CommunityFeed";
 import { RECEIPT_SCAN_OPTIONS, readAndDownscale } from "./services/postPhotos";
-import { phaseForExpenseDate } from "./services/expensePhaseForDate";
+import {
+  phaseForExpenseDate,
+  refileExpensePhasesByDate,
+} from "./services/expensePhaseForDate";
 import DuplicateReceiptPrompt from "./components/DuplicateReceiptPrompt";
 import {
   DuplicatePair,
@@ -606,6 +609,14 @@ const buildTripMembers = (
     friends,
   });
 
+// Bills on a finished trip, re-filed against that trip's own dates. Already
+// stamped means it has been done; doing it again would undo manual corrections.
+const refileHistoryExpensePhases = (trip: any, expenses: Expense[]): Expense[] =>
+  refileExpensePhasesByDate(expenses, {
+    startDate: typeof trip?.startDate === 'string' ? trip.startDate : undefined,
+    endDate: typeof trip?.endDate === 'string' ? trip.endDate : undefined,
+  });
+
 // Helper to migrate legacy shopping list
 const migrateShoppingList = (data: any[]): ShoppingItem[] => {
   return data.map((item) => ({
@@ -1036,9 +1047,19 @@ const App: React.FC = () => {
 
   // Current Expenses (The Active Draft)
   const [expenses, setExpenses] = useState<Expense[]>(() => {
-    return initialActiveDraft?.expenses
-      ? migrateExpenses(initialActiveDraft.expenses, initialActiveDraft.id)
-      : [];
+    if (!initialActiveDraft?.expenses) return [];
+    /*
+      The trip that is already open when the app starts never goes through
+      handleOpenDraft, so this is its own way in and needs the same date rule.
+      Without it the ledger opens on whatever stage was guessed at import.
+    */
+    return refileExpensePhasesByDate(
+      migrateExpenses(initialActiveDraft.expenses, initialActiveDraft.id),
+      {
+        startDate: initialActiveDraft.startDate,
+        endDate: initialActiveDraft.endDate,
+      },
+    );
   });
   const [settlementBatches, setSettlementBatches] = useState<SettlementBatch[]>(
     () => initialActiveDraft?.settlementBatches || [],
@@ -1173,7 +1194,15 @@ const App: React.FC = () => {
         }),
       ) as typeof newState;
 
-      if (shared.expenses) setExpenses(shared.expenses);
+      // A ledger handed over by the other traveller is one more way it arrives,
+      // so it is filed by date too. See handleOpenDraft.
+      if (shared.expenses)
+        setExpenses(
+          refileExpensePhasesByDate(shared.expenses, {
+            startDate: shared.startDate,
+            endDate: shared.endDate,
+          }),
+        );
       const sharedItinerary = optionalBroadcastList<ItineraryItem>(shared.itinerary);
       if (sharedItinerary) setItinerary(sharedItinerary);
       if (shared.companions) setCompanions(shared.companions);
@@ -1197,6 +1226,38 @@ const App: React.FC = () => {
   useEffect(() => {
     authUserIdRef.current = authUser?.id;
   }, [authUser?.id]);
+
+  /*
+    Bills converted at a rate that was never theirs, put right once per trip.
+
+    「10/3的 有辦法讓匯率 就用10/3的嗎」「連舊的一起算」. Everything recorded before
+    the rate carried a date was converted at whatever the rate happened to be
+    when the entry was written, so one 18,000 KRW purchase read 408 TWD in the
+    list and 432 in its own form. Each currency-and-day is looked up once, and
+    a day the feed cannot answer for is left alone rather than rewritten with
+    today's number.
+  */
+  const ratesRepairedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    const tripId = activeDraftId || currentLoadedTripId;
+    if (!tripId || expenses.length === 0) return;
+    if (ratesRepairedForRef.current === tripId) return;
+    ratesRepairedForRef.current = tripId;
+
+    let cancelled = false;
+    (async () => {
+      const { repairExpenseRates } = await import('./services/expenseRateRepair');
+      const { fetchCurrentExchangeRate } = await import('./services/geminiService');
+      const { expenses: next, repaired } = await repairExpenseRates(expenses, {
+        rateFor: (currency, date) => fetchCurrentExchangeRate(currency, 'TWD', date),
+      });
+      if (cancelled || repaired === 0) return;
+      setExpenses(next);
+      setToast({ msg: `已用消費當日匯率重算 ${repaired} 筆帳`, type: 'success' });
+    })();
+
+    return () => { cancelled = true; };
+  }, [activeDraftId, currentLoadedTripId, expenses]);
 
   // Sync state to server when it changes and we are in a shared trip
   useEffect(() => {
@@ -1285,9 +1346,18 @@ const App: React.FC = () => {
     const parsed = JSON.parse(saved);
     return parsed.map((trip: any) => ({
       ...trip,
-      expenses: migrateExpenses(
-        Array.isArray(trip.expenses) ? trip.expenses : [],
-        trip.id,
+      /*
+        「這些歸帳」「要按照日期」 — a finished trip's bills were filed by category
+        at import, so 釜山 10/02–10/07 shows 10/03 purchases under 回國機場消費.
+        Re-filed against this trip's own dates once, then stamped, so a stage the
+        traveller corrects by hand later survives the next load.
+      */
+      expenses: refileHistoryExpensePhases(
+        trip,
+        migrateExpenses(
+          Array.isArray(trip.expenses) ? trip.expenses : [],
+          trip.id,
+        ),
       ),
       companions: Array.isArray(trip.companions) ? trip.companions : [],
       shoppingList: Array.isArray(trip.shoppingList)
@@ -1822,7 +1892,19 @@ const App: React.FC = () => {
     setTripEndDate(draft.endDate);
     setTripCurrency(draft.currency || "TWD");
     setTripBudget(draft.budget);
-    setExpenses(migrateExpenses(draft.expenses, draft.id));
+    /*
+      「剛剛有一度修好 但是又壞掉」 — the stage was right on load and wrong again
+      a moment later. Opening a trip re-applies the stored ledger, and this call
+      handed it over exactly as filed: by category, from before the date rule.
+      Every way a ledger arrives has to go through the same rule, or the one
+      that does not will keep putting 10/03 back under 回國機場消費.
+    */
+    setExpenses(
+      refileExpensePhasesByDate(migrateExpenses(draft.expenses, draft.id), {
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+      }),
+    );
     setCompanions(draft.companions || []);
     setShoppingList(migrateShoppingList(draft.shoppingList || []));
     setItinerary(draft.itinerary || []);
@@ -3440,7 +3522,24 @@ const App: React.FC = () => {
       // The remote copy wins on open. Someone else may have added an expense
       // since this device last looked, and the local copy has no way to know.
       isHydratingTripRef.current = false;
-      setExpenses(snapshot.expenses);
+      /*
+        Filed by date on the way in, like every other way a bill arrives.
+
+        「這些歸帳」「要按照日期」 — the local re-file was being undone a moment
+        after it ran: a shared trip hydrates from the cloud on every open, and
+        the rows carry the stage that was guessed from the category before the
+        date rule existed. 10/03 in 釜山 went back under 回國機場消費 each time,
+        whatever this device had just worked out.
+
+        The other phone's rows get the same treatment, so the two devices agree
+        rather than taking turns overwriting each other.
+      */
+      setExpenses(
+        refileExpensePhasesByDate(snapshot.expenses, {
+          startDate: tripStartDate,
+          endDate: tripEndDate,
+        }),
+      );
       // Same rule as the ledger: whoever else is on this trip may have moved
       // a day since this device last looked, and the local copy cannot tell.
       setItinerary(snapshot.itinerary);
@@ -3992,7 +4091,14 @@ const App: React.FC = () => {
     isHydratingTripRef.current = true;
     setForceDraftEmptyState(false);
     setActiveDraftId(null);
-    setExpenses(migrateExpenses(trip.expenses || [], trip.id));
+    // A finished trip opened from the shelf arrives the same way, and needs the
+    // same rule. See the draft path above.
+    setExpenses(
+      refileExpensePhasesByDate(migrateExpenses(trip.expenses || [], trip.id), {
+        startDate: trip.startDate,
+        endDate: trip.endDate,
+      }),
+    );
     setCompanions(trip.companions || []);
     setShoppingList(trip.shoppingList || []);
     setItinerary(Array.isArray(trip.itinerary) ? trip.itinerary : []);

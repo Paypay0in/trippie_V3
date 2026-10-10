@@ -459,6 +459,43 @@ export const rateFromFxResponse = (payload: unknown, target: string): number | n
   return rate;
 };
 
+/**
+ * Pulls one currency's rate out of a @fawazahmed0/currency-api day file.
+ *
+ * 「10/3的 有辦法讓匯率 就用10/3的嗎」. The rates feed above publishes today and
+ * nothing else, so a purchase made last week was converted at this week's rate
+ * and its worth in TWD drifted every time the ledger was opened. This one is
+ * addressed by date, needs no key, and answers for the day the money was spent.
+ */
+export const rateFromDatedFxResponse = (
+  payload: unknown,
+  source: string,
+  target: string,
+): number | null => {
+  if (!payload || typeof payload !== 'object') return null;
+  const table = (payload as Record<string, unknown>)[source.toLowerCase()];
+  if (!table || typeof table !== 'object') return null;
+  const rate = (table as Record<string, unknown>)[target.toLowerCase()];
+  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0 || rate > 100_000) return null;
+  return rate;
+};
+
+/** The rate for one day, or null when that day has no reading. */
+export const historicalRate = async (
+  source: string,
+  target: string,
+  date: string,
+): Promise<number | null> => {
+  const url = `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${date}/v1/currencies/${source.toLowerCase()}.json`;
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(6_000) });
+    if (!response.ok) return null;
+    return rateFromDatedFxResponse(await response.json(), source, target);
+  } catch {
+    return null;
+  }
+};
+
 /** Mirrors ISO 4217: three letters, nothing else reaches the provider. */
 export const isCurrencyCode = (value: unknown): value is string =>
   typeof value === 'string' && /^[A-Za-z]{3}$/.test(value.trim());

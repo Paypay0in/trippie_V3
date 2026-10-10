@@ -328,7 +328,7 @@ const ExpenseForm: React.FC<Props> = ({
 
             // If no historical data, fetch from Google/AI
             setIsFetchingRate(true);
-            const rate = await fetchCurrentExchangeRate(currency);
+            const rate = await fetchCurrentExchangeRate(currency, 'TWD', date);
             setIsFetchingRate(false);
             if (rate) {
                 setExchangeRate(rate.toFixed(4));
@@ -535,7 +535,7 @@ const ExpenseForm: React.FC<Props> = ({
           // lookup would record every won at 1:1 and quietly wreck the whole
           // ledger. A stored rate is stale; the old currency's rate is wrong.
           setIsFetchingRate(true);
-          const rate = await fetchCurrentExchangeRate(newCurrency);
+          const rate = await fetchCurrentExchangeRate(newCurrency, 'TWD', date);
           setIsFetchingRate(false);
           if (rate) {
               setExchangeRate(rate.toFixed(4));
@@ -555,7 +555,7 @@ const ExpenseForm: React.FC<Props> = ({
   const handleRefreshRate = async () => {
       if (currency === 'TWD') return;
       setIsFetchingRate(true);
-      const rate = await fetchCurrentExchangeRate(currency);
+      const rate = await fetchCurrentExchangeRate(currency, 'TWD', date);
       setIsFetchingRate(false);
       if (rate) {
           setExchangeRate(rate.toFixed(4));
@@ -1381,11 +1381,15 @@ const ExpenseForm: React.FC<Props> = ({
                             onClick={handleRefreshRate}
                             disabled={isFetchingRate}
                             className="ml-1 px-2 py-1 hover:bg-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 border border-orange-200 bg-white shadow-sm"
-                            title="使用 AI 抓取最新匯率"
+                            title="抓取消費當日匯率"
                           >
                             {isFetchingRate ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                             <span className="text-[10px] font-bold whitespace-nowrap">
-                              {localToday().replace(/-/g, '/')} Google 當日匯率
+                              {/* The day the rate is for is the day the money was
+                                  spent — 「10/3的 有辦法讓匯率 就用10/3的嗎」. It used
+                                  to print today's date whatever the purchase date
+                                  was, which read as a fact and was not one. */}
+                              {(date || localToday()).replace(/-/g, '/')} 當日匯率
                             </span>
                           </button>
                       </label>

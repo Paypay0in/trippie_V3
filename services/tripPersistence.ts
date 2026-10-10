@@ -20,6 +20,7 @@ import {
   FrozenSettlementResult,
   SavedExperienceNote,
 } from '../types';
+import { refileExpensePhasesByDate } from './expensePhaseForDate';
 
 export const DRAFTS_STORAGE_KEY = 'trippie_drafts_v1';
 export const ACTIVE_DRAFT_STORAGE_KEY = 'trippie_active_trip_id';
@@ -296,6 +297,25 @@ const normalizeFrozenSettlementResult = (value: unknown): FrozenSettlementResult
 const normalizeDraft = (value: Partial<TripDraft>): TripDraft | null => {
   if (typeof value.id !== 'string' || !value.id) return null;
   const now = new Date().toISOString();
+  const storedExpenses = Array.isArray(value.expenses) ? value.expenses : [];
+  /*
+    「這些歸帳」「要按照日期」 — filed by date every time the ledger is read, not
+    once behind a version stamp.
+
+    The stamp was meant to protect a stage corrected by hand. What it actually
+    did was record 「this trip has been dealt with」 for a re-file whose result
+    never survived: the cloud copy landed a moment later and put the guessed
+    stage back. From then on the stamp blocked the only thing that could have
+    repaired it, and the trip was stuck wrong on every load.
+
+    A stage that disagrees with the date is the bug being fixed, so the date
+    decides, every time. There is no path left where a bill keeps a stage its
+    own date contradicts.
+  */
+  const refiled = refileExpensePhasesByDate(storedExpenses, {
+    startDate: typeof value.startDate === 'string' ? value.startDate : undefined,
+    endDate: typeof value.endDate === 'string' ? value.endDate : undefined,
+  });
   const legacyCompanions = Array.isArray(value.companions) ? value.companions : [];
   const normalizedMembers = Array.isArray(value.members)
     ? value.members.filter(item => item && typeof item === 'object' && typeof (item as TripMember).id === 'string' && typeof (item as TripMember).name === 'string').map(item => ({ id: (item as TripMember).id, name: (item as TripMember).name, userId: typeof (item as TripMember).userId === 'string' ? (item as TripMember).userId : undefined, type: (item as TripMember).type === 'owner' || (item as TripMember).type === 'member' ? (item as TripMember).type : 'guest' as const }))
@@ -314,7 +334,7 @@ const normalizeDraft = (value: Partial<TripDraft>): TripDraft | null => {
     endDate: typeof value.endDate === 'string' ? value.endDate : '',
     currency: typeof value.currency === 'string' && value.currency.trim() ? value.currency.trim().toUpperCase() : undefined,
     budget: typeof value.budget === 'number' && Number.isFinite(value.budget) && value.budget >= 0 ? value.budget : undefined,
-    expenses: Array.isArray(value.expenses) ? value.expenses : [],
+    expenses: refiled,
     companions: legacyCompanions,
     members: normalizedMembers,
     settlementBatches: Array.isArray(value.settlementBatches) ? value.settlementBatches.filter(batch => batch && typeof batch.id === 'string' && Array.isArray(batch.expenseIds) && Array.isArray(batch.memberIds)).map(batch => ({ ...batch, status: batch.status === 'settled' ? 'settled' as const : 'open' as const, frozenResult: normalizeFrozenSettlementResult(batch.frozenResult) })) : [],

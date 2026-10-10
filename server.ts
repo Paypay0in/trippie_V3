@@ -22,9 +22,11 @@ import {
   parseIsThin,
   INTAKE_MODELS,
   rateFromFxResponse,
+  historicalRate,
   resolveImageMime,
   textExpensePrompt,
 } from "./services/expenseIntake";
+import { localToday } from "./services/localDate";
 import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
 import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
 import { checkProposedChanges } from "./services/adjustmentChanges";
@@ -582,11 +584,28 @@ async function startServer() {
   // failure here is a downgrade rather than a dead end — which is why this
   // answers with a plain status and no retry prompt.
   app.post("/api/exchange-rate", async (req, res) => {
-    const { from, to } = req.body ?? {};
+    const { from, to, date } = req.body ?? {};
     const target = isCurrencyCode(to) ? to.trim().toUpperCase() : "TWD";
     if (!isCurrencyCode(from)) { res.status(400).json({ error: "需要幣別代碼。" }); return; }
     const source = from.trim().toUpperCase();
-    if (source === target) { res.json({ rate: 1 }); return; }
+    if (source === target) { res.json({ rate: 1, rateDate: null }); return; }
+
+    /*
+      The rate on the day the money was spent, when that day is known.
+
+      「10/3的 有辦法讓匯率 就用10/3的嗎」 — 18,000 KRW spent on 10/03 was being
+      converted at the rate of whatever day the ledger happened to be opened, so
+      the same purchase was worth a different number of TWD every week. What was
+      paid is a fact about one date and does not move afterwards.
+    */
+    const on = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+    if (on) {
+      const historical = await historicalRate(source, target, on);
+      if (historical !== null) { res.json({ rate: historical, rateDate: on }); return; }
+      // No reading for that day — a weekend, or a feed that has not got back
+      // that far. Today's rate is still better than refusing the entry, and the
+      // response says which day it is actually for.
+    }
 
     // A published rates feed first: no key, no quota, and authoritative in a
     // way a language model reading search results is not.
@@ -594,7 +613,7 @@ async function startServer() {
       const response = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(source)}`, { signal: AbortSignal.timeout(6_000) });
       if (response.ok) {
         const rate = rateFromFxResponse(await response.json(), target);
-        if (rate !== null) { res.json({ rate }); return; }
+        if (rate !== null) { res.json({ rate, rateDate: localToday() }); return; }
       }
     } catch { /* fall through to the model */ }
 
@@ -2421,6 +2440,24 @@ ${MODE_RULES[mode]}
     });
     app.use(vite.middlewares);
   } else {
+    /*
+      The page itself is never cached; the files it names always are.
+
+      「我為什麼打開還是依樣」 — asset filenames carry a content hash, so a new
+      build cannot be mistaken for an old one. That only helps if the HTML
+      naming them is re-fetched: a phone holding yesterday's index.html asks for
+      yesterday's bundle by name and gets it, forever, and the app looks
+      unchanged however many times it is rebuilt.
+    */
+    app.use((req, res, next) => {
+      if (req.path === "/" || req.path.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-store, must-revalidate");
+      }
+      if (process.env.TRIPPIE_LOG_REQUESTS === "1") {
+        console.log(`[req] ${new Date().toISOString()} ${req.method} ${req.path}`);
+      }
+      next();
+    });
     app.use(express.static(path.join(__dirname, "dist")));
     // The single-page fallback, as a final middleware rather than app.get("*").
     // Express 5 rejects a bare "*" outright — the process exited on boot, so

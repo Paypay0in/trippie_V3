@@ -171,6 +171,17 @@ export interface Expense {
   amount: number;
   currency: string;
   exchangeRate: number; // Rate to TWD
+  /**
+   * Which day `exchangeRate` is the rate for.
+   *
+   * 「10/3的 有辦法讓匯率 就用10/3的嗎」. The rate used to come from whenever the
+   * entry happened to be written, so the same 18,000 KRW was worth 408 TWD in
+   * the list and 432 in the form. Recording the day makes the two comparable,
+   * and marks which bills were converted at a rate that was never theirs.
+   *
+   * Absent on anything recorded before this existed: unknown, not today.
+   */
+  exchangeRateDate?: string;
   handlingFee?: number; // Fee in TWD (mostly for exchange)
   twdAmount: number;
   category: Category;
