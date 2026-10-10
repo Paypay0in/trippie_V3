@@ -67,3 +67,20 @@ describe('螢幕頂端的安全區域', () => {
     expect(read('components/TripWorkspaceShell.tsx')).toContain('env(safe-area-inset-bottom)');
   });
 });
+
+/**
+ * 「這頁還沒改好」 — asked of a screen running yesterday's build.
+ *
+ * The banner that says so was mounted inside the trip workspace, so it was
+ * missing from the home screen, which is exactly where somebody stands when
+ * they wonder whether they are looking at the new version.
+ */
+describe('更新提示的位置', () => {
+  it('掛在 App 旁邊，不是某一個畫面裡面', () => {
+    const entry = read('index.tsx');
+    expect(entry).toContain('<StaleBuildBanner />');
+    // Inside App it would be missing from whichever branch is not rendering.
+    expect(read('App.tsx')).not.toContain('<StaleBuildBanner />');
+    expect(read('components/TripWorkspaceShell.tsx')).not.toContain('StaleBuildBanner');
+  });
+});

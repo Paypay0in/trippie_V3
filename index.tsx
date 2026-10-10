@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import JoinTripSheet from './components/JoinTripSheet';
+import StaleBuildBanner from './components/StaleBuildBanner';
 import { overflowProbeRequested, startOverflowProbe } from './services/overflowProbe';
 import './index.css';
 import { initI18n, languageFromUrl } from './i18n/config';
@@ -25,6 +26,14 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
+    {/*
+      First in the document, and beside App for the same reason JoinTripSheet
+      is: 「這頁還沒改好」 was asked of a screen running yesterday's build, and
+      the banner that would have said so was mounted inside the trip workspace —
+      so it was missing from the home screen, which is where the question gets
+      asked.
+    */}
+    <StaleBuildBanner />
     <App />
     {/* Beside App, not inside it. An invite link can land on any of App's
         many return paths — signed out most of all — and a sheet mounted on

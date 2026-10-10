@@ -92,7 +92,6 @@ import {
   unseenNotices,
 } from "./services/disputeInbox";
 import DisputeNoticeBanner from "./components/DisputeNoticeBanner";
-import StaleBuildBanner from "./components/StaleBuildBanner";
 import {
   CustomCategoryRefundability,
   decideCustomCategory,
@@ -7400,7 +7399,6 @@ const App: React.FC = () => {
         running the bundle from before the fix, with nothing on either side
         able to say so.
       */}
-      <StaleBuildBanner />
       {duplicatePromptOverlay}
       {import.meta.env.DEV && (
         <DevViewerSwitcher
