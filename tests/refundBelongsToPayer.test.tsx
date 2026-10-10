@@ -1,17 +1,18 @@
 /**
  * @vitest-environment jsdom
  *
- * 「這是 Gina 的帳 這筆有部分是我的 所以這樣 但不應在這」, then
- * 「若某帳一起結帳 但同時可以退稅 請將退稅的總額按比例分配」.
+ * 「這是 Gina 的帳 這筆有部分是我的 所以這樣 但不應在這」, and the rule that settles
+ * it: 「退稅的行為人依然是付總額的人 ... 該退稅不是計入分帳者的退稅總額 是變成在
+ * 結算時的減掉的金額」.
  *
- * The refund list was built from every bill that concerns the reader, whole.
- * Gina's 75,900 KRW of 藥品 — half of which is North's — sat on his recap
- * offering him the entire 4,554 KRW back, and on hers offering the same 4,554
- * again. One receipt, promised twice.
+ * The list was built from every bill that concerns the reader, so Gina's
+ * 75,900 KRW of 藥品 — half of which is North's — sat on his recap offering him
+ * 4,554 KRW back, and on hers offering the same 4,554 again. One receipt,
+ * promised twice, to two people who cannot both queue for it.
  */
 import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import TripSummaryModal from '../components/TripSummaryModal';
 import { Category, Expense, PaymentMethod, TaxRule } from '../types';
 
@@ -28,8 +29,8 @@ const medicine = (over: Partial<Expense> = {}): Expense =>
     description: '藥品',
     amount: 75900,
     currency: 'KRW',
-    exchangeRate: 0.023,
-    twdAmount: 1746,
+    exchangeRate: 1,
+    twdAmount: 75900,
     category: Category.SHOPPING,
     paymentMethod: PaymentMethod.CASH_FOREIGN,
     phase: 'during',
@@ -57,44 +58,52 @@ const recapFor = (viewer: string, expenses: Expense[]) =>
 
 afterEach(cleanup);
 
-describe('一起結帳的退稅按比例分', () => {
-  it('我只拿到我那一半，不是整筆', () => {
+describe('退稅清單只列我要去領的', () => {
+  it('她付的藥品不出現在我的退稅清單', () => {
     recapFor('me', [medicine()]);
-    expect(document.body.textContent).toContain('藥品');
-    expect(document.body.textContent).toContain('2,277');
+    expect(document.body.textContent).not.toContain('藥品');
+  });
+
+  it('金額也不會偷偷算進我的總額', () => {
+    recapFor('me', [medicine()]);
     expect(document.body.textContent).not.toContain('4,554');
   });
 
-  it('她那邊也是一半 —— 同一張收據不會被承諾兩次', () => {
+  it('同一筆在她自己的畫面上是全額 —— 她領的就是全額', () => {
     recapFor('seat-gina', [medicine()]);
-    expect(document.body.textContent).toContain('2,277');
-    expect(document.body.textContent).not.toContain('4,554');
-  });
-
-  it('會說清楚這是份額，不然看起來就只是算錯', () => {
-    recapFor('me', [medicine()]);
-    expect(document.body.textContent).toContain('你的份額');
-  });
-
-  it('消費金額也跟著分，不會拿整張收據配半筆退稅', () => {
-    recapFor('me', [medicine()]);
-    expect(document.body.textContent).toContain('37,950');
-  });
-
-  it('自己一個人買的，整筆都在，也不會標份額', () => {
-    recapFor('me', [medicine({ payerId: 'me', beneficiaries: ['me'] })]);
+    expect(document.body.textContent).toContain('藥品');
     expect(document.body.textContent).toContain('4,554');
-    expect(document.body.textContent).not.toContain('你的份額');
   });
 
-  /** 「我只是代墊」 — he put the money down, she carries all of the cost. */
-  it('純代墊的帳，我一毛退稅都沒有', () => {
+  it('我自己付的，當然還在', () => {
+    recapFor('me', [medicine({ payerId: 'me' })]);
+    expect(document.body.textContent).toContain('藥品');
+  });
+
+  it('純代墊的也還在 —— 收據在我手上，那趟櫃檯還是我要跑', () => {
     recapFor('me', [medicine({ payerId: 'me', beneficiaries: ['seat-gina'] })]);
-    expect(document.body.textContent).not.toContain('藥品');
+    expect(document.body.textContent).toContain('藥品');
   });
 
-  it('完全跟我無關的帳不會出現', () => {
-    recapFor('me', [medicine({ payerId: 'seat-gina', beneficiaries: ['seat-gina'] })]);
-    expect(document.body.textContent).not.toContain('藥品');
+  it('沒有分帳對象的單人旅程照樣算', () => {
+    recapFor('me', [medicine({ payerId: undefined, beneficiaries: [] })]);
+    expect(document.body.textContent).toContain('藥品');
+  });
+});
+
+/**
+ * 「是變成在結算時的減掉的金額」 — so the row has to say that not all of what is
+ * collected stays with the collector, or someone handed 4,554 at Gimhae will
+ * wonder why only half of it improved their own position.
+ */
+describe('有旅伴份額的收據會說出來', () => {
+  it('跟人分的帳，標明結算時會扣抵', () => {
+    recapFor('me', [medicine({ payerId: 'me' })]);
+    expect(document.body.textContent).toContain('含旅伴份額，結算時扣抵');
+  });
+
+  it('自己一個人的帳，不會多那句話', () => {
+    recapFor('me', [medicine({ payerId: 'me', beneficiaries: ['me'] })]);
+    expect(document.body.textContent).not.toContain('含旅伴份額');
   });
 });

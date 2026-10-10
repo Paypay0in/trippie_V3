@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Category, Expense, PaymentMethod } from '../types';
-import { refundShareRatio } from './refundClaimant';
+import { refundClaimableBy } from './refundClaimant';
+import { sharedWithSomebody } from './refundSharedNote';
+import { expenseCostToViewer } from './viewerSpend';
 
 /**
- * 「這是 Gina 的帳 這筆有部分是我的 所以這樣 但不應在這」, then
- * 「若某帳一起結帳 但同時可以退稅 請將退稅的總額按比例分配」.
+ * 「退稅的行為人依然是付總額的人 ... 該退稅不是計入分帳者的退稅總額 是變成在結算時
+ * 的減掉的金額」.
  *
- * The refund divides exactly as the bill does — one ratio, rather than one
- * rule for a shared bill, another for a solo one and a third for something
- * merely fronted on somebody else's behalf.
+ * Two separate facts. Who can go and claim it: whoever holds the receipt. Who
+ * benefits from it: everyone who is paying for the purchase, proportionally,
+ * and they get it as a smaller bill rather than as cash at a counter.
  */
 const OWNER = 'me';
 const GINA = 'seat-gina';
@@ -19,8 +21,8 @@ const bill = (over: Partial<Expense> = {}): Expense =>
     description: '藥品',
     amount: 75900,
     currency: 'KRW',
-    exchangeRate: 0.023,
-    twdAmount: 1746,
+    exchangeRate: 1,
+    twdAmount: 75900,
     category: Category.SHOPPING,
     paymentMethod: PaymentMethod.CASH_FOREIGN,
     phase: 'during',
@@ -32,54 +34,78 @@ const bill = (over: Partial<Expense> = {}): Expense =>
     ...over,
   }) as Expense;
 
-describe('退稅按比例分', () => {
-  it('她付的、兩人均分 —— 我拿一半', () => {
-    expect(refundShareRatio(bill(), OWNER, OWNER)).toBeCloseTo(0.5, 5);
+describe('誰去櫃檯領', () => {
+  it('她付的錢，櫃檯那趟是她的 —— 就算我分了一半', () => {
+    expect(refundClaimableBy(bill(), OWNER, OWNER)).toBe(false);
   });
 
-  it('同一筆，她那邊也是一半 —— 不會被算兩次', () => {
-    expect(refundShareRatio(bill(), GINA, OWNER)).toBeCloseTo(0.5, 5);
+  it('同一筆在她自己的畫面上是她的', () => {
+    expect(refundClaimableBy(bill(), GINA, OWNER)).toBe(true);
   });
 
-  it('兩邊加起來剛好是一整筆', () => {
-    const mine = refundShareRatio(bill(), OWNER, OWNER);
-    const hers = refundShareRatio(bill(), GINA, OWNER);
-    expect(mine + hers).toBeCloseTo(1, 5);
+  it('我付的錢，那趟是我的', () => {
+    expect(refundClaimableBy(bill({ payerId: OWNER }), OWNER, OWNER)).toBe(true);
   });
 
-  it('自己一個人買的，整筆都是我的', () => {
-    const solo = bill({ payerId: OWNER, beneficiaries: [OWNER] });
-    expect(refundShareRatio(solo, OWNER, OWNER)).toBeCloseTo(1, 5);
+  it('兩個人各出一部分，各自有自己的收據', () => {
+    const split = bill({ payerId: undefined, payerAllocations: { [OWNER]: 30000, [GINA]: 45900 } });
+    expect(refundClaimableBy(split, OWNER, OWNER)).toBe(true);
+    expect(refundClaimableBy(split, GINA, OWNER)).toBe(true);
+    expect(refundClaimableBy(split, 'seat-ann', OWNER)).toBe(false);
   });
 
-  it('純代墊 —— 我出錢但分給她，我一毛也沒有', () => {
-    const fronted = bill({ payerId: OWNER, beneficiaries: [GINA] });
-    expect(refundShareRatio(fronted, OWNER, OWNER)).toBe(0);
+  it('沒寫誰付的，照樣算我的', () => {
+    expect(refundClaimableBy(bill({ payerId: undefined, beneficiaries: [] }), OWNER, OWNER))
+      .toBe(true);
   });
 
-  it('完全跟我無關的帳是 0', () => {
-    const hers = bill({ payerId: GINA, beneficiaries: [GINA] });
-    expect(refundShareRatio(hers, OWNER, OWNER)).toBe(0);
+  it('旅程主人的兩個身分是同一個人', () => {
+    expect(refundClaimableBy(bill({ payerId: OWNER }), 'me', OWNER)).toBe(true);
+  });
+});
+
+/**
+ * The other half of the rule, and the half that was already true: a refund
+ * recorded against a purchase comes off it before the split, so the sharer's
+ * benefit arrives as a smaller bill.
+ */
+describe('分帳者的那一份，從結算裡扣', () => {
+  it('沒退稅前，我扛一半', () => {
+    expect(expenseCostToViewer(bill(), OWNER, OWNER)).toBeCloseTo(37950, 0);
   });
 
-  it('不平均分的時候，照實際份額走', () => {
-    const uneven = bill({
-      splitMethod: 'EXACT',
-      splitAllocations: { [OWNER]: 1309.5, [GINA]: 436.5 },
-      beneficiaries: [OWNER, GINA],
-    });
-    expect(refundShareRatio(uneven, OWNER, OWNER)).toBeCloseTo(0.75, 2);
+  it('她領回 4,554 之後，我扛的變少了', () => {
+    const refunded = bill({ taxRefundActual: 4554 });
+    expect(expenseCostToViewer(refunded, OWNER, OWNER)).toBeCloseTo(35673, 0);
   });
 
-  it('沒有指定觀看者時，不分割', () => {
-    expect(refundShareRatio(bill(), undefined, OWNER)).toBe(1);
+  it('我少付的剛好是退稅的一半 —— 按比例，不是全額', () => {
+    const before = expenseCostToViewer(bill(), OWNER, OWNER);
+    const after = expenseCostToViewer(bill({ taxRefundActual: 4554 }), OWNER, OWNER);
+    expect(before - after).toBeCloseTo(2277, 0);
   });
 
-  it('金額是 0 的帳不會算出比例', () => {
-    expect(refundShareRatio(bill({ twdAmount: 0 }), OWNER, OWNER)).toBe(0);
+  it('她自己那邊也只少扛一半', () => {
+    const before = expenseCostToViewer(bill(), GINA, OWNER);
+    const after = expenseCostToViewer(bill({ taxRefundActual: 4554 }), GINA, OWNER);
+    expect(before - after).toBeCloseTo(2277, 0);
   });
 
-  it('金額壞掉的帳不會變成 NaN', () => {
-    expect(refundShareRatio(bill({ twdAmount: NaN }), OWNER, OWNER)).toBe(0);
+  it('一個人獨買的，退多少就少扛多少', () => {
+    const solo = (over: Partial<Expense>) => bill({ payerId: OWNER, beneficiaries: [OWNER], ...over });
+    const before = expenseCostToViewer(solo({}), OWNER, OWNER);
+    const after = expenseCostToViewer(solo({ taxRefundActual: 4554 }), OWNER, OWNER);
+    expect(before - after).toBeCloseTo(4554, 0);
+  });
+});
+
+describe('收據上要說有沒有別人的份', () => {
+  it('跟人分的帳，會標出來', () => {
+    expect(sharedWithSomebody(bill({ payerId: OWNER }), OWNER, OWNER)).toBe(true);
+  });
+
+  it('自己一個人的帳，不標', () => {
+    expect(sharedWithSomebody(bill({ payerId: OWNER, beneficiaries: [OWNER] }), OWNER, OWNER))
+      .toBe(false);
   });
 });

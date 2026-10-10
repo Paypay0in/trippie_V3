@@ -3,7 +3,8 @@ import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { isRefundableCategory } from '../services/refundableCategories';
 import { creditedRefundTwd, findDuplicateRefund, isRefundEntry } from '../services/refundSettlement';
-import { refundShareRatio } from '../services/refundClaimant';
+import { refundClaimableBy } from '../services/refundClaimant';
+import { sharedWithSomebody } from '../services/refundSharedNote';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { expenseCostToViewer } from '../services/viewerSpend';
@@ -196,7 +197,6 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
         that receipt to the desk. Sharing a cost and being able to claim its
         tax back are different facts; the second follows the receipt.
       */
-      const refundShare = refundShareRatio(e, viewerMemberId, ownerMemberId);
       const isEligibleForRefund = taxRule &&
                                   taxRule.refundRate > 0 &&
                                   e.phase === 'during' &&
@@ -205,27 +205,28 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                   isRefundableCategory(e.category) &&
                                   !e.taxRefundIneligible &&
                                   !e.taxRefundedAtPurchase &&
-                                  refundShare > 0;
+                                  refundClaimableBy(e, viewerMemberId, ownerMemberId);
 
       // Add to Refund List if eligible
       if (isEligibleForRefund && taxRule) {
           /*
-            「若某帳一起結帳 但同時可以退稅 請將退稅的總額按比例分配」.
+            The whole receipt, because the whole receipt is what the counter
+            pays out: 「退稅的行為人依然是付總額的人」.
 
-            The refund divides exactly as the bill does. The spend is shown the
-            same way, so the row reads as one claim rather than a full receipt
-            paired with a part of its refund.
+            A sharer's portion of it is not listed anywhere here. It reaches
+            them as a smaller bill at settlement instead — a refund recorded
+            against a purchase comes off that purchase before it is split.
           */
-          const refundForeign = e.amount * taxRule.refundRate * refundShare;
+          const refundForeign = e.amount * taxRule.refundRate;
           const refundTWD = refundForeign * e.exchangeRate;
 
           refundItems.push({
               date: e.date,
               desc: e.description,
-              spend: e.amount * refundShare,
+              spend: e.amount,
               refund: refundForeign,
               currency: e.currency,
-              shared: refundShare < 1
+              shared: sharedWithSomebody(e, viewerMemberId, ownerMemberId)
           });
           totalRefundTwd += refundTWD;
       }
@@ -986,14 +987,17 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                               <span className="text-[10px] text-gray-400">
                                 {item.date} • 消費 {Math.round(item.spend).toLocaleString()} {item.currency}
                                 {/*
-                                  Why the number is smaller than the receipt.
+                                  Not all of this stays with you.
 
-                                  「請將退稅的總額按比例分配」 — without saying so, a
-                                  reader comparing this against the slip in
-                                  their pocket finds it short and has no way to
-                                  tell a split from a mistake.
+                                  「該退稅不是計入分帳者的退稅總額 是變成在結算時的
+                                  減掉的金額」 — you collect the whole thing because
+                                  you hold the whole receipt, and the part
+                                  matching your companion's share comes off what
+                                  they owe when you settle.
                                 */}
-                                {item.shared && <span className="ml-1 text-emerald-600">· 你的份額</span>}
+                                {item.shared && (
+                                  <span className="ml-1 text-emerald-600">· 含旅伴份額，結算時扣抵</span>
+                                )}
                               </span>
                             </div>
                             <div className={`font-mono font-bold ${hasRefundRecord ? 'text-emerald-600' : 'text-amber-600'} text-right`}>
