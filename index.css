@@ -31,12 +31,15 @@
   are inside cards and sheets, and padding every one of them would push a dozen
   layouts down on devices with no inset at all.
 */
+/*
+  Padding only, and deliberately not `top` as well.
+
+  「有太大的空白」 — a sticky header offset by the inset *and* padded by it counts
+  the island twice, and the first fix left a gap the height of two status bars.
+  Padding alone is the whole answer: the header's own background fills the strip
+  behind the clock, and its contents sit below. It stays stuck to the top of the
+  viewport, where a sticky header belongs.
+*/
 [data-safe-top] {
   padding-top: max(var(--safe-top-base, 1.25rem), env(safe-area-inset-top));
-}
-
-/* A sticky header must also start below the inset, or the first scroll slides
-   it straight back under the island. */
-[data-safe-top].sticky {
-  top: env(safe-area-inset-top);
 }

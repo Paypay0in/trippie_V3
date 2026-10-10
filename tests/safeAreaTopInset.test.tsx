@@ -29,9 +29,13 @@ describe('螢幕頂端的安全區域', () => {
     expect(/^header\s*[,{]/m.test(css)).toBe(false);
   });
 
-  it('sticky 的標題列也要從安全區域下面開始', () => {
-    // Padding alone moves it once; the first scroll returns it under the island.
-    expect(read('index.css')).toContain('[data-safe-top].sticky');
+  it('不會把安全區域算兩次', () => {
+    /*
+      「有太大的空白」. A sticky header offset by the inset *and* padded by it
+      leaves a gap the height of two status bars. Padding alone is the answer:
+      the header's background fills the strip behind the clock.
+    */
+    expect(read('index.css')).not.toContain('[data-safe-top].sticky');
   });
 
   it('使用者會碰到的頂端畫面都標記了', () => {
