@@ -18,6 +18,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen } from '@testing-library/react';
 import TravelHome from '../components/TravelHome';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { TripDraft } from '../services/tripPersistence';
 import { Trip } from '../types';
 
@@ -169,6 +171,26 @@ describe('進行中的旅程卡', () => {
     const hero = card();
     expect(hero.textContent).toContain('已結束的旅程');
     expect(hero.textContent).not.toMatch(/進行中的旅程/);
+  });
+});
+
+/**
+ * 「我還是覺得下一趟去哪裡太大了」.
+ *
+ * The headline was 2.65rem, then 2.4 by eye — both picked on this screen
+ * rather than asked of the scale, which is the habit the tokens exist to end.
+ */
+describe('開場那一行', () => {
+  it('用共用的 hero 字級，不是這一頁自己填的數字', () => {
+    home();
+    const headline = screen.getByRole('heading', { name: /下一趟去哪裡/ });
+    expect(headline.className).toContain('text-hero');
+    expect(headline.className).not.toMatch(/text-\[\d/);
+  });
+
+  it('hero 字級定義在 index.css', () => {
+    const css = readFileSync(resolve(process.cwd(), 'index.css'), 'utf8');
+    expect(css).toContain('--text-hero:');
   });
 });
 

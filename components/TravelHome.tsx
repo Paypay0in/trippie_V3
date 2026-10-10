@@ -370,7 +370,7 @@ const TravelHome: React.FC<Props> = ({
           </div>
         </div>
         <p className="mt-3 text-base font-bold text-slate-400">嗨，旅人 👋</p>
-        <h1 className="mt-1 text-[2.4rem] font-black leading-[1.05] tracking-tight">
+        <h1 className="mt-1 text-hero font-black tracking-tight">
           下一趟去哪裡？
         </h1>
         {/*
