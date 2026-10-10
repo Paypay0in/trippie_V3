@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findBelowFold, foldProbeRequested } from './foldProbe';
+import { displayContext, findBelowFold, foldProbeRequested } from './foldProbe';
 
 /**
  * 「這頁我的理想是 手機不上下滾動 就能完全看到目前這張圖上的所有資訊」.
@@ -60,5 +60,39 @@ describe('foldProbeRequested', () => {
   it('is on with ?fold=1', () => {
     expect(foldProbeRequested('?fold=1')).toBe(true);
     expect(foldProbeRequested('?sync=1&fold=1')).toBe(true);
+  });
+});
+
+/**
+ * 「viewport 695」 — measured in a Safari tab, where the address bar lives
+ * inside the viewport and takes about 157pt. The same page from the home
+ * screen has 852. A reading that does not say which it came from cannot be
+ * acted on: shrinking the design to fit a browser the app is not used in would
+ * be answering the wrong measurement.
+ */
+describe('displayContext', () => {
+  const withWindow = (value: Record<string, unknown>) => {
+    const original = globalThis.window;
+    Object.assign(globalThis, { window: value });
+    try { return displayContext(); } finally { Object.assign(globalThis, { window: original }); }
+  };
+
+  it('iOS says so on navigator.standalone', () => {
+    expect(withWindow({ navigator: { standalone: true } })).toBe('standalone');
+  });
+
+  it('everyone else says so through display-mode', () => {
+    expect(withWindow({
+      navigator: {},
+      matchMedia: () => ({ matches: true }),
+    })).toBe('standalone');
+  });
+
+  it('a plain tab is a browser', () => {
+    expect(withWindow({ navigator: {}, matchMedia: () => ({ matches: false }) })).toBe('browser');
+  });
+
+  it('no matchMedia at all is a browser, not a crash', () => {
+    expect(withWindow({ navigator: {} })).toBe('browser');
   });
 });

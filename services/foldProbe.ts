@@ -22,6 +22,28 @@ export interface FoldFinding {
   overhang: number;
 }
 
+/**
+ * Where the page is being viewed.
+ *
+ * Safari keeps its address bar inside the viewport, so the same page has about
+ * 157pt less room in a tab than it does from the home screen — and the bar
+ * hides itself on scroll, so 「fits without scrolling」 is not even a fixed
+ * question there. A reading that does not say which of the two it came from
+ * cannot be acted on: shrinking the design to fit a browser nobody uses it in
+ * would be answering the wrong measurement.
+ */
+export const displayContext = (): 'standalone' | 'browser' => {
+  if (typeof window === 'undefined') return 'browser';
+  const standalone = (window.navigator as unknown as { standalone?: boolean }).standalone;
+  if (standalone === true) return 'standalone';
+  try {
+    if (window.matchMedia?.('(display-mode: standalone)').matches) return 'standalone';
+  } catch {
+    // An old WebView without matchMedia is a browser as far as this is concerned.
+  }
+  return 'browser';
+};
+
 export interface FoldReport {
   viewportHeight: number;
   /** The usable fold: the viewport, less anything fixed over the bottom. */
@@ -111,8 +133,9 @@ export const startFoldProbe = (): (() => void) => {
 
     line.style.top = `${fold}px`;
     const overflow = Math.round(document.documentElement.scrollHeight - viewportHeight);
+    const where = displayContext() === 'standalone' ? '主畫面 app' : '瀏覽器（含網址列）';
     panel.textContent = [
-      `viewport ${Math.round(viewportHeight)} · fold ${Math.round(fold)} · page ${Math.round(document.documentElement.scrollHeight)} · 需捲動 ${Math.max(0, overflow)}px`,
+      `${where} · viewport ${Math.round(viewportHeight)} · fold ${Math.round(fold)} · page ${Math.round(document.documentElement.scrollHeight)} · 需捲動 ${Math.max(0, overflow)}px`,
       ...findings.map(f => `  ↓${f.overhang}px  ${f.description}`),
       findings.length === 0 ? '  ✓ 這一頁的區塊都在摺線以上' : '',
     ].filter(Boolean).join('\n');
