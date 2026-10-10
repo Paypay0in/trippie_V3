@@ -59,6 +59,11 @@ import JoinTripSheet, {
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
 import { findDuplicateRefund } from "./services/refundSettlement";
 import { settlementExpensesFor } from "./services/settlementScope";
+import {
+  loadDismissedDuplicates,
+  rememberDismissed,
+  stillWorthAsking,
+} from "./services/dismissedDuplicates";
 import { PASSPORT_OPTIONS } from "./services/passportOptions";
 import { countSaversForPost, saverCountsByPost } from "./services/postSaveCounts";
 import {
@@ -1301,13 +1306,26 @@ const App: React.FC = () => {
     there knows which this is.
   */
   const ledgerScannedForRef = useRef<string | null>(null);
+  /*
+    Answers kept on this device, because the cloud cannot carry them.
+
+    「這每次都跳出詢問 我已經回答過了」 — written onto the records, the answer was
+    wiped by the next snapshot: a shared trip hydrates on every open and the
+    expense mapping has no column for it. Here it survives, because the cloud
+    never sees it.
+  */
+  const dismissedDuplicatesRef = useRef(loadDismissedDuplicates());
   useEffect(() => {
     const tripId = activeDraftId || currentLoadedTripId;
     if (!tripId || expenses.length < 2 || duplicatePrompt) return;
     if (ledgerScannedForRef.current === tripId) return;
     ledgerScannedForRef.current = tripId;
 
-    const pairs = findDuplicateReceipts({ incoming: expenses });
+    const pairs = stillWorthAsking(
+      findDuplicateReceipts({ incoming: expenses }),
+      dismissedDuplicatesRef.current,
+      tripId,
+    );
     if (pairs.length === 0) return;
 
     setDuplicatePromptContext("ledger");
@@ -1325,6 +1343,12 @@ const App: React.FC = () => {
           looked at next.
         */
         const declined = pairs.filter((_, index) => !mergeIndexes.includes(index));
+        // Remembered here first: this is the copy that survives the next sync.
+        dismissedDuplicatesRef.current = rememberDismissed(
+          dismissedDuplicatesRef.current,
+          tripId,
+          declined,
+        );
         if (declined.length > 0) {
           const distinct = new Map<string, Set<string>>();
           const note = (a: string, b: string) => {
