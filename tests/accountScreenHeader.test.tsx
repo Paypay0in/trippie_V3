@@ -40,6 +40,35 @@ const renderAccount = () =>
     />,
   );
 
+
+/** A published post of his own, with three replies under it. */
+const renderAccountWithPost = (counts: Record<string, number> = { p1: 3 }) =>
+  render(
+    <AccountScreen
+      authStatus="authenticated"
+      profile={{ userId: 'u1', displayName: 'Ann' } as never}
+      email="a@b.c"
+      authAvailable
+      onSignIn={vi.fn()}
+      onSignOut={vi.fn()}
+      onSaveProfile={vi.fn()}
+      myPosts={[{
+        id: 'p1', creatorId: 'u1', authorName: 'Ann', title: '首爾這幾個地方',
+        content: '', country: '韓國', city: '首爾', status: 'published',
+        createdAt: '2026-10-01', publishedAt: '2026-10-01',
+      } as never]}
+      savedInspirations={[]}
+      completedTripCount={0}
+      onTogglePostVisibility={vi.fn()}
+      onDeletePost={vi.fn()}
+      onCreatePost={vi.fn()}
+      onOpenPost={vi.fn()}
+      saverCounts={{}}
+      commentCounts={counts}
+      onOpenCreatorCenter={vi.fn()}
+    />,
+  );
+
 afterEach(cleanup);
 
 describe('我的', () => {
@@ -100,15 +129,22 @@ describe('個人頁', () => {
   });
 
   /**
-   * The design also shows a like count and a comment count on every post.
-   * This app has neither — no like, no comment, nowhere to count them from —
-   * so drawing them would be inventing figures on somebody's own profile.
+   * 「有留言跟愛心數」 — and he was right about one of the two.
+   *
+   * Comments are a real feature with a real table, synced. Drawing the card
+   * without them hid something its author would want to see. Likes are a heart
+   * in the community feed wired to component state: it fills while you look at
+   * it and is gone on reload, with no table behind it, so a count would be a
+   * number this app cannot stand behind.
    */
-  it('沒有按讚數、留言數 —— 那兩個東西不存在', () => {
-    renderAccount();
-    const text = document.body.textContent ?? '';
-    expect(text).not.toContain('按讚');
-    expect(text).not.toContain('留言');
+  it('貼文卡寫出真實的留言數，包含 0', () => {
+    renderAccountWithPost();
+    expect(screen.getByTestId('post-comments-p1').textContent).toContain('3');
+  });
+
+  it('沒人留言的貼文寫 0，而不是整列消失', () => {
+    renderAccountWithPost({});
+    expect(screen.getByTestId('post-comments-p1').textContent).toContain('0');
   });
 
   it('簡介有填才出現', () => {

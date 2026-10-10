@@ -78,6 +78,7 @@ import { isPushablePost } from "./services/communitySyncMapping";
 import {
   buildComment,
   commentsForPost,
+  commentCounts,
   loadPostComments,
   savePostComments,
 } from "./services/postComments";
@@ -5998,6 +5999,7 @@ const App: React.FC = () => {
               onCreatePost={openCommunityComposer}
               onOpenPost={openSourceCommunityPost}
               saverCounts={saverCountsByPost(savedTravelInspirations)}
+              commentCounts={commentCounts(postComments)}
               onOpenCreatorCenter={() => setAccountView("creator")}
             />
             <AppBottomNav

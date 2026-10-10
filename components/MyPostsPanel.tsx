@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bookmark, Eye, EyeOff, Lock, MapPin, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { Bookmark, Eye, EyeOff, Lock, MapPin, MoreHorizontal, Plus, Trash2, MessageCircle } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
 
 interface Props {
@@ -11,6 +11,8 @@ interface Props {
   onOpenPost: (postId: string) => void;
   /** People who kept something from each post, by post id. */
   saverCounts: Record<string, number>;
+  /** 「有留言跟愛心數」 — real counts from the comments table, zero included. */
+  commentCounts?: Record<string, number>;
 }
 
 /**
@@ -32,6 +34,7 @@ const MyPostsPanel: React.FC<Props> = ({
   onCreatePost,
   onOpenPost,
   saverCounts,
+  commentCounts = {},
 }) => {
   const [tab, setTab] = useState<'posts' | 'saved'>('posts');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -108,11 +111,36 @@ const MyPostsPanel: React.FC<Props> = ({
                     <p className="mt-1 truncate text-[11px] text-slate-400">
                       {[post.country, post.city].filter(Boolean).join('・') || '未填地點'}
                     </p>
-                    {(saverCounts[post.id] ?? 0) > 0 && (
-                      <p className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-violet-600">
-                        <Bookmark size={11} />{saverCounts[post.id]} 人收藏了靈感
-                      </p>
-                    )}
+                    {/*
+                      What this post actually got.
+
+                      「有留言跟愛心數」. The comments were there all along — a real
+                      table, synced — and the card said nothing about them, so
+                      somebody's post looked ignored on their own profile while
+                      three people were talking underneath it.
+
+                      Zero is drawn too. A row that appears only once there is
+                      something to report cannot answer 「did anyone reply?」,
+                      which is the question the row is read to answer.
+                    */}
+                    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
+                      <span data-testid={`post-comments-${post.id}`} className="flex items-center gap-1">
+                        <MessageCircle size={12} />{commentCounts[post.id] ?? 0}
+                      </span>
+                      {/*
+                        Kept as a sentence, where the design has a bare icon.
+
+                        A bookmark on your own post reads as 「you saved this」;
+                        what it means here is that somebody else took an idea
+                        out of it, which is the one number on this card that is
+                        news. The count beside it is not the same fact.
+                      */}
+                      {(saverCounts[post.id] ?? 0) > 0 && (
+                        <span className="flex items-center gap-1 text-violet-600">
+                          <Bookmark size={12} />{saverCounts[post.id]} 人收藏了靈感
+                        </span>
+                      )}
+                    </p>
                   </div>
 
                   {openMenuId === post.id && (

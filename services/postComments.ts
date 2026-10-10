@@ -87,3 +87,24 @@ export const savePostComments = (comments: PostComment[]) => {
     // Losing a comment to a full store must not take the post down with it.
   }
 };
+
+/**
+ * How many comments each post has.
+ *
+ * 「有留言跟愛心數」. The profile was drawn without them on the reasoning that
+ * neither existed — which was half wrong, and wrong in the direction that
+ * matters: comments are a real feature with a real table, so a post card that
+ * stayed silent about them was hiding something the author would want to see.
+ *
+ * Counted in one pass rather than filtering per card: a profile with forty
+ * posts would otherwise walk the whole list forty times to draw one number
+ * each.
+ */
+export const commentCounts = (comments: PostComment[]): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  comments.forEach(comment => {
+    if (!comment.postId) return;
+    counts[comment.postId] = (counts[comment.postId] || 0) + 1;
+  });
+  return counts;
+};
