@@ -63,6 +63,22 @@ const AccountScreen: React.FC<Props> = ({
   const [avatar, setAvatar] = useState(profile?.avatarUrl || '');
   const [bio, setBio] = useState(profile?.bio || '');
 
+  /*
+    Picked from the roll and saved on the spot.
+
+    The pencil is not inside the form, so leaving the new photo in local state
+    would show a face that vanishes on the next render with nothing said. 320px
+    is the largest this is ever drawn at, doubled for retina.
+  */
+  const pickAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !profile) return;
+    const dataUrl = await readAndDownscale(file, { maxEdge: 320 });
+    setAvatar(dataUrl);
+    await onSaveProfile({ displayName: profile.displayName, avatarUrl: dataUrl, bio: profile.bio });
+  };
+
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     await onSaveProfile({ displayName: name, avatarUrl: avatar, bio });
@@ -180,14 +196,28 @@ const AccountScreen: React.FC<Props> = ({
                     ? <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
                     : profile.displayName.slice(0, 1)}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEditing(current => !current)}
-                  aria-label="編輯個人資料"
-                  className="absolute -right-0.5 bottom-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#f7f8fc] bg-white text-slate-500 shadow-sm"
+                {/*
+                  The pencil picks a photo.
+
+                  「我需要可以上傳大頭照的地方」. It opened a form whose avatar field
+                  was a text box labelled 「Avatar URL」 — which asks somebody
+                  holding a phone to produce a public link to a picture that
+                  only exists in their camera roll. There was no way to set an
+                  avatar from the device at all.
+                */}
+                <label
+                  aria-label="更換大頭照"
+                  className="absolute -right-0.5 bottom-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-2 border-[#f7f8fc] bg-white text-slate-500 shadow-sm"
                 >
                   <Pencil size={13} />
-                </button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    data-testid="change-avatar"
+                    className="hidden"
+                    onChange={event => void pickAvatar(event)}
+                  />
+                </label>
               </div>
             </div>
 
@@ -241,10 +271,49 @@ const AccountScreen: React.FC<Props> = ({
                   顯示名稱
                   <input value={name} onChange={event => setName(event.target.value)} required className="mt-1.5 h-[var(--control-h)] w-full rounded-field border border-hairline px-3 text-field" />
                 </label>
-                <label className="block text-support font-semibold">
-                  Avatar URL
-                  <input value={avatar} onChange={event => setAvatar(event.target.value)} className="mt-1.5 h-[var(--control-h)] w-full rounded-field border border-hairline px-3 text-field" />
-                </label>
+                <div className="text-support font-semibold">
+                  大頭照
+                  <div className="mt-1.5 flex items-center gap-3">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-violet-100 text-field font-black text-violet-700">
+                      {avatar
+                        ? <img src={avatar} alt="" className="h-full w-full object-cover" />
+                        : (name || '?').slice(0, 1)}
+                    </span>
+                    <label className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-control border border-hairline px-3.5 text-support font-semibold">
+                      <ImageIcon size={15} />
+                      從相簿選擇
+                      <input
+                        type="file"
+                        accept="image/*"
+                        data-testid="pick-avatar"
+                        className="hidden"
+                        onChange={async event => {
+                          const file = event.target.files?.[0];
+                          event.target.value = '';
+                          if (!file) return;
+                          setAvatar(await readAndDownscale(file, { maxEdge: 320 }));
+                        }}
+                      />
+                    </label>
+                    {avatar && (
+                      <button
+                        type="button"
+                        data-testid="clear-avatar"
+                        onClick={() => setAvatar('')}
+                        className="min-h-11 text-support font-semibold text-slate-400"
+                      >
+                        移除
+                      </button>
+                    )}
+                  </div>
+                  {/* A link still works for anyone who has one; it is no longer the only way. */}
+                  <input
+                    value={avatar.startsWith('data:') ? '' : avatar}
+                    onChange={event => setAvatar(event.target.value)}
+                    placeholder="或貼上圖片網址"
+                    className="mt-2 h-[var(--control-h)] w-full rounded-field border border-hairline px-3 text-field font-normal placeholder:text-slate-300"
+                  />
+                </div>
                 <label className="block text-support font-semibold">
                   簡介
                   <textarea value={bio} onChange={event => setBio(event.target.value)} rows={3} className="mt-1.5 w-full rounded-field border border-hairline px-3 py-2 text-field" />

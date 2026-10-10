@@ -216,3 +216,47 @@ describe('設定', () => {
     expect(onSignOut).toHaveBeenCalled();
   });
 });
+
+/**
+ * 「我需要可以上傳大頭照的地方」.
+ *
+ * The only way to set an avatar was a text field labelled 「Avatar URL」, which
+ * asks somebody holding a phone to produce a public link to a picture that
+ * exists only in their camera roll. There was no path from the device at all.
+ */
+describe('大頭照', () => {
+  it('鉛筆直接開相簿', () => {
+    renderAccount();
+    const picker = screen.getByTestId('change-avatar') as HTMLInputElement;
+    expect(picker.type).toBe('file');
+    expect(picker.accept).toBe('image/*');
+  });
+
+  it('編輯表單裡也選得到，不是只能貼網址', () => {
+    renderAccount();
+    fireEvent.click(screen.getByLabelText('更換大頭照').closest('label') ?? document.body);
+    // The form picker lives behind the pencil-opened form.
+    fireEvent.click(screen.getByTestId('account-settings'));
+    fireEvent.click(screen.getByText('編輯個人資料'));
+    expect((screen.getByTestId('pick-avatar') as HTMLInputElement).type).toBe('file');
+  });
+
+  it('網址還是貼得進去 —— 只是不再是唯一的辦法', () => {
+    renderAccount();
+    fireEvent.click(screen.getByTestId('account-settings'));
+    fireEvent.click(screen.getByText('編輯個人資料'));
+    expect(screen.getByPlaceholderText('或貼上圖片網址')).toBeTruthy();
+  });
+
+  it('選過照片以後可以移除', () => {
+    renderAccount();
+    fireEvent.click(screen.getByTestId('account-settings'));
+    fireEvent.click(screen.getByText('編輯個人資料'));
+    expect(screen.queryByTestId('clear-avatar')).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText('或貼上圖片網址'), {
+      target: { value: 'https://example.com/a.jpg' },
+    });
+    expect(screen.getByTestId('clear-avatar')).toBeTruthy();
+  });
+});
