@@ -7032,6 +7032,33 @@ const App: React.FC = () => {
               />
             </>
           )}
+          {workspaceSection === "overview"
+            && (currentPhase === "post" || currentPhase === "summary") && (
+            /*
+              「總覽為何是空白的」. The overview was built for a trip that is coming
+              or happening, and a finished trip never used to reach this screen —
+              it had its own, with no navigation, which is why it was brought
+              here. Arriving at a blank page is a worse answer than the one it
+              replaced.
+
+              What a finished trip is an overview of is what it cost. The
+              closing report already exists and is already what the 結算 tab
+              shows; it is the overview, for a trip that is over.
+            */
+            <div className="space-y-6">
+              <TripSummaryModal
+                expenses={expenses}
+                onArchive={handleArchiveTrip}
+                taxRule={resolvedTaxRule}
+                variant="embedded"
+                initialTripName={currentTripName}
+                allowArchive={!currentLoadedTripId}
+                viewerMemberId={viewerMemberId}
+                ownerMemberId={activeOwnerMemberId}
+                onOpenExpense={handleEditExpense}
+              />
+            </div>
+          )}
           {workspaceSection === "overview" && currentPhase === "during" && (
             <TripLiveOverview
               expenses={expenses}

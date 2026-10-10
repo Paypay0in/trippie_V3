@@ -67,3 +67,19 @@ it('行程已結束（RETURN／RECAP）時，下方導覽列也要在', async ()
   await openTrip();
   await waitFor(() => expect(navIsOnScreen()).toBe(true));
 });
+
+/**
+ * 「總覽為何是空白的」.
+ *
+ * The overview was written for a trip that is coming or happening. A finished
+ * trip never reached this screen until it was brought here for the navigation,
+ * and then landed on a page with nothing on it — a worse answer than the one it
+ * replaced. What a finished trip is an overview of is what it cost.
+ */
+it('已結束行程的總覽不是空白的', async () => {
+  seed('2026-10-02', '2026-10-07');
+  await openTrip();
+  await waitFor(() =>
+    expect(document.body.textContent || '').toContain('旅行結算報告'),
+  );
+});
