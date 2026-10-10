@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { LogOut, Pencil, Sparkles } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
 import MyPostsPanel from './MyPostsPanel';
+import AppWordmark from './AppWordmark';
+import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import { AuthProfile } from '../services/authService';
 import { AuthStatus } from '../types';
 
@@ -63,7 +65,18 @@ const AccountScreen: React.FC<Props> = ({
   const signedIn = authStatus === 'authenticated' && profile;
 
   return (
-    <main data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className="min-h-screen bg-[#f7f8fc] px-4 pb-28 text-[#11183d] md:mx-auto md:max-w-2xl">
+    <main data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className={`min-h-screen bg-[#f7f8fc] px-4 text-[#11183d] md:mx-auto md:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
+      {/*
+        The app's name, here too.
+
+        「這頁沒 logo」. 社群 and 旅行 both open under the wordmark and this one
+        did not, so the tab that holds your account was the one place the app
+        stopped introducing itself — which reads as having been dropped into a
+        settings page from somewhere else.
+      */}
+      <div className="mb-4 flex items-center">
+        <AppWordmark />
+      </div>
       <header className="mb-5 flex items-center justify-between">
         <h1 className="text-2xl font-black">我的</h1>
         {signedIn && (
