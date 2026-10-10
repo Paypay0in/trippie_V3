@@ -1,0 +1,24 @@
+-- Bills already declared to be different purchases.
+--
+-- 「這每次都跳出詢問 我已經回答過了」.
+--
+-- The duplicate check pairs records that share a currency, an amount and a day.
+-- Korean prices are round, so it pairs a 2,000 won coffee with a 2,000 won
+-- packet of stomach medicine, and a traveller tidying an old ledger is asked
+-- about fourteen such pairs at once. Answering is fine. Being asked again every
+-- single time the trip is opened is not — it turns a question into something to
+-- tap through, which is how the one real duplicate in the list gets merged by
+-- accident along with thirteen that are not.
+--
+-- The answer was first written onto the record and then kept on the device,
+-- because the cloud had nowhere to put it: a shared trip hydrates from this
+-- table on every open, so anything the mapping cannot carry is wiped by the
+-- next snapshot. On the device it survives, and the other traveller is asked
+-- the same fourteen questions for themselves.
+--
+-- Here it is shared, which is what it always was: a fact about two purchases,
+-- not an opinion one phone holds. Written on both sides so the pair is settled
+-- whichever record is looked at next, and nullable because a bill nobody has
+-- been asked about is simply unasked.
+alter table public.expenses
+  add column if not exists not_duplicate_of text[];
