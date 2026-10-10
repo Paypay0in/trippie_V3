@@ -4,6 +4,22 @@ import { useTranslation } from 'react-i18next';
 
 export type AppSection = 'community' | 'trips' | 'services' | 'profile';
 
+/**
+ * The room a page has to leave under itself for the floating bar.
+ *
+ * 「這頁跑版」. When the bar was welded to the bottom edge its top sat about
+ * 52px up and pb-24 cleared it. Floating moved three things at once: the bar
+ * now starts a safe-area inset above the edge, and the raised + button stands
+ * 24px proud of the bar itself. On a phone with a home indicator the highest
+ * pixel of the nav is around 110px up, and pb-24 is 96 — so the last card of
+ * every list sat under it, unreachable by scrolling.
+ *
+ * Expressed once, here, beside the bar whose size it depends on. A page that
+ * hard-codes its own number is a page that will not hear about the next change
+ * to this one.
+ */
+export const BOTTOM_NAV_CLEARANCE = 'pb-[calc(env(safe-area-inset-bottom)+6.5rem)]';
+
 interface Props {
   active: AppSection;
   onChange: (section: AppSection) => void;

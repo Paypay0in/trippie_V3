@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Heart, MapPin, Search, MoreHorizontal } from 'lucide-react';
 import { CommunityPost } from '../types';
-import AppBottomNav, { AppSection } from './AppBottomNav';
+import AppBottomNav, { AppSection, BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import { fetchDestinationImage } from '../services/destinationImageService';
 
 interface Props {
@@ -33,7 +33,7 @@ const CommunityHome: React.FC<Props> = ({ activeSection, onSectionChange, onPlus
     return () => { active = false; };
   }, [feed]);
   const tabs: ['discover' | 'following' | 'next', string][] = [['discover', '發現'], ['following', '追蹤'], ['next', '下一個目的地']];
-  return <div className="mx-auto min-h-screen w-full bg-[#f7f8fc] pb-24 text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl">
+  return <div className={`mx-auto min-h-screen w-full bg-[#f7f8fc] text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
     <header data-safe-top className="sticky top-0 z-20 border-b border-slate-100 bg-white/95 px-4 pb-2 backdrop-blur-xl"><div className="flex items-center justify-between"><div className="flex items-center gap-2 text-xl font-black"><span className="text-violet-600">✈</span>Trippie</div>{/*
       No bell here.
 

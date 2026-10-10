@@ -12,6 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Phase } from '../types';
+import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import {
   DestinationImage,
   fetchDestinationImage,
@@ -70,7 +71,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
   const actionClass = 'flex min-h-11 min-w-11 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 shadow-sm transition-colors hover:text-blue-600';
 
   return (
-    <div className="min-h-screen w-full bg-[#f6f7fc] pb-24 text-[#11183d]">
+    <div className={`min-h-screen w-full bg-[#f6f7fc] text-[#11183d] ${BOTTOM_NAV_CLEARANCE}`}>
       <header data-safe-top className="mx-auto w-full max-w-2xl bg-white px-4 pb-3">
         <div className="mb-3 flex items-center justify-between gap-3">
           <button className={actionClass} onClick={onBack} aria-label="回到旅程首頁"><ArrowLeft size={21} /></button>
