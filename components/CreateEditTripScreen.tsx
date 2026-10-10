@@ -152,7 +152,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
         screen at the same place and the page reads as one slab pushed to the
         bezel.
       */}
-      <main data-safe-top style={{ ["--safe-top-base" as string]: "1.75rem" }} className="mx-auto min-h-screen w-full max-w-xl px-7 pb-10 sm:px-9">
+      <main data-safe-top style={{ ["--safe-top-base" as string]: "1.75rem" }} className="mx-auto flex min-h-[100dvh] flex-col w-full max-w-xl px-7 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-9">
         <header className="relative flex min-h-12 items-center justify-center">
           <button
             type="button"
@@ -167,8 +167,8 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </h1>
         </header>
 
-        <form onSubmit={handleSubmit} className="mt-7 space-y-7">
-          <section className="relative aspect-[16/9] overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-100 via-blue-50 to-cyan-100 shadow-[0_18px_45px_-32px_rgba(15,49,99,0.55)]">
+        <form onSubmit={handleSubmit} className="mt-4 flex flex-1 flex-col gap-4">
+          <section className="relative h-[clamp(6rem,17vh,9.5rem)] shrink-0 overflow-hidden rounded-[26px] bg-gradient-to-br from-slate-100 via-blue-50 to-cyan-100 shadow-[0_18px_45px_-32px_rgba(15,49,99,0.55)]">
             {destinationImage && !destinationImageFailed ? (
               <>
                 <img
@@ -211,8 +211,8 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
-            <p className="text-lg font-black tracking-tight">Trip budget</p>
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <p className="text-base font-black tracking-tight">Trip budget</p>
+            <div className="mt-2 grid grid-cols-2 gap-3">
               <label className="text-xs font-bold text-slate-500">Currency
                 <select value={currency} onChange={event => setCurrency(event.target.value)} className="mt-1 h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#10204a] outline-none focus:border-blue-400">
                   {COMMON_CURRENCIES.map(option => <option key={option.code} value={option.code}>{option.code}</option>)}
@@ -225,10 +225,10 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
-            <label htmlFor="trip-destination" className="text-lg font-black tracking-tight">
+            <label htmlFor="trip-destination" className="text-base font-black tracking-tight">
               Where are you going?
             </label>
-            <div className="relative mt-3">
+            <div className="relative mt-2">
               <Search
                 size={22}
                 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
@@ -240,14 +240,14 @@ const CreateEditTripScreen: React.FC<Props> = ({
                 onChange={(event) => setDestination(event.target.value)}
                 placeholder="e.g. Tokyo, Japan"
                 autoComplete="off"
-                className="h-16 w-full rounded-2xl border border-slate-200 bg-white pl-13 pr-4 text-base font-semibold text-[#10204a] outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-13 pr-4 text-base font-semibold text-[#10204a] outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
               />
             </div>
           </section>
 
           <section>
-            <p className="text-lg font-black tracking-tight">When?</p>
-            <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2.5">
+            <p className="text-base font-black tracking-tight">When?</p>
+            <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2.5">
               <label className="relative min-w-0">
                 <CalendarDays
                   size={19}
@@ -285,11 +285,11 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
-            <p className="text-lg font-black tracking-tight">Travelers</p>
+            <p className="text-base font-black tracking-tight">Travelers</p>
             <button
               type="button"
               onClick={() => setIsCompanionsOpen(true)}
-              className="mt-3 flex h-16 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left transition hover:border-blue-200 hover:bg-blue-50/40"
+              className="mt-2 flex h-14 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left transition hover:border-blue-200 hover:bg-blue-50/40"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-[#10204a]">
                 <Users size={21} />
@@ -301,7 +301,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
             </button>
           </section>
 
-          <section className="space-y-4 pt-1">
+          <section className="mt-auto space-y-2 pt-1">
             <button
               type="submit"
               disabled={dateRangeInvalid}
