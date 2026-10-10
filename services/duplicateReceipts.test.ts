@@ -157,3 +157,35 @@ describe('合併', () => {
     expect(merged.amount).toBe(40500);
   });
 });
+
+/**
+ * 「這以前已經被詢問過一次」.
+ *
+ * Two 2,000 KRW records on the same afternoon are a coffee and a packet of
+ * stomach medicine. The check is right to ask once; asking again on every open
+ * turns the answer into noise and invites the tap that merges them by accident.
+ */
+describe('已經回答過不是同一筆的，不再問', () => {
+  const coffee = {
+    id: 'coffee', description: '咖啡', amount: 2000, currency: 'KRW',
+    date: '2026-10-06', exchangeRate: 0.0237, twdAmount: 47,
+  } as Expense;
+  const medicine = {
+    id: 'medicine', description: '胃痛藥', amount: 2000, currency: 'KRW',
+    date: '2026-10-06', exchangeRate: 0.0237, twdAmount: 47,
+  } as Expense;
+
+  it('沒回答過的會被問', () => {
+    expect(findDuplicateReceipts({ incoming: [coffee, medicine] })).toHaveLength(1);
+  });
+
+  it('標記過不是同一筆之後就不再問', () => {
+    const answered = { ...coffee, notDuplicateOf: ['medicine'] };
+    expect(findDuplicateReceipts({ incoming: [answered, medicine] })).toHaveLength(0);
+  });
+
+  it('只要有一邊記得就算數', () => {
+    const answered = { ...medicine, notDuplicateOf: ['coffee'] };
+    expect(findDuplicateReceipts({ incoming: [coffee, answered] })).toHaveLength(0);
+  });
+});

@@ -20,14 +20,32 @@ interface Props {
   pairs: DuplicatePair[];
   /** The indexes the reader chose to merge. */
   onResolve: (mergeIndexes: number[]) => void;
+  /**
+   * Where the question is being asked from.
+   *
+   * 「如果你有疑問的 你把帳圈起來然後要詢問用戶是否合併」 — the same question now
+   * gets asked of a ledger that was filled in before any of this existed, where
+   * nothing is being imported and saying 「並匯入」 would describe something that
+   * is not about to happen.
+   */
+  context?: 'import' | 'ledger';
 }
 
 const money = (amount: number, currency: string) =>
   `${Math.round(amount).toLocaleString()} ${currency}`;
 
-const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve }) => {
-  // Everything on: this is the case it was built for. Taking one off is a tap.
-  const [merging, setMerging] = useState<number[]>(() => pairs.map((_, index) => index));
+const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = 'import' }) => {
+  /*
+    Ticked for an import, clear for a ledger sweep.
+
+    A pocketful of receipts photographed together really does hold duplicates,
+    and the default earns its place. A ledger of 14 matched pairs does not: KRW
+    prices are round, so 2,000 buys a coffee and 2,000 buys stomach medicine on
+    the same afternoon. 「合併 14 組」 ticked by default puts one tap between the
+    traveller and fourteen real records folded into seven.
+  */
+  const [merging, setMerging] = useState<number[]>(() =>
+    context === 'ledger' ? [] : pairs.map((_, index) => index));
   /** Which single row is open: two panels at once is a screen nobody reads. */
   const [opened, setOpened] = useState<string | null>(null);
 
@@ -51,7 +69,9 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve }) => {
             有 {pairs.length} 組可能是同一筆
           </h2>
           <p className="mt-1 text-xs leading-5 text-slate-500">
-            店家票據和信用卡簽單常是同一筆消費的兩張紙。勾起來的會合併成一筆，照片都會留著。
+            {context === 'ledger'
+              ? '這些是帳本裡金額與日期相同的紀錄，在這個檢查存在之前就記進來了。勾起來的會合併成一筆，照片都會留著。'
+              : '店家票據和信用卡簽單常是同一筆消費的兩張紙。勾起來的會合併成一筆，照片都會留著。'}
           </p>
         </div>
 
@@ -190,7 +210,11 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve }) => {
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 py-3.5 text-sm font-black text-white"
           >
             <Layers size={16} />
-            {merging.length > 0 ? `合併 ${merging.length} 組並匯入` : '全部分開記，直接匯入'}
+            {merging.length > 0
+              ? `合併 ${merging.length} 組`
+              : context === 'ledger'
+                ? '都不是同一筆，維持原狀'
+                : '全部分開記，直接匯入'}
           </button>
           {/*
             No cancel. The receipts are read either way; the only question this

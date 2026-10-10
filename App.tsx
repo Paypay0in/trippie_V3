@@ -57,6 +57,8 @@ import JoinTripSheet, {
   readJoinedTripId,
 } from "./components/JoinTripSheet";
 import { localToday, phaseForDate } from "./services/tripPhaseByDate";
+import { findDuplicateRefund } from "./services/refundSettlement";
+import { settlementExpensesFor } from "./services/settlementScope";
 import { PASSPORT_OPTIONS } from "./services/passportOptions";
 import { countSaversForPost, saverCountsByPost } from "./services/postSaveCounts";
 import {
@@ -970,10 +972,14 @@ const App: React.FC = () => {
     different early returns — a prompt mounted in only one of them would never
     appear for half the people who triggered it.
   */
+  const [duplicatePromptContext, setDuplicatePromptContext] = useState<
+    "import" | "ledger"
+  >("import");
   const duplicatePromptOverlay = duplicatePrompt ? (
     <DuplicateReceiptPrompt
       pairs={duplicatePrompt.pairs}
       onResolve={duplicatePrompt.resolve}
+      context={duplicatePromptContext}
     />
   ) : null;
   const activeDraftIdRef = useRef<string | null>(
@@ -1258,6 +1264,75 @@ const App: React.FC = () => {
 
     return () => { cancelled = true; };
   }, [activeDraftId, currentLoadedTripId, expenses]);
+
+  /*
+    The same duplicate question, asked of a ledger that predates it.
+
+    「如果你有疑問的 你把帳圈起來然後要詢問用戶是否合併」. The check runs at import,
+    so bills recorded before it exists were never asked about — 釜山 holds two
+    OLIVE YOUNG at 18,000 KRW on 10/03 and two more pairs like it, each counted
+    twice in the trip's total and in what the other traveller owes.
+
+    Asked, never applied quietly: the pairs are shown side by side and merged
+    only where the traveller ticks them. Two genuinely separate purchases of the
+    same price on the same day are a real thing, and only the person who was
+    there knows which this is.
+  */
+  const ledgerScannedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    const tripId = activeDraftId || currentLoadedTripId;
+    if (!tripId || expenses.length < 2 || duplicatePrompt) return;
+    if (ledgerScannedForRef.current === tripId) return;
+    ledgerScannedForRef.current = tripId;
+
+    const pairs = findDuplicateReceipts({ incoming: expenses });
+    if (pairs.length === 0) return;
+
+    setDuplicatePromptContext("ledger");
+    setDuplicatePrompt({
+      pairs,
+      resolve: (mergeIndexes) => {
+        setDuplicatePrompt(null);
+        setDuplicatePromptContext("import");
+        /*
+          A pair left unticked has been answered: these are two purchases.
+
+          「這以前已經被詢問過一次」 — without recording it the sweep asked again on
+          every open, and a question re-asked is a question the traveller stops
+          reading. Remembered on both records so it is settled whichever one is
+          looked at next.
+        */
+        const declined = pairs.filter((_, index) => !mergeIndexes.includes(index));
+        if (declined.length > 0) {
+          const distinct = new Map<string, Set<string>>();
+          const note = (a: string, b: string) => {
+            if (!distinct.has(a)) distinct.set(a, new Set());
+            distinct.get(a)!.add(b);
+          };
+          declined.forEach((pair) => {
+            note(pair.keep.id, pair.drop.id);
+            note(pair.drop.id, pair.keep.id);
+          });
+          const remember = (list: Expense[]) =>
+            list.map((expense) => {
+              const others = distinct.get(expense.id);
+              if (!others) return expense;
+              return {
+                ...expense,
+                notDuplicateOf: Array.from(
+                  new Set([...(expense.notDuplicateOf || []), ...others]),
+                ),
+              };
+            });
+          setExpenses((prev) => remember(prev));
+          setTripHistory((prev) =>
+            prev.map((trip) => ({ ...trip, expenses: remember(trip.expenses) })),
+          );
+        }
+        applyDuplicateMerges(pairs, mergeIndexes);
+      },
+    });
+  }, [activeDraftId, currentLoadedTripId, expenses, duplicatePrompt]);
 
   // Sync state to server when it changes and we are in a shared trip
   useEffect(() => {
@@ -3486,6 +3561,18 @@ const App: React.FC = () => {
   // outstanding set only when every non-owner participant is settled, so
   // settling Gina can no longer take V's share with it. Legacy unmarked
   // batches keep whole-expense semantics.
+  /*
+    The settlement screen sees only what is actually split.
+
+    「不應該可以看到他的帳」「只能看到有分帳的清單才對」 — it was handed the whole
+    ledger, so the other traveller's own coffee sat in the picker beside the
+    taxi we shared: hers to account for, and offered up to be ticked into a
+    settlement it has no part in.
+  */
+  const settlementVisibleExpenses = useMemo(
+    () => settlementExpensesFor(expenses, viewerMemberId),
+    [expenses, viewerMemberId],
+  );
   const outstandingExpenses = filterOutstandingExpenses(
     expenses,
     settlementMembers,
@@ -3697,14 +3784,22 @@ const App: React.FC = () => {
       travelRules?.taxRefund?.numericRule?.currency ||
       taxRule?.currency ||
       tripCurrency;
-    const duplicate = expenses.some(
-      (expense) =>
-        expense.description === "退稅入帳 (Tax Refund)" &&
-        expense.phase === "post",
-    );
-    if (duplicate) {
-      showToast("退稅已入帳，請勿重複建立。", "error");
-      setIsRefundSettlementOpen(false);
+    /*
+      One refund per trip, found by what it is rather than where it sits.
+
+      「我按下去確認入帳 沒有反應」. This asked whether a 退稅入帳 was in the 返程
+      stage, and a refund is no longer guaranteed to be there — the stage comes
+      from the date now, so one recorded mid-trip is filed 旅行中 and stopped
+      being recognised. Matching on the record itself cannot drift that way.
+    */
+    const existing = findDuplicateRefund(expenses);
+    if (existing) {
+      // Said where it can be acted on, and the dialogue stays open: closing it
+      // with only a toast behind it is what read as the button doing nothing.
+      showToast(
+        `退稅已入帳過一筆（${existing.date}，${Math.abs(existing.amount).toLocaleString()} ${existing.currency}）。要改金額請直接編輯那一筆。`,
+        "error",
+      );
       return;
     }
     const existingRate = expenses.find(
@@ -3717,8 +3812,11 @@ const App: React.FC = () => {
       existingRate ||
       COMMON_CURRENCIES.find((item) => item.code === currency)?.defaultRate ||
       1;
+    // The day the refund was collected, read in the traveller's own timezone.
+    // toISOString() is UTC, which in Seoul turns the evening into tomorrow.
+    const refundedOn = localToday();
     handleSaveExpense({
-      date: new Date().toISOString().split("T")[0],
+      date: refundedOn,
       description: "退稅入帳 (Tax Refund)",
       amount: -amount,
       currency,
@@ -3726,7 +3824,13 @@ const App: React.FC = () => {
       twdAmount: -(amount * rate),
       category: Category.OTHER,
       paymentMethod: method,
-      phase: "post",
+      // The stage follows the date, like every other bill. A refund collected
+      // at the airport on the way home is 返程; one handed back at the till
+      // mid-trip belongs to the days it was spent in.
+      phase: phaseForExpenseDate(refundedOn, {
+        startDate: tripStartDate,
+        endDate: tripEndDate,
+      }, Category.OTHER),
       payerId: defaultPayerMemberId,
       beneficiaries: [defaultPayerMemberId],
       splitMethod: "EQUAL",
@@ -6458,7 +6562,20 @@ const App: React.FC = () => {
   const containerClass =
     "min-h-screen mx-auto bg-gray-50 flex flex-col relative shadow-2xl border-x border-gray-100 w-full md:max-w-2xl lg:max-w-2xl transition-all duration-300";
 
-  if (currentPhase === "pre" || currentPhase === "during") {
+  /*
+    Every stage of an open trip gets the workspace, including the ones after it.
+
+    「沒有下方的功能列」「我點進去這個帳本他會跳進去」 — 返程中 and 回顧紀錄 fell
+    through to an older screen that has the phase tabs and no 總覽／規劃／記帳／
+    更多, so a finished trip opened with a back arrow as the only way anywhere.
+    Tapping 記帳 could not work: the control was not on the page.
+  */
+  if (
+    currentPhase === "pre"
+    || currentPhase === "during"
+    || currentPhase === "post"
+    || currentPhase === "summary"
+  ) {
     const planningContent = (
       <div className="space-y-4 pb-4">
         <div className="px-1">
@@ -7196,7 +7313,7 @@ const App: React.FC = () => {
             <div className={`fixed inset-0 ${OVERLAY.sheet} flex items-center justify-center bg-slate-950/40 p-3 sm:p-6`}>
               <div className="max-h-[85vh] w-full max-w-md overflow-y-auto">
                 <SettlementFlow
-                  expenses={expenses}
+                  expenses={settlementVisibleExpenses}
                   outstandingExpenses={outstandingExpenses}
                   members={buildTripMembers(
                     settlementTripId,
@@ -7667,7 +7784,7 @@ const App: React.FC = () => {
         <div className={`fixed inset-0 ${OVERLAY.sheet} flex items-center justify-center bg-slate-950/40 p-3 sm:p-6`}>
           <div className="max-h-[85vh] w-full max-w-md overflow-y-auto">
             <SettlementFlow
-              expenses={expenses}
+              expenses={settlementVisibleExpenses}
               outstandingExpenses={outstandingExpenses}
               members={buildTripMembers(
                 settlementTripId,

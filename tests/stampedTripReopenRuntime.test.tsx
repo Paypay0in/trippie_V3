@@ -62,11 +62,20 @@ it('重新打開行程，10/03 的帳不會跑回回國機場消費', async () =
 
   await user.click(screen.getByText('旅行'));
   await user.click(screen.getByText(/繼續旅程/));
+  /*
+    A finished trip opens in the workspace now, on its overview. The ledger is
+    where it always was — behind 記帳 — and reaching it is the point: the screen
+    this replaced had no nav at all.
+  */
+  await user.click(await screen.findByText('記帳'));
+  // The ledger opens on 旅行前; 回國機場消費 is the 返程 tab.
+  await user.click(await screen.findByText('返程'));
   await waitFor(() =>
     expect(document.body.textContent || '').toContain('回國機場消費'),
   );
 
-  await user.click(screen.getByText('回顧紀錄'));
+  // In the ledger the recap tab is 結算.
+  await user.click(await screen.findByText('結算'));
   await waitFor(() =>
     expect(document.body.textContent || '').toContain('回國機場消費'),
   );

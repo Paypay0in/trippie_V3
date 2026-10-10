@@ -202,6 +202,18 @@ export interface Expense {
   splitAllocations: Record<string, number>; // Map userID -> TWD Amount (Used for EXACT/PERCENT)
   /** Questions raised by affected members who may not edit this record. */
   disputes?: ExpenseDispute[];
+  /**
+   * Bills this one has been declared a different purchase from.
+   *
+   * 「這以前已經被詢問過一次」. Two 2,000 KRW records on the same day look alike to
+   * the duplicate check and are a coffee and a packet of stomach medicine. The
+   * question is fair to ask once; asking it again every time the trip is opened
+   * makes the answer worthless, and invites the tap that merges them by
+   * accident.
+   *
+   * Written on both sides so the pair is settled from either direction.
+   */
+  notDuplicateOf?: string[];
   needsReview?: boolean; // New field to flag uncertain AI results
   linkedShoppingItemId?: string; // New: To track which shopping item created this expense
   /**

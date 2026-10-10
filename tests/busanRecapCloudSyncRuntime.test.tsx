@@ -96,6 +96,14 @@ it('雲端同步的行程，RECAP 不會把 10/03 的帳放在回國機場消費
 
   await user.click(screen.getByText('旅行'));
   await user.click(screen.getByText(/繼續旅程/));
+  /*
+    A finished trip opens in the workspace now, on its overview. The ledger is
+    where it always was — behind 記帳 — and reaching it is the point: the screen
+    this replaced had no nav at all.
+  */
+  await user.click(await screen.findByText('記帳'));
+  // The ledger opens on 旅行前; 回國機場消費 is the 返程 tab.
+  await user.click(await screen.findByText('返程'));
 
   // Wait for the cloud copy to land, not just for the trip to open: the whole
   // point is what the screen says *after* the snapshot has been applied.
@@ -103,7 +111,8 @@ it('雲端同步的行程，RECAP 不會把 10/03 的帳放在回國機場消費
     expect(document.body.textContent || '').toContain('機場免稅店'),
   );
 
-  await user.click(screen.getByText('回顧紀錄'));
+  // In the ledger the recap tab is 結算.
+  await user.click(await screen.findByText('結算'));
   await waitFor(() =>
     expect(document.body.textContent || '').toContain('回國機場消費'),
   );

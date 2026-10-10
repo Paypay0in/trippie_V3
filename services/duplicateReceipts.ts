@@ -34,10 +34,17 @@ const dayNumber = (date: string): number | undefined => {
 };
 
 /** Two readings of one purchase, or two purchases that cost the same. */
+const declaredDistinct = (left: Expense, right: Expense): boolean =>
+  Boolean(left.notDuplicateOf?.includes(right.id))
+  || Boolean(right.notDuplicateOf?.includes(left.id));
+
 const looksLikeSamePurchase = (
   left: Expense,
   right: Expense,
 ): DuplicateConfidence | undefined => {
+  // Already answered. 「這以前已經被詢問過一次」 — a question re-asked every time
+  // the trip opens is not a question, it is a prompt to tap through.
+  if (declaredDistinct(left, right)) return undefined;
   if ((left.currency || '') !== (right.currency || '')) return undefined;
   // The amount as printed, not the converted one: two receipts in KRW convert
   // through the same rate, but a rate that moved between imports would hide a

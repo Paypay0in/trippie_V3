@@ -5,6 +5,7 @@ import ExpenseList from './ExpenseList';
 import PostTripChecklist from './PostTripChecklist';
 import ShoppingListPanel from './ShoppingListPanel';
 import { deriveDuringRefundState } from '../services/duringRefundState';
+import { isRefundEntry } from '../services/refundSettlement';
 import { CustomCategoryRefundability } from '../services/refundableCustomCategories';
 import TaxRefundSummaryCard from './TaxRefundSummaryCard';
 
@@ -57,7 +58,15 @@ const WalletReturnScreen: React.FC<Props> = ({
   onOpenDisputes,
   members,
 }) => {
-  const postExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'post'), [expenses]);
+  /*
+    Spending only. 「只要在結算的時候放入這 recap 就好」 — a refund is money
+    coming back, and it was sitting in this list as a purchase of −70 TWD,
+    printed as +TWD 0. It is reported where the trip is totted up instead.
+  */
+  const postExpenses = useMemo(
+    () => expenses.filter(expense => expense.phase === 'post' && !isRefundEntry(expense)),
+    [expenses],
+  );
   const returnTotal = useMemo(() => postExpenses.reduce((sum, expense) => sum + expense.twdAmount, 0), [postExpenses]);
   const returnShoppingList = useMemo(() => shoppingList.filter(item => item.phase === 'post'), [shoppingList]);
   // Same rule as the during-trip card: a refund is claimed by whoever paid.

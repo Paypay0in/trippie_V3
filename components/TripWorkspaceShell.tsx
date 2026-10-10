@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import StaleBuildBanner from './StaleBuildBanner';
 import {
   ArrowLeft,
   BookOpenText,
@@ -71,6 +72,16 @@ const TripWorkspaceShell: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen w-full bg-[#f6f7fc] pb-24 text-[#11183d]">
+      {/*
+        Mounted here, where every trip screen passes through.
+
+        「我為什麼打開還是依樣」. The banner lived on one screen, and that screen
+        stopped being rendered — so the one thing that can tell a phone it is
+        running yesterday's build showed up nowhere. The workspace is the frame
+        around every stage of a trip, which makes it the one place worth saying
+        it from.
+      */}
+      <StaleBuildBanner />
       <header className="mx-auto w-full max-w-2xl bg-white px-4 pb-3 pt-5">
         <div className="mb-3 flex items-center justify-between gap-3">
           <button className={actionClass} onClick={onBack} aria-label="回到旅程首頁"><ArrowLeft size={21} /></button>

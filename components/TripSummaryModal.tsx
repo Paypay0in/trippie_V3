@@ -1,6 +1,8 @@
 
 import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
+import { isRefundableCategory } from '../services/refundableCategories';
+import { creditedRefundTwd, findDuplicateRefund, isRefundEntry } from '../services/refundSettlement';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { expenseCostToViewer } from '../services/viewerSpend';
@@ -107,12 +109,19 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
     duringTotal,
     refundInfo,
     hasRefundRecord,
+    creditedRefund,
     chartData,
     helpBuyList,
     totalHelpBuyTwd
   } = useMemo(() => {
     // 0. Pre-check for Refund Record
-    const hasRefund = reportExpenses.some(e => e.description === '退稅入帳 (Tax Refund)' && e.phase === 'post');
+    /*
+      Found by being a refund, not by which stage it landed in. The stage comes
+      from the date now, so one collected at the till mid-trip is filed 旅行中
+      and a check keyed on 返程 stops seeing it.
+    */
+    const recordedRefund = findDuplicateRefund(reportExpenses);
+    const hasRefund = Boolean(recordedRefund);
 
     let total = 0;
     let ccBill = 0;
@@ -160,14 +169,31 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
         realCost = shareOfExpense(e);
       }
 
-      // Check for Refund Eligibility (Applicable to both Own Expense and Help Buy)
-      const isEligibleForRefund = taxRule && 
-                                  taxRule.refundRate > 0 && 
-                                  e.phase === 'during' && 
-                                  e.currency === taxRule.currency && 
-                                  e.amount >= taxRule.minSpend;
-                                  
-      // Add to Refund List if eligible (regardless of category)
+      /*
+        What a counter will actually refund.
+
+        「餐飲不能退稅啊」. This read 「regardless of category」 and meant it: a
+        brunch, a taxi to the hotel, a perm and a fortune telling all sat in the
+        refund list because they were bought in won, mid-trip, over the
+        threshold. Korea refunds goods from tax-free registered shops, so the
+        number the traveller was about to queue at the airport for counted meals
+        and services it was never going to get back.
+
+        isRefundableCategory is the rule the rest of the app already uses; this
+        screen simply was not asking it. Two things the traveller has said
+        themselves are honoured too: a purchase marked 不可退稅, and one already
+        refunded at the till, which cannot be claimed a second time.
+      */
+      const isEligibleForRefund = taxRule &&
+                                  taxRule.refundRate > 0 &&
+                                  e.phase === 'during' &&
+                                  e.currency === taxRule.currency &&
+                                  e.amount >= taxRule.minSpend &&
+                                  isRefundableCategory(e.category) &&
+                                  !e.taxRefundIneligible &&
+                                  !e.taxRefundedAtPurchase;
+
+      // Add to Refund List if eligible
       if (isEligibleForRefund && taxRule) {
           const refundForeign = e.amount * taxRule.refundRate;
           const refundTWD = refundForeign * e.exchangeRate;
@@ -218,8 +244,32 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             allCategoryMap[e.category] = (allCategoryMap[e.category] || 0) + realCost;
           }
 
+          /*
+            A bill this traveller paid nothing towards is not their spending.
+
+            「這個根本不是我的帳」「我只是代墊」. Gina's fortune telling was fronted
+            by him and split to her alone, so his share is zero — and it still
+            appeared in his own category breakdown, at $0, among the things he
+            bought. The totals were never wrong, because zero adds nothing; the
+            list was, because it read as his.
+
+            Only exactly zero is dropped. A refund is negative and belongs here,
+            and so does anything he carries a real share of, however small.
+          */
+          /*
+            A refund is not spending and does not belong in a phase list.
+
+            「只要在結算的時候放入這 recap 就好」 — it still counts against the trip
+            total above, which is the whole point of recording it; it just stops
+            appearing among the purchases, where it read as a −70 TWD buy.
+          */
+          const isNotMySpending = realCost === 0 || isRefundEntry(e);
+
           // Breakdown Logic
-          if (e.phase === 'pre') {
+          if (isNotMySpending) {
+              // Counted nowhere, listed nowhere: already worth nothing to every
+              // total above, and worth nothing to read.
+          } else if (e.phase === 'pre') {
               preList.push({ id: e.id, date: e.date, desc: e.description, amount: realCost, cat: e.category });
           } else if (e.phase === 'post') {
               postList.push({ id: e.id, date: e.date, desc: e.description, amount: realCost, cat: e.category });
@@ -301,6 +351,19 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
           items: refundItems
       },
       hasRefundRecord: hasRefund,
+      // What actually came back, and how. 「在機場後才退稅的 他會顯示退成現金或是
+      // 退成信用卡」 — the two land in different places: a card refund reduces the
+      // statement, cash increases what is in the wallet.
+      creditedRefund: recordedRefund
+        ? {
+            twd: creditedRefundTwd(reportExpenses),
+            foreign: Math.abs(recordedRefund.amount),
+            currency: recordedRefund.currency,
+            channel: recordedRefund.paymentMethod === PaymentMethod.CASH_FOREIGN
+              ? '領取外幣現金'
+              : '退到信用卡',
+          }
+        : null,
       chartData,
       helpBuyList: helpBuy.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
       totalHelpBuyTwd: helpBuySum
@@ -532,8 +595,16 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                             {hasRefundRecord ? '退稅已入帳' : '預估退稅'}
                         </div>
                         <div className={`text-xl font-black ${hasRefundRecord ? 'text-emerald-600' : 'text-amber-600'}`}>
-                            ${Math.round(refundInfo.totalTwd).toLocaleString()}
+                            ${Math.round(creditedRefund ? creditedRefund.twd : refundInfo.totalTwd).toLocaleString()}
                         </div>
+                        {creditedRefund && (
+                            <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                                {creditedRefund.channel}
+                                <span className="ml-1 font-normal text-slate-400">
+                                    {Math.round(creditedRefund.foreign).toLocaleString()} {creditedRefund.currency}
+                                </span>
+                            </div>
+                        )}
                     </div>
                 )}
 

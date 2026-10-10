@@ -1,5 +1,6 @@
 
 import express from "express";
+import { readFileSync } from "node:fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { createServer as createViteServer, loadEnv } from "vite";
@@ -2426,8 +2427,28 @@ ${MODE_RULES[mode]}
    * which piece of UI copy a commit was supposed to add.
    */
   app.get("/api/version", (_req, res) => {
+    /*
+      The id of the build actually being served.
+
+      「我為什麼打開還是依樣」 — this reported 「dev」 locally, and the staleness
+      check treats 「dev」 on either side as 「cannot tell」 and stays silent. The
+      one thing built to answer 「is this phone running the new code」 therefore
+      never answered. The build writes its id into dist; this reads it back, so
+      the two sides are comparing the same thing.
+    */
+    const deployedId = (() => {
+      if (process.env.RENDER_GIT_COMMIT) return process.env.RENDER_GIT_COMMIT.slice(0, 7);
+      try {
+        const raw = readFileSync(path.join(__dirname, "dist", "version.json"), "utf8");
+        const parsed = JSON.parse(raw) as { commit?: unknown };
+        if (typeof parsed.commit === "string" && parsed.commit) return parsed.commit;
+      } catch {
+        // No build on disk yet: dev mode, where 「dev」 is the honest answer.
+      }
+      return "dev";
+    })();
     res.json({
-      commit: (process.env.RENDER_GIT_COMMIT || "dev").slice(0, 7),
+      commit: deployedId,
       startedAt: new Date(Date.now() - Math.round(process.uptime() * 1000)).toISOString(),
     });
   });
