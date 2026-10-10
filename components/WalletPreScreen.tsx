@@ -148,12 +148,27 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
         <p className="mt-1 text-sm font-medium text-slate-500">先規劃預算，掌握整趟旅程的花費。</p>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-[3fr_2fr]">
+      {/*
+        A budget nobody set is not a thing on the screen.
+
+        「預算填寫是可選項 那用戶如果沒有填 這邊就不要顯示」. It was optional in the
+        form and compulsory in the summary: two cards appeared anyway, one
+        reading 尚未設定 above a button, the other 剩餘預算 — above a dash. Together
+        they took the top third of the overview to report the absence of
+        something the traveller had already declined, and pushed what they did
+        spend below it.
+
+        Setting one later still works — it is a field on 編輯旅程, which is where
+        it was offered in the first place.
+      */}
+      <section className={`grid gap-3 ${hasBudget ? 'sm:grid-cols-[3fr_2fr]' : ''}`}>
+        {hasBudget && (
         <div className="rounded-[1.75rem] bg-white p-5 shadow-[0_12px_32px_rgba(49,46,129,.08)] ring-1 ring-indigo-50">
-          <div className="flex items-start justify-between"><div><p className="text-xs font-bold tracking-[.14em] text-indigo-500">旅行總預算</p><p className="mt-2 text-[2.2rem] font-black tracking-[-.05em] text-[#11183d]">{hasBudget ? money(budget, normalizedCurrency || 'TWD') : '尚未設定'}</p></div><button type="button" onClick={onEditBudget} aria-label="編輯預算" className="rounded-full p-2 text-indigo-600 hover:bg-indigo-50"><Pencil size={17} /></button></div>
-          {hasBudget ? <><div className="mt-5 h-3 overflow-hidden rounded-full bg-indigo-50"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${Math.min(percent || 0, 100)}%` }} /></div><div className="mt-2 flex justify-between text-xs font-bold text-slate-500"><span>已使用 {actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</span><span className="text-sm font-black text-indigo-600">{percent === undefined ? '—' : `${percent}%`}</span></div></> : <button type="button" onClick={onEditBudget} className="mt-5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white">設定預算</button>}
+          <div className="flex items-start justify-between"><div><p className="text-xs font-bold tracking-[.14em] text-indigo-500">旅行總預算</p><p className="mt-2 text-[2.2rem] font-black tracking-[-.05em] text-[#11183d]">{money(budget, normalizedCurrency || 'TWD')}</p></div><button type="button" onClick={onEditBudget} aria-label="編輯預算" className="rounded-full p-2 text-indigo-600 hover:bg-indigo-50"><Pencil size={17} /></button></div>
+          <div className="mt-5 h-3 overflow-hidden rounded-full bg-indigo-50"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${Math.min(percent || 0, 100)}%` }} /></div><div className="mt-2 flex justify-between text-xs font-bold text-slate-500"><span>已使用 {actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</span><span className="text-sm font-black text-indigo-600">{percent === undefined ? '—' : `${percent}%`}</span></div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-1">
+        )}
+        <div className={`grid gap-3 ${hasBudget ? 'grid-cols-2 sm:grid-cols-1' : 'grid-cols-1'}`}>
           <div className="rounded-[1.35rem] bg-white p-4 shadow-sm ring-1 ring-slate-100">
             <p className="text-xs font-bold text-slate-400">{borneByViewer === undefined ? '與你有關的支出' : '你的實際支出'}</p>
             <p className="mt-2 text-lg font-black text-[#11183d]">{(borneByViewer ?? actualSpent) === undefined ? '—' : money((borneByViewer ?? actualSpent) as number, normalizedCurrency || 'TWD')}</p>
@@ -179,7 +194,10 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
             )}
 
           </div>
-          <div className="rounded-[1.35rem] bg-[#f0efff] p-4"><p className="text-xs font-bold text-indigo-500">剩餘預算</p><p className={`mt-2 text-lg font-black ${actualSpent !== undefined && hasBudget && budget - actualSpent < 0 ? 'text-rose-600' : 'text-[#11183d]'}`}>{actualSpent === undefined || !hasBudget ? '—' : money(budget - actualSpent, normalizedCurrency || 'TWD')}</p></div>
+          {/* Nothing left over to report when nothing was budgeted. */}
+          {hasBudget && (
+            <div data-testid="budget-remaining" className="rounded-[1.35rem] bg-[#f0efff] p-4"><p className="text-xs font-bold text-indigo-500">剩餘預算</p><p className={`mt-2 text-lg font-black ${actualSpent !== undefined && budget - actualSpent < 0 ? 'text-rose-600' : 'text-[#11183d]'}`}>{actualSpent === undefined ? '—' : money(budget - actualSpent, normalizedCurrency || 'TWD')}</p></div>
+          )}
         </div>
       </section>
 
