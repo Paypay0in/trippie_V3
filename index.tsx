@@ -4,6 +4,7 @@ import App from './App';
 import JoinTripSheet from './components/JoinTripSheet';
 import StaleBuildBanner from './components/StaleBuildBanner';
 import { overflowProbeRequested, startOverflowProbe } from './services/overflowProbe';
+import { foldProbeRequested, startFoldProbe } from './services/foldProbe';
 import './index.css';
 import { initI18n, languageFromUrl } from './i18n/config';
 
@@ -46,3 +47,5 @@ root.render(
 // measured in a test — jsdom does none — so the only place this question has
 // an answer is the real browser on the real phone.
 if (overflowProbeRequested()) startOverflowProbe();
+// 「還是要滑」, answered in pixels instead of another screenshot.
+if (foldProbeRequested()) startFoldProbe();

@@ -329,7 +329,7 @@ const TravelHome: React.FC<Props> = ({
 
   return (
     <div className={`mx-auto flex min-h-screen w-full flex-col bg-[#f7f8fc] text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
-      <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="bg-white px-[var(--screen-pad)] pb-4">
+      <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="bg-white px-[var(--screen-pad)] pb-3">
         <div className="flex items-center justify-between">
           <AppWordmark />
           <div className="flex gap-3 text-slate-600">
@@ -369,8 +369,8 @@ const TravelHome: React.FC<Props> = ({
             </button>
           </div>
         </div>
-        <p className="mt-5 text-lg font-bold text-slate-400">嗨，旅人 👋</p>
-        <h1 className="mt-1.5 text-[2.65rem] font-black leading-[1.05] tracking-tight">
+        <p className="mt-4 text-base font-bold text-slate-400">嗨，旅人 👋</p>
+        <h1 className="mt-1 text-[2.4rem] font-black leading-[1.05] tracking-tight">
           下一趟去哪裡？
         </h1>
         {/*
@@ -382,7 +382,7 @@ const TravelHome: React.FC<Props> = ({
           screen is mostly a list of the reader's own things, which is exactly
           what someone types a name into a box to find.
         */}
-        <div className="mt-5 flex items-center gap-2 rounded-[1.6rem] border border-slate-100 bg-white px-4 py-2.5 shadow-[0_8px_26px_rgba(15,23,42,.07)]">
+        <div className="mt-4 flex items-center gap-2 rounded-[1.6rem] border border-slate-100 bg-white px-4 py-1.5 shadow-[0_8px_26px_rgba(15,23,42,.07)]">
           <Search size={20} className="shrink-0 text-slate-300" />
           <input
             ref={searchRef}
@@ -415,13 +415,13 @@ const TravelHome: React.FC<Props> = ({
           )}
         </div>
       </header>
-      <main className="flex-1 space-y-5 px-6 py-5">
+      <main className="flex-1 space-y-3 px-[var(--screen-pad)] pb-5 pt-4">
         {/* While searching, the hero is a result like any other. */}
         {(activeDraft ? heroMatches : !searching) && (
         <section data-testid="travel-hero">
           {activeDraft ? (
           <article className="relative overflow-hidden rounded-[22px] bg-slate-900 shadow-sm">
-            <div className="relative h-[244px] w-full">
+            <div className="relative h-[clamp(9.5rem,21vh,15.25rem)] w-full">
               <DestinationImageLayer destination={activeDraft.destination || activeDraft.name} />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/65" />
               <div className="absolute left-4 top-4">
@@ -566,8 +566,8 @@ const TravelHome: React.FC<Props> = ({
           </div>
         </section>
         <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="min-w-0 truncate text-xl font-black">{savedNotesTitle}</h2>
+          <div className="mb-2.5 flex items-center justify-between">
+            <h2 className="min-w-0 truncate text-lg font-black">{savedNotesTitle}</h2>
             <div className="ml-3 flex shrink-0 items-center gap-2">
               {savedNotesStorageStatus === "account_linked" ? (
                 <span className="flex items-center gap-1 text-xs font-bold text-violet-600" title="目前僅代表已連結帳號，尚未啟用雲端同步">
@@ -582,13 +582,13 @@ const TravelHome: React.FC<Props> = ({
             </div>
           </div>
           {visibleSavedNotes.length ? (
-            <div className="flex gap-4 overflow-x-auto pb-2">
+            <div className="flex gap-3 overflow-x-auto pb-1">
               {visibleSavedNotes.map((note) => (
                 <button
                   key={note.id}
                   type="button"
                   onClick={() => onOpenSavedDestination(note.country, note.city)}
-                  className="relative h-52 w-[calc((100%-36px)/4)] min-w-[120px] shrink-0 overflow-hidden rounded-[1.35rem] shadow-md"
+                  className="relative h-[clamp(6.5rem,15vh,8.5rem)] w-[calc((100%-24px)/3)] min-w-[108px] shrink-0 overflow-hidden rounded-[1.35rem] shadow-md"
                 >
                   <DestinationImageLayer destination={`${note.country} ${note.city}`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/85 to-transparent" />
