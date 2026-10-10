@@ -145,6 +145,16 @@ const ExpenseForm: React.FC<Props> = ({
     never be unenterable.
   */
   const [refundedAtTill, setRefundedAtTill] = useState(Boolean(initialData?.taxRefundedAtPurchase));
+  /*
+    「記帳頁面中有這個提示的 也要有一個選項可以選：不可退稅」.
+
+    The hint says a purchase qualifies, from a threshold and a rate; it cannot
+    know the shop was not tax-free registered, or that this was a service with a
+    price tag. Only the person who was at the counter knows, and until now they
+    had nowhere to say it — so the estimate they were about to queue for counted
+    purchases that were never coming back.
+  */
+  const [refundIneligible, setRefundIneligible] = useState(Boolean(initialData?.taxRefundIneligible));
   const [refundAmountInput, setRefundAmountInput] = useState(
     initialData?.taxRefundActual ? String(initialData.taxRefundActual) : '',
   );
@@ -836,6 +846,9 @@ const ExpenseForm: React.FC<Props> = ({
       // note made of whitespace are the same thing, and only one of them
       // renders as a blank line under the bill.
       ...(note.trim() ? { note: note.trim() } : {}),
+      // Absent rather than false: a bill nobody has marked is simply unmarked,
+      // and 「not said」 is not the same claim as 「said it can be refunded」.
+      ...(refundIneligible ? { taxRefundIneligible: true } : {}),
       needsReview: false // Manual entry assumes review is done
     };
     setExpenseSaveDebug(current => ({ ...current, formValid: true, expenseObjectCreated: true, onSubmitCalled: true }));
@@ -1605,6 +1618,23 @@ const ExpenseForm: React.FC<Props> = ({
                               </div>
                           </div>
                       </div>
+                      {/*
+                        Said where the claim is made. A mark buried in a menu is
+                        a mark nobody makes, and this is the moment the figure is
+                        in front of them.
+                      */}
+                      <label className="mt-3 flex items-center gap-2.5 border-t border-amber-200/70 pt-3">
+                          <input
+                              type="checkbox"
+                              data-testid="refund-ineligible"
+                              checked={refundIneligible}
+                              onChange={event => setRefundIneligible(event.target.checked)}
+                              className="h-4 w-4 accent-amber-600"
+                          />
+                          <span className="text-xs font-bold text-amber-900">
+                              這筆不可退稅（店家非免稅店、服務類等）
+                          </span>
+                      </label>
                   </div>
               )}
 
