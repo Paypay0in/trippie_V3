@@ -24,6 +24,8 @@ import {
   fetchDestinationImage,
 } from "../services/destinationImageService";
 import AppBottomNav, { AppSection } from "./AppBottomNav";
+import NotificationCenter from "./NotificationCenter";
+import { DisputeNotice } from "../services/disputeInbox";
 
 interface Props {
   activeSection: AppSection;
@@ -48,6 +50,15 @@ interface Props {
   authenticatedDisplayName?: string;
   /** Deletes one trip by stable id. Returns false when the delete failed. */
   onDeleteDraft?: (id: string) => boolean;
+  /**
+   * 「這個是「旅行」的通知 不是社群的通知」.
+   *
+   * A question about a shared bill, a flight that moved, an itinerary someone
+   * changed — none of it is community activity, and it was reachable only from
+   * the community header while the bell on this screen did nothing at all.
+   */
+  notices?: DisputeNotice[];
+  onOpenNotice?: (notice: DisputeNotice) => void;
 }
 
 type SavedNotesStorageStatus = "device_only" | "account_linked" | "cloud_synced";
@@ -169,7 +180,10 @@ const TravelHome: React.FC<Props> = ({
   authStatus,
   authenticatedDisplayName,
   onDeleteDraft,
+  notices = [],
+  onOpenNotice,
 }) => {
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const activeDraft =
     drafts.find((draft) => draft.id === activeDraftId) || drafts[0];
   const tripDurationText = getTripDurationText(
@@ -288,10 +302,20 @@ const TravelHome: React.FC<Props> = ({
           </div>
           <div className="flex gap-3 text-slate-600">
             <button
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50"
-              aria-label="通知"
+              type="button"
+              data-testid="open-notifications"
+              onClick={() => setNotificationsOpen(true)}
+              className="relative flex h-12 w-12 items-center justify-center rounded-full bg-slate-50"
+              aria-label={notices.length > 0 ? `通知（${notices.length} 則未讀）` : '通知'}
             >
               <Bell size={23} />
+              {/* A dot, not a number: the count is in the list, and a badge that says 「12」 on a header is a demand rather than a signal. */}
+              {notices.length > 0 && (
+                <span
+                  data-testid="notification-dot"
+                  className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white"
+                />
+              )}
             </button>
             <button
               className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50"
@@ -593,6 +617,16 @@ const TravelHome: React.FC<Props> = ({
         onChange={onSectionChange}
         onPlus={onPlus}
       />
+      {notificationsOpen && (
+        <NotificationCenter
+          notices={notices}
+          onClose={() => setNotificationsOpen(false)}
+          onOpen={(notice) => {
+            setNotificationsOpen(false);
+            onOpenNotice?.(notice);
+          }}
+        />
+      )}
     </div>
   );
 };
