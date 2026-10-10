@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import TravelHome from '../components/TravelHome';
 import CommunityHome from '../components/CommunityHome';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 afterEach(cleanup);
 
@@ -74,5 +76,41 @@ describe('Trippie 這四個字', () => {
     expect(travelHeader().textContent).toContain('Trippie');
     cleanup();
     expect(communityHeader().textContent).toContain('Trippie');
+  });
+});
+
+/**
+ * 「不一樣大」, said after 社群 and 旅行 had been made to agree.
+ *
+ * They had — but 旅程書架 was drawing a third wordmark of its own, 24px beside a
+ * gradient Sparkles tile, so the name still changed shape on the way into a
+ * trip. Unifying two of three headers fixes the pair you looked at and leaves
+ * the fault alive.
+ *
+ * Hunting the copies one screenshot at a time is how this took three rounds.
+ * The source is checked instead, so the next one is caught before it ships.
+ */
+describe('沒有第二個寫死的 Trippie', () => {
+  const inAppScreens = [
+    'components/CommunityHome.tsx',
+    'components/TravelHome.tsx',
+    'components/AccountScreen.tsx',
+    'components/TripSelectionScreen.tsx',
+  ];
+
+  it('每一頁的標題列都用同一個元件', () => {
+    for (const file of inAppScreens) {
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+      expect(source, file).toContain('<AppWordmark />');
+    }
+  });
+
+  it('沒有任何一頁自己手寫 Trippie 當標題', () => {
+    for (const file of inAppScreens) {
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+      // 登入 Trippie and 已同步至 Trippie are sentences, not wordmarks.
+      const handwritten = source.match(/>Trippie<\/(span|div)>/g) || [];
+      expect(handwritten, file).toHaveLength(0);
+    }
   });
 });

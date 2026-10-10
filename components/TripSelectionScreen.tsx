@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import AppWordmark from './AppWordmark';
 import { OVERLAY } from '../constants/layers';
 import ConfirmDialog from './ConfirmDialog';
 import {
@@ -438,12 +439,15 @@ const TripSelectionScreen: React.FC<Props> = ({
 
       <div className="mx-auto w-full max-w-xl space-y-6">
         <header className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-400 text-white shadow-lg shadow-blue-200/60">
-              <Sparkles size={18} />
-            </div>
-            <span className="text-2xl font-black tracking-tight text-[#10245c]">Trippie</span>
-          </div>
+          {/*
+            The same wordmark as every other header.
+
+            「不一樣大」. This screen drew a third one — 24px beside a gradient
+            Sparkles tile instead of 28px beside the plane — so the name still
+            changed shape on the way into a trip even after 社群 and 旅行 were
+            made to agree.
+          */}
+          <AppWordmark />
           <button
             type="button"
             onClick={onShare}
