@@ -28,6 +28,7 @@ import {
 } from "../services/destinationImageService";
 import AppBottomNav, { AppSection, BOTTOM_NAV_CLEARANCE } from "./AppBottomNav";
 import { isSearching, matchesQuery } from "../services/travelHomeSearch";
+import AppWordmark from "./AppWordmark";
 import NotificationCenter from "./NotificationCenter";
 import { DisputeNotice } from "../services/disputeInbox";
 
@@ -330,9 +331,7 @@ const TravelHome: React.FC<Props> = ({
     <div className={`mx-auto flex min-h-screen w-full flex-col bg-[#f7f8fc] text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
       <header data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className="bg-white px-6 pb-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[2rem] font-black tracking-tight">
-            <span className="text-3xl text-violet-600">✈</span>Trippie
-          </div>
+          <AppWordmark />
           <div className="flex gap-3 text-slate-600">
             <button
               type="button"
