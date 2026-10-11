@@ -562,6 +562,16 @@ export interface CommunityPost {
   /** Photos attached by the author, downscaled before storage. Max 10. */
   photos?: string[];
   status: CommunityPostStatus;
+  /**
+   * Who a published post went out to.
+   *
+   * 「可以看對方公開 或是設定好友可以看的旅行貼文」. Separate from `status`, which
+   * says whether it was put out at all. Absent means public: every post
+   * written before this existed was published under a UI whose only published
+   * state was public, and narrowing somebody's audience after the fact is the
+   * worse of the two errors.
+   */
+  visibility?: 'public' | 'friends';
   createdAt: string;
   updatedAt?: string;
   publishedAt?: string;
