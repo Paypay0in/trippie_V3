@@ -1022,6 +1022,16 @@ async function startServer() {
               latitude: selected.location?.latitude,
               longitude: selected.location?.longitude,
               country: countryComponent?.longText || country,
+              /*
+                The ISO code, which was always being fetched and thrown away.
+
+                `addressComponents` has been in the field mask all along;
+                only `longText` was read out. The code is what decides which
+                map app a place opens in, and deciding that from a country
+                *name* means maintaining a synonym table across 韓國 / 한국 /
+                South Korea — a list nobody finishes.
+              */
+              countryCode: countryComponent?.shortText || undefined,
               photoAvailable: Array.isArray(selected.photos) && selected.photos.length > 0,
             });
             return;
@@ -1042,7 +1052,7 @@ async function startServer() {
         if (match && Number.isFinite(Number(match.lat)) && Number.isFinite(Number(match.lon))) { res.json({ address: match.display_name, latitude: Number(match.lat), longitude: Number(match.lon), country: country }); return; }
       }
       if (!place || typeof place.latitude !== "number" || typeof place.longitude !== "number") { res.status(404).json({ error: "Place could not be resolved." }); return; }
-      res.json({ placeId: place.id ? String(place.id) : undefined, address: [place.name, place.admin1, place.country].filter(Boolean).join(", "), latitude: place.latitude, longitude: place.longitude });
+      res.json({ placeId: place.id ? String(place.id) : undefined, address: [place.name, place.admin1, place.country].filter(Boolean).join(", "), latitude: place.latitude, longitude: place.longitude, country: place.country, countryCode: place.country_code || undefined });
     } catch (error) { console.error("Place resolve failed:", error); res.status(502).json({ error: "Place service unavailable." }); }
   });
 

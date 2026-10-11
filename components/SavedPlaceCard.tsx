@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, Star, X } from 'lucide-react';
 import { SavedExperienceNote } from '../types';
 import { MappablePlace, placeCopyText, placeDirectionsUrl, placeMapsUrl } from '../services/placeLinks';
+import { navigationProviderFor } from '../services/navigationProvider';
+import { naverPlaceUrl } from '../services/naverMapLinks';
 import { fetchPlaceBasics, hoursForToday, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 
 /**
@@ -26,6 +28,20 @@ interface Props {
 
 const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
   const [copied, setCopied] = useState(false);
+  /*
+    「Allow users to manually choose another supported navigation provider」.
+
+    Collapsed rather than absent: in Korea the answer is NAVER for almost
+    everybody, and showing three equal buttons makes a decision out of
+    something that has a right answer.
+  */
+  const [showOthers, setShowOthers] = useState(false);
+  const naverUrl = navigationProviderFor({
+    countryCode: place.countryCode,
+    country: place.country,
+  }) === 'naver'
+    ? naverPlaceUrl({ placeName: place.placeName, coordinates: place.coordinates })
+    : null;
   /*
     What Google knows, for the places the traveller saved nothing about.
 
@@ -104,7 +120,47 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
           </p>
         )}
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        {/*
+          Korea opens in NAVER, and only when there is a point to send.
+
+          Verified on a phone: this link opens NAVER Map with the pin on the
+          place and From / To underneath — which is the whole principle, that
+          Trippie plans and the local app navigates.
+
+          `naverUrl` is null without coordinates, and that branch matters more
+          than the happy one. The same link with a misspelled parameter opened
+          NAVER anyway and sat on the traveller's own location with 「Out of
+          service range」 — no pin, no error. A wrong parameter does not make a
+          broken link, it makes a working link to the wrong place. So when
+          there is no point, this falls through to exactly what it did before.
+        */}
+        {naverUrl && (
+          <a
+            href={naverUrl}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="saved-place-naver-link"
+            className="mt-3 flex min-h-11 items-center justify-center gap-1.5 rounded-2xl bg-[#03c75a] text-sm font-black text-white"
+          >
+            <Navigation size={15} />在 NAVER 地圖開啟
+          </a>
+        )}
+
+        {naverUrl && !showOthers && (
+          <button
+            type="button"
+            onClick={() => setShowOthers(true)}
+            data-testid="saved-place-other-providers"
+            className="mt-2 min-h-11 w-full text-xs font-black text-slate-500"
+          >
+            其他導航方式
+          </button>
+        )}
+
+        {/* Unchanged for every place outside Korea, deliberately and by test. */}
+        <div
+          className={`mt-3 grid grid-cols-2 gap-2 ${naverUrl && !showOthers ? 'hidden' : ''}`}
+        >
           <a
             href={placeMapsUrl(place)}
             target="_blank"

@@ -19,6 +19,13 @@ export interface MappablePlace {
   coordinates?: { latitude: number; longitude: number };
   city?: string;
   country?: string;
+  /**
+   * ISO 3166-1 alpha-2, when the resolver supplied one.
+   *
+   * Optional on purpose: every place saved before the resolver returned it
+   * has only a name, and those must keep behaving exactly as they did.
+   */
+  countryCode?: string;
 }
 
 const hasCoordinates = (place: MappablePlace): place is MappablePlace & {

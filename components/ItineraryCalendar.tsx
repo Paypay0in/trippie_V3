@@ -1527,6 +1527,15 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               coordinates: Number.isFinite(openItem.latitude) && Number.isFinite(openItem.longitude)
                 ? { latitude: openItem.latitude as number, longitude: openItem.longitude as number }
                 : undefined,
+              /*
+                The trip's country, which an itinerary stop does not carry.
+
+                Without it the card cannot tell a Seoul cafe from a Tokyo one,
+                and 韓國 → NAVER would never fire on the screen where it
+                matters most: somebody standing in Seoul with today's plan
+                open. A stop belongs to the trip around it.
+              */
+              country: destinationCountry || destination,
             }}
             notes={openItem.savedTravelNotes || []}
             onClose={() => setOpenPlaceItemId(null)}
