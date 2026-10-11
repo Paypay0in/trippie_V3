@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from './ConfirmDialog';
+import { localToday, phaseForDate } from '../services/tripPhaseByDate';
 import {
   ArrowRight,
   Bell,
@@ -197,18 +198,30 @@ const TravelHome: React.FC<Props> = ({
     activeDraft?.startDate,
     activeDraft?.endDate,
   );
-  const tripStatus = activeDraft?.startDate && activeDraft?.endDate
-    ? (() => {
-        const today = new Date();
-        const start = new Date(`${activeDraft.startDate}T00:00:00`);
-        const end = new Date(`${activeDraft.endDate}T23:59:59`);
-        return today >= start && today <= end
-          ? "during"
-          : today < start
-            ? "upcoming"
-            : "completed";
-      })()
-    : "upcoming";
+  /*
+    One rule for 「which part of this trip is it」, shared with the workspace.
+
+    「目前旅程都已經完成了」 — this screen called 釜山 已結束的旅程 while the
+    workspace header called the same trip RETURN 返程中, because each had
+    written its own date comparison. One trip saying two things on two screens
+    is worse than either being wrong: after that neither can be trusted, and
+    the traveller has no way to tell which one is lying.
+
+    `phaseForDate` is now the only place that decides. Both of its finished
+    phases land on 已結束 here, because this card has three states and the
+    difference between 返程中 and 結算 belongs inside the trip, not on a tile.
+  */
+  const tripStatus = (() => {
+    const phase = phaseForDate(
+      localToday(),
+      activeDraft?.startDate,
+      activeDraft?.endDate,
+    );
+    if (!phase) return "upcoming";
+    if (phase === "pre") return "upcoming";
+    if (phase === "during") return "during";
+    return "completed";
+  })();
   /*
     The badge says which of the three a trip is.
 
