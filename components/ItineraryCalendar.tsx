@@ -656,7 +656,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   ) : (
                     <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
                       日期
-                      <input type="date" value={item.date || ''} min={startDate || undefined} max={endDate || undefined} onChange={event => onUpdateItem(item.id, { date: event.target.value || undefined })} className="rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[10px] text-slate-600" />
+                      <input type="date" value={item.date || ''} min={startDate || undefined} max={endDate || undefined} onChange={event => onUpdateItem(item.id, { date: event.target.value || undefined })} className="min-w-0 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[10px] text-slate-600" />
                     </label>
                   )}
                   {!item.date && !item.derivedFromFlightAnchorId && <span className="text-[10px] font-bold text-slate-400">尚未指定日期</span>}

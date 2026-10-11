@@ -91,3 +91,29 @@ describe('編輯旅程要一頁看完', () => {
       .toContain('--screen-pad');
   });
 });
+
+/**
+ * 「規則相同，這頁一頁就要把資訊都展現出來，不要讓用戶上下滑動」.
+ *
+ * The card appeared and then overflowed it in both directions: Create Trip was
+ * cut off at the bottom, and the date row ran off the right edge.
+ *
+ * The horizontal half was not a sizing mistake but a CSS default. `1fr` is
+ * minmax(auto, 1fr) — the track will not shrink below its content's min-content
+ * width, and an iOS date input reports a whole date as its minimum. The row
+ * could not fit and so did not.
+ */
+describe('卡片裝得下裡面的東西', () => {
+  it('每個會縮的欄位都用 minmax(0,1fr)，不是 1fr', () => {
+    const tracks = source.match(/grid-cols-\[[^\]]+\]/g) || [];
+    expect(tracks.length).toBeGreaterThan(0);
+    for (const track of tracks) {
+      // A bare 1fr beside anything that can refuse to shrink is the bug.
+      expect(track, track).not.toMatch(/(^|[_[])1fr/);
+    }
+  });
+
+  it('封面在卡片裡再讓一次 —— 卡片比它取代的那一頁矮', () => {
+    expect(source).toContain('h-[clamp(5rem,13vh,7.5rem)]');
+  });
+});

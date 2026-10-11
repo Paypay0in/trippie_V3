@@ -187,13 +187,13 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </h1>
         </header>
 
-        <form onSubmit={handleSubmit} className="mt-3 flex flex-1 flex-col gap-5">
+        <form onSubmit={handleSubmit} className="mt-2 flex flex-1 flex-col gap-3">
           {/*
             The cover gives way rather than dictating the page length: it is the
             one element that was taking space in proportion to the phone instead
             of in proportion to its job.
           */}
-          <section className="relative h-[clamp(8rem,20vh,11.5rem)] shrink-0 overflow-hidden rounded-cover bg-gradient-to-br from-slate-100 to-blue-50">
+          <section className="relative h-[clamp(5rem,13vh,7.5rem)] shrink-0 overflow-hidden rounded-cover bg-gradient-to-br from-slate-100 to-blue-50">
             {destinationImage && !destinationImageFailed ? (
               <>
                 <img
@@ -243,7 +243,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
               the amount takes the rest. Two equal halves gave a wide select
               holding 「TWD」 beside an input that had to hold six digits.
             */}
-            <div className="mt-2 grid grid-cols-[5.5rem_1fr] gap-2.5">
+            <div className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5">
               <label className="text-support font-medium text-ink-soft">
                 Currency
                 <select
@@ -297,7 +297,16 @@ const CreateEditTripScreen: React.FC<Props> = ({
               more bordered fields — the nested frames were most of why this
               screen read as heavier than what it contains.
             */}
-            <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            {/*
+              minmax(0,1fr), not 1fr.
+
+              A 1fr track is minmax(auto, 1fr): it will not shrink below its
+              content's min-content width. An iOS date input reports a whole
+              date as its minimum, so the row refused to fit and ran off the
+              right edge of the card — which is the 「沒有滿版」 shape, seen from
+              the inside.
+            */}
+            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
               <label className="relative min-w-0">
                 <CalendarDays
                   size={17}
@@ -374,7 +383,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
             The actions take the room left over rather than adding to the pile,
             so 「不用上下滑就能看完並儲存」 survives the restyle.
           */}
-          <section className="mt-auto space-y-1 pt-2">
+          <section className="mt-auto space-y-0.5 pt-2">
             <button
               type="submit"
               disabled={dateRangeInvalid}

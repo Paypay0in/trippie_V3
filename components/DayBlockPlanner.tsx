@@ -116,19 +116,29 @@ const DayBlockPlanner: React.FC<Props> = ({
 
   return (
     <section data-testid="day-block-planner" className="mb-4 rounded-[22px] border border-[#e8e7f4] bg-white p-3">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-black text-[#11183d]">
+      {/*
+        A time input will not shrink, so everything around it has to be told it
+        may.
+
+        「這頁則是沒有滿版」 — this row was flex with no min-w-0 anywhere and no
+        width on the control. A type="time" field reports a whole clock as its
+        minimum width, so the row could not fit, the card could not fit, and
+        the page ended up wider than the phone with its right edge cut off.
+        Nothing here looked too wide; one thing simply refused to be narrower.
+      */}
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <h3 className="flex shrink-0 items-center gap-1.5 text-sm font-black text-[#11183d]">
           <Clock3 size={14} className="text-[#5b3df5]" />排今天
         </h3>
         {(
-          <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
-            幾點出門
+          <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold text-slate-500">
+            <span className="shrink-0">幾點出門</span>
             <input
               type="time"
               value={chosenStart}
               onChange={event => setChosenStart(event.target.value)}
               data-testid="day-start-input"
-              className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-bold text-[#11183d]"
+              className="w-[6.5rem] min-w-0 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-bold text-[#11183d]"
             />
           </label>
         )}
