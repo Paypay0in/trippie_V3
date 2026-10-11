@@ -1,4 +1,5 @@
 import { TripPlanBrief } from './tripPlanBrief';
+import { ParsedRental } from './rentalIntake';
 import {
   Companion,
   Expense,
@@ -59,6 +60,14 @@ export interface TripDraft {
    * is being planned, to ask rather than to assume.
    */
   planBrief?: TripPlanBrief;
+  /**
+   * Car hire read off its confirmation.
+   *
+   * Beside the flights and the stays because it is the third thing already
+   * booked before a day is planned around it — and the only one that says
+   * *which days* a car exists, which 「開車」 on the brief cannot.
+   */
+  carRentals?: ParsedRental[];
   shoppingList: ShoppingItem[];
   itinerary?: ItineraryItem[];
   travelCountry?: string;

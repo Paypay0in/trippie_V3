@@ -29,6 +29,7 @@ import {
 } from "./services/expenseIntake";
 import { localToday } from "./services/localDate";
 import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
+import { normalizeParsedRental, rentalPrompt } from "./services/rentalIntake";
 import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
 import { checkProposedChanges } from "./services/adjustmentChanges";
 import { normalizeItinerarySlices } from "./services/itineraryImageSlices";
@@ -394,6 +395,58 @@ async function startServer() {
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
       res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識訂房截圖，請手動輸入。" });
+    }
+  });
+
+  /**
+   * A car hire arriving as a confirmation.
+   *
+   * 「可以在安排行程那加上租車訂單等 啥的 讓用戶可以上傳資訊」, and it answers the
+   * question before it: a trip's brief can say a car exists but not which
+   * days. The confirmation has a pickup and a drop-off, and those two moments
+   * are the answer — which is why the dates matter more here than anything
+   * else on the page.
+   */
+  app.post("/api/rentals/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
+    const { base64Data, mimeType } = req.body ?? {};
+    const imageMime = typeof base64Data === "string" && base64Data ? resolveImageMime(mimeType, base64Data) : null;
+    if (!imageMime) { res.status(400).json({ error: "需要一張租車訂單截圖。" }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在無法辨識租車訂單，請手動輸入。" }); return; }
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
+        contents: { parts: [{ inlineData: { mimeType: imageMime, data: base64Data } }, { text: rentalPrompt() }] },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              company: { type: Type.STRING },
+              pickUpDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+              pickUpTime: { type: Type.STRING, description: "HH:mm, only if stated" },
+              dropOffDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+              dropOffTime: { type: Type.STRING, description: "HH:mm, only if stated" },
+              pickUpLocation: { type: Type.STRING },
+              dropOffLocation: { type: Type.STRING, description: "only if it differs from pickup" },
+              carDescription: { type: Type.STRING },
+              confirmationNumber: { type: Type.STRING },
+              driverName: { type: Type.STRING },
+              totalAmount: { type: Type.NUMBER },
+              currency: { type: Type.STRING },
+              isUncertain: { type: Type.BOOLEAN },
+            },
+            required: ["company"],
+          },
+        },
+      }));
+      const rental = normalizeParsedRental(JSON.parse(cleanModelJson(response.text ?? "")));
+      if (!rental) { res.status(422).json({ error: "這張截圖看不出租車公司，請手動輸入。" }); return; }
+      res.json(rental);
+    } catch (error) {
+      const status = quotaStatusOf(error) ?? 502;
+      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識租車訂單，請手動輸入。" });
     }
   });
 

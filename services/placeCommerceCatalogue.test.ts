@@ -223,9 +223,15 @@ describe('server route registration order', () => {
     // /api/itinerary/parse-image is that decision, taken knowingly: it reads a
     // screenshot of someone's travel plans, which is the same kind of body as
     // the three beside it.
+    //
+    // /api/rentals/parse-image is the same decision taken again, for a car
+    // hire confirmation. It is a photograph of a booking, the identical body
+    // to the stay beside it, and this test is what made the choice explicit
+    // rather than letting a fifth route inherit the allowance quietly.
     expect(inline).toEqual([
       '/api/expenses/parse-image',
       '/api/stays/parse-image',
+      '/api/rentals/parse-image',
       '/api/itinerary/parse-image',
       '/api/flights/parse-image',
     ]);

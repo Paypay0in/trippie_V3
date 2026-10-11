@@ -212,6 +212,8 @@ import ItineraryCalendar from "./components/ItineraryCalendar";
 import ItineraryItemForm from "./components/ItineraryItemForm";
 import FlightAnchorsForm from "./components/FlightAnchorsForm";
 import StayUploadCard from "./components/StayUploadCard";
+import RentalUploadCard from "./components/RentalUploadCard";
+import { ParsedRental } from "./services/rentalIntake";
 import { flightArrivals, reconcileFlightDerivedItems } from "./services/flightDerivedItems";
 import { staysFromItinerary } from "./services/stayIntake";
 import {
@@ -826,6 +828,7 @@ const App: React.FC = () => {
     not pretended otherwise on screen.
   */
   const [planBrief, setPlanBrief] = useState<TripPlanBrief | null>(null);
+  const [carRentals, setCarRentals] = useState<ParsedRental[]>([]);
   const [importedTrip, setImportedTrip] = useState<DerivedTrip | null>(null);
 
   const reloadFriendships = useCallback(async () => {
@@ -2007,6 +2010,7 @@ const App: React.FC = () => {
                   : undefined,
               settlementBatches,
               planBrief: planBrief || undefined,
+              carRentals: carRentals.length > 0 ? [...carRentals] : undefined,
               selectedPassportId,
               travelCountry: travelCountry || undefined,
               taxRule: taxRule || undefined,
@@ -2034,6 +2038,7 @@ const App: React.FC = () => {
     visaInfo,
     travelRules,
     planBrief,
+    carRentals,
     flightAnchors,
     flightMode,
     savedInspirations,
@@ -2149,6 +2154,7 @@ const App: React.FC = () => {
     setTravelRules(draft.travelRules);
     setSettlementBatches(draft.settlementBatches || []);
     setPlanBrief(draft.planBrief || null);
+    setCarRentals(draft.carRentals || []);
 
     // The trip's own dates decide which part of it we are in. Only when a trip
     // has no dates do we fall back to guessing from what has been recorded.
@@ -6384,6 +6390,24 @@ const App: React.FC = () => {
     would open on some screens and silently do nothing on others. That is the
     shape of the dead tile this change exists to fix.
   */
+  /*
+    One element, rendered at both of App's trip render sites.
+
+    tests/transportLegRuntime.test.tsx records StayUploadCard shipping beside
+    the wrong one of the two and being invisible. Defining it once means the
+    next person cannot mount it in only one place.
+  */
+  const rentalCard = (
+    <RentalUploadCard
+      rentals={carRentals}
+      onAdd={rental => {
+        setCarRentals(current => [...current, rental]);
+        showToast(`已加入 ${rental.company}`);
+      }}
+      onRemove={index => setCarRentals(current => current.filter((_, at) => at !== index))}
+    />
+  );
+
   const planBriefScreen = isPlanBriefOpen ? (
     <TripPlanBriefScreen
       initialDestination={pendingTripDestination?.city || ""}
@@ -7007,6 +7031,7 @@ const App: React.FC = () => {
           onAddItems={handleAddStayItems}
           onRemoveItem={handleDeleteItineraryItem}
         />
+        {rentalCard}
         <TripInspirationPlanner
           inspirations={savedTravelInspirations}
           communityPosts={communityPosts}
@@ -7984,6 +8009,7 @@ const App: React.FC = () => {
                   onAddItems={handleAddStayItems}
                   onRemoveItem={handleDeleteItineraryItem}
                 />
+                {rentalCard}
                 <ItineraryPlanningAssistant
                   destination={tripDestination}
                   startDate={tripStartDate}
