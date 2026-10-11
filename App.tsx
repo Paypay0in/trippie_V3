@@ -509,6 +509,28 @@ const OwnershipDebugPanel: React.FC<{
   );
 };
 
+/**
+ * The rule's text, whichever field the research put it in.
+ *
+ * I broke this earlier tonight: the research was changed to return `points`
+ * and told 「不要用 description 欄位」, while the only thing that renders a rule
+ * reads `description`. The cards came back with a title, a link and no words
+ * — 「海關申報物品確認」 with nothing under it.
+ *
+ * Joined here rather than carried as an array, because a new field on
+ * ShoppingItem would have to be added in three places — the autosave, the
+ * hydrate, and the loader's hand-written rebuild — and the third is the one
+ * that was silently dropping planBrief an hour ago. Points are sentences and
+ * the display splits on sentences, so the round trip is exact.
+ */
+const ruleText = (action: EntryActionableItem): string | undefined => {
+  const points = (action.points || []).map(point => point.trim()).filter(Boolean);
+  if (points.length === 0) return action.description;
+  // A point already ending in punctuation keeps it; the rest get a 。 so the
+  // display can find the seams again.
+  return points.map(point => (/[。！？.]$/.test(point) ? point : `${point}。`)).join('');
+};
+
 const mergeTravelRuleActionsIntoShoppingList = (
   previous: ShoppingItem[],
   actions: EntryActionableItem[],
@@ -539,7 +561,7 @@ const mergeTravelRuleActionsIntoShoppingList = (
         sourceType: "travel_rules" as const,
         travelRuleActionType: action.actionType,
         travelRuleNecessity: action.necessity || existing.travelRuleNecessity,
-        description: action.description || existing.description,
+        description: ruleText(action) || existing.description,
         timingText: action.timingText || existing.timingText,
         source: action.source || existing.source,
       };
@@ -556,7 +578,7 @@ const mergeTravelRuleActionsIntoShoppingList = (
         sourceType: "travel_rules",
         travelRuleActionType: action.actionType,
         travelRuleNecessity: action.necessity,
-        description: action.description,
+        description: ruleText(action),
         timingText: action.timingText,
         source: action.source,
       });
@@ -579,7 +601,7 @@ const mergeTravelRuleActionsIntoShoppingList = (
           phase: "pre",
           sourceType: "travel_rules",
           travelRuleActionType: "other",
-          description: action.description,
+          description: ruleText(action),
           timingText: action.timingText,
           source: action.source,
         });

@@ -156,3 +156,30 @@ describe('three at most', () => {
     expect(points).toEqual(['第一句。', '第二句。', '第三句。']);
   });
 });
+
+/**
+ * The regression I caused: the research was changed to write `points` and
+ * told 「不要用 description 欄位」, while the only thing that renders a rule
+ * reads `description`. The cards came back with a title, a link and no words.
+ */
+describe('points reach the card that renders them', () => {
+  const APP = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+  it('does not read description straight off the action any more', () => {
+    expect(APP).not.toContain('description: action.description');
+  });
+
+  it('runs all three merge paths through one rule', () => {
+    expect(APP.split('description: ruleText(action)').length - 1).toBe(3);
+  });
+
+  /**
+   * Joined rather than carried as an array: a new field on ShoppingItem would
+   * need the autosave, the hydrate and the loader's hand-written rebuild, and
+   * the third is the one that was dropping planBrief an hour ago.
+   */
+  it('joins the points so the display can split them again', () => {
+    expect(APP).toContain("const ruleText = (action: EntryActionableItem)");
+    expect(APP).toContain('/[。！？.]$/.test(point)');
+  });
+});
