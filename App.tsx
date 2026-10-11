@@ -4801,22 +4801,36 @@ const App: React.FC = () => {
         updatedAt: now,
       };
       setDrafts((prev) => [...prev, newDraft]);
-      isHydratingTripRef.current = true;
-      setActiveDraftId(newDraft.id);
-      setExpenses([]);
-      setShoppingList([]);
-      setCurrentLoadedTripId(null);
-      setDraftName(destination);
-      setCurrentPhase("pre");
+      /*
+        「我建立沖繩行程 裏面有這個機票資訊」 — and the flights in it were the
+        Busan trip's: TPE→PUS on 10/02 and back on 10/07, inside a brand new
+        Okinawa trip, both marked 已儲存.
+
+        This block used to hand-reset the per-trip state, and the list was
+        five short: flightAnchors, flightMode, savedInspirations,
+        settlementBatches and companions all survived from whichever trip was
+        open before. The autosave effect then wrote them into the new draft,
+        so they were not a stale screen — they became that trip's data and
+        went to the cloud with it. Flight anchors also generate itinerary
+        items, so an Okinawa day was being built around a Gimhae arrival.
+
+        `hydrateDraft` already resets everything that effect writes; opening a
+        saved trip has always gone through it. Creating one now does too, so
+        the two paths cannot drift apart again — which is the actual defect
+        here, not any one missing line.
+      */
+      hydrateDraft(newDraft);
+      /*
+        Only what hydrating cannot know follows.
+
+        The name, the passport and the phase all came back out of the draft,
+        and the phase is better for it: this used to force 「pre」, which is
+        wrong for a trip created with dates that have already started.
+      */
       // Keep the saved destination's country so the planner can match this trip's
       // saved inspirations even when the place lookup returned nothing.
-      setTravelCountry(pendingTripDestination?.country || "");
+      if (pendingTripDestination?.country) setTravelCountry(pendingTripDestination.country);
       setPendingTripDestination(null);
-      setSelectedPassportId(userProfile.defaultPassportId);
-      setTaxRule(null);
-      setVisaInfo(null);
-      setTravelRules(undefined);
-      setItinerary([]);
       showToast("新旅程已建立，開始準備吧！");
     } else if (activeDraftId) {
       setDrafts((prev) =>
