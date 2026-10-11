@@ -186,6 +186,8 @@ import {
 } from "./services/friendships";
 import FriendsPanel from "./components/FriendsPanel";
 import BookingImportSheet from "./components/BookingImportSheet";
+import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
+import { TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
 import { DerivedTrip } from "./services/tripFromBookings";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
 import {
@@ -807,6 +809,23 @@ const App: React.FC = () => {
     currency, budget and companions keep their single home.
   */
   const [isBookingImportOpen, setIsBookingImportOpen] = useState(false);
+  /*
+    告訴我你的旅行計畫 — the questionnaire behind 「AI 幫我排行程」.
+
+    That tile went to `tripSetup`, the blank new-trip form, which is where
+    新增旅程 beside it already goes. Two tiles, one outcome, and the one
+    promising a generated itinerary handed over an empty form.
+
+    「不用合併」: 匯入旅程資料 keeps its own sheet. This is a separate door.
+  */
+  const [isPlanBriefOpen, setIsPlanBriefOpen] = useState(false);
+  /*
+    Kept after the trip is created so the second half of this work — making
+    the planner honour the start time, the pace and the way of travelling —
+    has the traveller's answers to read. Nothing consumes it yet, and it is
+    not pretended otherwise on screen.
+  */
+  const [planBrief, setPlanBrief] = useState<TripPlanBrief | null>(null);
   const [importedTrip, setImportedTrip] = useState<DerivedTrip | null>(null);
 
   const reloadFriendships = useCallback(async () => {
@@ -2843,6 +2862,27 @@ const App: React.FC = () => {
       type: "ACTIVITY" as const,
     }]);
     showToast(`已排入 ${time}・${title}`);
+  };
+
+  /**
+   * Creates the trip the brief describes, through the path trips are already
+   * created by — no second save route, so currency, members and the cloud
+   * push keep their single home.
+   *
+   * No companions are invented from 「2 人」. That is a fact about the plan,
+   * not two people with names, and a traveller called 「旅伴 1」 would land in
+   * the ledger's split and have to be explained to whoever is really there.
+   */
+  const handleGenerateFromBrief = (brief: TripPlanBrief) => {
+    const setup = briefToTripSetup(brief);
+    setPlanBrief(brief);
+    setIsPlanBriefOpen(false);
+    setTripSetupMode("create");
+    void handleSubmitTripSetup({
+      ...setup,
+      currency: tripCurrency || "TWD",
+      companions: [],
+    });
   };
 
   const resolvedTaxRule = useMemo(
@@ -6321,6 +6361,15 @@ const App: React.FC = () => {
     would open on some screens and silently do nothing on others. That is the
     shape of the dead tile this change exists to fix.
   */
+  const planBriefScreen = isPlanBriefOpen ? (
+    <TripPlanBriefScreen
+      initialDestination={pendingTripDestination?.city || ""}
+      onClose={() => setIsPlanBriefOpen(false)}
+      onGenerate={handleGenerateFromBrief}
+      onUploadBookings={() => { setIsPlanBriefOpen(false); setIsBookingImportOpen(true); }}
+    />
+  ) : null;
+
   const bookingImportSheet = isBookingImportOpen ? (
     <BookingImportSheet
       onCancel={() => setIsBookingImportOpen(false)}
@@ -6411,9 +6460,10 @@ const App: React.FC = () => {
         onContinueDraft={handleOpenDraft}
         onContinueTrip={handleOpenCompletedTrip}
         onCreateNew={handleCreateNewTrip}
-        onOpenPlanner={() => setViewMode("tripSetup")}
+        onOpenPlanner={() => setIsPlanBriefOpen(true)}
       />
       {bookingImportSheet}
+      {planBriefScreen}
       </>
     );
   }
@@ -8132,6 +8182,7 @@ const App: React.FC = () => {
       )}
 
       {bookingImportSheet}
+      {planBriefScreen}
 
       {/* Country Settings Modal */}
       {isCountryModalOpen && (
