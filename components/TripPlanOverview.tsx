@@ -56,6 +56,15 @@ import { communityHighlights } from '../services/communityHighlights';
 import { todoLinksFor } from '../services/todoLinks';
 
 interface Props {
+  /**
+   * What 告訴我你的旅行計畫 already collected, said back to the model.
+   *
+   * 「前面表單填好的資訊可以儲存帶入到這邊」 — this planner asked for one
+   * sentence while the form beside it already held the people, the pace and
+   * the car. Everything answered once was being asked for again by
+   * implication, and usually not answered twice.
+   */
+  travellerBrief?: string;
   expenses: Expense[];
   shoppingList: ShoppingItem[];
   itinerary: ItineraryItem[];
@@ -175,7 +184,8 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   custom: '當地習慣',
 };
 
-const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+const TripPlanOverview: React.FC<Props> = ({
+  travellerBrief = '', expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -354,6 +364,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         startDate: tripStartDate,
         endDate: tripEndDate,
         daysBrief: tripDaysBrief(planDays),
+        travellerBrief,
         budgetBrief,
         revising: { plan, feedback },
       });
@@ -403,6 +414,7 @@ const TripPlanOverview: React.FC<Props> = ({ expenses, shoppingList, itinerary, 
         startDate: tripStartDate,
         endDate: tripEndDate,
         daysBrief: tripDaysBrief(planDays),
+        travellerBrief,
         budgetBrief,
       });
       setPlanOptions(result.options);

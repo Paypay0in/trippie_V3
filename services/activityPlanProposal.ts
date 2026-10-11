@@ -121,6 +121,8 @@ export const fetchActivityPlans = async (request: {
   startDate?: string;
   endDate?: string;
   daysBrief?: string;
+  /** The traveller's own answers: people, pace, start time, car days. */
+  travellerBrief?: string;
   budgetBrief?: string;
   /**
    * A plan the traveller is looking at, plus what they want changed, in their

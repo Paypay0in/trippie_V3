@@ -37,6 +37,12 @@ const open = (props: Record<string, unknown>) =>
       currentSection="overview"
       companionCount={0}
       onBack={vi.fn()}
+      onEdit={vi.fn()}
+      onDestination={vi.fn()}
+      onTravelers={vi.fn()}
+      onShare={vi.fn()}
+      onSectionChange={vi.fn()}
+      onQuickAdd={vi.fn()}
       {...props}
     >
       <div />

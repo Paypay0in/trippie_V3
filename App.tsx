@@ -214,6 +214,7 @@ import FlightAnchorsForm from "./components/FlightAnchorsForm";
 import StayUploadCard from "./components/StayUploadCard";
 import RentalUploadCard from "./components/RentalUploadCard";
 import { ParsedRental } from "./services/rentalIntake";
+import { travellerBriefText } from "./services/travellerBrief";
 import { flightArrivals, reconcileFlightDerivedItems } from "./services/flightDerivedItems";
 import { staysFromItinerary } from "./services/stayIntake";
 import {
@@ -6397,6 +6398,15 @@ const App: React.FC = () => {
     the wrong one of the two and being invisible. Defining it once means the
     next person cannot mount it in only one place.
   */
+  /*
+    The form's answers, said back to the planner.
+
+    「前面表單填好的資訊可以儲存帶入到這邊」. Built once here so both of
+    TripPlanOverview's mount sites get the same sentence — the alternative is
+    one screen knowing the traveller has a car and the other not.
+  */
+  const travellerBrief = travellerBriefText({ brief: planBrief, rentals: carRentals });
+
   const rentalCard = (
     <RentalUploadCard
       rentals={carRentals}
@@ -7352,6 +7362,7 @@ const App: React.FC = () => {
                 onPlanOptionDismissed={(requestId, option, shown) => recordPlanBehaviour("option_dismissed", requestId, shown, option)}
                 onPlanAddedToItinerary={(requestId, option, shown, itemIds) => recordPlanBehaviour("added_to_itinerary", requestId, shown, option, itemIds)}
                 budgetBrief={budgetBrief}
+                travellerBrief={travellerBrief}
                 onPublishServiceRequest={handlePublishServiceRequest}
                 expenses={expenses}
                 shoppingList={shoppingList}
@@ -7452,6 +7463,7 @@ const App: React.FC = () => {
               onPlanOptionDismissed={(requestId, option, shown) => recordPlanBehaviour("option_dismissed", requestId, shown, option)}
               onPlanAddedToItinerary={(requestId, option, shown, itemIds) => recordPlanBehaviour("added_to_itinerary", requestId, shown, option, itemIds)}
               budgetBrief={budgetBrief}
+              travellerBrief={travellerBrief}
               onPublishServiceRequest={handlePublishServiceRequest}
               variant="reference"
               expenses={expenses}
