@@ -179,6 +179,26 @@ async function startServer() {
       nobody left to ask, and a number is better than an error.
     */
     accept?: (value: T) => boolean,
+    /*
+      Whether a quota refusal ends the ladder instead of walking it.
+
+      The ladder exists because the per-model daily quota is genuinely
+      separate: four models are four allowances. Google Search grounding is
+      not metered that way — it is one allowance for the whole project — so a
+      grounded call that is refused for quota will be refused by every model
+      below it too.
+
+      Measured rather than assumed, against this project's key:
+
+        gemini-3-flash-preview   plain 429   search 429
+        gemini-3.5-flash         plain OK    search 429
+        gemini-3.5-flash-lite    plain OK    search 429
+        gemini-3.1-flash-lite    plain OK    search 429
+
+      Walking the ladder anyway spends four failed calls before the ungrounded
+      retry even starts, and the traveller waits out every one of them.
+    */
+    stopOnQuota?: boolean,
   ): Promise<T> => {
     let lastError: unknown;
     let thin: { value: T } | undefined;
@@ -201,6 +221,7 @@ async function startServer() {
           overloaded model ended the request while three untouched models sat
           below it in the list.
         */
+        if (stopOnQuota && isQuotaError(error)) throw error;
         if (!shouldTryNextModel(error)) throw error;
         if (process.env.NODE_ENV !== "production") {
           console.warn(`[intake] ${model} unavailable, trying the next model`);
@@ -1598,19 +1619,36 @@ async function startServer() {
       // tier meters per model per day, so one exhausted model says nothing
       // about the next.
       const generate = (useSearch: boolean) =>
-        withModelFallback(model => ai.models.generateContent({
-          model,
-          ...generationConfig,
-          config: { ...generationConfig.config, ...(useSearch ? { tools: [{ googleSearch: {} }] } : {}) },
-        }));
+        withModelFallback(
+          model => ai.models.generateContent({
+            model,
+            ...generationConfig,
+            config: { ...generationConfig.config, ...(useSearch ? { tools: [{ googleSearch: {} }] } : {}) },
+          }),
+          undefined,
+          // Search quota is one allowance for the project, not one per model.
+          useSearch,
+        );
 
       let response;
       let grounded = true;
+      /*
+        Why the search did not happen, in the answer.
+
+        「為什麼連不上搜尋」 — the card said it had fallen back and could not say
+        why, so the only way to find out was to ask someone with the server
+        logs. A day's search allowance running out and the service being down
+        are different situations for the traveller: one is worth retrying
+        tomorrow, the other in a minute.
+      */
+      let ungroundedReason: "quota" | "error" | undefined;
       try {
         response = await generate(true);
-      } catch (groundedError: any) {
-        const exhausted = groundedError?.status === 429 || groundedError?.message?.includes("RESOURCE_EXHAUSTED");
-        console.warn("Grounded activity-plan lookup failed; retrying without search.", { exhausted: Boolean(exhausted) });
+      } catch (groundedError) {
+        ungroundedReason = isQuotaError(groundedError) ? "quota" : "error";
+        console.warn("Grounded activity-plan lookup failed; retrying without search.", {
+          reason: ungroundedReason,
+        });
         grounded = false;
         response = await generate(false);
       }
@@ -1795,6 +1833,7 @@ async function startServer() {
         intro: anyVerified ? introText : stripPriceClaims(introText),
         options: options.filter((option: any) => option.title && option.items.length > 0),
         grounded,
+        ungroundedReason,
         sources,
       });
     } catch (error: any) {

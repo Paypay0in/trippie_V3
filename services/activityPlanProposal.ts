@@ -108,6 +108,15 @@ export interface ActivityPlansResult {
   intro?: string;
   options: ActivityPlanProposal[];
   grounded: boolean;
+  /**
+   * Why the search did not happen, when it did not.
+   *
+   * 「為什麼連不上搜尋」 — the card could say it had fallen back and not why, so
+   * the only way to find out was to read the server's logs. A day's search
+   * allowance running out and the service being down are different situations
+   * for the traveller: one is worth retrying tomorrow, the other in a minute.
+   */
+  ungroundedReason?: 'quota' | 'error';
   sources: Array<{ title?: string; url?: string }>;
 }
 
@@ -147,6 +156,9 @@ export const fetchActivityPlans = async (request: {
     intro: typeof data?.intro === 'string' ? data.intro : undefined,
     options: Array.isArray(data?.options) ? data.options : [],
     grounded: data?.grounded !== false,
+    ungroundedReason: data?.ungroundedReason === 'quota' || data?.ungroundedReason === 'error'
+      ? data.ungroundedReason
+      : undefined,
     sources: Array.isArray(data?.sources) ? data.sources : [],
   };
 };

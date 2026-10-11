@@ -222,6 +222,7 @@ const TripPlanOverview: React.FC<Props> = ({
   const [planSources, setPlanSources] = useState<Array<{ title?: string; url?: string }>>([]);
   const [planError, setPlanError] = useState('');
   const [planGrounded, setPlanGrounded] = useState(true);
+  const [planUngroundedReason, setPlanUngroundedReason] = useState<'quota' | 'error' | undefined>();
   const [isRevisingPlan, setIsRevisingPlan] = useState(false);
   const [showAllRules, setShowAllRules] = useState(false);
   const [researching, setResearching] = useState(false);
@@ -455,6 +456,7 @@ const TripPlanOverview: React.FC<Props> = ({
       setPlanRequestId(result.requestId);
       setPlanSources(result.sources);
       setPlanGrounded(result.grounded);
+      setPlanUngroundedReason(result.ungroundedReason);
       onPlanOptionsShown?.(result.requestId, result.options);
     } catch (error) {
       setPlanError(error instanceof Error ? error.message : '現在查不到資料，稍後再試一次。');
@@ -992,6 +994,7 @@ const TripPlanOverview: React.FC<Props> = ({
           intro={planIntro}
           options={planOptions}
           grounded={planGrounded}
+          ungroundedReason={planUngroundedReason}
           sources={planSources}
           days={planDays}
           onSelect={plan => onPlanOptionSelected?.(planRequestId, plan, planOptions)}

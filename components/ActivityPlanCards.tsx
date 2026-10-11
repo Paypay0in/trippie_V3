@@ -30,6 +30,8 @@ interface Props {
   intro?: string;
   options: ActivityPlanProposal[];
   grounded: boolean;
+  /** Why the search did not happen; see `ActivityPlansResult`. */
+  ungroundedReason?: 'quota' | 'error';
   sources: Array<{ title?: string; url?: string }>;
   /** Every day of the trip, with what is already on it. */
   days: TripDay[];
@@ -109,6 +111,7 @@ const ActivityPlanCards: React.FC<Props> = ({
   intro,
   options,
   grounded,
+  ungroundedReason,
   sources,
   days,
   onSelect,
@@ -410,9 +413,16 @@ const ActivityPlanCards: React.FC<Props> = ({
         );
       })}
 
+      {/*
+        Said with its reason. 「為什麼連不上搜尋」 was asked of a banner that
+        could only say it had happened — and a day's allowance running out is
+        worth retrying tomorrow, while a failure is worth retrying now.
+      */}
       {!grounded && (
-        <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-4 text-amber-700">
-          這次沒有連上搜尋，以下方案來自模型既有的認識，可能已經過時。是否開放、價格與是否需預約請自行再確認。
+        <p data-testid="plan-ungrounded" className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-4 text-amber-700">
+          {ungroundedReason === 'quota'
+            ? '今天的搜尋額度已經用完，以下方案來自模型既有的認識，可能已經過時。是否開放、價格與是否需預約請自行再確認。'
+            : '這次沒有連上搜尋，以下方案來自模型既有的認識，可能已經過時。是否開放、價格與是否需預約請自行再確認。'}
         </p>
       )}
 
