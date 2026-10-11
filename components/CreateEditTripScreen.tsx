@@ -139,10 +139,26 @@ const CreateEditTripScreen: React.FC<Props> = ({
     );
   };
 
+  /*
+    A card over the app, not a page instead of it.
+
+    「我希望這頁跳出來是卡片 不是滿版的一整頁」. Editing a trip is something you do
+    to the thing behind you and then return from — a full-bleed page says the
+    opposite, that you have gone somewhere, and gives a six-field form the
+    weight of a destination.
+
+    The backdrop does not dismiss. Everywhere else in the app a tap outside
+    closes a sheet, and everywhere else there is nothing to lose; here there is
+    a half-filled form, and losing it to a mistimed thumb is a worse failure
+    than one extra tap on the arrow.
+
+    The inset is the safe area on all four sides, so the card clears the island
+    and the home indicator without the page underneath needing to know.
+  */
   return (
-    <div className="min-h-screen bg-[#f7f8fc] text-ink">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0b1430]/45 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] text-ink">
       {/*
-        One screen, one scale.
+        One card, one scale.
 
         「The screen feels like an enlarged responsive website rather than a
         native mobile app.」 Every size here was chosen locally — an 18px heading
@@ -155,9 +171,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
         again.
       */}
       <main
-        data-safe-top
-        style={{ ["--safe-top-base" as string]: "1rem" }}
-        className="mx-auto flex min-h-[100dvh] w-full max-w-xl flex-col px-[var(--screen-pad)] pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        className="flex max-h-full w-full max-w-xl flex-col overflow-y-auto rounded-sheet bg-[#f7f8fc] px-[var(--screen-pad)] pb-4 pt-3 shadow-[0_24px_60px_rgba(11,20,48,.35)]"
       >
         <header className="relative flex min-h-11 items-center justify-center">
           <button

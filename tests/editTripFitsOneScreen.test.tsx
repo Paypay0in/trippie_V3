@@ -24,9 +24,32 @@ const source = readFileSync(
 );
 
 describe('編輯旅程要一頁看完', () => {
-  it('整頁就是一個視窗高，而且是直欄排列', () => {
-    expect(source).toContain('min-h-[100dvh]');
+  /*
+    「我希望這頁跳出來是卡片 不是滿版的一整頁」.
+
+    The requirement did not change — everything down to Create Trip has to be
+    reachable without scrolling — but what holds it did. A page that was one
+    viewport tall became a card bounded by one, inset from all four edges, so
+    the limit is now a maximum rather than a minimum.
+  */
+  it('卡片被視窗框住，而且是直欄排列', () => {
+    expect(source).toContain('max-h-full');
     expect(source).toContain('flex-col');
+    // Not a page any more: nothing here should be claiming the whole viewport.
+    expect(source).not.toContain('min-h-[100dvh]');
+  });
+
+  it('是浮在 app 上的一張卡，不是取代 app 的一頁', () => {
+    expect(source).toContain('fixed inset-0');
+    expect(source).toContain('rounded-sheet');
+  });
+
+  /*
+    Everywhere else a tap outside closes a sheet, and everywhere else there is
+    nothing to lose. Here there is a half-filled form.
+  */
+  it('點背景不會把填到一半的表單關掉', () => {
+    expect(source).not.toMatch(/onClick=\{[^}]*onBack[^}]*\}\s*>\s*\{\/\*\s*One card/);
   });
 
   /**

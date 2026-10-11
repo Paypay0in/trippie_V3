@@ -61,6 +61,11 @@
   --radius-control: 0.9375rem; /* 15 — buttons */
   --radius-card: 1.125rem;    /* 18 — a group with a border */
   --radius-cover: 1.25rem;    /* 20 — photography */
+  /*
+    A sheet lifted over the app, which wants a larger corner than a card
+    lying on it: 「我希望這頁跳出來是卡片 不是滿版的一整頁」.
+  */
+  --radius-sheet: 1.75rem;    /* 28 — something presented over the page */
 
   /* Ink, so navy and its muted form are not retyped as hex on every screen. */
   --color-ink: #10204a;

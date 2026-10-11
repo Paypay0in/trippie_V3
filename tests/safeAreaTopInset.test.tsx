@@ -38,8 +38,19 @@ describe('螢幕頂端的安全區域', () => {
     expect(read('index.css')).not.toContain('[data-safe-top].sticky');
   });
 
-  it('使用者會碰到的頂端畫面都標記了', () => {
-    const marked = (path: string) => read(path).includes('data-safe-top');
+  it('使用者會碰到的頂端畫面都處理了頂端安全區', () => {
+    /*
+      Marked, or inset explicitly.
+
+      「我希望這頁跳出來是卡片」 — the trip editor is presented over the app now,
+      and a floating card insets itself on all four sides rather than padding
+      its own top past the island. Both discharge the same obligation; what
+      must never happen is a screen that does neither.
+    */
+    const marked = (path: string) => {
+      const text = read(path);
+      return text.includes('data-safe-top') || text.includes('env(safe-area-inset-top)');
+    };
     /*
       Every screen that owns the top of the display. 「這頁則是沒有改到」 — the
       first pass marked the community header and missed the travel home, which
