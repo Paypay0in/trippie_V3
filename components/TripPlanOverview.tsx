@@ -1,3 +1,4 @@
+import { entryPoints, worthListing } from '../services/entryPoints';
 import React, { useEffect, useState } from 'react';
 import { HelpRequest } from '../services/serviceMatching';
 import { classifyTask } from '../services/taskAssistance';
@@ -637,7 +638,23 @@ const TripPlanOverview: React.FC<Props> = ({
                     {ruleTask.isPurchased ? '已完成' : '標記完成'}
                   </button>
                 </div>
-                {ruleTask.description && <p className="leading-5">{ruleTask.description}</p>}
+                {/*
+                  「這些資訊不能用條列式 1.2.3 重點說明就好嗎」, then 「只能三句」.
+
+                  The rules arrive as preparation items, so the paragraph is
+                  split here into at most three points. An earlier attempt at
+                  this edited EntryRequirementsChecklist.tsx, which nothing
+                  imports — the test passed and the screen did not change.
+                */}
+                {(() => {
+                  const points = entryPoints({ description: ruleTask.description });
+                  if (points.length === 0) return null;
+                  return worthListing(points)
+                    ? <ol className="list-decimal space-y-1 pl-4 leading-5 marker:font-black marker:text-violet-500">
+                        {points.map((point, index) => <li key={index}>{point}</li>)}
+                      </ol>
+                    : <p className="leading-5">{points[0]}</p>;
+                })()}
                 {ruleTask.description && isGuidanceOutdated(ruleTask.description, tripStartDate) && (
                   /* The text is not wrong, it is out of date — which reads the
                      same until you check the year. Say so and point at the

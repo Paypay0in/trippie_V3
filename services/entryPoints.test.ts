@@ -99,9 +99,25 @@ describe('the research asks for points', () => {
   });
 
   it('tells it how short, and why', () => {
-    expect(SERVER).toContain('2 到 4 個短句');
+    expect(SERVER).toContain('最多 3 句');
     expect(SERVER).toContain('不要用 description 欄位');
     expect(SERVER).toContain('整段文字會被跳過');
+  });
+
+  /**
+   * 「要給用戶行動指令跟確定的答案 我覺得免簽就免簽 不要叫他自己查」.
+   *
+   * The card that prompted this said 「無法確認現況，請於出發前至官方網站查詢」
+   * where the answer should have been — which is the app handing the
+   * question back to the person who opened it to avoid asking it.
+   */
+  it('demands an answer first, not an instruction to go and check', () => {
+    expect(SERVER).toContain('第一句必須是旅客的結論或動作');
+    expect(SERVER).toContain('旅客打開這個 app 就是為了不用自己查');
+  });
+
+  it('still allows 「no official source found」 when that is the truth', () => {
+    expect(SERVER).toContain('只有在這次搜尋真的找不到任何官方說法時');
   });
 
   it('keeps the points it is given', () => {
@@ -109,17 +125,34 @@ describe('the research asks for points', () => {
   });
 });
 
+/**
+ * The card that is actually on screen.
+ *
+ * An earlier version of this file checked EntryRequirementsChecklist.tsx,
+ * which nothing imports — so it passed while the rules the traveller reads
+ * were untouched. The component has been deleted; a dead renderer beside a
+ * live one is a trap for whoever fixes this next.
+ */
 describe('the card draws them', () => {
-  const CARD = readFileSync(
-    resolve(__dirname, '../components/EntryRequirementsChecklist.tsx'), 'utf8',
-  );
+  const CARD = readFileSync(resolve(__dirname, '../components/TripPlanOverview.tsx'), 'utf8');
 
   it('uses the shared rule rather than reading description itself', () => {
-    expect(CARD).toContain('entryPoints(action)');
-    expect(CARD).not.toContain('{action.description}');
+    expect(CARD).toContain('entryPoints({ description: ruleTask.description })');
   });
 
   it('numbers them, which is what was asked for', () => {
     expect(CARD).toContain('list-decimal');
+  });
+});
+
+describe('three at most', () => {
+  it('keeps only three written points', () => {
+    expect(entryPoints({ points: ['一', '二', '三', '四'] })).toEqual(['一', '二', '三']);
+  });
+
+  /** Old paragraphs lose their tail, which is the cost of the rule. */
+  it('keeps only the first three sentences of an old paragraph', () => {
+    const points = entryPoints({ description: '第一句。第二句。第三句。第四句。' });
+    expect(points).toEqual(['第一句。', '第二句。', '第三句。']);
   });
 });

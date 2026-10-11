@@ -40,9 +40,23 @@ describe('the entry-rules research prompt', () => {
     expect(prompt).toContain('2024 年底到期');
   });
 
+  /**
+   * The rule is unchanged; the wording moved.
+   *
+   * 「要給用戶行動指令跟確定的答案 我覺得免簽就免簽 不要叫他自己查」 — the card
+   * that prompted this said 「無法確認現況，請於出發前至官方網站查詢」 where the
+   * answer belonged, which is the app handing the question back to the person
+   * who opened it to avoid asking it. Saying so is now the last resort rather
+   * than an available escape, and it carries the official link either way.
+   */
   it('requires saying "unconfirmed" plus the official link instead of hedging', () => {
-    expect(prompt).toContain('無法確認現況');
+    expect(prompt).toContain('查無官方說明');
+    expect(prompt).toContain('並附官方網址');
     expect(prompt).toMatch(/可能.*預計.*屆時/);
+  });
+
+  it('only allows that after a search that genuinely found nothing', () => {
+    expect(prompt).toContain('只有在這次搜尋真的找不到任何官方說法時');
   });
 
   /**
