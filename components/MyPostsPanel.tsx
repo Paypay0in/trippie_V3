@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Bookmark, Eye, EyeOff, Heart, LayoutGrid, Lock, MapPin, MoreHorizontal, Plane, Plus, Trash2, MessageCircle } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Bookmark, ChevronDown, Eye, EyeOff, Heart, LayoutGrid, Lock, MapPin, MoreHorizontal, Plane, Plus, Trash2, MessageCircle } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
+import { countryLabel, groupSavedByPlace, groupSummary, initiallyOpen } from '../services/savedGrouping';
 
 interface Props {
   posts: CommunityPost[];
@@ -64,6 +65,14 @@ const MyPostsPanel: React.FC<Props> = ({
 }) => {
   const [tab, setTab] = useState<'posts' | 'saved' | 'trips'>('posts');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  /*
+    Grouped once per change of the saved list, and opened per 「不要全部攤開」:
+    closed, unless there is only one country — one collapsed row and a question
+    is not organised, it is hidden, and it costs a tap to see what used to be
+    on screen already.
+  */
+  const savedGroups = useMemo(() => groupSavedByPlace(savedInspirations), [savedInspirations]);
+  const [openCountries, setOpenCountries] = useState<string[]>(() => initiallyOpen(savedGroups));
 
   return (
     <section className="mt-6">
@@ -279,18 +288,79 @@ const MyPostsPanel: React.FC<Props> = ({
               還沒有收藏任何旅行靈感
             </p>
           ) : (
-            <div className="space-y-2">
-              {savedInspirations.map(item => (
-                <div key={item.id} className="flex items-start gap-2.5 rounded-2xl border border-slate-100 bg-white px-3 py-3">
-                  <MapPin size={15} className="mt-0.5 shrink-0 text-violet-600" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-[#11183d]">{item.placeName || item.title}</p>
-                    <p className="mt-0.5 truncate text-[11px] text-slate-400">
-                      {[item.country, item.city].filter(Boolean).join('・') || item.address || ''}
-                    </p>
+            /*
+              「這個要以國家城市區分 不要全部攤開」.
+
+              It was one row per saved place, with 韓國・釜山 repeated under
+              every one of them. Twenty saved places read as twenty unrelated
+              things, and the single fact that organises them was printed
+              twenty times in grey.
+
+              Now the place is said once, at the top of the things that are
+              there — so the rows underneath are free to be the places.
+            */
+            <div className="space-y-2" data-testid="saved-groups">
+              {savedGroups.map(group => {
+                const open = openCountries.includes(group.country);
+                return (
+                  <div
+                    key={group.country || '__unplaced'}
+                    data-testid={`saved-country-${group.country || 'other'}`}
+                    className="overflow-hidden rounded-2xl border border-slate-100 bg-white"
+                  >
+                    <button
+                      type="button"
+                      data-testid={`saved-toggle-${group.country || 'other'}`}
+                      aria-expanded={open}
+                      onClick={() => setOpenCountries(current => current.includes(group.country)
+                        ? current.filter(name => name !== group.country)
+                        : [...current, group.country])}
+                      className="flex min-h-14 w-full items-center gap-2.5 px-3 py-3 text-left"
+                    >
+                      <MapPin size={15} className="shrink-0 text-violet-600" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold text-[#11183d]">
+                          {countryLabel(group.country)}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11px] text-slate-400">
+                          {groupSummary(group)}
+                        </span>
+                      </span>
+                      <ChevronDown
+                        size={17}
+                        className={`shrink-0 text-slate-300 transition-transform ${open ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+
+                    {open && (
+                      <div className="border-t border-slate-100 px-3 pb-3">
+                        {group.cities.map(city => (
+                          <div key={city.city || '__nocity'} className="mt-3">
+                            {/* No heading for the country-only remainder: the
+                                country is already the row above, and repeating
+                                it is the thing being fixed. */}
+                            {city.city ? (
+                              <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                                {city.city}
+                              </p>
+                            ) : null}
+                            <ul className={city.city ? 'mt-1.5 space-y-1.5' : 'space-y-1.5'}>
+                              {city.items.map(item => (
+                                <li
+                                  key={item.id}
+                                  className="truncate rounded-xl bg-[#f7f8fc] px-3 py-2 text-sm font-semibold text-[#11183d]"
+                                >
+                                  {item.placeName || item.title}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

@@ -599,8 +599,13 @@ const TravelHome: React.FC<Props> = ({
                     <Ellipsis size={19} />
                   </button>
                   <div className="absolute bottom-4 left-4 right-4 text-white">
+                    {/* 韓國・韓國: a place that only knows its country gets the
+                        country copied into the city, and the label said it
+                        twice. A city equal to its own country is not a city. */}
                     <p className="truncate text-base font-black">
-                      {note.country}・{note.city}
+                      {note.city && note.city !== note.country
+                        ? `${note.country}・${note.city}`
+                        : note.country || note.city}
                     </p>
                     <p className="mt-1 flex items-center gap-1 truncate text-xs text-white/75">
                       <MapPin size={12} />
