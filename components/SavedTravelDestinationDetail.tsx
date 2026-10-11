@@ -63,9 +63,16 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
   const fallback = 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=1200&q=85';
   const heroImage = image?.imageUrl || fallback;
 
-  return <main data-safe-top style={{ ["--safe-top-base" as string]: "0rem" }} className="min-h-screen bg-[#f7f8fc] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
-    <header className="relative h-12 bg-white px-5">
-      <button type="button" onClick={onBack} className="absolute left-5 top-3 text-sm font-black text-violet-600">← 旅行</button>
+  return <main className="min-h-screen bg-[#f7f8fc] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
+    {/*
+      The same opt-out as the post detail screen, found by looking for it.
+
+      「滿版不好點」 was reported about one screen; --safe-top-base: 0rem was on
+      two. A fault fixed only where it was photographed is a fault still in the
+      product, and this one puts a back button under the clock.
+    */}
+    <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="bg-white px-[var(--screen-pad)] pb-2">
+      <button type="button" onClick={onBack} className="-ml-2 flex min-h-11 items-center px-2 text-sm font-black text-violet-600">← 旅行</button>
     </header>
     <section className="relative h-[200px] overflow-hidden">
       <img src={heroImage} alt={`${country}・${city}`} className="h-full w-full object-cover" />
