@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import AppWordmark from './AppWordmark';
 import { ArrowLeft, CalendarDays, ChevronRight, FileText, Mail, Users, WalletCards } from 'lucide-react';
 import { fetchDestinationImage } from '../services/destinationImageService';
 
@@ -43,7 +44,17 @@ const AuthLandingScreen: React.FC<Props> = ({ onBack, onEmail, onUnavailableProv
       </button>
 
       <section className="relative z-10 max-w-[290px] pt-8">
-        <div className="bg-gradient-to-r from-[#6d35d8] via-[#7b55e8] to-[#2f80ed] bg-clip-text text-3xl font-black tracking-[-0.06em] text-transparent">Trippie</div>
+        {/*
+          The last one outside the system, now inside it.
+
+          「統一」. This was a gradient display treatment at 32px — defensible as
+          a hero rather than a header, which is why it was left and asked
+          about. But it is still the app's name, and the rule he set is that
+          the name is one thing: 社群, 旅行, 我的, 旅程書架 and 登入 all draw it
+          from one component, and a sixth size on the screen somebody meets
+          first is the one that sets their expectation for the other five.
+        */}
+        <AppWordmark />
         <p className="mt-7 text-sm font-bold text-violet-600">嗨，旅人 👋</p>
         <h1 className="mt-2 text-[32px] font-black leading-[1.12] tracking-[-0.04em]">把你的旅行<br />真正留在 Trippie。</h1>
         <p className="mt-4 text-[14px] font-medium leading-6 text-slate-500">規劃、記錄、分享、管理旅費<br />一站完成，讓每一趟旅程更簡單。</p>

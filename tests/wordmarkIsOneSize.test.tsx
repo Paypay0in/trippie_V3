@@ -91,11 +91,21 @@ describe('Trippie 這四個字', () => {
  * The source is checked instead, so the next one is caught before it ships.
  */
 describe('沒有第二個寫死的 Trippie', () => {
+  /*
+    「統一」 — the two account screens were the last exemption and are gone.
+
+    The landing page's was a gradient hero at 32px rather than a header, which
+    is why it was left and asked about rather than changed quietly. It is still
+    the app's name, and a sixth size on the screen somebody meets first is the
+    one that sets their expectation for the other five.
+  */
   const inAppScreens = [
     'components/CommunityHome.tsx',
     'components/TravelHome.tsx',
     'components/AccountScreen.tsx',
     'components/TripSelectionScreen.tsx',
+    'components/AuthScreen.tsx',
+    'components/AuthLandingScreen.tsx',
   ];
 
   it('每一頁的標題列都用同一個元件', () => {
