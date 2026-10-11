@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canOpenInNaver, naverPlaceUrl } from './naverMapLinks';
+import { canOpenInNaver, naverPlaceUrl, naverRouteUrl } from './naverMapLinks';
 
 /**
  * Verified on a real iPhone with NAVER Map installed:
@@ -73,5 +73,40 @@ describe('when there is no point to send', () => {
   it('still builds a link for a place with no name', () => {
     const url = naverPlaceUrl({ ...seongsu, placeName: '' })!;
     expect(new URL(url).searchParams.get('name')).toBe('目的地');
+  });
+});
+
+/**
+ * 서울역 → 성수동 on `route/public` opened NAVER on that journey, verified on
+ * a phone. The targets are not interchangeable: `/navigation` is driving
+ * turn-by-turn, so a walk routed through it gets driving directions.
+ */
+describe('routes', () => {
+  const seoulStation = { latitude: 37.5547, longitude: 126.9707, name: '서울역' };
+  const to = { latitude: 37.5447, longitude: 127.0557, name: '성수동' };
+
+  it('uses the action that matches the way of travelling', () => {
+    expect(naverRouteUrl(seoulStation, to, 'transit')).toContain('/launchApp/route/public?');
+    expect(naverRouteUrl(seoulStation, to, 'drive')).toContain('/launchApp/route/car?');
+    expect(naverRouteUrl(seoulStation, to, 'walk')).toContain('/launchApp/route/walk?');
+  });
+
+  it('never routes a walk through the driving navigation action', () => {
+    expect(naverRouteUrl(seoulStation, to, 'walk')).not.toContain('/navigation');
+  });
+
+  it('carries both ends, with their names', () => {
+    const url = new URL(naverRouteUrl(seoulStation, to, 'transit')!);
+    expect(url.searchParams.get('slat')).toBe('37.5547');
+    expect(url.searchParams.get('sname')).toBe('서울역');
+    expect(url.searchParams.get('dlat')).toBe('37.5447');
+    expect(url.searchParams.get('dname')).toBe('성수동');
+    expect(url.searchParams.get('appname')).toBe('com.trippie.app');
+  });
+
+  /** One real end is the A4 failure with an extra step. */
+  it('builds nothing when either end has no coordinates', () => {
+    expect(naverRouteUrl({ name: '서울역' }, to, 'transit')).toBeNull();
+    expect(naverRouteUrl(seoulStation, { name: '성수동' }, 'transit')).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Bus, Car, Footprints, ChevronRight, MapPinned, AlertTriangle, X } from 'lucide-react';
 import { OVERLAY } from '../constants/layers';
+import { naverRouteUrl } from '../services/naverMapLinks';
 import { fetchRouteLeg, RouteLeg, TravelMode, TRAVEL_MODE_LABELS } from '../services/routesService';
 
 interface Props {
@@ -85,7 +86,29 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
   }, [origin.latitude, origin.longitude, destination.latitude, destination.longitude, mode, departureTime]);
 
   const Icon = MODE_ICONS[mode];
-  const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&travelmode=${mode === 'TRANSIT' ? 'transit' : mode === 'DRIVE' ? 'driving' : 'walking'}`;
+  const googleMapUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&travelmode=${mode === 'TRANSIT' ? 'transit' : mode === 'DRIVE' ? 'driving' : 'walking'}`;
+  /*
+    In Korea this opens NAVER instead, and that is the point of the whole
+    feature: this card is where somebody standing between two stops actually
+    presses 「在地圖開啟」.
+
+    It already knew. `isKorea` has been here all along to explain why Google
+    returns no driving or walking route — a legal restriction, not missing
+    data — and the comment on that prop says to send the traveller to Naver.
+    It could say so and not do it.
+
+    Null when either end has no coordinates, and then the Google link stands:
+    a route with one real end opens NAVER on something plausible and wrong,
+    which is the failure we watched happen on a phone.
+  */
+  const naverUrl = isKorea(destinationCountry)
+    ? naverRouteUrl(
+        { latitude: origin.latitude, longitude: origin.longitude, name: origin.title },
+        { latitude: destination.latitude, longitude: destination.longitude, name: destination.title },
+        mode === 'TRANSIT' ? 'transit' : mode === 'DRIVE' ? 'drive' : 'walk',
+      )
+    : null;
+  const mapUrl = naverUrl || googleMapUrl;
   /** The one line on the plan, repeated at the top of the sheet. */
   const summaryLine = loading ? '計算交通中…'
     : error ? error
@@ -249,14 +272,35 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
               <p className="mt-3 text-[11px] font-bold text-slate-400">全程約 {(leg.distanceMeters / 1000).toFixed(1)} 公里</p>
             ) : null}
 
+            {/* The label names the app it opens, because 「在地圖開啟」 on a
+                button that launches NAVER is a small surprise at the exact
+                moment somebody is trying to leave. */}
             <a
               href={mapUrl}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 text-sm font-black text-white"
+              data-testid="transport-map-link"
+              className={`mt-4 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl text-sm font-black text-white ${
+                naverUrl ? 'bg-[#03c75a]' : 'bg-gradient-to-r from-blue-600 to-violet-600'
+              }`}
             >
-              <MapPinned size={15} />在地圖開啟
+              <MapPinned size={15} />{naverUrl ? '在 NAVER 地圖開啟' : '在地圖開啟'}
             </a>
+
+            {/* Google still routes transit in Korea; only driving and walking
+                are withheld. Keeping it reachable costs one line and is the
+                「choose another provider」 the ticket asks for. */}
+            {naverUrl && (
+              <a
+                href={googleMapUrl}
+                target="_blank"
+                rel="noreferrer"
+                data-testid="transport-google-link"
+                className="mt-2 flex min-h-11 w-full items-center justify-center text-xs font-black text-slate-500"
+              >
+                改用 Google 地圖
+              </a>
+            )}
           </div>
         </div>
       )}

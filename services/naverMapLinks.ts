@@ -80,3 +80,65 @@ export const naverPlaceUrl = (place: NaverPlace): string | null => {
 
 /** Whether this place can be opened in NAVER Map at all. */
 export const canOpenInNaver = (place: NaverPlace): boolean => naverPlaceUrl(place) !== null;
+
+/**
+ * A route, verified on a phone: 서울역 → 성수동 opened NAVER on that journey.
+ *
+ * The three targets are NAVER's own, and they are not interchangeable.
+ * `/navigation` is turn-by-turn driving; walking and transit have to use
+ * their own `/route/` actions or the traveller gets driving directions for a
+ * walk across a park.
+ *
+ * This is the link Trippie's travellers actually press. The transport card
+ * between two itinerary stops already knew it was in Korea — it has been
+ * printing 「因法規限制，Google 地圖無法以『開車』查詢」 and telling people to go
+ * to Naver themselves, because Google publishes no driving or walking routes
+ * there at all. It knew the answer and had no way to send anybody.
+ */
+
+export type NaverRouteMode = 'transit' | 'drive' | 'walk';
+
+const ROUTE_TARGET: Record<NaverRouteMode, string> = {
+  transit: 'route/public',
+  drive: 'route/car',
+  walk: 'route/walk',
+};
+
+export interface RouteEnd {
+  latitude?: number;
+  longitude?: number;
+  name?: string;
+}
+
+const ends = (end: RouteEnd): { latitude: number; longitude: number } | null => {
+  if (!Number.isFinite(end.latitude) || !Number.isFinite(end.longitude)) return null;
+  return { latitude: end.latitude as number, longitude: end.longitude as number };
+};
+
+/**
+ * The route link, or nothing.
+ *
+ * Both ends are required. A route with one real end is the A4 failure with an
+ * extra step: NAVER opens, shows something, and the traveller believes it.
+ */
+export const naverRouteUrl = (
+  origin: RouteEnd,
+  destination: RouteEnd,
+  mode: NaverRouteMode,
+): string | null => {
+  const from = ends(origin);
+  const to = ends(destination);
+  if (!from || !to) return null;
+
+  const params = new URLSearchParams({
+    slat: String(from.latitude),
+    slng: String(from.longitude),
+    sname: origin.name?.trim() || '出發地',
+    dlat: String(to.latitude),
+    dlng: String(to.longitude),
+    dname: destination.name?.trim() || '目的地',
+    appname: APP_NAME,
+  });
+
+  return `${LAUNCH_BASE}/${ROUTE_TARGET[mode]}?${params.toString()}`;
+};
