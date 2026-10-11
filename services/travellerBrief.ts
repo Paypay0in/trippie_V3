@@ -134,34 +134,57 @@ export const briefChips = ({ brief, rentals = [] }: TravellerBriefInput): string
 };
 
 /**
- * What to ask next, from what the brief already says.
+ * What to ask next, each question traceable to an answer on the form.
  *
- * 「這些關鍵字的存在 在下方的輸入框就能有引導詞」. The chips above say what is
- * known; an empty box beside them asks the traveller to invent a question
- * when the app can already see which one matters.
+ * 「這些要存在 即使你有其他的提示詞出現 且提示詞是延續這些表單來的 你要在這個
+ *   欄位去引導用戶給你資訊 你才能幫他完整行程」.
  *
- * The gap goes first, and there is usually exactly one. 開車 ticked with no
- * confirmation uploaded is the clearest: the plan hinges on which days have a
- * car, nothing knows, and 「了解用戶目前想法」 was the instruction. Asking it
- * here is cheaper than a model guessing and a traveller correcting.
+ * So this is not a list of nice openers. Every entry below names something
+ * the form said, and asks the one thing that answer leaves open — the
+ * information a plan cannot be finished without. 「3 人」 does not say who
+ * they are; 「一天 4 個行程」 does not say which of them is fixed; 「開車」 does
+ * not say which days.
  *
- * The rest are openers, not questions the app needs answered — somebody who
- * has typed nothing is usually not short of opinions, only of a starting
- * point.
+ * Ordered by how much the answer changes the plan, and capped, because a row
+ * of six questions is a form the traveller did not agree to fill in twice.
  */
+
+const MAX_SUGGESTIONS = 3;
+
+/** Openers for a trip with no form at all — the only case with nothing to continue from. */
+const NO_BRIEF_OPENERS = ['想找咖啡廳', '想逛美術館', '想去當地市集'];
+
 export const promptSuggestions = ({ brief, rentals = [] }: TravellerBriefInput): string[] => {
-  const suggestions: string[] = [];
+  if (!brief) return NO_BRIEF_OPENERS;
 
+  const asks: string[] = [];
   const carDays = new Set(rentals.flatMap(rental => rentalDays(rental)));
-  if (brief?.transport.includes('drive') && carDays.size === 0) {
-    // First and alone-worthy: everything about the shape of the days depends
-    // on it, and it is the one thing only the traveller can answer.
-    suggestions.push('開車是哪幾天？');
+
+  // 開車, with no confirmation: the shape of every day depends on which ones
+  // have a car, nothing in the app knows, and only the traveller can say.
+  if (brief.transport.includes('drive') && carDays.size === 0) {
+    asks.push('開車是哪幾天？');
   }
 
-  if (!brief?.notes?.trim()) {
-    suggestions.push('想找咖啡廳', '想逛美術館', '想去當地市集');
+  // 補充描述 left empty: the plan has a rhythm and no subject.
+  if (!brief.notes?.trim()) {
+    asks.push('想以美食、景點還是購物為主？');
   }
 
-  return suggestions;
+  // 3 人 says how many, never who — and a grandparent or a toddler changes
+  // which places are worth proposing at all.
+  if (brief.travellers >= 3) {
+    asks.push('有長輩或小孩同行嗎？');
+  }
+
+  // 一天 4 個行程 is a request to pack it; what must not be dropped when the
+  // day runs over is the traveller's call, not the model's.
+  if (brief.pace === 4) asks.push('有哪幾個點一定要排？');
+  // 一天 2 個行程 is a request for slack; where the slack goes is also theirs.
+  if (brief.pace === 2) asks.push('想留哪一天完全放空？');
+
+  // 大眾運輸: passes are bought before the first ride, not during it.
+  if (brief.transport.includes('transit')) asks.push('要先買交通卡或一日券嗎？');
+
+  return asks.slice(0, MAX_SUGGESTIONS);
 };

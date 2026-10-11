@@ -221,47 +221,100 @@ describe('the card shows them', () => {
 });
 
 /**
- * 「這些關鍵字的存在 在下方的輸入框就能有引導詞
- *   比方說：開車會是幾號到幾號？租車的日期？」
+ * 「這些要存在 即使你有其他的提示詞出現 且提示詞是延續這些表單來的
+ *   你要在這個欄位去引導用戶給你資訊 你才能幫他完整行程」.
  *
- * The chips say what is known; the box should ask what is not.
+ * Every question below has to trace back to something the form said, and ask
+ * the one thing that answer leaves open. A list of pleasant openers would
+ * pass a test that only counted them.
  */
-describe('what to ask next', () => {
+describe('what to ask next, and where it comes from', () => {
   /**
-   * The one gap only the traveller can close, and the one everything about
-   * the shape of the days depends on.
+   * The shape of every day depends on which ones have a car, nothing in the
+   * app knows, and only the traveller can say.
    */
-  it('asks which days have a car when 開車 was ticked and nothing uploaded', () => {
-    const asks = promptSuggestions({ brief: brief({ transport: ['drive'] }) });
-    expect(asks[0]).toBe('開車是哪幾天？');
-  });
-
-  /** The confirmation already answered it; asking again is noise. */
-  it('stops asking once a rental confirmation says which days', () => {
-    const asks = promptSuggestions({ brief: brief({ transport: ['drive'] }), rentals: [hire] });
-    expect(asks).not.toContain('開車是哪幾天？');
+  it('asks which days from 開車, until a confirmation answers it', () => {
+    expect(promptSuggestions({ brief: brief({ transport: ['drive'] }) }))
+      .toContain('開車是哪幾天？');
+    expect(promptSuggestions({ brief: brief({ transport: ['drive'] }), rentals: [hire] }))
+      .not.toContain('開車是哪幾天？');
   });
 
   it('does not ask about a car nobody mentioned', () => {
-    const asks = promptSuggestions({ brief: brief({ transport: ['walk', 'transit'] }) });
-    expect(asks).not.toContain('開車是哪幾天？');
+    expect(promptSuggestions({ brief: brief({ transport: ['walk'] }) }))
+      .not.toContain('開車是哪幾天？');
   });
 
-  it('offers openers when the traveller wrote nothing', () => {
-    expect(promptSuggestions({ brief: brief() })).toContain('想找咖啡廳');
+  /** A rhythm with no subject: the form set the pace and never the point. */
+  it('asks what the trip is about when 補充描述 is empty', () => {
+    expect(promptSuggestions({ brief: brief({ transport: ['walk'] }) }))
+      .toContain('想以美食、景點還是購物為主？');
   });
 
-  /** Somebody who already said what they want is not short of a starting point. */
-  it('drops the openers once they have written something', () => {
-    const asks = promptSuggestions({ brief: brief({ notes: '想泡溫泉' }) });
-    expect(asks).not.toContain('想找咖啡廳');
+  it('stops asking once they have written it', () => {
+    expect(promptSuggestions({ brief: brief({ transport: ['walk'], notes: '想泡溫泉' }) }))
+      .not.toContain('想以美食、景點還是購物為主？');
   });
 
-  it('still asks about the car even when they wrote notes', () => {
+  /** 3 人 says how many and never who — and that changes what is worth proposing. */
+  it('asks who the third person is', () => {
+    expect(promptSuggestions({ brief: brief({ transport: ['walk'], travellers: 3 }) }))
+      .toContain('有長輩或小孩同行嗎？');
+    expect(promptSuggestions({ brief: brief({ transport: ['walk'], travellers: 2 }) }))
+      .not.toContain('有長輩或小孩同行嗎？');
+  });
+
+  /** What must not be dropped when a packed day runs over is theirs to say. */
+  it('asks what is fixed when they asked for a full day', () => {
+    expect(promptSuggestions({ brief: brief({ transport: ['walk'], pace: 4 }) }))
+      .toContain('有哪幾個點一定要排？');
+  });
+
+  it('asks where the slack goes when they asked for a light one', () => {
+    expect(promptSuggestions({ brief: brief({ transport: ['walk'], pace: 2 }) }))
+      .toContain('想留哪一天完全放空？');
+  });
+
+  /** Passes are bought before the first ride, not during it. */
+  it('asks about passes from 大眾運輸', () => {
+    expect(promptSuggestions({ brief: brief({ transport: ['transit'] }) }))
+      .toContain('要先買交通卡或一日券嗎？');
+  });
+
+  /** A row of six questions is a form the traveller did not agree to fill twice. */
+  it('never shows more than three', () => {
     const asks = promptSuggestions({
-      brief: brief({ transport: ['drive'], notes: '想泡溫泉' }),
+      brief: brief({ transport: ['drive', 'transit'], travellers: 4, pace: 4 }),
     });
-    expect(asks).toEqual(['開車是哪幾天？']);
+    expect(asks.length).toBeLessThanOrEqual(3);
+    expect(asks[0]).toBe('開車是哪幾天？');
+  });
+
+  /** The only case with nothing to continue from. */
+  it('falls back to openers when there is no form', () => {
+    expect(promptSuggestions({})).toEqual(['想找咖啡廳', '想逛美術館', '想去當地市集']);
+  });
+});
+
+/**
+ * 「這些要存在 即使你有其他的提示詞出現」.
+ *
+ * The chips are what the traveller can see being carried; the suggestions
+ * come and go with the box. Tying the two together is the easy mistake —
+ * a row that disappears while somebody types takes the evidence with it.
+ */
+describe('the chips outlive everything beside them', () => {
+  const CARD = readFileSync(resolve(__dirname, '../components/TripPlanOverview.tsx'), 'utf8');
+
+  it('shows the chips on their own count, not on the box being empty', () => {
+    const chips = CARD.indexOf('{briefChips.length > 0 ?');
+    expect(chips).toBeGreaterThan(-1);
+    // The condition is the chips themselves; nothing about `prompt` is in it.
+    expect(CARD.slice(chips, chips + 60)).not.toContain('prompt');
+  });
+
+  it('is the suggestions that hide while typing, not the chips', () => {
+    expect(CARD).toContain('!prompt.trim() && promptSuggestions.length > 0');
   });
 });
 
