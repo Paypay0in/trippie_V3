@@ -1,3 +1,4 @@
+import { entryPoints, worthListing } from '../services/entryPoints';
 import React, { useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronUp, Circle, Clock3 } from 'lucide-react';
 import { EntryActionableItem, TravelRuleTaskState } from '../types';
@@ -17,7 +18,15 @@ const EntryRequirementsChecklist: React.FC<Props> = ({ actionableItems, travelRu
     <h2 className="mb-3 font-black text-[#11183d]">入境準備</h2>
     <div className="space-y-2">
       {tasks.map(({ action, key, completed }) => {
-        const hasDetails = Boolean(action.description || action.timingText);
+        /*
+          「這些資訊不能用條列式 1.2.3 重點說明就好嗎」.
+
+          Points when the research wrote them; sentences split out of the old
+          paragraph otherwise, so rules already stored on a trip stop being
+          essays without anybody re-running a search.
+        */
+        const points = entryPoints(action);
+        const hasDetails = Boolean(points.length > 0 || action.timingText);
         const expanded = expandedTaskKey === key;
         return <div key={key} className="rounded-2xl border border-slate-100 bg-white">
           <div className="flex min-h-12 items-center gap-3 px-3 py-3">
@@ -31,7 +40,11 @@ const EntryRequirementsChecklist: React.FC<Props> = ({ actionableItems, travelRu
             {hasDetails && <button type="button" aria-label={expanded ? '收合入境待辦詳情' : '查看入境待辦詳情'} aria-expanded={expanded} onClick={() => setExpandedTaskKey(current => current === key ? null : key)} className="shrink-0 rounded-lg p-1 text-slate-400 hover:bg-violet-50 hover:text-violet-600">{expanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</button>}
           </div>
           {expanded && <div className="border-t border-violet-100 bg-violet-50/60 px-4 py-3 text-xs text-slate-600">
-            {action.description && <p className="leading-5">{action.description}</p>}
+            {points.length > 0 && (worthListing(points)
+              ? <ol className="list-decimal space-y-1.5 pl-4 leading-5 marker:font-bold marker:text-violet-500">
+                  {points.map((point, index) => <li key={index}>{point}</li>)}
+                </ol>
+              : <p className="leading-5">{points[0]}</p>)}
             {action.timingText && <div className="mt-3 flex gap-2 rounded-xl bg-white/70 p-2.5 text-violet-700"><Clock3 size={15} className="mt-0.5 shrink-0" /><span className="font-bold">{action.timingText}</span></div>}
           </div>}
         </div>;

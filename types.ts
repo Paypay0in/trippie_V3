@@ -412,6 +412,15 @@ export interface EntryActionableItem {
   actionType: EntryActionType;
   necessity?: EntryNecessity;
   title: string;
+  /**
+   * The rule as 2 to 4 short points, one fact each.
+   *
+   * 「這些資訊不能用條列式 1.2.3 重點說明就好嗎」 — the paragraph below asked one
+   * field to carry the rule, how it interacts with the others, which official
+   * system handles it and when it opens, and the model wrote prose.
+   */
+  points?: string[];
+  /** The older single paragraph; still rendered for rules researched before points. */
   description?: string;
   timingText?: string;
   source?: {
