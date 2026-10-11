@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Check, Search, UserPlus, X } from 'lucide-react';
 import { Person } from '../services/friendships';
 import { searchIntent } from '../services/friendSearch';
+import { CompanionSuggestion, asPerson, metOnLabel } from '../services/companionSuggestions';
 
 /**
  * 「這裡要有可以加朋友的欄位」.
@@ -26,6 +27,8 @@ export interface Props {
   myEmail?: string;
   friends: Person[];
   pending: PendingRequest[];
+  /** People already travelled with, who can be added without an email. */
+  suggestions?: CompanionSuggestion[];
   /** Resolves to the person, null when nobody has that address, or a reason. */
   onLookup: (email: string) => Promise<{ person: Person | null } | { problem: 'setup' | 'error' }>;
   onRequest: (person: Person) => void | Promise<void>;
@@ -51,8 +54,17 @@ const Avatar: React.FC<{ person: Person }> = ({ person }) => (
 );
 
 const FriendsPanel: React.FC<Props> = ({
-  myEmail, friends, pending, onLookup, onRequest, onAccept, onRemove,
+  myEmail, friends, pending, suggestions = [], onLookup, onRequest, onAccept, onRemove,
 }) => {
+  /**
+   * Suggestions already asked for, this session.
+   *
+   * The server is the truth, but it is one refetch away, and a tile that stays
+   * on 「邀請」 after a tap reads as a tap that did nothing — so it gets
+   * pressed again. The request is the same either way; the second press is
+   * only confusing.
+   */
+  const [invited, setInvited] = useState<string[]>([]);
   const [typed, setTyped] = useState('');
   const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' });
 
@@ -74,6 +86,57 @@ const FriendsPanel: React.FC<Props> = ({
     <section className="mt-5" data-testid="friends-panel">
       <h2 className="text-section font-semibold tracking-tight">好友</h2>
 
+      {/*
+        「是不是可以直接新增成朋友」 — above the email field, because for anybody
+        with a shared trip this is the whole answer, and asking them to type the
+        address of a person they planned a trip with is asking for a fact they
+        have no reason to know. They know her as the name on the seat.
+
+        It invites; it does not befriend. A shared trip is one itinerary two
+        people agreed to; friendship opens every 好友可見 post, including the
+        ones already written. People split trips with colleagues and
+        landlords — so the other person still accepts.
+      */}
+      {suggestions.length > 0 && (
+        <div className="mt-2" data-testid="companion-suggestions">
+          <p className="text-support font-semibold text-ink-soft">一起旅行過的人</p>
+          <ul className="mt-1.5 space-y-1.5">
+            {suggestions.map(suggestion => {
+              const person = asPerson(suggestion);
+              const asked = invited.includes(suggestion.userId);
+              return (
+                <li
+                  key={suggestion.userId}
+                  data-testid={`companion-${suggestion.userId}`}
+                  className="flex items-center gap-3 rounded-card border border-hairline bg-white px-3 py-2.5"
+                >
+                  <Avatar person={person} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-field font-semibold">{person.displayName}</span>
+                    <span className="block truncate text-meta text-ink-soft">{metOnLabel(suggestion)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    data-testid={`companion-invite-${suggestion.userId}`}
+                    disabled={asked}
+                    onClick={() => {
+                      setInvited(current => [...current, suggestion.userId]);
+                      void onRequest(person);
+                    }}
+                    className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-control bg-violet-600 px-3.5 text-support font-semibold text-white disabled:bg-slate-100 disabled:text-ink-soft"
+                  >
+                    {asked ? '已邀請' : <><UserPlus size={15} />邀請</>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-meta text-ink-soft">對方接受後才會成為好友。</p>
+        </div>
+      )}
+
+      {/* The address is the fallback, for somebody you have not travelled with. */}
+      <p className="mt-4 text-support font-semibold text-ink-soft">用 Email 找人</p>
       <div className="mt-2 flex gap-2">
         <div className="relative min-w-0 flex-1">
           <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

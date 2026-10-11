@@ -1,5 +1,6 @@
 import { supabase, supabaseConfigured } from './supabaseClient';
 import { FriendshipRow, friendIdsFor } from './postVisibility';
+import { CompanionSeat } from './companionSuggestions';
 
 /**
  * Friends, as rows.
@@ -129,6 +130,40 @@ export const removeFriend = async (otherId: string): Promise<FriendResult<null>>
     .or(`and(requester_id.eq.${me},addressee_id.eq.${otherId}),and(requester_id.eq.${otherId},addressee_id.eq.${me})`);
   if (error) return classify(error);
   return { status: 'ok', data: null };
+};
+
+/**
+ * Every seat on every trip this account can see, as the server holds them.
+ *
+ * 「gina已經是跟我有共同建立旅行本的人 是不是可以直接新增成朋友」 — so the
+ * roster becomes the lookup, and nobody has to know an email address.
+ *
+ * It has to be this query and not the local trip list. `user_id` is attached
+ * to a seat server-side when an invite is claimed, and the device that created
+ * the trip has never read that back — so on the owner's own phone Gina's seat
+ * may still carry no account at all. The device most likely to have companions
+ * is the one whose local copy knows least about them.
+ *
+ * No new table and no new policy: `trip_members_select` already lets any
+ * member read the whole roster of a trip they are on, because you cannot
+ * settle a bill with people you cannot see. The join to `trips` is only for
+ * the trip's name, so the suggestion can say where you met.
+ */
+export const fetchCompanionSeats = async (): Promise<FriendResult<CompanionSeat[]>> => {
+  if (!ready()) return { status: 'unavailable' };
+  const { data, error } = await supabase!
+    .from('trip_members')
+    .select('user_id, name, trip_id, trips(name)');
+  if (error) return classify(error);
+  return {
+    status: 'ok',
+    data: (data || []).map(row => ({
+      userId: row.user_id ?? undefined,
+      name: row.name || '',
+      tripId: row.trip_id,
+      tripName: (row as { trips?: { name?: string } | null }).trips?.name || undefined,
+    })),
+  };
 };
 
 export { friendIdsFor };

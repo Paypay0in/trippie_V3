@@ -176,6 +176,7 @@ import {
   Friendship,
   Person,
   acceptFriend,
+  fetchCompanionSeats,
   fetchFriendships,
   fetchPeople,
   findPersonByEmail,
@@ -184,6 +185,7 @@ import {
   requestFriend,
 } from "./services/friendships";
 import FriendsPanel from "./components/FriendsPanel";
+import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
 import {
   deletedTripIds,
   forgetDeletedTrip,
@@ -781,9 +783,21 @@ const App: React.FC = () => {
   */
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [friendPeople, setFriendPeople] = useState<Record<string, Person>>({});
+  /*
+    Seats on shared trips, read from the server.
+
+    「gina已經是跟我有共同建立旅行本的人 是不是可以直接新增成朋友」 — and not from
+    `trips` in local state, deliberately: a seat gains its `user_id` on the
+    server when the invite is claimed, so the owner's own copy of that seat may
+    still carry no account. Reading the local roster would suggest nobody, on
+    the device most likely to have companions.
+  */
+  const [companionSeats, setCompanionSeats] = useState<CompanionSeat[]>([]);
 
   const reloadFriendships = useCallback(async () => {
-    if (!authUser?.id) { setFriendships([]); return; }
+    if (!authUser?.id) { setFriendships([]); setCompanionSeats([]); return; }
+    const seats = await fetchCompanionSeats();
+    setCompanionSeats(seats.status === 'ok' ? seats.data : []);
     const result = await fetchFriendships();
     if (result.status !== 'ok') { setFriendships([]); return; }
     setFriendships(result.data);
@@ -6078,6 +6092,11 @@ const App: React.FC = () => {
                     })
                     .filter((entry): entry is { person: Person; direction: 'incoming' | 'outgoing' } =>
                       Boolean(entry))}
+                  suggestions={companionSuggestions(companionSeats, {
+                    me: authUser?.id,
+                    friendIds: friendIdsFor(friendships, authUser?.id),
+                    friendships,
+                  })}
                   onLookup={async (email) => {
                     const result = await findPersonByEmail(email);
                     if (result.status === 'ok') return { person: result.data };
