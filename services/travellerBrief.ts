@@ -134,57 +134,101 @@ export const briefChips = ({ brief, rentals = [] }: TravellerBriefInput): string
 };
 
 /**
- * What to ask next, each question traceable to an answer on the form.
+ * The gaps, as questions with answers the traveller can tap.
  *
- * 「這些要存在 即使你有其他的提示詞出現 且提示詞是延續這些表單來的 你要在這個
- *   欄位去引導用戶給你資訊 你才能幫他完整行程」.
+ * 「這些疑問應該是需要獲得答案的 目前只變成可以點擊勾選的按鈕 應該是要產出能回答
+ *   的選項讓用戶來點選 協助AI 了解用戶的需求」.
  *
- * So this is not a list of nice openers. Every entry below names something
- * the form said, and asks the one thing that answer leaves open — the
- * information a plan cannot be finished without. 「3 人」 does not say who
- * they are; 「一天 4 個行程」 does not say which of them is fixed; 「開車」 does
- * not say which days.
+ * The previous version sent the question. Ticking 「開車是哪幾天？」 put those
+ * five characters into the request, so the model received a question it
+ * cannot answer either — it is the one asking. Nothing was learned and the
+ * traveller had done something that looked like answering.
  *
- * Ordered by how much the answer changes the plan, and capped, because a row
- * of six questions is a form the traveller did not agree to fill in twice.
+ * So each gap carries its own answers, phrased as the traveller would say
+ * them. Tapping 「前兩天開車」 sends 「前兩天開車」. The question is the heading;
+ * only answers are selectable.
+ *
+ * Every question still traces to the form, as it did before: 「3 人」 says how
+ * many and never who, 「一天 4 個行程」 asks for a packed day without saying
+ * what survives it, 「開車」 never says which days.
  */
 
-const MAX_SUGGESTIONS = 3;
+export interface BriefQuestion {
+  /** Stable id, so a pick survives the list being rebuilt. */
+  id: string;
+  question: string;
+  /** Each one is already a sentence; what is tapped is what is sent. */
+  options: string[];
+}
 
-/** Openers for a trip with no form at all — the only case with nothing to continue from. */
-const NO_BRIEF_OPENERS = ['想找咖啡廳', '想逛美術館', '想去當地市集'];
+const MAX_QUESTIONS = 3;
 
-export const promptSuggestions = ({ brief, rentals = [] }: TravellerBriefInput): string[] => {
-  if (!brief) return NO_BRIEF_OPENERS;
+/** For a trip with no form — the only case with nothing to continue from. */
+const NO_BRIEF_QUESTION: BriefQuestion = {
+  id: 'interest',
+  question: '想以什麼為主？',
+  options: ['美食', '景點', '購物', '咖啡廳', '自然風景'],
+};
 
-  const asks: string[] = [];
+export const promptQuestions = ({ brief, rentals = [] }: TravellerBriefInput): BriefQuestion[] => {
+  if (!brief) return [NO_BRIEF_QUESTION];
+
+  const questions: BriefQuestion[] = [];
   const carDays = new Set(rentals.flatMap(rental => rentalDays(rental)));
 
-  // 開車, with no confirmation: the shape of every day depends on which ones
-  // have a car, nothing in the app knows, and only the traveller can say.
   if (brief.transport.includes('drive') && carDays.size === 0) {
-    asks.push('開車是哪幾天？');
+    /*
+      Coarse on purpose. The exact dates are on the rental confirmation, and
+      asking somebody to tap nine of them is worse than the upload they have
+      not done. These four are enough for a plan to be shaped around.
+    */
+    questions.push({
+      id: 'car-days',
+      question: '開車是哪幾天？',
+      options: ['前兩天開車', '中間幾天開車', '最後兩天開車', '整趟都有車'],
+    });
   }
 
-  // 補充描述 left empty: the plan has a rhythm and no subject.
   if (!brief.notes?.trim()) {
-    asks.push('想以美食、景點還是購物為主？');
+    questions.push({
+      id: 'interest',
+      question: '想以什麼為主？',
+      options: ['美食', '景點', '購物', '咖啡廳', '自然風景'],
+    });
   }
 
-  // 3 人 says how many, never who — and a grandparent or a toddler changes
-  // which places are worth proposing at all.
   if (brief.travellers >= 3) {
-    asks.push('有長輩或小孩同行嗎？');
+    questions.push({
+      id: 'who',
+      question: '有長輩或小孩同行嗎？',
+      // 「都是大人」 is an answer, and the absence of one is not.
+      options: ['有長輩同行', '有小孩同行', '都是大人'],
+    });
   }
 
-  // 一天 4 個行程 is a request to pack it; what must not be dropped when the
-  // day runs over is the traveller's call, not the model's.
-  if (brief.pace === 4) asks.push('有哪幾個點一定要排？');
-  // 一天 2 個行程 is a request for slack; where the slack goes is also theirs.
-  if (brief.pace === 2) asks.push('想留哪一天完全放空？');
+  if (brief.pace === 4) {
+    questions.push({
+      id: 'must',
+      question: '有哪幾個點一定要排？',
+      options: ['一定要吃到名店', '一定要去代表性景點', '一定要留購物時間', '都可以調整'],
+    });
+  }
 
-  // 大眾運輸: passes are bought before the first ride, not during it.
-  if (brief.transport.includes('transit')) asks.push('要先買交通卡或一日券嗎？');
+  if (brief.pace === 2) {
+    questions.push({
+      id: 'slack',
+      question: '想留哪一天放空？',
+      options: ['第一天慢慢來', '中間留一天放空', '最後一天放空', '不用特別留'],
+    });
+  }
 
-  return asks.slice(0, MAX_SUGGESTIONS);
+  if (brief.transport.includes('transit')) {
+    questions.push({
+      id: 'pass',
+      question: '要先買交通卡或一日券嗎？',
+      options: ['要買交通卡', '要買一日券', '還不確定，幫我評估'],
+    });
+  }
+
+  return questions.slice(0, MAX_QUESTIONS);
 };

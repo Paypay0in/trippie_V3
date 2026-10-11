@@ -56,6 +56,7 @@ import { PASSPORT_OPTIONS } from '../services/passportOptions';
 import { isGuidanceOutdated } from '../services/entryRuleFreshness';
 import { communityHighlights } from '../services/communityHighlights';
 import { todoLinksFor } from '../services/todoLinks';
+import { BriefQuestion } from '../services/travellerBrief';
 
 interface Props {
   /**
@@ -70,7 +71,7 @@ interface Props {
   /** The same answers as short chips, so the traveller can see them. */
   briefChips?: string[];
   /** Openers built from the brief, and the one gap worth asking about. */
-  promptSuggestions?: string[];
+  promptQuestions?: BriefQuestion[];
   expenses: Expense[];
   shoppingList: ShoppingItem[];
   itinerary: ItineraryItem[];
@@ -193,7 +194,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptSuggestions = [], expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -911,37 +912,49 @@ const TripPlanOverview: React.FC<Props> = ({
           <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：我想滑雪、想泡溫泉、想帶長輩看海.." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
 
           {/*
-            「這些關鍵字的存在 在下方的輸入框就能有引導詞」.
+            The questions, with answers to tap.
 
-            The chips above say what is known; an empty box beside them asks
-            the traveller to invent a question when the app can already see
-            which one matters. Tapping writes it rather than hinting at it —
-            a placeholder vanishes the moment anybody types, and the gap it
-            was naming is the thing most worth keeping on screen.
+            「這些疑問應該是需要獲得答案的 目前只變成可以點擊勾選的按鈕 應該是要
+              產出能回答的選項讓用戶來點選 協助AI 了解用戶的需求」.
 
-            Hidden once there is something in the box: they are a way to
-            start, not a menu to pick from while writing.
+            The first version made the question itself the button, so ticking
+            「開車是哪幾天？」 sent that question to the model — which is the one
+            asking. The traveller had done something that looked like
+            answering and the planner learned nothing.
+
+            So the question is a heading now and only answers are tappable.
+            Multi-select across every question (「提示詞應該要多選的 可以讓用戶選
+            很多」), and they stay on screen while typing: 「這些要存在 即使你有其他
+            的提示詞出現」.
           */}
-          {promptSuggestions.length > 0 && (
-            <div data-testid="plan-prompt-suggestions" className="flex flex-wrap gap-1.5">
-              {promptSuggestions.map(suggestion => {
-                const on = picked.includes(suggestion);
-                return (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => togglePick(suggestion)}
-                    className={`min-h-9 rounded-xl border px-2.5 text-[11px] font-bold ${
-                      on
-                        ? 'border-violet-500 bg-violet-600 text-white'
-                        : 'border-violet-200 bg-white text-violet-700'
-                    }`}
-                  >
-                    {on ? '✓ ' : ''}{suggestion}
-                  </button>
-                );
-              })}
+          {promptQuestions.length > 0 && (
+            <div data-testid="plan-prompt-questions" className="space-y-2.5 rounded-2xl bg-slate-50/80 px-3 py-3">
+              <p className="text-[11px] font-black text-slate-500">回答一下，AI 才排得準</p>
+              {promptQuestions.map(item => (
+                <div key={item.id} data-testid={`plan-question-${item.id}`}>
+                  <p className="text-[11px] font-black text-slate-700">{item.question}</p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {item.options.map(option => {
+                      const on = picked.includes(option);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => togglePick(option)}
+                          className={`min-h-9 rounded-xl border px-2.5 text-[11px] font-bold ${
+                            on
+                              ? 'border-violet-500 bg-violet-600 text-white'
+                              : 'border-violet-200 bg-white text-violet-700'
+                          }`}
+                        >
+                          {on ? '✓ ' : ''}{option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
           <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>

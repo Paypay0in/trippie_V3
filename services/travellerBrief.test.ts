@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DEFAULT_BRIEF, TripPlanBrief } from './tripPlanBrief';
-import { briefChips, promptSuggestions, travellerBriefText } from './travellerBrief';
+import { briefChips, promptQuestions, travellerBriefText } from './travellerBrief';
 import { ParsedRental } from './rentalIntake';
 
 /**
@@ -229,79 +229,133 @@ describe('the card shows them', () => {
  * pass a test that only counted them.
  */
 describe('what to ask next, and where it comes from', () => {
+  /** The questions by id, which is how the UI keys them. */
+  const ids = (input: Parameters<typeof promptQuestions>[0]) =>
+    promptQuestions(input).map(question => question.id);
+
   /**
    * The shape of every day depends on which ones have a car, nothing in the
    * app knows, and only the traveller can say.
    */
   it('asks which days from 開車, until a confirmation answers it', () => {
-    expect(promptSuggestions({ brief: brief({ transport: ['drive'] }) }))
-      .toContain('開車是哪幾天？');
-    expect(promptSuggestions({ brief: brief({ transport: ['drive'] }), rentals: [hire] }))
-      .not.toContain('開車是哪幾天？');
+    expect(ids({ brief: brief({ transport: ['drive'] }) })).toContain('car-days');
+    expect(ids({ brief: brief({ transport: ['drive'] }), rentals: [hire] }))
+      .not.toContain('car-days');
   });
 
   it('does not ask about a car nobody mentioned', () => {
-    expect(promptSuggestions({ brief: brief({ transport: ['walk'] }) }))
-      .not.toContain('開車是哪幾天？');
+    expect(ids({ brief: brief({ transport: ['walk'] }) })).not.toContain('car-days');
   });
 
   /** A rhythm with no subject: the form set the pace and never the point. */
   it('asks what the trip is about when 補充描述 is empty', () => {
-    expect(promptSuggestions({ brief: brief({ transport: ['walk'] }) }))
-      .toContain('想以美食、景點還是購物為主？');
+    expect(ids({ brief: brief({ transport: ['walk'] }) })).toContain('interest');
   });
 
   it('stops asking once they have written it', () => {
-    expect(promptSuggestions({ brief: brief({ transport: ['walk'], notes: '想泡溫泉' }) }))
-      .not.toContain('想以美食、景點還是購物為主？');
+    expect(ids({ brief: brief({ transport: ['walk'], notes: '想泡溫泉' }) }))
+      .not.toContain('interest');
   });
 
   /** 3 人 says how many and never who — and that changes what is worth proposing. */
   it('asks who the third person is', () => {
-    expect(promptSuggestions({ brief: brief({ transport: ['walk'], travellers: 3 }) }))
-      .toContain('有長輩或小孩同行嗎？');
-    expect(promptSuggestions({ brief: brief({ transport: ['walk'], travellers: 2 }) }))
-      .not.toContain('有長輩或小孩同行嗎？');
+    expect(ids({ brief: brief({ transport: ['walk'], travellers: 3 }) })).toContain('who');
+    expect(ids({ brief: brief({ transport: ['walk'], travellers: 2 }) })).not.toContain('who');
   });
 
   /** What must not be dropped when a packed day runs over is theirs to say. */
   it('asks what is fixed when they asked for a full day', () => {
-    expect(promptSuggestions({ brief: brief({ transport: ['walk'], pace: 4 }) }))
-      .toContain('有哪幾個點一定要排？');
+    expect(ids({ brief: brief({ transport: ['walk'], pace: 4 }) })).toContain('must');
   });
 
   it('asks where the slack goes when they asked for a light one', () => {
-    expect(promptSuggestions({ brief: brief({ transport: ['walk'], pace: 2 }) }))
-      .toContain('想留哪一天完全放空？');
+    expect(ids({ brief: brief({ transport: ['walk'], pace: 2 }) })).toContain('slack');
   });
 
   /** Passes are bought before the first ride, not during it. */
   it('asks about passes from 大眾運輸', () => {
-    expect(promptSuggestions({ brief: brief({ transport: ['transit'] }) }))
-      .toContain('要先買交通卡或一日券嗎？');
+    expect(ids({ brief: brief({ transport: ['transit'] }) })).toContain('pass');
   });
 
   /** A row of six questions is a form the traveller did not agree to fill twice. */
   it('never shows more than three', () => {
-    const asks = promptSuggestions({
+    const asks = promptQuestions({
       brief: brief({ transport: ['drive', 'transit'], travellers: 4, pace: 4 }),
     });
     expect(asks.length).toBeLessThanOrEqual(3);
-    expect(asks[0]).toBe('開車是哪幾天？');
+    expect(asks[0].id).toBe('car-days');
   });
 
   /** The only case with nothing to continue from. */
-  it('falls back to openers when there is no form', () => {
-    expect(promptSuggestions({})).toEqual(['想找咖啡廳', '想逛美術館', '想去當地市集']);
+  it('still asks something when there is no form', () => {
+    const asks = promptQuestions({});
+    expect(asks).toHaveLength(1);
+    expect(asks[0].options.length).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * 「這些疑問應該是需要獲得答案的 目前只變成可以點擊勾選的按鈕 應該是要產出能回答
+ *   的選項讓用戶來點選 協助AI 了解用戶的需求」.
+ *
+ * The first version made the question the button. Tapping 「開車是哪幾天？」 sent
+ * those five characters to the model, which is the one asking — so the
+ * traveller had answered nothing while appearing to, and the planner was no
+ * better informed than before the tap.
+ *
+ * This is the test that would have caught it: a thing you tap has to be an
+ * answer.
+ */
+describe('every option is an answer', () => {
+  const EVERY_CASE: Array<Parameters<typeof promptQuestions>[0]> = [
+    {},
+    { brief: brief({ transport: ['drive'] }) },
+    { brief: brief({ transport: ['transit'] }) },
+    { brief: brief({ transport: ['walk'], pace: 2 }) },
+    { brief: brief({ transport: ['walk'], pace: 4 }) },
+    { brief: brief({ transport: ['walk'], travellers: 3 }) },
+  ];
+
+  it('never offers a question as something to tap', () => {
+    for (const input of EVERY_CASE) {
+      for (const question of promptQuestions(input)) {
+        for (const option of question.options) {
+          expect(option).not.toContain('？');
+          expect(option).not.toContain('?');
+          // 「嗎」「哪」 are how the questions here are phrased; an option
+          // carrying one is a question wearing an answer's place.
+          expect(option).not.toContain('嗎');
+        }
+      }
+    }
+  });
+
+  /** A question with one answer is a statement nobody chose. */
+  it('gives every question at least two answers', () => {
+    for (const input of EVERY_CASE) {
+      for (const question of promptQuestions(input)) {
+        expect(question.options.length).toBeGreaterThan(1);
+        expect(question.question).toContain('？');
+      }
+    }
+  });
+
+  /** The ids key the rows; two of the same would drop one. */
+  it('never repeats an id', () => {
+    for (const input of EVERY_CASE) {
+      const seen = promptQuestions(input).map(question => question.id);
+      expect(new Set(seen).size).toBe(seen.length);
+    }
   });
 });
 
 /**
  * 「這些要存在 即使你有其他的提示詞出現」.
  *
- * The chips are what the traveller can see being carried; the suggestions
- * come and go with the box. Tying the two together is the easy mistake —
- * a row that disappears while somebody types takes the evidence with it.
+ * The chips are what the traveller can see being carried; the questions come
+ * and go with what the form left open. Tying the two together is the easy
+ * mistake — a row that disappears while somebody types takes the evidence
+ * with it.
  */
 describe('the chips outlive everything beside them', () => {
   const CARD = readFileSync(resolve(__dirname, '../components/TripPlanOverview.tsx'), 'utf8');
@@ -309,14 +363,9 @@ describe('the chips outlive everything beside them', () => {
   it('shows the chips on their own count, not on the box being empty', () => {
     const chips = CARD.indexOf('{briefChips.length > 0 ?');
     expect(chips).toBeGreaterThan(-1);
-    // The condition is the chips themselves; nothing about `prompt` is in it.
     expect(CARD.slice(chips, chips + 60)).not.toContain('prompt');
   });
 
-  /**
-   * The chips' condition mentions only themselves. Nothing about the box, the
-   * picks or whether anything has been generated can take them off screen.
-   */
   it('depends on nothing but itself', () => {
     const chips = CARD.indexOf('{briefChips.length > 0 ?');
     const condition = CARD.slice(chips, CARD.indexOf('?', chips));
@@ -328,32 +377,36 @@ describe('the chips outlive everything beside them', () => {
 describe('the box shows them', () => {
   const CARD = readFileSync(resolve(__dirname, '../components/TripPlanOverview.tsx'), 'utf8');
 
-  it('renders them under the input', () => {
-    expect(CARD).toContain('data-testid="plan-prompt-suggestions"');
+  it('renders the questions under the input', () => {
+    expect(CARD).toContain('data-testid="plan-prompt-questions"');
   });
 
   /**
-   * An earlier version wrote the suggestion into the box, which made the
-   * second tap destroy the first. Superseded by the toggle below; the
-   * assertion is kept out of the way rather than left asserting the old way.
+   * The question is a heading and the answers are the buttons. Asserted on
+   * the component text because this is the distinction the Founder asked for,
+   * and it is one line away from being lost again.
    */
+  it('taps an answer, never the question', () => {
+    expect(CARD).toContain('onClick={() => togglePick(option)}');
+    expect(CARD).not.toContain('togglePick(item.question)');
+    expect(CARD).not.toContain('togglePick(suggestion)');
+  });
 
   /**
    * 「提示詞應該要多選的 可以讓用戶選很多」.
    *
    * Picks are kept beside the typed text, never written into it. Writing one
-   * in meant a second tap destroyed the first, and once a suggestion is
+   * in meant a second tap destroyed the first, and once an answer is
    * characters in a textarea the app cannot tell it from typing — so it
    * cannot show the choice back or let it be taken off again.
    */
   it('toggles a pick instead of overwriting the box', () => {
-    expect(CARD).toContain('onClick={() => togglePick(suggestion)}');
-    expect(CARD).not.toContain('setPrompt(suggestion)');
+    expect(CARD).not.toContain('setPrompt(option)');
   });
 
-  it('keeps the row visible while the traveller keeps choosing', () => {
-    expect(CARD).toContain('{promptSuggestions.length > 0 && (');
-    expect(CARD).not.toContain('!prompt.trim() && promptSuggestions.length > 0');
+  it('keeps the questions visible while the traveller keeps choosing', () => {
+    expect(CARD).toContain('{promptQuestions.length > 0 && (');
+    expect(CARD).not.toContain("!prompt.trim() && promptQuestions.length > 0");
   });
 
   it('marks what has been picked', () => {
@@ -368,6 +421,6 @@ describe('the box shows them', () => {
 
   it('is given them at both mount sites', () => {
     const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
-    expect(app.split('promptSuggestions={planPromptSuggestions}').length - 1).toBe(2);
+    expect(app.split('promptQuestions={planPromptQuestions}').length - 1).toBe(2);
   });
 });
