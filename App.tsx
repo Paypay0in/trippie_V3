@@ -185,6 +185,8 @@ import {
   requestFriend,
 } from "./services/friendships";
 import FriendsPanel from "./components/FriendsPanel";
+import BookingImportSheet from "./components/BookingImportSheet";
+import { DerivedTrip } from "./services/tripFromBookings";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
 import {
   deletedTripIds,
@@ -793,6 +795,19 @@ const App: React.FC = () => {
     the device most likely to have companions.
   */
   const [companionSeats, setCompanionSeats] = useState<CompanionSeat[]>([]);
+
+  /*
+    匯入旅程資料, which until now went to the blank new-trip form — the same
+    place as 新增旅程 beside it — while the readers it promised sat inside
+    trips, reachable only by somebody who had already typed in the dates their
+    boarding pass was holding.
+
+    What was read hands over to the ordinary setup form rather than saving
+    directly. The traveller confirms in the screen they already know, and
+    currency, budget and companions keep their single home.
+  */
+  const [isBookingImportOpen, setIsBookingImportOpen] = useState(false);
+  const [importedTrip, setImportedTrip] = useState<DerivedTrip | null>(null);
 
   const reloadFriendships = useCallback(async () => {
     if (!authUser?.id) { setFriendships([]); setCompanionSeats([]); return; }
@@ -6257,7 +6272,7 @@ const App: React.FC = () => {
             onAiImport={() => {
               setIsGlobalActionOpen(false);
               setAppSection("trips");
-              setViewMode("tripSetup");
+              setIsBookingImportOpen(true);
             }}
             onAddExpense={() => {
               setIsGlobalActionOpen(false);
@@ -6272,17 +6287,48 @@ const App: React.FC = () => {
     );
   }
 
+  /*
+    One definition, rendered into each branch that can open it.
+
+    The tile lives on the home screen and in the global action sheet, and this
+    component returns early for each — so a sheet mounted only at the bottom
+    would open on some screens and silently do nothing on others. That is the
+    shape of the dead tile this change exists to fix.
+  */
+  const bookingImportSheet = isBookingImportOpen ? (
+    <BookingImportSheet
+      onCancel={() => setIsBookingImportOpen(false)}
+      onManual={() => {
+        setIsBookingImportOpen(false);
+        setImportedTrip(null);
+        handleCreateNewTrip();
+      }}
+      onCreate={(trip) => {
+        setIsBookingImportOpen(false);
+        // Carried into the ordinary setup form, not saved here: the traveller
+        // confirms a misread date on a screen, rather than finding it weeks
+        // later on a trip they believe they typed.
+        setImportedTrip(trip);
+        handleCreateNewTrip();
+      }}
+    />
+  ) : null;
+
   if (viewMode === "tripSetup") {
     return (
       <CreateEditTripScreen
         mode={tripSetupMode}
         initialDestination={
           tripSetupMode === "create"
-            ? pendingTripDestination?.city || ""
+            ? importedTrip?.destination || pendingTripDestination?.city || ""
             : tripDestination
         }
-        initialStartDate={tripSetupMode === "create" ? "" : tripStartDate}
-        initialEndDate={tripSetupMode === "create" ? "" : tripEndDate}
+        initialStartDate={
+          tripSetupMode === "create" ? importedTrip?.startDate || "" : tripStartDate
+        }
+        initialEndDate={
+          tripSetupMode === "create" ? importedTrip?.endDate || "" : tripEndDate
+        }
         initialCurrency={tripSetupMode === "create" ? undefined : tripCurrency}
         initialBudget={tripSetupMode === "create" ? undefined : tripBudget}
         initialCompanions={tripSetupMode === "create" ? [] : companions}
@@ -6298,10 +6344,11 @@ const App: React.FC = () => {
 
   if (appSection === "trips" && viewMode === "bookshelf") {
     return (
+      <>
       <TravelHome
         onAiImport={() => {
           setAppSection("trips");
-          setViewMode("tripSetup");
+          setIsBookingImportOpen(true);
         }}
         onDeleteDraft={handleDeleteDraft}
         notices={disputeNotices}
@@ -6340,6 +6387,8 @@ const App: React.FC = () => {
         onCreateNew={handleCreateNewTrip}
         onOpenPlanner={() => setViewMode("tripSetup")}
       />
+      {bookingImportSheet}
+      </>
     );
   }
 
@@ -6431,7 +6480,7 @@ const App: React.FC = () => {
             onAddItineraryItem={activeDraftId ? openQuickItineraryAdd : undefined}
             onAiImport={() => {
               setIsGlobalActionOpen(false);
-              setViewMode("tripSetup");
+              setIsBookingImportOpen(true);
             }}
             onAddExpense={() => {
               setIsGlobalActionOpen(false);
@@ -7462,7 +7511,7 @@ const App: React.FC = () => {
               }
               onAiImport={() => {
                 setIsGlobalActionOpen(false);
-                setViewMode("tripSetup");
+                setIsBookingImportOpen(true);
               }}
               onAddExpense={() => {
                 setIsGlobalActionOpen(false);
@@ -8053,6 +8102,8 @@ const App: React.FC = () => {
           onClose={() => setIsCompanionsOpen(false)}
         />
       )}
+
+      {bookingImportSheet}
 
       {/* Country Settings Modal */}
       {isCountryModalOpen && (
