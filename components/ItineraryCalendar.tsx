@@ -493,8 +493,23 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             <div className="relative">
               
               <div className="rounded-[20px] border border-[#ecebf5] bg-white p-3.5 shadow-[0_10px_26px_rgba(17,26,74,0.06)]">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
+                {/*
+                  Wraps rather than overflows.
+
+                  ?overflow=1 named four elements past the right edge of a
+                  393px screen: a span reading 「ACTIVITY」 and three 1px circles,
+                  which are the three dots of the ⋯ button. All four are this
+                  one row — a drag handle, two 74px time fields, a pin, a type
+                  badge and a menu, adding up to more than the phone with
+                  nothing allowed to give.
+
+                  Neither group could shrink and the row could not wrap, so it
+                  simply ran off, and the page ran off with it. Letting the
+                  action group drop to a second line costs a few pixels of
+                  height on a narrow phone and loses nothing.
+                */}
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-y-1">
+                  <div className="flex min-w-0 items-center gap-2">
                     {isFixedItem(item) ? (
                       // A fixed event is not casually draggable: changing a
                       // flight is an explicit edit, not a list gesture.
@@ -602,7 +617,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     {onTogglePin && (
                       // Pinning protects the item from AI adjustment only; the
                       // overflow menu still edits and deletes it by hand.
@@ -623,7 +638,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         {item.isPinned && <span data-testid={`pinned-label-${item.id}`}>已固定</span>}
                       </button>
                     )}
-                    <span className="rounded-full border border-[#eeeefa] bg-[#fafaff] px-2 py-0.5 text-[9px] font-bold text-slate-400">{item.type}</span>
+                    <span className="shrink-0 rounded-full border border-[#eeeefa] bg-[#fafaff] px-2 py-0.5 text-[9px] font-bold text-slate-400">{item.type}</span>
                     {(onEdit || onDelete) && <div className="relative">
                       <button type="button" onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} aria-label={`${item.title} 更多選項`} aria-expanded={menuItemId === item.id} className="rounded-lg p-2 text-slate-300 transition hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={16} /></button>
                       {menuItemId === item.id && <div className="absolute right-0 top-10 z-20 w-44 rounded-2xl border border-slate-100 bg-white p-1.5 text-left shadow-xl">
