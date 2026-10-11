@@ -68,6 +68,8 @@ interface Props {
   travellerBrief?: string;
   /** The same answers as short chips, so the traveller can see them. */
   briefChips?: string[];
+  /** Openers built from the brief, and the one gap worth asking about. */
+  promptSuggestions?: string[];
   expenses: Expense[];
   shoppingList: ShoppingItem[];
   itinerary: ItineraryItem[];
@@ -189,7 +191,8 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
-  briefChips = [], expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  briefChips = [],
+  promptSuggestions = [], expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -887,6 +890,33 @@ const TripPlanOverview: React.FC<Props> = ({
 
         <form onSubmit={handleGenerate} className="space-y-2">
           <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：我想滑雪、想泡溫泉、想帶長輩看海.." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
+
+          {/*
+            「這些關鍵字的存在 在下方的輸入框就能有引導詞」.
+
+            The chips above say what is known; an empty box beside them asks
+            the traveller to invent a question when the app can already see
+            which one matters. Tapping writes it rather than hinting at it —
+            a placeholder vanishes the moment anybody types, and the gap it
+            was naming is the thing most worth keeping on screen.
+
+            Hidden once there is something in the box: they are a way to
+            start, not a menu to pick from while writing.
+          */}
+          {!prompt.trim() && promptSuggestions.length > 0 && (
+            <div data-testid="plan-prompt-suggestions" className="flex flex-wrap gap-1.5">
+              {promptSuggestions.map(suggestion => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => setPrompt(suggestion)}
+                  className="min-h-9 rounded-xl border border-violet-200 bg-white px-2.5 text-[11px] font-bold text-violet-700"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
           <button type="submit" disabled={!prompt.trim() || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>
         </form>
         {onRequestHumanHelp && (

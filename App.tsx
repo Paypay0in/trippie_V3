@@ -214,7 +214,7 @@ import FlightAnchorsForm from "./components/FlightAnchorsForm";
 import StayUploadCard from "./components/StayUploadCard";
 import RentalUploadCard from "./components/RentalUploadCard";
 import { ParsedRental } from "./services/rentalIntake";
-import { briefChips, travellerBriefText } from "./services/travellerBrief";
+import { briefChips, promptSuggestions, travellerBriefText } from "./services/travellerBrief";
 import { drivingPreparationFor } from "./services/drivingDocuments";
 import { flightArrivals, reconcileFlightDerivedItems } from "./services/flightDerivedItems";
 import { staysFromItinerary } from "./services/stayIntake";
@@ -6423,6 +6423,7 @@ const App: React.FC = () => {
   */
   const travellerBrief = travellerBriefText({ brief: planBrief, rentals: carRentals });
   const planBriefChips = briefChips({ brief: planBrief, rentals: carRentals });
+  const planPromptSuggestions = promptSuggestions({ brief: planBrief, rentals: carRentals });
 
   const rentalCard = (
     <RentalUploadCard
@@ -7381,6 +7382,7 @@ const App: React.FC = () => {
                 budgetBrief={budgetBrief}
                 travellerBrief={travellerBrief}
                 briefChips={planBriefChips}
+                promptSuggestions={planPromptSuggestions}
                 onPublishServiceRequest={handlePublishServiceRequest}
                 expenses={expenses}
                 shoppingList={shoppingList}
@@ -7483,6 +7485,7 @@ const App: React.FC = () => {
               budgetBrief={budgetBrief}
               travellerBrief={travellerBrief}
               briefChips={planBriefChips}
+              promptSuggestions={planPromptSuggestions}
               onPublishServiceRequest={handlePublishServiceRequest}
               variant="reference"
               expenses={expenses}

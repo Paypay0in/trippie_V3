@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DEFAULT_BRIEF, TripPlanBrief } from './tripPlanBrief';
-import { briefChips, travellerBriefText } from './travellerBrief';
+import { briefChips, promptSuggestions, travellerBriefText } from './travellerBrief';
 import { ParsedRental } from './rentalIntake';
 
 /**
@@ -217,5 +217,72 @@ describe('the card shows them', () => {
   it('is given them at both mount sites', () => {
     const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
     expect(app.split('briefChips={planBriefChips}').length - 1).toBe(2);
+  });
+});
+
+/**
+ * 「這些關鍵字的存在 在下方的輸入框就能有引導詞
+ *   比方說：開車會是幾號到幾號？租車的日期？」
+ *
+ * The chips say what is known; the box should ask what is not.
+ */
+describe('what to ask next', () => {
+  /**
+   * The one gap only the traveller can close, and the one everything about
+   * the shape of the days depends on.
+   */
+  it('asks which days have a car when 開車 was ticked and nothing uploaded', () => {
+    const asks = promptSuggestions({ brief: brief({ transport: ['drive'] }) });
+    expect(asks[0]).toBe('開車是哪幾天？');
+  });
+
+  /** The confirmation already answered it; asking again is noise. */
+  it('stops asking once a rental confirmation says which days', () => {
+    const asks = promptSuggestions({ brief: brief({ transport: ['drive'] }), rentals: [hire] });
+    expect(asks).not.toContain('開車是哪幾天？');
+  });
+
+  it('does not ask about a car nobody mentioned', () => {
+    const asks = promptSuggestions({ brief: brief({ transport: ['walk', 'transit'] }) });
+    expect(asks).not.toContain('開車是哪幾天？');
+  });
+
+  it('offers openers when the traveller wrote nothing', () => {
+    expect(promptSuggestions({ brief: brief() })).toContain('想找咖啡廳');
+  });
+
+  /** Somebody who already said what they want is not short of a starting point. */
+  it('drops the openers once they have written something', () => {
+    const asks = promptSuggestions({ brief: brief({ notes: '想泡溫泉' }) });
+    expect(asks).not.toContain('想找咖啡廳');
+  });
+
+  it('still asks about the car even when they wrote notes', () => {
+    const asks = promptSuggestions({
+      brief: brief({ transport: ['drive'], notes: '想泡溫泉' }),
+    });
+    expect(asks).toEqual(['開車是哪幾天？']);
+  });
+});
+
+describe('the box shows them', () => {
+  const CARD = readFileSync(resolve(__dirname, '../components/TripPlanOverview.tsx'), 'utf8');
+
+  it('renders them under the input', () => {
+    expect(CARD).toContain('data-testid="plan-prompt-suggestions"');
+  });
+
+  /** Tapping writes it; a placeholder vanishes the moment anybody types. */
+  it('writes the suggestion into the box rather than hinting', () => {
+    expect(CARD).toContain('onClick={() => setPrompt(suggestion)}');
+  });
+
+  it('hides them once the box has something in it', () => {
+    expect(CARD).toContain('!prompt.trim() && promptSuggestions.length > 0');
+  });
+
+  it('is given them at both mount sites', () => {
+    const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    expect(app.split('promptSuggestions={planPromptSuggestions}').length - 1).toBe(2);
   });
 });

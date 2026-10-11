@@ -132,3 +132,36 @@ export const briefChips = ({ brief, rentals = [] }: TravellerBriefInput): string
 
   return chips;
 };
+
+/**
+ * What to ask next, from what the brief already says.
+ *
+ * 「這些關鍵字的存在 在下方的輸入框就能有引導詞」. The chips above say what is
+ * known; an empty box beside them asks the traveller to invent a question
+ * when the app can already see which one matters.
+ *
+ * The gap goes first, and there is usually exactly one. 開車 ticked with no
+ * confirmation uploaded is the clearest: the plan hinges on which days have a
+ * car, nothing knows, and 「了解用戶目前想法」 was the instruction. Asking it
+ * here is cheaper than a model guessing and a traveller correcting.
+ *
+ * The rest are openers, not questions the app needs answered — somebody who
+ * has typed nothing is usually not short of opinions, only of a starting
+ * point.
+ */
+export const promptSuggestions = ({ brief, rentals = [] }: TravellerBriefInput): string[] => {
+  const suggestions: string[] = [];
+
+  const carDays = new Set(rentals.flatMap(rental => rentalDays(rental)));
+  if (brief?.transport.includes('drive') && carDays.size === 0) {
+    // First and alone-worthy: everything about the shape of the days depends
+    // on it, and it is the one thing only the traveller can answer.
+    suggestions.push('開車是哪幾天？');
+  }
+
+  if (!brief?.notes?.trim()) {
+    suggestions.push('想找咖啡廳', '想逛美術館', '想去當地市集');
+  }
+
+  return suggestions;
+};
