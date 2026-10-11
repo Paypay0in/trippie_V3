@@ -173,6 +173,18 @@ import CommunityHome from "./components/CommunityHome";
 import { likeCountsFromDevice, loadLikedPosts } from "./services/postLikes";
 import { tripDeletionReach } from "./services/tripDeletionReach";
 import {
+  Friendship,
+  Person,
+  acceptFriend,
+  fetchFriendships,
+  fetchPeople,
+  findPersonByEmail,
+  friendIdsFor,
+  removeFriend,
+  requestFriend,
+} from "./services/friendships";
+import FriendsPanel from "./components/FriendsPanel";
+import {
   deletedTripIds,
   forgetDeletedTrip,
   rememberDeletedTrip,
@@ -759,6 +771,31 @@ const App: React.FC = () => {
     useState<WorkspaceSection>("overview");
   const [walletPhase, setWalletPhase] = useState<WalletPhase>("pre");
   const [postComments, setPostComments] = useState<PostComment[]>(() => loadPostComments());
+
+  /*
+    「這裡要有可以加朋友的欄位」.
+
+    Loaded only when signed in, because a friendship is between accounts and
+    there is nothing to ask about otherwise. The people behind the ids are
+    fetched alongside, so the list shows faces rather than uuids.
+  */
+  const [friendships, setFriendships] = useState<Friendship[]>([]);
+  const [friendPeople, setFriendPeople] = useState<Record<string, Person>>({});
+
+  const reloadFriendships = useCallback(async () => {
+    if (!authUser?.id) { setFriendships([]); return; }
+    const result = await fetchFriendships();
+    if (result.status !== 'ok') { setFriendships([]); return; }
+    setFriendships(result.data);
+    const ids = Array.from(new Set(result.data.flatMap(row => [row.requesterId, row.addresseeId])))
+      .filter(id => id !== authUser.id);
+    const people = await fetchPeople(ids);
+    if (people.status === 'ok') {
+      setFriendPeople(Object.fromEntries(people.data.map(person => [person.id, person])));
+    }
+  }, [authUser?.id]);
+
+  useEffect(() => { void reloadFriendships(); }, [reloadFriendships]);
   const [customCategories, setCustomCategories] = useState<CustomCategories>(
     () => loadCustomCategories(),
   );
@@ -6020,6 +6057,46 @@ const App: React.FC = () => {
               saverCounts={saverCountsByPost(savedTravelInspirations)}
               commentCounts={commentCounts(postComments)}
               likeCounts={likeCountsFromDevice(loadLikedPosts())}
+              friendsPanel={
+                <FriendsPanel
+                  myEmail={authUser?.email}
+                  friends={friendIdsFor(friendships, authUser?.id)
+                    .map((id) => friendPeople[id])
+                    .filter((person): person is Person => Boolean(person))}
+                  pending={friendships
+                    .filter((row) => row.status === 'pending')
+                    .map((row) => {
+                      const otherId = row.requesterId === authUser?.id ? row.addresseeId : row.requesterId;
+                      const person = friendPeople[otherId];
+                      return person
+                        ? {
+                            person,
+                            direction: (row.addresseeId === authUser?.id ? 'incoming' : 'outgoing') as
+                              'incoming' | 'outgoing',
+                          }
+                        : null;
+                    })
+                    .filter((entry): entry is { person: Person; direction: 'incoming' | 'outgoing' } =>
+                      Boolean(entry))}
+                  onLookup={async (email) => {
+                    const result = await findPersonByEmail(email);
+                    if (result.status === 'ok') return { person: result.data };
+                    /*
+                      A missing table is reported as a missing table. Calling it
+                      「查無此人」 would send him to check his friend's spelling
+                      for a problem that is not his.
+                    */
+                    return { problem: result.status === 'setup_required' ? 'setup' as const : 'error' as const };
+                  }}
+                  onRequest={async (person) => {
+                    await requestFriend(person.id);
+                    setFriendPeople((current) => ({ ...current, [person.id]: person }));
+                    await reloadFriendships();
+                  }}
+                  onAccept={async (person) => { await acceptFriend(person.id); await reloadFriendships(); }}
+                  onRemove={async (person) => { await removeFriend(person.id); await reloadFriendships(); }}
+                />
+              }
               trips={tripHistory.map((trip) => ({
                 id: trip.id,
                 name: trip.name,

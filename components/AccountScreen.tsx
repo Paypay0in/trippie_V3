@@ -28,6 +28,8 @@ interface Props {
   /** 「有留言跟愛心數」 — counted from the comments table, not guessed. */
   commentCounts?: Record<string, number>;
   likeCounts?: Record<string, number>;
+  /** 「這裡要有可以加朋友的欄位」 — rendered on the page that holds your account. */
+  friendsPanel?: React.ReactNode;
   trips?: { id: string; name: string; destination?: string; startDate?: string; endDate?: string; coverImage?: string }[];
   onOpenTrip?: (tripId: string) => void;
   onOpenCreatorCenter: () => void;
@@ -58,6 +60,7 @@ const AccountScreen: React.FC<Props> = ({
   saverCounts,
   commentCounts,
   likeCounts,
+  friendsPanel,
   trips,
   onOpenTrip,
   onOpenCreatorCenter,
@@ -328,6 +331,8 @@ const AccountScreen: React.FC<Props> = ({
               </form>
             )}
           </section>
+
+          {friendsPanel}
 
           <MyPostsPanel
             posts={myPosts}
