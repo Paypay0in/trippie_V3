@@ -108,7 +108,7 @@ import {
   destinationLabel,
   detectDestinationFromTripName,
 } from "./services/destinationFromTripName";
-import { fetchMyTrips, isSyncAvailable } from "./services/tripSync";
+import { deleteTripRow, fetchMyTrips, isSyncAvailable } from "./services/tripSync";
 import { strandedLocalTripEscape } from "./services/strandedLocalTrip";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
@@ -171,6 +171,7 @@ import {
 } from "./services/duplicateReceipts";
 import CommunityHome from "./components/CommunityHome";
 import { likeCountsFromDevice, loadLikedPosts } from "./services/postLikes";
+import { tripDeletionReach } from "./services/tripDeletionReach";
 import {
   deletedTripIds,
   forgetDeletedTrip,
@@ -4806,6 +4807,23 @@ const App: React.FC = () => {
       the thing meant to restore it.
     */
     rememberDeletedTrip(id);
+
+    /*
+      And remove the row, where that is what was actually asked.
+
+      「這個我已經刪除了」, about trips that had been deleted and come back. The
+      tombstone keeps them off this device; for a trip that is yours and has
+      nobody else on it, keeping the row alive means the delete did not happen
+      — it is still on the laptop, offered back at the next sign-in.
+
+      Fired after the local delete has stuck, and not awaited: the trip is gone
+      from this phone either way, and a slow network should not hold up the
+      screen. RLS refuses a delete that is not the owner's, so the worst case
+      of a wrong reading here is a no-op.
+    */
+    if (tripDeletionReach(plan.target, authUser?.id, { syncAvailable: isSyncAvailable() }) === 'cloud') {
+      void deleteTripRow(id);
+    }
 
     setDrafts(plan.remainingDrafts);
 

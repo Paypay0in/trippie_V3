@@ -366,6 +366,31 @@ export const deleteExpense = async (expenseId: string): Promise<SyncResult<null>
 };
 
 /**
+ * Remove a trip from the account, for good.
+ *
+ * 「這個我已經刪除了」, said about trips that had been deleted and had come
+ * back. The device-local tombstone stopped them returning here, which is the
+ * right safety net for a shared trip and the wrong default for a solo one: the
+ * row survives, so the trip is still there on every other device and the
+ * deletion never actually happened.
+ *
+ * Only ever called where the caller has established that this is the reader's
+ * own trip and nobody else is on it — see `tripDeletionReach`. RLS agrees
+ * independently (trips_delete is owner-only), so a mistake here is refused
+ * rather than destructive.
+ */
+export const deleteTripRow = async (tripId: string): Promise<SyncResult<null>> => {
+  if (!supabase) return { status: 'unavailable' };
+  try {
+    const { error } = await supabase.from('trips').delete().eq('id', tripId);
+    if (error) throw error;
+    return { status: 'ok', data: null };
+  } catch (error) {
+    return failed(error);
+  }
+};
+
+/**
  * Replace the stored roster for a trip.
  *
  * Members are a small set the owner edits as a whole, so upserting the list and
