@@ -211,3 +211,84 @@ describe('the table itself', () => {
     expect(screen.getByTestId('day-block-0').textContent).toContain('08:00–10:00');
   });
 });
+
+/**
+ * 「下拉式選單要讓用戶也可以手動新增」.
+ *
+ * The picker offered the collection and nothing else, so a slot could only be
+ * filled by somebody who had already saved the place — and a traveller
+ * planning a morning around a shop a friend just mentioned had to leave the
+ * screen, save it, and come back.
+ */
+describe('typing a place into a slot', () => {
+  const emptySlot = () => screen.getAllByTestId(/^fill-block-/)[0];
+  const indexOf = (element: HTMLElement) =>
+    element.getAttribute('data-testid')!.replace('fill-block-', '');
+
+  it('offers 自己輸入 at the end of the saved places', () => {
+    renderPlanner({ onFillBlockManually: vi.fn() });
+    expect(screen.getAllByText('✎ 自己輸入地點…').length).toBeGreaterThan(0);
+  });
+
+  /** Nothing to type into when the screen above has no way to save it. */
+  it('does not offer it when the caller cannot accept one', () => {
+    renderPlanner();
+    expect(screen.queryByText('✎ 自己輸入地點…')).toBeNull();
+  });
+
+  it('hands the typed name back, trimmed', async () => {
+    const onFillBlockManually = vi.fn();
+    renderPlanner({ onFillBlockManually });
+    const user = userEvent.setup();
+
+    const slot = emptySlot();
+    const index = indexOf(slot);
+    await user.selectOptions(slot, '__manual__');
+    await user.type(screen.getByTestId(`manual-block-input-${index}`), '  Cafe Onion  ');
+    await user.click(screen.getByTestId(`manual-block-save-${index}`));
+
+    expect(onFillBlockManually).toHaveBeenCalledWith(
+      expect.objectContaining({ index: Number(index) }),
+      'Cafe Onion',
+    );
+  });
+
+  /**
+   * A slot the traveller opened and thought better of is not an entry called
+   * 「 」 — the empty slot already says 無, which is an answer.
+   */
+  it('will not add a blank', async () => {
+    const onFillBlockManually = vi.fn();
+    renderPlanner({ onFillBlockManually });
+    const user = userEvent.setup();
+
+    const index = indexOf(emptySlot());
+    await user.selectOptions(emptySlot(), '__manual__');
+    await user.type(screen.getByTestId(`manual-block-input-${index}`), '   ');
+
+    const save = screen.getByTestId(`manual-block-save-${index}`);
+    expect(save.hasAttribute('disabled')).toBe(true);
+    await user.click(save);
+    expect(onFillBlockManually).not.toHaveBeenCalled();
+  });
+
+  it('lets the traveller back out', async () => {
+    renderPlanner({ onFillBlockManually: vi.fn() });
+    const user = userEvent.setup();
+
+    const index = indexOf(emptySlot());
+    await user.selectOptions(emptySlot(), '__manual__');
+    await user.click(screen.getByLabelText('取消輸入'));
+
+    expect(screen.queryByTestId(`manual-block-input-${index}`)).toBeNull();
+    expect(screen.getByTestId(`fill-block-${index}`)).toBeTruthy();
+  });
+
+  /** The sentinel must never be mistaken for a place the traveller saved. */
+  it('never passes the sentinel to the saved-place handler', async () => {
+    const { onFillBlock } = renderPlanner({ onFillBlockManually: vi.fn() });
+    const user = userEvent.setup();
+    await user.selectOptions(emptySlot(), '__manual__');
+    expect(onFillBlock).not.toHaveBeenCalled();
+  });
+});

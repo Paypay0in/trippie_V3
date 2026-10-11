@@ -112,6 +112,8 @@ interface Props {
   }>;
   /** Writes a place into a block. The caller owns the item and its persistence. */
   onFillBlock?: (input: { date: string; time: string; durationMinutes: number; placeGroupId: string }) => void;
+  /** A slot filled with a name the traveller typed, carrying no map location. */
+  onFillBlockManually?: (input: { date: string; time: string; durationMinutes: number; title: string }) => void;
   /**
    * The trip's areas, computed once from the plan and the collection together.
    *
@@ -169,7 +171,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, viewerUserId, members = [] }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, viewerUserId, members = [] }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -955,6 +957,12 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             durationMinutes: slot.durationMinutes,
             placeGroupId,
           })}
+          onFillBlockManually={onFillBlockManually ? (slot, title) => onFillBlockManually({
+            date: activeDate,
+            time: slot.startTime,
+            durationMinutes: slot.durationMinutes,
+            title,
+          }) : undefined}
           onChangeDuration={onChangeDuration ? (itemId, minutes) => { onChangeDuration(itemId, minutes); } : undefined}
         />
       )}

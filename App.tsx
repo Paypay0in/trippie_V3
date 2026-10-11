@@ -2819,6 +2819,32 @@ const App: React.FC = () => {
     showToast(`已排入 ${time}・${group.placeName}`);
   };
 
+  /**
+   * A slot filled with a name, when nothing saved fits it.
+   *
+   * 「下拉式選單要讓用戶也可以手動新增」. The item carries no placeId and no
+   * coordinates, and that is left visible rather than patched over: the
+   * transport card will say it cannot compute travel time and the card will
+   * offer to link a map location. Resolving a typed string to a place behind
+   * the traveller's back is how a morning gets planned around the wrong
+   * building with nothing on screen admitting it.
+   */
+  const handleFillDayBlockManually = ({ date, time, durationMinutes, title }: {
+    date: string; time: string; durationMinutes: number; title: string;
+  }) => {
+    setItinerary((current) => [...current, {
+      id: generateId(),
+      date,
+      time,
+      durationMinutes,
+      title,
+      location: title,
+      notes: "",
+      type: "ACTIVITY" as const,
+    }]);
+    showToast(`已排入 ${time}・${title}`);
+  };
+
   const resolvedTaxRule = useMemo(
     () => effectiveTaxRule(taxRule, travelRules, tripDestination || travelCountry),
     [taxRule, travelRules, tripDestination, travelCountry],
@@ -6848,6 +6874,7 @@ const App: React.FC = () => {
           areas={tripAreas}
           savedPlaces={blockPlannerPlaces}
           onFillBlock={handleFillDayBlock}
+          onFillBlockManually={handleFillDayBlockManually}
           items={itinerary}
           startDate={tripStartDate}
           endDate={tripEndDate}
@@ -7826,6 +7853,7 @@ const App: React.FC = () => {
                   areas={tripAreas}
                   savedPlaces={blockPlannerPlaces}
                   onFillBlock={handleFillDayBlock}
+          onFillBlockManually={handleFillDayBlockManually}
                   items={itinerary}
                   startDate={tripStartDate}
                   endDate={tripEndDate}

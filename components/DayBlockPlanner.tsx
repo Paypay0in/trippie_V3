@@ -2,6 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Clock3, Plus } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { AREA_COLORS } from '../constants/areaColors';
+import { cleanManualTitle, MAX_TITLE } from '../services/manualBlockEntry';
+
+/** Sentinel for the 「type it yourself」 row; never a real place id. */
+const MANUAL_OPTION = '__manual__';
 import { BLOCK_MINUTES, buildDayTemplate, DaySlot } from '../services/dayTemplate';
 import { FixedScheduleEntry } from '../services/itineraryDayFloor';
 import { dayAreaSpread, daySpansTooManyAreas } from '../services/dayAreaSpread';
@@ -41,6 +45,8 @@ interface Props {
   areas?: TripAreas;
   /** Fills an empty block. The caller writes the item and owns persistence. */
   onFillBlock: (slot: DaySlot, placeId: string) => void;
+  /** Fills a slot with a name the traveller typed, when no saved place fits. */
+  onFillBlockManually?: (slot: DaySlot, title: string) => void;
   /** Changes how long a placed item runs; everything after it moves with it. */
   onChangeDuration?: (itemId: string, minutes: number) => void;
   /** Items that are fixed and must never be offered a length control. */
@@ -60,9 +66,27 @@ const DayBlockPlanner: React.FC<Props> = ({
   places,
   areas,
   onFillBlock,
+  onFillBlockManually,
   onChangeDuration,
   isFixed,
 }) => {
+  /*
+    Which slot is being typed into, if any. One at a time: two open inputs on
+    one day is two half-finished entries, and the second one is the one that
+    gets forgotten.
+  */
+  const [typingAt, setTypingAt] = useState<number | null>(null);
+  const [typed, setTyped] = useState('');
+
+  const cancelTyping = () => { setTypingAt(null); setTyped(''); };
+
+  const commitTyped = (slot: DaySlot) => {
+    const title = cleanManualTitle(typed);
+    if (!title || !onFillBlockManually) return;
+    onFillBlockManually(slot, title);
+    cancelTyping();
+  };
+
   /*
     The day starts when the traveller says, and runs to the evening regardless.
 
@@ -205,11 +229,67 @@ const DayBlockPlanner: React.FC<Props> = ({
                   <>
                   {/* 「欄位可以寫『無』」: an empty block is a stated answer, not a gap. */}
                   <span className="shrink-0 text-[11px] font-bold text-slate-300">無</span>
+                  {typingAt === slot.index ? (
+                    /*
+                      「下拉式選單要讓用戶也可以手動新增」.
+
+                      The picker offered the collection and nothing else, so a
+                      10:00 slot could only be filled by somebody who had
+                      already saved the place — a traveller planning a morning
+                      around a shop a friend just mentioned had to leave,
+                      save it, and come back.
+
+                      Only a name arrives this way, and the screens downstream
+                      already say so: no coordinates means the transport card
+                      cannot compute travel time and no map link is built.
+                      That is the honest outcome. Inventing a location from a
+                      typed string is how a day gets planned around the wrong
+                      building.
+                    */
+                    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                      <input
+                        autoFocus
+                        data-testid={`manual-block-input-${slot.index}`}
+                        aria-label={`${slot.startTime} 自己輸入地點`}
+                        value={typed}
+                        maxLength={MAX_TITLE}
+                        placeholder="輸入地點名稱"
+                        onChange={event => setTyped(event.target.value)}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') commitTyped(slot);
+                          if (event.key === 'Escape') cancelTyping();
+                        }}
+                        className="min-w-0 flex-1 rounded-lg border border-violet-300 bg-white px-2 py-1.5 text-xs font-bold text-[#11183d] outline-none placeholder:font-medium placeholder:text-slate-300"
+                      />
+                      <button
+                        type="button"
+                        data-testid={`manual-block-save-${slot.index}`}
+                        disabled={!cleanManualTitle(typed)}
+                        onClick={() => commitTyped(slot)}
+                        className="shrink-0 rounded-lg bg-[#5b3df5] px-2.5 py-1.5 text-[11px] font-black text-white disabled:bg-slate-200 disabled:text-slate-400"
+                      >
+                        加入
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="取消輸入"
+                        onClick={cancelTyping}
+                        className="shrink-0 px-1 text-[11px] font-black text-slate-400"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ) : (
                   <select
                     data-testid={`fill-block-${slot.index}`}
                     aria-label={`${slot.startTime} ${slot.label}`}
                     value=""
-                    onChange={event => { if (event.target.value) onFillBlock(slot, event.target.value); }}
+                    onChange={event => {
+                      const picked = event.target.value;
+                      if (!picked) return;
+                      if (picked === MANUAL_OPTION) { setTypingAt(slot.index); setTyped(''); return; }
+                      onFillBlock(slot, picked);
+                    }}
                     className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-violet-50/40 px-2 py-1.5 text-xs font-bold text-[#5b3df5]"
                   >
                     <option value="">＋ 選一個地點</option>
@@ -219,7 +299,13 @@ const DayBlockPlanner: React.FC<Props> = ({
                         {place.alreadyPlanned ? '・已在行程中' : ''}
                       </option>
                     ))}
+                    {/* Last, because the saved places are the common answer and
+                        this is the way out when none of them is. */}
+                    {onFillBlockManually && (
+                      <option value={MANUAL_OPTION}>✎ 自己輸入地點…</option>
+                    )}
                   </select>
+                  )}
                   </>
                 )}
 
