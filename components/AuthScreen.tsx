@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AppWordmark from './AppWordmark';
 import { resendSignupConfirmation, signIn, signUp } from '../services/authService';
 import { isValidEmail, normalizeEmail } from '../services/emailValidation';
 
@@ -64,10 +65,22 @@ const AuthScreen: React.FC<Props> = ({ onBack, onSuccess, unavailable }) => {
     finally { setResending(false); }
   };
 
-  return <main className="min-h-screen bg-[#f7f8fc] px-4 pb-10 pt-6 text-[#11183d] md:mx-auto md:max-w-2xl">
-    <button type="button" onClick={onBack} className="mb-6 text-sm font-bold text-violet-600">← 返回</button>
+  /*
+    「太滿版 也不好點」.
+
+    This screen had no data-safe-top at all — a different cause from the two
+    that set it to 0rem, with the same result: 返回 drawn at 24px from the top
+    of the glass, inside the strip the clock owns and iOS takes the taps in.
+
+    「登入這頁的 Logo 呢？」 — it was there, as a line of purple text with no
+    plane, 24px where every other header is 28. The one screen somebody meets
+    before they have an account was the one introducing the app in a typeface
+    of its own.
+  */
+  return <main data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="min-h-screen bg-[#f7f8fc] px-[var(--screen-pad)] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
+    <button type="button" onClick={onBack} className="-ml-2 mb-4 flex min-h-11 items-center px-2 text-sm font-bold text-violet-600">← 返回</button>
     <div className="rounded-[28px] bg-white p-6 shadow-sm">
-      <div className="mb-6"><div className="text-2xl font-black text-violet-600">Trippie</div><h1 className="mt-6 text-2xl font-black">{mode === 'signIn' ? '登入 Trippie' : '建立 Trippie 帳號'}</h1><p className="mt-2 text-sm text-slate-500">保留你的創作者身份，未來也能跨裝置同步旅行資料。</p></div>
+      <div className="mb-6"><AppWordmark /><h1 className="mt-5 text-screen-title font-bold">{mode === 'signIn' ? '登入 Trippie' : '建立 Trippie 帳號'}</h1><p className="mt-2 text-sm text-slate-500">保留你的創作者身份，未來也能跨裝置同步旅行資料。</p></div>
       {unavailable && <p className="mb-4 rounded-2xl bg-amber-50 p-3 text-sm font-bold text-amber-700">目前無法連線帳號服務</p>}
       {error && <p className="mb-4 rounded-2xl bg-rose-50 p-3 text-sm font-bold text-rose-600">{error}</p>}
       {notice && <div className="mb-4 rounded-2xl bg-violet-50 p-3 text-sm font-bold leading-6 whitespace-pre-line text-violet-700">{notice}{verificationEmail && <div className="mt-3 flex gap-2"><button type="button" onClick={() => { setMode('signIn'); setNotice(''); setVerificationEmail(''); }} className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white">前往登入</button><button type="button" onClick={resendVerification} disabled={resending} className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-black text-violet-700 disabled:opacity-50">{resending ? '寄送中…' : '重新寄送驗證信'}</button></div>}</div>}

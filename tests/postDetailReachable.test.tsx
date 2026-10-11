@@ -63,3 +63,47 @@ describe('沒有任何一頁把安全區歸零', () => {
     }
   });
 });
+
+/**
+ * 「太滿版 也不好點 另外 登入這頁的 Logo 呢？」
+ *
+ * The two account screens had no data-safe-top at all — a different cause from
+ * the 0rem opt-out, with the same result: a back control drawn 20px from the
+ * top of the glass, inside the strip iOS takes the taps in.
+ *
+ * And the wordmark on the sign-in screen was a line of purple text with no
+ * plane, at 24px where every other header is 28 — the one screen somebody
+ * meets before they have an account was introducing the app in a typeface of
+ * its own.
+ */
+describe('登入相關的畫面', () => {
+  const authScreens = ['components/AuthScreen.tsx', 'components/AuthLandingScreen.tsx'];
+
+  it('兩頁都拿到跟其他頁一樣的上方留白', () => {
+    for (const file of authScreens) {
+      const text = readFileSync(resolve(process.cwd(), file), 'utf8');
+      expect(text, file).toContain('data-safe-top');
+      expect(text, file).toContain('"var(--header-top)"');
+    }
+  });
+
+  it('左右也用共用的頁面邊距', () => {
+    for (const file of authScreens) {
+      const text = readFileSync(resolve(process.cwd(), file), 'utf8');
+      expect(text, file).toContain('px-[var(--screen-pad)]');
+    }
+  });
+
+  it('登入頁用的是跟全 app 一樣的 Trippie', () => {
+    const text = readFileSync(resolve(process.cwd(), 'components/AuthScreen.tsx'), 'utf8');
+    expect(text).toContain('<AppWordmark />');
+    expect(text).not.toContain('font-black text-violet-600">Trippie<');
+  });
+
+  it('返回是 44pt 的可點範圍', () => {
+    const auth = readFileSync(resolve(process.cwd(), 'components/AuthScreen.tsx'), 'utf8');
+    expect(auth).toMatch(/min-h-11[^>]*>← 返回/);
+    const landing = readFileSync(resolve(process.cwd(), 'components/AuthLandingScreen.tsx'), 'utf8');
+    expect(landing).toContain('h-11 w-11');
+  });
+});

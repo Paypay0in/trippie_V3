@@ -26,15 +26,19 @@ const AuthLandingScreen: React.FC<Props> = ({ onBack, onEmail, onUnavailableProv
     return () => { active = false; };
   }, []);
 
+  /*
+    The same miss as the sign-in screen beside it: no data-safe-top, a 20px
+    top, and a back button inside the strip the clock owns.
+  */
   return (
-    <main className="relative min-h-screen overflow-hidden bg-white px-5 pb-8 pt-5 text-[#11183d] md:mx-auto md:max-w-2xl">
+    <main data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="relative min-h-screen overflow-hidden bg-white px-[var(--screen-pad)] pb-8 text-[#11183d] md:mx-auto md:max-w-2xl">
       <div className="pointer-events-none absolute right-0 top-0 h-[330px] w-[72%] overflow-hidden rounded-bl-[100px]">
         {heroImage && <img src={heroImage} alt="" className="h-full w-full object-cover" />}
         <div className="absolute inset-0 bg-gradient-to-r from-white via-white/45 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white" />
       </div>
 
-      <button type="button" onClick={onBack} aria-label="返回" className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#11183d] shadow-sm">
+      <button type="button" onClick={onBack} aria-label="返回" className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-[#11183d] shadow-sm">
         <ArrowLeft size={20} />
       </button>
 
