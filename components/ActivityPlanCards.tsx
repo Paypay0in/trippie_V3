@@ -378,9 +378,17 @@ const ActivityPlanCards: React.FC<Props> = ({
               <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] leading-4 text-slate-600">取捨：{plan.tradeoff}</p>
             )}
 
+            {/*
+              Said for multi-day plans too. A 6-day plan printing 「單程約 29
+              小時 21 分」 used to carry no warning at all, because the check
+              let every plan longer than a day through before it looked at the
+              measured figure.
+            */}
             {unrealistic && (
-              <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">
-                來回交通就超過六小時，當天往返會很趕。
+              <p data-testid="plan-travel-warning" className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">
+                {plan.durationDays > 1
+                  ? '單程交通時間長到不像在這趟旅程的範圍內，請確認這個旅程的目的地設定是否正確。'
+                  : '來回交通就超過六小時，當天往返會很趕。'}
               </p>
             )}
 

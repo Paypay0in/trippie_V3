@@ -37,13 +37,30 @@ export const travelTimeLabel = (minutes: number | undefined): string => {
 };
 
 /**
- * Whether a day trip is even physically sensible.
+ * Whether the travelling is physically sensible for a plan this long.
  *
  * Six hours of travelling leaves nothing of a day, and a plan that claims
  * otherwise is wrong in a way the traveller only discovers on the day itself.
+ *
+ * The first version let every multi-day plan through untouched — `days > 1`
+ * returned true before the measured number was even looked at. So a 6-day
+ * plan printing 「單程約 29 小時 21 分」 carried no warning at all, while the
+ * same figure on a one-day plan would have been caught. The length of a plan
+ * changes how much travelling it can absorb; it does not make a figure that
+ * contradicts the destination acceptable.
+ *
+ * For a plan that sleeps somewhere the bar is deliberately loose. An overnight
+ * trip five hours away is a real thing somebody would choose, and an existing
+ * test says so on purpose — this check is not for 「有點遠」. It is for a figure
+ * that says the place is not where the traveller is, which is what eight hours
+ * of driving in one direction means for a trip to one city.
  */
+const SINGLE_DAY_ROUND_TRIP_LIMIT = 360;
+const MULTI_DAY_ONE_WAY_LIMIT = 480;
+
 export const dayTripIsRealistic = (oneWayMinutes: number | undefined, days: number): boolean => {
-  if (days > 1) return true;
   if (typeof oneWayMinutes !== 'number' || !Number.isFinite(oneWayMinutes)) return true;
-  return oneWayMinutes * 2 <= 360;
+  return days > 1
+    ? oneWayMinutes <= MULTI_DAY_ONE_WAY_LIMIT
+    : oneWayMinutes * 2 <= SINGLE_DAY_ROUND_TRIP_LIMIT;
 };
