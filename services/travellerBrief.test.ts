@@ -313,8 +313,15 @@ describe('the chips outlive everything beside them', () => {
     expect(CARD.slice(chips, chips + 60)).not.toContain('prompt');
   });
 
-  it('is the suggestions that hide while typing, not the chips', () => {
-    expect(CARD).toContain('!prompt.trim() && promptSuggestions.length > 0');
+  /**
+   * The chips' condition mentions only themselves. Nothing about the box, the
+   * picks or whether anything has been generated can take them off screen.
+   */
+  it('depends on nothing but itself', () => {
+    const chips = CARD.indexOf('{briefChips.length > 0 ?');
+    const condition = CARD.slice(chips, CARD.indexOf('?', chips));
+    expect(condition).not.toContain('prompt');
+    expect(condition).not.toContain('picked');
   });
 });
 
@@ -325,13 +332,38 @@ describe('the box shows them', () => {
     expect(CARD).toContain('data-testid="plan-prompt-suggestions"');
   });
 
-  /** Tapping writes it; a placeholder vanishes the moment anybody types. */
-  it('writes the suggestion into the box rather than hinting', () => {
-    expect(CARD).toContain('onClick={() => setPrompt(suggestion)}');
+  /**
+   * An earlier version wrote the suggestion into the box, which made the
+   * second tap destroy the first. Superseded by the toggle below; the
+   * assertion is kept out of the way rather than left asserting the old way.
+   */
+
+  /**
+   * 「提示詞應該要多選的 可以讓用戶選很多」.
+   *
+   * Picks are kept beside the typed text, never written into it. Writing one
+   * in meant a second tap destroyed the first, and once a suggestion is
+   * characters in a textarea the app cannot tell it from typing — so it
+   * cannot show the choice back or let it be taken off again.
+   */
+  it('toggles a pick instead of overwriting the box', () => {
+    expect(CARD).toContain('onClick={() => togglePick(suggestion)}');
+    expect(CARD).not.toContain('setPrompt(suggestion)');
   });
 
-  it('hides them once the box has something in it', () => {
-    expect(CARD).toContain('!prompt.trim() && promptSuggestions.length > 0');
+  it('keeps the row visible while the traveller keeps choosing', () => {
+    expect(CARD).toContain('{promptSuggestions.length > 0 && (');
+    expect(CARD).not.toContain('!prompt.trim() && promptSuggestions.length > 0');
+  });
+
+  it('marks what has been picked', () => {
+    expect(CARD).toContain('aria-pressed={on}');
+  });
+
+  /** Picks alone are a question; the box no longer has to be typed in. */
+  it('sends the picks together with anything typed', () => {
+    expect(CARD).toContain("const askText = [...picked, prompt.trim()].filter(Boolean).join('、')");
+    expect(CARD).toContain('disabled={!askText || isGenerating}');
   });
 
   it('is given them at both mount sites', () => {

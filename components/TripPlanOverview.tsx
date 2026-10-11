@@ -391,9 +391,27 @@ const TripPlanOverview: React.FC<Props> = ({
     }
   };
 
+  /*
+    「提示詞應該要多選的 可以讓用戶選很多」.
+
+    Kept beside the typed text rather than written into it. Tapping used to
+    overwrite the box, so a second tap destroyed the first — and once a
+    suggestion is in the textarea it is just characters: the app can no
+    longer tell what was chosen from what was typed, so it cannot show the
+    choice back or let it be taken off again.
+  */
+  const [picked, setPicked] = useState<string[]>([]);
+  const togglePick = (suggestion: string) =>
+    setPicked(current => current.includes(suggestion)
+      ? current.filter(other => other !== suggestion)
+      : [...current, suggestion]);
+
+  /** Everything the traveller has said this time, chosen or typed. */
+  const askText = [...picked, prompt.trim()].filter(Boolean).join('、');
+
   const handleGenerate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const question = prompt.trim();
+    const question = askText;
     if (!question || isGenerating) return;
 
     setIsGenerating(true);
@@ -903,21 +921,29 @@ const TripPlanOverview: React.FC<Props> = ({
             Hidden once there is something in the box: they are a way to
             start, not a menu to pick from while writing.
           */}
-          {!prompt.trim() && promptSuggestions.length > 0 && (
+          {promptSuggestions.length > 0 && (
             <div data-testid="plan-prompt-suggestions" className="flex flex-wrap gap-1.5">
-              {promptSuggestions.map(suggestion => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => setPrompt(suggestion)}
-                  className="min-h-9 rounded-xl border border-violet-200 bg-white px-2.5 text-[11px] font-bold text-violet-700"
-                >
-                  {suggestion}
-                </button>
-              ))}
+              {promptSuggestions.map(suggestion => {
+                const on = picked.includes(suggestion);
+                return (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => togglePick(suggestion)}
+                    className={`min-h-9 rounded-xl border px-2.5 text-[11px] font-bold ${
+                      on
+                        ? 'border-violet-500 bg-violet-600 text-white'
+                        : 'border-violet-200 bg-white text-violet-700'
+                    }`}
+                  >
+                    {on ? '✓ ' : ''}{suggestion}
+                  </button>
+                );
+              })}
             </div>
           )}
-          <button type="submit" disabled={!prompt.trim() || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>
+          <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>
         </form>
         {onRequestHumanHelp && (
           <button type="button" onClick={() => onRequestHumanHelp({ topic: prompt.trim() || '行前準備', destination: destinationCountry || destination })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700">
