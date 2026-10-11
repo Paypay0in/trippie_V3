@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NAVER 導航連結測試</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0; padding: 20px 16px calc(env(safe-area-inset-bottom) + 40px);
+    font: 15px/1.5 -apple-system, "PingFang TC", sans-serif;
+    background: #f7f8fc; color: #10204a;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #5b6b8c; font-size: 13px; }
+  .case { background: #fff; border: 1px solid #e6eaf2; border-radius: 16px; padding: 14px; margin-bottom: 14px; }
+  .n { font-size: 12px; font-weight: 800; color: #7c3aed; letter-spacing: .04em; }
+  .what { font-weight: 700; margin: 2px 0 10px; }
+  .url { font: 11px/1.4 ui-monospace, Menlo, monospace; color: #5b6b8c; word-break: break-all; margin: 0 0 12px; }
+  .row { display: flex; gap: 8px; }
+  a.go, button.cp {
+    flex: 1; min-height: 46px; border-radius: 12px; border: 0;
+    font: 700 14px/46px -apple-system, sans-serif; text-align: center;
+    text-decoration: none; cursor: pointer; padding: 0;
+  }
+  a.go { background: #7c3aed; color: #fff; }
+  button.cp { background: #eef0f7; color: #10204a; line-height: 46px; }
+  button.cp.done { background: #d1fae5; color: #047857; }
+  .note { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412;
+          border-radius: 12px; padding: 12px; font-size: 13px; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+
+<h1>NAVER 導航連結測試</h1>
+<p class="sub">每一組：先按「開啟」。沒反應就按「複製」，貼到 Safari 網址列再試一次。</p>
+
+<div class="note">
+  <b>要回報兩件事：</b><br>
+  ① 有沒有開啟 NAVER 地圖 app<br>
+  ② 開了之後是不是停在 <b>성수동</b>，還是一片空白／跑錯地方
+</div>
+
+<div id="cases"></div>
+
+<script>
+const CASES = [
+  { n: 'A1', what: 'Universal Link · place · lat/lng/name',
+    url: 'https://app.map.naver.com/launchApp/place?lat=37.5447&lng=127.0557&name=성수동&appname=com.trippie.app' },
+  { n: 'A2', what: 'Universal Link · place · 改用 title',
+    url: 'https://app.map.naver.com/launchApp/place?lat=37.5447&lng=127.0557&title=성수동&appname=com.trippie.app' },
+  { n: 'A3', what: 'Universal Link · 大眾運輸路線 · 서울역 → 성수동',
+    url: 'https://app.map.naver.com/launchApp/route/public?slat=37.5547&slng=126.9707&sname=서울역&dlat=37.5447&dlng=127.0557&dname=성수동&appname=com.trippie.app' },
+  { n: 'A4', what: '對照組 · 參數名稱故意寫錯（latitude/longitude）',
+    url: 'https://app.map.naver.com/launchApp/place?latitude=37.5447&longitude=127.0557&name=성수동&appname=com.trippie.app' },
+  { n: 'S1', what: '直接 scheme · navermaps://（繞過 Universal Link）',
+    url: 'navermaps://place?lat=37.5447&lng=127.0557&name=성수동&appname=com.trippie.app' },
+  { n: 'S2', what: '直接 scheme · nmap://',
+    url: 'nmap://place?lat=37.5447&lng=127.0557&name=성수동&appname=com.trippie.app' },
+  { n: 'W1', what: '已驗證可用的網頁版（對照，應該只開網頁）',
+    url: 'https://map.naver.com/p/search/성수동' },
+];
+
+document.getElementById('cases').innerHTML = CASES.map(c => `
+  <div class="case">
+    <div class="n">${c.n}</div>
+    <div class="what">${c.what}</div>
+    <p class="url">${c.url.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>
+    <div class="row">
+      <a class="go" href="${c.url.replace(/"/g, '&quot;')}" rel="noreferrer">開啟</a>
+      <button class="cp" data-url="${c.url.replace(/"/g, '&quot;')}">複製</button>
+    </div>
+  </div>
+`).join('');
+
+document.addEventListener('click', async event => {
+  const button = event.target.closest('button.cp');
+  if (!button) return;
+  const url = button.dataset.url;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch {
+    // Safari refuses the async clipboard outside some contexts; the old way
+    // still works and is the whole point of this page.
+    const field = document.createElement('textarea');
+    field.value = url;
+    document.body.appendChild(field);
+    field.select();
+    document.execCommand('copy');
+    field.remove();
+  }
+  button.textContent = '已複製 ✓';
+  button.classList.add('done');
+  setTimeout(() => { button.textContent = '複製'; button.classList.remove('done'); }, 1600);
+});
+</script>
+</body>
+</html>
