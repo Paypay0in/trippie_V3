@@ -215,6 +215,7 @@ import StayUploadCard from "./components/StayUploadCard";
 import RentalUploadCard from "./components/RentalUploadCard";
 import { ParsedRental } from "./services/rentalIntake";
 import { travellerBriefText } from "./services/travellerBrief";
+import { drivingPreparationFor } from "./services/drivingDocuments";
 import { flightArrivals, reconcileFlightDerivedItems } from "./services/flightDerivedItems";
 import { staysFromItinerary } from "./services/stayIntake";
 import {
@@ -2886,10 +2887,25 @@ const App: React.FC = () => {
   const handleGenerateFromBrief = (brief: TripPlanBrief) => {
     setIsPlanBriefOpen(false);
     setTripSetupMode("create");
+    const setup = briefToTripSetup(brief);
     void handleSubmitTripSetup(
-      { ...briefToTripSetup(brief), currency: tripCurrency || "TWD", companions: [] },
+      { ...setup, currency: tripCurrency || "TWD", companions: [] },
       brief,
-    );
+    ).then(() => {
+      /*
+        「勾選開車 是不是成立旅程的時候 提醒事項就要有要換台灣的駕照日譯本」.
+
+        Seeded at creation and not on the day, because the translation is
+        issued in Taiwan: a reminder that arrives after departure is about
+        something that can no longer be done.
+
+        After the trip exists, so it lands on the new trip's list rather than
+        on whichever one was open a moment ago — the mistake this night
+        already found once, in the flights.
+      */
+      const driving = drivingPreparationFor(brief, setup.destination);
+      if (driving) handleBatchAddShoppingItems([driving.item], "draft");
+    });
   };
 
   const resolvedTaxRule = useMemo(
