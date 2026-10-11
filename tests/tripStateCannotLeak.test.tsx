@@ -102,6 +102,46 @@ describe('what a trip change must reset', () => {
   });
 });
 
+/**
+ * The third place, found the hard way.
+ *
+ * 「AI一開始問卷結局沒有紀錄起來」 — the brief saved into the draft and came back
+ * undefined, because loading rebuilds a draft field by field from a list
+ * written by hand, and nobody added it. Tonight's leak test checked the
+ * autosave against `hydrateDraft` and never knew this file existed.
+ *
+ * A field has to appear in all three or it is broken in a way that only
+ * shows up after a reload — which is the slowest possible way to find out.
+ */
+describe('what survives being reloaded', () => {
+  const PERSISTENCE = readFileSync(
+    resolve(__dirname, '../services/tripPersistence.ts'), 'utf8',
+  );
+
+  it('rebuilds every field the autosave persists', () => {
+    /*
+      The rebuild is the `return {` that produces a TripDraft, anchored on a
+      field only it has. An earlier version of this test took a fixed window
+      of characters around that field and reported eighteen false gaps —
+      including `destination`, which is three lines into the block.
+    */
+    const anchor = PERSISTENCE.indexOf('travelRuleTaskState: normalizeTravelRuleTaskState');
+    expect(anchor).toBeGreaterThan(-1);
+    const start = PERSISTENCE.lastIndexOf('  return {', anchor);
+    const rebuild = PERSISTENCE.slice(start, PERSISTENCE.indexOf('\n  };', anchor));
+    const missing = persistedFields()
+      .filter(field => !NOT_STATE.has(field))
+      .filter(field => !rebuild.includes(`${field}:`) && !rebuild.includes(`${field},`));
+
+    expect(missing).toEqual([]);
+  });
+
+  it('carries the two that were being dropped', () => {
+    expect(PERSISTENCE).toContain('planBrief:');
+    expect(PERSISTENCE).toContain('carRentals:');
+  });
+});
+
 describe('creating a trip', () => {
   /**
    * The actual defect was two code paths doing one job, one of them short.

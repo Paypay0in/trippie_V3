@@ -372,6 +372,17 @@ const normalizeDraft = (value: Partial<TripDraft>): TripDraft | null => {
     flightMode: value.flightMode === 'ONE_WAY' ? 'ONE_WAY' : undefined,
     selectedPassportId: typeof value.selectedPassportId === 'string' && value.selectedPassportId ? value.selectedPassportId : undefined,
     travelRules: normalizeTravelRules(value.travelRules),
+    /*
+      Dropped on load until now, which is how 「AI一開始問卷結局沒有紀錄起來」
+      happened: the brief saved fine and came back as undefined, because this
+      rebuild lists fields by hand and nobody added it.
+
+      The third place that has to agree with the other two. Tonight's leak
+      test checked the autosave against hydrateDraft and never knew this
+      existed; it does now.
+    */
+    planBrief: (value as Record<string, unknown>).planBrief as TripDraft['planBrief'],
+    carRentals: (value as Record<string, unknown>).carRentals as TripDraft['carRentals'],
     travelRuleTaskState: normalizeTravelRuleTaskState(value.travelRuleTaskState),
     travelRulesChecklistMigrationVersion: value.travelRulesChecklistMigrationVersion === 1 ? 1 : undefined,
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : now,
