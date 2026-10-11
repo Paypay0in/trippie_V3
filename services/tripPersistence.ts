@@ -1,3 +1,4 @@
+import { TripPlanBrief } from './tripPlanBrief';
 import {
   Companion,
   Expense,
@@ -44,6 +45,20 @@ export interface TripDraft {
   companions: Companion[];
   members?: TripMember[];
   settlementBatches?: SettlementBatch[];
+  /**
+   * What the traveller answered on 告訴我你的旅行計畫, kept with the trip.
+   *
+   * Per-trip and not a profile setting: the same person rents a car for this
+   * one and takes the subway on the next.
+   *
+   * 「是租兩天的車等 但旅行有五天 因此先不要直接預設交通馬上排用租車」 — so this
+   * is recorded and nothing acts on it automatically. 開車 means a car exists
+   * on this trip, not that every leg is driven; defaulting five days of
+   * transport from a two-day rental is a decision nobody made, applied to
+   * three days they never said anything about. It is read when the itinerary
+   * is being planned, to ask rather than to assume.
+   */
+  planBrief?: TripPlanBrief;
   shoppingList: ShoppingItem[];
   itinerary?: ItineraryItem[];
   travelCountry?: string;

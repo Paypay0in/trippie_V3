@@ -2006,6 +2006,7 @@ const App: React.FC = () => {
                   ? [...savedInspirations]
                   : undefined,
               settlementBatches,
+              planBrief: planBrief || undefined,
               selectedPassportId,
               travelCountry: travelCountry || undefined,
               taxRule: taxRule || undefined,
@@ -2032,6 +2033,7 @@ const App: React.FC = () => {
     tripStartDate,
     visaInfo,
     travelRules,
+    planBrief,
     flightAnchors,
     flightMode,
     savedInspirations,
@@ -2146,6 +2148,7 @@ const App: React.FC = () => {
     setVisaInfo(draft.visaInfo || null);
     setTravelRules(draft.travelRules);
     setSettlementBatches(draft.settlementBatches || []);
+    setPlanBrief(draft.planBrief || null);
 
     // The trip's own dates decide which part of it we are in. Only when a trip
     // has no dates do we fall back to guessing from what has been recorded.
@@ -2874,15 +2877,12 @@ const App: React.FC = () => {
    * the ledger's split and have to be explained to whoever is really there.
    */
   const handleGenerateFromBrief = (brief: TripPlanBrief) => {
-    const setup = briefToTripSetup(brief);
-    setPlanBrief(brief);
     setIsPlanBriefOpen(false);
     setTripSetupMode("create");
-    void handleSubmitTripSetup({
-      ...setup,
-      currency: tripCurrency || "TWD",
-      companions: [],
-    });
+    void handleSubmitTripSetup(
+      { ...briefToTripSetup(brief), currency: tripCurrency || "TWD", companions: [] },
+      brief,
+    );
   };
 
   const resolvedTaxRule = useMemo(
@@ -4755,7 +4755,7 @@ const App: React.FC = () => {
     currency,
     budget,
     companions: nextCompanions,
-  }: TripSetupValues) => {
+  }: TripSetupValues, brief?: TripPlanBrief) => {
     // A trip started from a saved destination already knows its country, which
     // gives the place lookup the context it would otherwise have to guess.
     const countryContext =
@@ -4797,6 +4797,15 @@ const App: React.FC = () => {
           friends,
         ),
         shoppingList: [],
+        /*
+          On the draft, not set afterwards.
+
+          Creating a trip hydrates from the draft, and hydrating resets
+          planBrief like everything else — so a brief set before that call is
+          wiped by it. Putting it on the draft is the only ordering that
+          cannot be got wrong later.
+        */
+        planBrief: brief,
         createdAt: now,
         updatedAt: now,
       };

@@ -122,3 +122,43 @@ describe('creating a trip', () => {
     }
   });
 });
+
+/**
+ * 「是租兩天的車等 但旅行有五天 因此先不要直接預設交通馬上排用租車
+ *   應該要先記錄下來 然後在安排AI規劃行程時給用戶建議或了解用戶目前想法」
+ *
+ * The brief's transport is a capability, not a schedule. 開車 means a car
+ * exists on this trip, not that every leg is driven — defaulting five days of
+ * transport from a two-day rental is a decision nobody made, applied to three
+ * days they never said anything about.
+ *
+ * So it is recorded and nothing acts on it. This pins that, because the wiring
+ * is one line away and looks like a kindness.
+ */
+describe('the brief is recorded, not applied', () => {
+  const TRANSPORT_LEG = readFileSync(
+    resolve(__dirname, '../components/TransportLeg.tsx'), 'utf8',
+  );
+
+  it('does not let the brief pick the travel mode for a leg', () => {
+    expect(TRANSPORT_LEG).not.toContain('planBrief');
+    expect(TRANSPORT_LEG).not.toContain('tripPlanBrief');
+  });
+
+  /** Every leg still starts where it always did, until somebody chooses. */
+  it('leaves the leg default exactly as it was', () => {
+    expect(TRANSPORT_LEG).toContain("useState<TravelMode>('TRANSIT')");
+  });
+
+  /**
+   * Creating a trip hydrates from the draft, and hydrating resets planBrief
+   * like everything else — so a brief set before that call is wiped by it.
+   */
+  it('puts the brief on the draft rather than setting it around the hydrate', () => {
+    const start = APP.indexOf('const handleGenerateFromBrief');
+    expect(start).toBeGreaterThan(-1);
+    const body = APP.slice(start, start + 500);
+    expect(body).not.toContain('setPlanBrief(');
+    expect(APP).toContain('planBrief: brief,');
+  });
+});
