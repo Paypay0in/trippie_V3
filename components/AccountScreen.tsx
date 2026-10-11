@@ -27,6 +27,9 @@ interface Props {
   saverCounts: Record<string, number>;
   /** 「有留言跟愛心數」 — counted from the comments table, not guessed. */
   commentCounts?: Record<string, number>;
+  likeCounts?: Record<string, number>;
+  trips?: { id: string; name: string; destination?: string; startDate?: string; endDate?: string; coverImage?: string }[];
+  onOpenTrip?: (tripId: string) => void;
   onOpenCreatorCenter: () => void;
 }
 
@@ -54,6 +57,9 @@ const AccountScreen: React.FC<Props> = ({
   onOpenPost,
   saverCounts,
   commentCounts,
+  likeCounts,
+  trips,
+  onOpenTrip,
   onOpenCreatorCenter,
 }) => {
   const [editing, setEditing] = useState(false);
@@ -332,6 +338,9 @@ const AccountScreen: React.FC<Props> = ({
             onOpenPost={onOpenPost}
             saverCounts={saverCounts}
             commentCounts={commentCounts}
+            likeCounts={likeCounts}
+            trips={trips}
+            onOpenTrip={onOpenTrip}
           />
         </>
       ) : (

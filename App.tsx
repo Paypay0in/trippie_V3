@@ -170,6 +170,7 @@ import {
   mergeDuplicate,
 } from "./services/duplicateReceipts";
 import CommunityHome from "./components/CommunityHome";
+import { likeCountsFromDevice, loadLikedPosts } from "./services/postLikes";
 import {
   deletedTripIds,
   forgetDeletedTrip,
@@ -6000,6 +6001,19 @@ const App: React.FC = () => {
               onOpenPost={openSourceCommunityPost}
               saverCounts={saverCountsByPost(savedTravelInspirations)}
               commentCounts={commentCounts(postComments)}
+              likeCounts={likeCountsFromDevice(loadLikedPosts())}
+              trips={tripHistory.map((trip) => ({
+                id: trip.id,
+                name: trip.name,
+                destination: trip.destination,
+                startDate: trip.startDate,
+                endDate: trip.endDate,
+                coverImage: trip.travelBook?.coverPhoto,
+              }))}
+              onOpenTrip={(tripId) => {
+                const trip = tripHistory.find((item) => item.id === tripId);
+                if (trip) handleOpenCompletedTrip(trip);
+              }}
               onOpenCreatorCenter={() => setAccountView("creator")}
             />
             <AppBottomNav

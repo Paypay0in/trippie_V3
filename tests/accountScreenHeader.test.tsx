@@ -260,3 +260,44 @@ describe('大頭照', () => {
     expect(screen.getByTestId('clear-avatar')).toBeTruthy();
   });
 });
+
+/**
+ * 「且我要求的是 100%還原」.
+ *
+ * Said after I had built part of the design and argued about the rest. The
+ * parts I had left out: a third tab, the place on the cover, the date line,
+ * and a heart beside the comment count.
+ */
+describe('貼文分頁', () => {
+  const panel = () => renderAccountWithPost();
+
+  it('三個分頁，而且貼文那個帶數量', () => {
+    panel();
+    expect(screen.getByText('我的貼文 (1)')).toBeTruthy();
+    expect(screen.getByText('我的收藏')).toBeTruthy();
+    expect(screen.getByText('我的旅程')).toBeTruthy();
+  });
+
+  it('地點標在照片上', () => {
+    panel();
+    expect(screen.getByTestId('post-place-p1').textContent).toContain('韓國・首爾');
+  });
+
+  it('標題底下是日期', () => {
+    panel();
+    expect(document.body.textContent).toContain('2026.10.01');
+  });
+
+  it('三個數字一排：愛心、留言、收藏', () => {
+    panel();
+    expect(screen.getByTestId('post-likes-p1')).toBeTruthy();
+    expect(screen.getByTestId('post-comments-p1').textContent).toContain('3');
+    expect(screen.getByTestId('post-savers-p1')).toBeTruthy();
+  });
+
+  it('我的旅程沒東西的時候說出來', () => {
+    panel();
+    fireEvent.click(screen.getByText('我的旅程'));
+    expect(screen.getByText('還沒有完成的旅程')).toBeTruthy();
+  });
+});

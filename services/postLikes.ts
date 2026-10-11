@@ -48,3 +48,14 @@ export const toggleLikedPost = (current: string[], postId: string): string[] => 
 
 export const hasLikedPost = (liked: string[], postId: string): boolean =>
   liked.includes(postId);
+
+/**
+ * Hearts as counts, from what this device knows.
+ *
+ * Which is one, at most, per post — this is the reader's own mark and nobody
+ * else's. It is shaped as a count because that is what the card asks for and
+ * what post_likes will answer properly once it exists; until then the figure
+ * is honest about being small rather than invented to look busy.
+ */
+export const likeCountsFromDevice = (liked: string[]): Record<string, number> =>
+  Object.fromEntries(liked.map(postId => [postId, 1]));

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bookmark, Eye, EyeOff, Lock, MapPin, MoreHorizontal, Plus, Trash2, MessageCircle } from 'lucide-react';
+import { Bookmark, Eye, EyeOff, Heart, LayoutGrid, Lock, MapPin, MoreHorizontal, Plane, Plus, Trash2, MessageCircle } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
 
 interface Props {
@@ -13,6 +13,11 @@ interface Props {
   saverCounts: Record<string, number>;
   /** 「有留言跟愛心數」 — real counts from the comments table, zero included. */
   commentCounts?: Record<string, number>;
+  /** Hearts, from whatever this device knows until post_likes exists. */
+  likeCounts?: Record<string, number>;
+  /** Finished journeys, for the third tab the design has. */
+  trips?: { id: string; name: string; destination?: string; startDate?: string; endDate?: string; coverImage?: string }[];
+  onOpenTrip?: (tripId: string) => void;
 }
 
 /**
@@ -26,6 +31,24 @@ interface Props {
  * name people actually use for it — nothing new to keep in step with the feed,
  * which already shows published posts only.
  */
+/**
+ * 「2026.10.02 - 10.07」, the line under each title in the design.
+ *
+ * A trip knows its dates. A post does not — there is no field on it and no
+ * link to the journey it is about, so under a post this falls back to the day
+ * it was published rather than inventing a range. Giving a post real travel
+ * dates means carrying them from the composer, which is a change to what a
+ * post is, not to how one is drawn.
+ */
+const dateRange = (start?: string, end?: string): string => {
+  const dot = (value?: string) => (value || '').slice(0, 10).replace(/-/g, '.');
+  if (!start && !end) return '';
+  if (!end || start === end) return dot(start);
+  // The second date drops its year when it shares one with the first.
+  const tail = dot(end).slice(0, 4) === dot(start).slice(0, 4) ? dot(end).slice(5) : dot(end);
+  return `${dot(start)} - ${tail}`;
+};
+
 const MyPostsPanel: React.FC<Props> = ({
   posts,
   savedInspirations,
@@ -35,16 +58,27 @@ const MyPostsPanel: React.FC<Props> = ({
   onOpenPost,
   saverCounts,
   commentCounts = {},
+  likeCounts = {},
+  trips = [],
+  onOpenTrip,
 }) => {
-  const [tab, setTab] = useState<'posts' | 'saved'>('posts');
+  const [tab, setTab] = useState<'posts' | 'saved' | 'trips'>('posts');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   return (
     <section className="mt-6">
       <div className="mb-4 flex border-b border-slate-200">
+        {/*
+          Three, as the design has them, and the count on the one you are on.
+
+          「且我要求的是 100%還原」. The third was missing entirely: finished trips
+          were reachable from 旅行 and nowhere on the page that is supposed to
+          be everything this account has.
+        */}
         {([
-          ['posts', '我的貼文', <Bookmark key="p" size={16} />],
-          ['saved', '我的收藏', <MapPin key="s" size={16} />],
+          ['posts', `我的貼文 (${posts.length})`, <LayoutGrid key="p" size={16} />],
+          ['saved', '我的收藏', <Bookmark key="s" size={16} />],
+          ['trips', '我的旅程', <Plane key="t" size={16} />],
         ] as const).map(([id, label, icon]) => (
           <button
             key={id}
@@ -97,6 +131,22 @@ const MyPostsPanel: React.FC<Props> = ({
                       {isPublic ? null : <Lock size={10} />}
                       {isPublic ? '公開' : '僅自己可見'}
                     </span>
+                    {/*
+                      The place, on the photo.
+
+                      The design puts it at the foot of the cover, where it
+                      labels the picture. It had been a grey line under the
+                      title competing with it for the same reading.
+                    */}
+                    {[post.country, post.city].filter(Boolean).length > 0 && (
+                      <span
+                        data-testid={`post-place-${post.id}`}
+                        className="absolute bottom-2.5 left-3 inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[10px] font-bold text-white backdrop-blur-sm"
+                      >
+                        <MapPin size={10} />
+                        {[post.country, post.city].filter(Boolean).join('・')}
+                      </span>
+                    )}
                     <button
                       type="button"
                       aria-label={`貼文選項：${post.title || '未命名貼文'}`}
@@ -109,7 +159,7 @@ const MyPostsPanel: React.FC<Props> = ({
                   <div className="pointer-events-none relative p-3.5">
                     <p className="line-clamp-2 text-sm font-black leading-5 text-[#11183d]">{post.title || '未命名貼文'}</p>
                     <p className="mt-1 truncate text-[11px] text-slate-400">
-                      {[post.country, post.city].filter(Boolean).join('・') || '未填地點'}
+                      {dateRange(post.publishedAt || post.createdAt) || [post.country, post.city].filter(Boolean).join('・')}
                     </p>
                     {/*
                       What this post actually got.
@@ -123,23 +173,29 @@ const MyPostsPanel: React.FC<Props> = ({
                       something to report cannot answer 「did anyone reply?」,
                       which is the question the row is read to answer.
                     */}
-                    <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
+                    {/*
+                      The row of three the design ends each card with.
+
+                      The heart's number is whatever this device knows until
+                      post_likes exists — 0023 is written and waiting. The
+                      comment count is real. The bookmark carries the savers,
+                      which is the one figure here that is news to an author,
+                      so it keeps its label where the count is non-zero.
+                    */}
+                    <p className="mt-2 flex items-center gap-3 text-[11px] font-bold text-slate-400">
+                      <span data-testid={`post-likes-${post.id}`} className="flex items-center gap-1">
+                        <Heart size={12} />{likeCounts[post.id] ?? 0}
+                      </span>
                       <span data-testid={`post-comments-${post.id}`} className="flex items-center gap-1">
                         <MessageCircle size={12} />{commentCounts[post.id] ?? 0}
                       </span>
-                      {/*
-                        Kept as a sentence, where the design has a bare icon.
-
-                        A bookmark on your own post reads as 「you saved this」;
-                        what it means here is that somebody else took an idea
-                        out of it, which is the one number on this card that is
-                        news. The count beside it is not the same fact.
-                      */}
-                      {(saverCounts[post.id] ?? 0) > 0 && (
-                        <span className="flex items-center gap-1 text-violet-600">
-                          <Bookmark size={12} />{saverCounts[post.id]} 人收藏了靈感
-                        </span>
-                      )}
+                      <span
+                        data-testid={`post-savers-${post.id}`}
+                        className={`ml-auto flex items-center gap-1 ${(saverCounts[post.id] ?? 0) > 0 ? 'text-violet-600' : ''}`}
+                      >
+                        <Bookmark size={12} fill={(saverCounts[post.id] ?? 0) > 0 ? 'currentColor' : 'none'} />
+                        {(saverCounts[post.id] ?? 0) > 0 && `${saverCounts[post.id]} 人收藏了靈感`}
+                      </span>
                     </p>
                   </div>
 
@@ -181,6 +237,40 @@ const MyPostsPanel: React.FC<Props> = ({
               <span className="text-[11px] text-slate-400">分享你的旅行故事</span>
             </button>
           </div>
+        </>
+      ) : tab === 'trips' ? (
+        <>
+          {trips.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+              還沒有完成的旅程
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {trips.map(trip => (
+                <button
+                  key={trip.id}
+                  type="button"
+                  data-testid={`my-trip-${trip.id}`}
+                  onClick={() => onOpenTrip?.(trip.id)}
+                  className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-sm"
+                >
+                  {trip.coverImage ? (
+                    <img src={trip.coverImage} alt="" className="h-32 w-full object-cover" />
+                  ) : (
+                    <div className="flex h-32 w-full items-center justify-center bg-slate-100 text-slate-300">
+                      <Plane size={22} />
+                    </div>
+                  )}
+                  <div className="p-3">
+                    <p className="line-clamp-2 text-sm font-black leading-5 text-[#11183d]">
+                      {trip.destination || trip.name}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">{dateRange(trip.startDate, trip.endDate)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </>
       ) : (
         <>
