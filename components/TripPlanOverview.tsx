@@ -66,6 +66,8 @@ interface Props {
    * implication, and usually not answered twice.
    */
   travellerBrief?: string;
+  /** The same answers as short chips, so the traveller can see them. */
+  briefChips?: string[];
   expenses: Expense[];
   shoppingList: ShoppingItem[];
   itinerary: ItineraryItem[];
@@ -186,7 +188,8 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 };
 
 const TripPlanOverview: React.FC<Props> = ({
-  travellerBrief = '', expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  travellerBrief = '',
+  briefChips = [], expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -850,6 +853,38 @@ const TripPlanOverview: React.FC<Props> = ({
       <section className="rounded-3xl border border-violet-100 bg-gradient-to-br from-white to-violet-50 p-5 shadow-sm">
         <div className="mb-1 flex items-center gap-2 font-black"><Sparkles size={18} className="text-violet-600" />AI 幫你決定要怎麼玩</div>
         <p className="mb-3 text-xs leading-5 text-slate-500">說一句你想做的事就好，會給你兩三個不同的方案。選定之後才談要準備什麼。</p>
+
+        {/*
+          What is already being sent, shown.
+
+          「需求表單填完要被帶入進去」 — said about a screen where it already was.
+          The brief goes into the prompt and nowhere else, so from the outside
+          it is indistinguishable from not being carried at all, and a thing
+          that cannot be seen cannot be trusted.
+
+          Chips rather than the sentence: 「還是很長」 was said twice tonight,
+          about a different screen, for the same reason.
+        */}
+        {briefChips.length > 0 ? (
+          <div data-testid="plan-brief-chips" className="mb-3 rounded-2xl bg-violet-50/70 px-3 py-2.5">
+            <p className="text-[11px] font-black text-violet-700">會一起告訴 AI</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {briefChips.map(chip => (
+                <span key={chip} className="rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-slate-600 ring-1 ring-violet-100">
+                  {chip}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* Said plainly rather than left blank: a trip created before the
+             form existed carries nothing, and silence here looks the same as
+             a brief that was carried. */
+          <p data-testid="plan-brief-empty" className="mb-3 rounded-2xl bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">
+            這趟還沒有旅行計畫表單，AI 只會看到你寫的這句話。
+          </p>
+        )}
+
         <form onSubmit={handleGenerate} className="space-y-2">
           <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：我想滑雪、想泡溫泉、想帶長輩看海.." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
           <button type="submit" disabled={!prompt.trim() || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DEFAULT_BRIEF, TripPlanBrief } from './tripPlanBrief';
-import { travellerBriefText } from './travellerBrief';
+import { briefChips, travellerBriefText } from './travellerBrief';
 import { ParsedRental } from './rentalIntake';
 
 /**
@@ -145,5 +145,77 @@ describe('it actually reaches the prompt', () => {
    */
   it('tells the model the car days are only the ones listed', () => {
     expect(read('../server.ts')).toContain('不要假設整趟都有車');
+  });
+});
+
+/**
+ * 「需求表單填完要被帶入進去」 — said about a screen where it already was.
+ *
+ * The sentence goes into the prompt and nowhere else, so from the outside it
+ * is indistinguishable from not being carried at all. These are about it
+ * being visible, which is the half that was missing.
+ */
+describe('what the traveller can see', () => {
+  it('shows the people, the start and the pace', () => {
+    expect(briefChips({ brief: brief() })).toEqual(['2 人', '09:00 出發', '一天 3 個行程', '步行', '大眾運輸']);
+  });
+
+  it('counts the days with a car rather than saying 開車', () => {
+    const chips = briefChips({ brief: brief({ transport: ['drive'] }), rentals: [hire] });
+    expect(chips).toContain('3 天有車');
+    expect(chips).not.toContain('開車');
+  });
+
+  /**
+   * Saying both would make a five-day trip sound driven when the car covers
+   * three days — the distinction this whole feature turns on.
+   */
+  it('keeps the other modes beside the car days', () => {
+    const chips = briefChips({ brief: brief({ transport: ['drive', 'transit'] }), rentals: [hire] });
+    expect(chips).toContain('3 天有車');
+    expect(chips).toContain('大眾運輸');
+    expect(chips).not.toContain('開車');
+  });
+
+  /** 開車 with no confirmation is all we know, so it is what is shown. */
+  it('says 開車 when there is no confirmation to count days from', () => {
+    expect(briefChips({ brief: brief({ transport: ['drive'] }) })).toContain('開車');
+  });
+
+  it('says one person as one person', () => {
+    expect(briefChips({ brief: brief({ travellers: 1 }) })[0]).toBe('一個人');
+  });
+
+  /**
+   * A trip created before the form existed carries nothing, and the card says
+   * so rather than showing an empty strip that looks the same as carried.
+   */
+  it('is empty when there was no form', () => {
+    expect(briefChips({})).toEqual([]);
+  });
+
+  it('still shows the car days when only a hire was uploaded', () => {
+    expect(briefChips({ rentals: [hire] })).toEqual(['3 天有車']);
+  });
+});
+
+describe('the card shows them', () => {
+  const CARD = readFileSync(
+    resolve(__dirname, '../components/TripPlanOverview.tsx'), 'utf8',
+  );
+
+  it('renders the chips', () => {
+    expect(CARD).toContain('data-testid="plan-brief-chips"');
+    expect(CARD).toContain('會一起告訴 AI');
+  });
+
+  /** Silence looks the same as carried; it must not be silent. */
+  it('says plainly when there is no brief to carry', () => {
+    expect(CARD).toContain('這趟還沒有旅行計畫表單');
+  });
+
+  it('is given them at both mount sites', () => {
+    const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    expect(app.split('briefChips={planBriefChips}').length - 1).toBe(2);
   });
 });

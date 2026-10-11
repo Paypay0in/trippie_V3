@@ -91,3 +91,44 @@ export const travellerBriefText = ({ brief, rentals = [] }: TravellerBriefInput)
 
   return parts.join('');
 };
+
+/**
+ * The brief as short chips, for showing the traveller what is being sent.
+ *
+ * 「需求表單填完要被帶入進去」 — said about a screen where it already was. The
+ * sentence goes into the prompt and nowhere else, so from the outside it is
+ * indistinguishable from not being carried at all, and a thing that cannot be
+ * seen cannot be trusted.
+ *
+ * Chips rather than the sentence, because the sentence is prose and this is a
+ * glance: 「還是很長」 was said twice tonight about a different screen for the
+ * same reason.
+ */
+export const briefChips = ({ brief, rentals = [] }: TravellerBriefInput): string[] => {
+  if (!brief) {
+    const days = rentals.flatMap(rental => rentalDays(rental)).length;
+    return days > 0 ? [`${days} 天有車`] : [];
+  }
+
+  const chips = [
+    brief.travellers > 1 ? `${brief.travellers} 人` : '一個人',
+    `${brief.dayStartTime} 出發`,
+    `一天 ${brief.pace} 個行程`,
+  ];
+
+  const carDays = new Set(rentals.flatMap(rental => rentalDays(rental)));
+  if (carDays.size > 0) {
+    // The days, because that is what the confirmation knows and the tick box
+    // does not — the distinction this whole feature turns on.
+    chips.push(`${carDays.size} 天有車`);
+  }
+
+  for (const mode of brief.transport) {
+    // Driving is already said by the car days when there is a confirmation;
+    // saying it twice makes the trip sound like it is all driven.
+    if (mode === 'drive' && carDays.size > 0) continue;
+    chips.push(TRANSPORT_LABEL[mode]);
+  }
+
+  return chips;
+};
