@@ -851,8 +851,8 @@ const App: React.FC = () => {
     has the traveller's answers to read. Nothing consumes it yet, and it is
     not pretended otherwise on screen.
   */
-  const [planBrief, setPlanBrief] = useState<TripPlanBrief | null>(null);
-  const [carRentals, setCarRentals] = useState<ParsedRental[]>([]);
+  // Declared beside the rest of the trip's state, below `initialActiveDraft`,
+  // because a cold start has to seed them from the stored draft. See there.
   const [importedTrip, setImportedTrip] = useState<DerivedTrip | null>(null);
 
   const reloadFriendships = useCallback(async () => {
@@ -1194,6 +1194,28 @@ const App: React.FC = () => {
   });
   const [settlementBatches, setSettlementBatches] = useState<SettlementBatch[]>(
     () => initialActiveDraft?.settlementBatches || [],
+  );
+
+  /*
+    The brief and the car hires, read back off the stored draft.
+
+    「只要我關掉重開 這個都是空白的」. Both of these used to be declared two hundred
+    lines above `initialActiveDraft`, so they could not be seeded from it —
+    they started null on every cold start, and the autosave effect then wrote
+    that null back over the stored draft. Saving worked; the next launch
+    erased it.
+
+    This is the fourth place a per-trip field has to appear, and the one that
+    had no test: the autosave effect, `hydrateDraft`, the loader's rebuild in
+    `tripPersistence`, and this. `hydrateDraft` is never called on a cold
+    start — the app opens straight into the active draft by seeding each piece
+    of state here, one hand-written line at a time.
+  */
+  const [planBrief, setPlanBrief] = useState<TripPlanBrief | null>(
+    () => initialActiveDraft?.planBrief || null,
+  );
+  const [carRentals, setCarRentals] = useState<ParsedRental[]>(
+    () => initialActiveDraft?.carRentals || [],
   );
   const [isSettlementOpen, setIsSettlementOpen] = useState(false);
   const [settlementNavDebug, setSettlementNavDebug] = useState({

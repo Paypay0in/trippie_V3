@@ -142,6 +142,54 @@ describe('what survives being reloaded', () => {
   });
 });
 
+/**
+ * The fourth place, found the same way as the third.
+ *
+ * 「只要我關掉重開 這個都是空白的」.
+ *
+ * `hydrateDraft` is never called on a cold start. The app opens straight into
+ * the active trip by seeding each piece of state from `initialActiveDraft`,
+ * one hand-written line at a time — a fourth list, and the only one that runs
+ * before anybody touches the screen.
+ *
+ * A field missing here is worse than a field missing from the loader, because
+ * it does not merely fail to load: the autosave effect writes the empty state
+ * straight back over the stored draft on the first change. Saving works, and
+ * the next launch erases it.
+ */
+describe('what a cold start opens with', () => {
+  /**
+   * Fields seeded from somewhere other than the stored draft, each for a
+   * reason that is written down. Adding to this is a decision.
+   */
+  const SEEDED_ELSEWHERE = new Set([
+    'updatedAt', // stamped on write; never read back into state
+  ]);
+
+  it('seeds every field the autosave persists', () => {
+    // A cold start reads the draft once, before render. If that disappears,
+    // nothing below means anything.
+    expect(APP).toContain('const initialActiveDraft = initialDraftStore.drafts.find(');
+
+    const missing = persistedFields()
+      .filter(field => !SEEDED_ELSEWHERE.has(field))
+      .filter(field => !APP.includes(`initialActiveDraft?.${field}`)
+        && !APP.includes(`initialActiveDraft.${field}`));
+
+    expect(missing).toEqual([]);
+  });
+
+  /**
+   * Both were declared two hundred lines above `initialActiveDraft`, so they
+   * could not have been seeded from it even by somebody trying.
+   */
+  it('declares them where the stored draft can be read', () => {
+    const draftRead = APP.indexOf('const initialActiveDraft =');
+    expect(APP.indexOf('const [planBrief, setPlanBrief]')).toBeGreaterThan(draftRead);
+    expect(APP.indexOf('const [carRentals, setCarRentals]')).toBeGreaterThan(draftRead);
+  });
+});
+
 describe('creating a trip', () => {
   /**
    * The actual defect was two code paths doing one job, one of them short.
