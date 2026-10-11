@@ -22,6 +22,15 @@ const renderSheet = () => {
   return { onCreate, onManual };
 };
 
+/*
+  The shape the server actually answers with.
+
+  The first version of these tests invented a flat ParsedFlight, so they passed
+  against a component that could not read a single real response. A mocked
+  contract that does not match the real one proves nothing — it only makes the
+  mistake invisible. Checked against server.ts: /api/flights/parse-image
+  returns `assignFlightsToLegs(...)`, i.e. { OUTBOUND?, RETURN? }.
+*/
 const drop = (testId: string, parsed: unknown) => {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => parsed })));
   const file = new File(['x'], 'pass.jpg', { type: 'image/jpeg' });
@@ -55,7 +64,7 @@ describe('importing a trip from a booking', () => {
   it('reads a boarding pass and shows the trip it implies', async () => {
     renderSheet();
     drop('import-flight', {
-      direction: 'OUTBOUND', arrivalAirportIata: 'PUS', departureDate: '2026-10-02',
+      OUTBOUND: { arrivalAirportIata: 'PUS', departureDate: '2026-10-02' },
     });
     await waitFor(() => expect(screen.getByTestId('import-readout')).toBeTruthy());
     expect(screen.getByText('Busan')).toBeTruthy();
@@ -68,7 +77,7 @@ describe('importing a trip from a booking', () => {
    */
   it('shows what was read before saving anything', async () => {
     const { onCreate } = renderSheet();
-    drop('import-flight', { direction: 'OUTBOUND', departureDate: '2026-10-02' });
+    drop('import-flight', { OUTBOUND: { departureDate: '2026-10-02' } });
     await waitFor(() => expect(screen.getByTestId('import-readout')).toBeTruthy());
     expect(onCreate).not.toHaveBeenCalled();
   });
@@ -76,7 +85,7 @@ describe('importing a trip from a booking', () => {
   it('hands the derived trip over on 建立旅程', async () => {
     const { onCreate } = renderSheet();
     drop('import-flight', {
-      direction: 'OUTBOUND', arrivalAirportIata: 'PUS', departureDate: '2026-10-02',
+      OUTBOUND: { arrivalAirportIata: 'PUS', departureDate: '2026-10-02' },
     });
     await waitFor(() => expect(screen.getByTestId('import-readout')).toBeTruthy());
     fireEvent.click(screen.getByTestId('import-create'));
@@ -89,7 +98,7 @@ describe('importing a trip from a booking', () => {
   /** A one-way flight has no return; saying so beats inventing a date. */
   it('says the return is unknown rather than filling one in', async () => {
     renderSheet();
-    drop('import-flight', { direction: 'OUTBOUND', departureDate: '2026-10-02' });
+    drop('import-flight', { OUTBOUND: { departureDate: '2026-10-02' } });
     await waitFor(() => expect(screen.getByTestId('import-dates')).toBeTruthy());
     expect(screen.getByTestId('import-dates').textContent).toContain('回程未知');
   });
@@ -109,6 +118,50 @@ describe('importing a trip from a booking', () => {
     });
     await waitFor(() => expect(screen.getByTestId('import-error').textContent)
       .toBe('這張看不清楚，換一張試試。'));
+  });
+
+  /**
+   * 「這張是我上傳的機票資訊」 — a Booking.com confirmation with both legs on
+   * one page: TPE→NRT on 10/20 and NRT→TPE on 10/24.
+   *
+   * The server already read both. The sheet pushed the whole { OUTBOUND,
+   * RETURN } envelope in as if it were one flight, so an object with no dates
+   * and no airports went into the list and a screenshot that parsed perfectly
+   * produced a trip with nothing in it.
+   */
+  it('takes both legs of a round trip from one screenshot', async () => {
+    const { onCreate } = renderSheet();
+    drop('import-flight', {
+      OUTBOUND: {
+        flightNumber: 'IT200', departureAirportIata: 'TPE', arrivalAirportIata: 'NRT',
+        departureDate: '2026-10-20', departureTime: '06:35', arrivalTime: '11:00',
+      },
+      RETURN: {
+        flightNumber: 'TR875', departureAirportIata: 'NRT', arrivalAirportIata: 'TPE',
+        departureDate: '2026-10-24', arrivalDate: '2026-10-24', arrivalTime: '23:55',
+      },
+    });
+    await waitFor(() => expect(screen.getByTestId('import-readout')).toBeTruthy());
+
+    expect(screen.getByText('讀到 2 張機票')).toBeTruthy();
+    expect(screen.getByText('Tokyo')).toBeTruthy();
+    expect(screen.getByTestId('import-dates').textContent).toBe('2026-10-20 - 2026-10-24');
+
+    fireEvent.click(screen.getByTestId('import-create'));
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destination: 'Tokyo', startDate: '2026-10-20', endDate: '2026-10-24',
+      }),
+      expect.anything(),
+    );
+  });
+
+  /** An envelope with neither leg is a failed read, not a silent empty list. */
+  it('says so when the response carries no leg at all', async () => {
+    renderSheet();
+    drop('import-flight', {});
+    await waitFor(() => expect(screen.getByTestId('import-error')).toBeTruthy());
+    expect(screen.queryByTestId('import-readout')).toBeNull();
   });
 
   /** Some confirmations are a photo of a screen of a PDF. */

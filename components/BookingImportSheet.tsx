@@ -88,8 +88,36 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
       }
 
       const parsed = await response.json();
-      if (kind === 'flight') setFlights(current => [...current, parsed as ParsedFlight]);
-      else setStays(current => [...current, parsed as ParsedStay]);
+      if (kind === 'flight') {
+        /*
+          The flight endpoint answers { OUTBOUND?, RETURN? }, not one flight.
+
+          A booking confirmation normally shows both legs at once — the
+          Booking.com page that prompted this fix has TPE→NRT on 10/20 and
+          NRT→TPE on 10/24 on the same screen — and the server already reads
+          both. Treating the envelope as a single flight pushed an object with
+          no dates and no airports into the list, so a screenshot that parsed
+          perfectly produced a trip with nothing in it.
+
+          Both legs are taken, and the direction is set from the key rather
+          than trusted from the body: the key is what the server decided, and
+          a leg that disagrees with its own slot would be filed as a second
+          outbound and lose the return date.
+        */
+        const legs = parsed as { OUTBOUND?: ParsedFlight; RETURN?: ParsedFlight };
+        const read: ParsedFlight[] = [];
+        for (const direction of ['OUTBOUND', 'RETURN'] as const) {
+          const leg = legs[direction];
+          if (leg) read.push({ ...leg, direction });
+        }
+        if (read.length === 0) {
+          setError('這張讀不出來，可以換一張或手動建立。');
+          return;
+        }
+        setFlights(current => [...current, ...read]);
+      } else {
+        setStays(current => [...current, parsed as ParsedStay]);
+      }
     } catch {
       setError('這張讀不出來，可以換一張或手動建立。');
     } finally {
