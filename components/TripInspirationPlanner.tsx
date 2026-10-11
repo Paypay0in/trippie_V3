@@ -1272,6 +1272,32 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       )}
 
       {/*
+        A screenshot is a plan too, and the way an empty trip stops being one.
+
+        「這邊加一個可以上傳截圖的區塊」 — this used to live inside the 行程調整模式
+        block, which only renders once the trip already has an itinerary. So
+        the entry for putting the first thing into a trip was behind having
+        already put something in it: 「這頁之前有Ai協助排行程的區塊 怎麼消失了」 was
+        a new trip with an empty collection, where both AI blocks are hidden
+        and this one with them.
+
+        It needs no model opinion about the trip, only a reading of what the
+        traveller saved — so it is never gated on what the trip already has.
+      */}
+      {onAddItineraryItems && (
+        <div className="mt-4">
+          <ScreenshotItineraryIntake
+            dates={tripDates}
+            defaultDate={tripDates[0]}
+            destination={trip.destination}
+            destinationCountry={trip.destinationCountry || trip.travelCountry}
+            onAddItems={onAddItineraryItems}
+            onSaveToCollection={onSaveScreenshotPlaces}
+          />
+        </div>
+      )}
+
+      {/*
         The trip already has a plan, so the AI is never asked to start from
         scratch. It reads the current itinerary and proposes a diff instead.
       */}
@@ -1305,27 +1331,6 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   )}
                 </li>
               </ul>
-            </div>
-          )}
-
-          {/*
-            A screenshot is a plan too.
-
-            「這邊加一個可以上傳截圖的區塊」 — above the four AI modes, because
-            moving something the traveller already decided on is a different
-            job from asking the AI to decide. This one needs no model opinion
-            about their trip, only a reading of what they saved.
-          */}
-          {onAddItineraryItems && (
-            <div className="mt-3">
-              <ScreenshotItineraryIntake
-                dates={tripDates}
-                defaultDate={tripDates[0]}
-                destination={trip.destination}
-                destinationCountry={trip.destinationCountry || trip.travelCountry}
-                onAddItems={onAddItineraryItems}
-                onSaveToCollection={onSaveScreenshotPlaces}
-              />
             </div>
           )}
 
