@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
+import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCommerceInfo, TripMember } from '../types';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
@@ -260,6 +261,12 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   */
   const dayItems = useMemo(() => dayPartition.mine.filter(entry => !isStayItem(entry)), [dayPartition]);
   /** The day's check-in / check-out, shown as a line rather than a stop. */
+  /* Which of the three the accommodation row is on this day. */
+  const stayRow = stayRowState({
+    date: activeDate,
+    endDate,
+    hasStay: Boolean(tonightsStay),
+  });
   const stayReminders = useMemo(
     () => dayPartition.mine.filter(isStayItem).slice()
       .sort((left, right) => (left.time || '').localeCompare(right.time || '')),
@@ -1127,9 +1134,36 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             詳情 ›
           </span>
         </button>
+      ) : stayRow === 'checked_out' ? (
+        /*
+          「最後一天的住宿資訊要寫成：今日退房」.
+
+          The row had one empty state, and on the last day it was an invitation
+          to book a room for a night the traveller is not there — directly
+          under 退房 11:00, which had already said they were leaving.
+
+          A statement, not a button: there is nothing here to do. It stays on
+          the screen rather than disappearing, because a blank row reads as
+          「住宿還沒填」 to somebody scanning the day.
+        */
+        <div
+          data-testid="stay-banner-checked-out"
+          className="mb-4 flex w-full items-center gap-3 rounded-[20px] border border-[#ecebf5] bg-white px-4 py-3 text-left"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f0edff] text-[#5b3df5]">
+            <BedDouble size={17} />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-black text-[#111A4A]">
+            {CHECKED_OUT_LABEL}
+          </span>
+        </div>
       ) : activeDate && onAddStay ? (
         // A night with no room booked says so. Leaving the row blank makes an
         // unbooked night look identical to a booked one.
+        //
+        // Reached only when a night remains: somebody changing hotels on day
+        // three checks out in the morning and has nothing booked too, and that
+        // night is a real gap this row is the only thing to point at.
         <button
           type="button"
           data-testid="stay-banner-empty"

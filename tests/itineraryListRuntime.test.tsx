@@ -558,11 +558,25 @@ describe('tonight’s stay banner', () => {
     expect(within(banner).getByText(/詳情/)).toBeTruthy();
   });
 
-  it('offers to add one on the morning they check out, with no room that night', async () => {
-    // Day 2 is 2026-10-06 — the key goes back, so there is no room tonight.
+  it('says 今日退房 on the last day, instead of asking for a room', async () => {
+    /*
+      「最後一天的住宿資訊要寫成：今日退房」.
+
+      This test used to assert the opposite, and it was wrong in the way that
+      is hardest to see: its own title said 「with no room that night」, but
+      Day 2 is this trip's end date, so there is no night. It was asking a
+      traveller who checked out at 11:00 and flew home to book somewhere to
+      sleep — printed directly under the 退房 reminder that had just said they
+      were leaving.
+
+      The middle-of-trip case it was reaching for is real and still prompts;
+      it is covered in services/lastNightStay.test.ts, where the distinction
+      between 「no room」 and 「no night」 can be stated without a fixture.
+    */
     await openDay('Day 2');
     expect(screen.queryByTestId('stay-banner')).toBeNull();
-    expect(within(screen.getByTestId('stay-banner-empty')).getByText('新增住宿資訊')).toBeTruthy();
+    expect(screen.queryByTestId('stay-banner-empty')).toBeNull();
+    expect(within(screen.getByTestId('stay-banner-checked-out')).getByText('今日退房')).toBeTruthy();
   });
 
   it('opens the stay sheet from a night whose check-in card is on another day', async () => {
