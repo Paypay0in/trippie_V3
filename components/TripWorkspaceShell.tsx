@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Phase } from '../types';
 import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
+import AppWordmark from './AppWordmark';
 import {
   DestinationImage,
   fetchDestinationImage,
@@ -75,9 +76,23 @@ const TripWorkspaceShell: React.FC<Props> = ({
       <header data-safe-top className="mx-auto w-full max-w-2xl bg-white px-4 pb-3">
         <div className="mb-3 flex items-center justify-between gap-3">
           <button className={actionClass} onClick={onBack} aria-label="回到旅程首頁"><ArrowLeft size={21} /></button>
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-lg font-black">
-            <span className="shrink-0 text-violet-600">✈</span>
-            <span className="truncate">{currentSection === 'records' ? 'Trippie 旅費管理' : 'Trippie'}</span>
+          {/*
+            The seventh copy.
+
+            「統一」 was answered an hour ago with 「six screens, no exceptions」.
+            That was wrong: the check looked at a list I had written rather than
+            at the codebase, and this header — 18px, its own plane, the name
+            glued to a section label — was not on it. A rule enforced over a
+            hand-kept list is not enforced.
+
+            旅費管理 becomes a label beside the name rather than part of it. It
+            is what you are looking at, not what the app is called.
+          */}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <AppWordmark />
+            {currentSection === 'records' && (
+              <span className="truncate text-meta font-bold text-ink-soft">旅費管理</span>
+            )}
           </div>
           {/* Hidden on phones, where five 44px targets and a title do not fit a
               320px row: they overlapped the title instead of wrapping. Every

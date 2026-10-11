@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import TravelHome from '../components/TravelHome';
 import CommunityHome from '../components/CommunityHome';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 afterEach(cleanup);
@@ -115,13 +115,31 @@ describe('沒有第二個寫死的 Trippie', () => {
     }
   });
 
-  it('沒有任何一頁自己手寫 Trippie 當標題', () => {
-    for (const file of inAppScreens) {
-      const source = readFileSync(resolve(process.cwd(), file), 'utf8');
-      // 登入 Trippie and 已同步至 Trippie are sentences, not wordmarks.
-      const handwritten = source.match(/>Trippie<\/(span|div)>/g) || [];
-      expect(handwritten, file).toHaveLength(0);
-    }
+  /**
+   * Scanned, not listed.
+   *
+   * The previous version of this checked the files named above and reported
+   * 「no exceptions」 while a seventh copy sat in the trip workspace header —
+   * 18px, its own plane, the name glued to a section label. A rule enforced
+   * over a hand-kept list is enforced by whoever remembered to update the
+   * list.
+   *
+   * Every component is read now, and the thing looked for is a plane beside
+   * the name rather than one exact spelling of it.
+   */
+  it('整個 components 目錄裡沒有第二個手寫的字標', () => {
+    const files = readdirSync(resolve(process.cwd(), 'components'))
+      .filter(name => name.endsWith('.tsx') && name !== 'AppWordmark.tsx');
+
+    const offenders = files.filter(name => {
+      const source = readFileSync(resolve(process.cwd(), 'components', name), 'utf8');
+      // A plane and the name in the same element is a wordmark being drawn by
+      // hand; 「登入 Trippie」 and 「Trippie Coins」 are prose and are left alone.
+      return /✈[^<]*<\/span>\s*(\{[^}]*)?['"]?Trippie['"]?/.test(source)
+        || />Trippie<\/(span|div)>/.test(source);
+    });
+
+    expect(offenders).toEqual([]);
   });
 });
 
