@@ -58,16 +58,34 @@ const TripWorkspaceShell: React.FC<Props> = ({
   const [imageFailed, setImageFailed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
+  /*
+    The picture is found with the words printed on top of it.
+
+    「這不是沖繩」 — a trip titled 日本沖繩 wearing the torii gates of 伏見稲荷,
+    which are in Kyoto. The header has always shown `tripName || destination`
+    and searched `destination` alone, two fields nothing keeps in agreement,
+    so the photo was answering a question the traveller could not see.
+
+    Checked against the live endpoint: 「日本」 returns that exact photograph,
+    credited to the same photographer on the screenshot, while 「日本沖繩」
+    returns Okinawa. The search was never the problem; what it was given was.
+
+    This is still a stock photo and still decorative — nothing here can
+    confirm the beach it returns is the right beach. What it can do is stop
+    the picture disagreeing with the title above it.
+  */
+  const imageQuery = (tripName || destination || '').trim();
+
   useEffect(() => {
     let active = true;
     setImage(null);
     setImageFailed(false);
-    if (!destination.trim()) return () => { active = false; };
-    fetchDestinationImage(destination).then(result => {
+    if (!imageQuery) return () => { active = false; };
+    fetchDestinationImage(imageQuery).then(result => {
       if (active) setImage(result);
     });
     return () => { active = false; };
-  }, [destination]);
+  }, [imageQuery]);
 
   const actionClass = 'flex min-h-11 min-w-11 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 shadow-sm transition-colors hover:text-blue-600';
 
@@ -120,7 +138,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-[#101638]/90 via-[#101638]/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-            <div className="mb-1 truncate text-3xl font-black tracking-tight">{tripName || destination || '我的旅程'}</div>
+            <div className="mb-1 truncate text-3xl font-black tracking-tight">{imageQuery || '我的旅程'}</div>
             {dateRange && <div className="text-sm font-semibold text-white/90">{dateRange}</div>}
             {currentSection !== 'records' && <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-indigo-700 backdrop-blur">
               <span className={`h-2 w-2 rounded-full ${currentPhase === 'during' ? 'bg-emerald-500' : 'bg-violet-500'}`} />
