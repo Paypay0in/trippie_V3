@@ -6469,13 +6469,22 @@ const App: React.FC = () => {
   const planBriefChips = briefChips({ brief: planBrief, rentals: carRentals });
   const planPromptQuestions = promptQuestions({ brief: planBrief, rentals: carRentals });
 
+  /*
+    One hire, from wherever it arrived.
+
+    The same write the 租車資訊 card does, named so the screenshot entry in the
+    planning card cannot drift into a second way of adding a car — which is
+    how one of them ends up skipping the toast, or the state, or both.
+  */
+  const addRentalFromScreenshot = (rental: ParsedRental) => {
+    setCarRentals(current => [...current, rental]);
+    showToast(`已加入 ${rental.company}`);
+  };
+
   const rentalCard = (
     <RentalUploadCard
       rentals={carRentals}
-      onAdd={rental => {
-        setCarRentals(current => [...current, rental]);
-        showToast(`已加入 ${rental.company}`);
-      }}
+      onAdd={addRentalFromScreenshot}
       onRemove={index => setCarRentals(current => current.filter((_, at) => at !== index))}
     />
   );
@@ -7427,6 +7436,8 @@ const App: React.FC = () => {
                 travellerBrief={travellerBrief}
                 briefChips={planBriefChips}
                 promptQuestions={planPromptQuestions}
+                onAddRentalFromScreenshot={addRentalFromScreenshot}
+                onSavePlacesFromScreenshot={handleSaveScreenshotPlaces}
                 onPublishServiceRequest={handlePublishServiceRequest}
                 expenses={expenses}
                 shoppingList={shoppingList}
@@ -7530,6 +7541,8 @@ const App: React.FC = () => {
               travellerBrief={travellerBrief}
               briefChips={planBriefChips}
               promptQuestions={planPromptQuestions}
+              onAddRentalFromScreenshot={addRentalFromScreenshot}
+              onSavePlacesFromScreenshot={handleSaveScreenshotPlaces}
               onPublishServiceRequest={handlePublishServiceRequest}
               variant="reference"
               expenses={expenses}

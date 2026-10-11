@@ -230,6 +230,11 @@ describe('server route registration order', () => {
     // rather than letting a fifth route inherit the allowance quietly.
     expect(inline).toEqual([
       '/api/expenses/parse-image',
+      // /api/screenshots/kind carries the same picture as the five beside it and
+      // reads none of it — it only says which of them should. Sending it at a
+      // smaller limit would reject screenshots those five accept, which is a
+      // failure the traveller would see as 「有時候可以有時候不行」.
+      '/api/screenshots/kind',
       '/api/stays/parse-image',
       '/api/rentals/parse-image',
       '/api/itinerary/parse-image',

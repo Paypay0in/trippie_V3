@@ -30,6 +30,7 @@ import {
 import { localToday } from "./services/localDate";
 import { normalizeParsedStay, stayPrompt } from "./services/stayIntake";
 import { normalizeParsedRental, rentalPrompt } from "./services/rentalIntake";
+import { SCREENSHOT_KINDS, normalizeScreenshotKind, screenshotKindPrompt } from "./services/screenshotKind";
 import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
 import { checkProposedChanges } from "./services/adjustmentChanges";
 import { normalizeItinerarySlices } from "./services/itineraryImageSlices";
@@ -352,6 +353,47 @@ async function startServer() {
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
       res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識收據，請手動輸入。" });
+    }
+  });
+
+  /*
+    Which parser a screenshot belongs to.
+
+    「旅行靈感的截圖、租車或是訂了什麼旅遊票的截圖都可以上傳上來」 — one entry,
+    several kinds of picture. This route does not read the document; it only
+    says which of the five existing parsers should, and then that parser
+    receives the picture unchanged with the prompt it was tuned for.
+
+    Merging them into one prompt that reads anything was the alternative, and
+    it is how each of them quietly gets worse at the one thing it is good at.
+  */
+  app.post("/api/screenshots/kind", express.json({ limit: "12mb" }), async (req, res) => {
+    const { base64Data, mimeType } = req.body ?? {};
+    const imageMime = typeof base64Data === "string" && base64Data ? resolveImageMime(mimeType, base64Data) : null;
+    if (!imageMime) { res.status(400).json({ error: "需要一張截圖。" }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在無法辨識截圖，請稍後再試。" }); return; }
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
+        contents: { parts: [{ inlineData: { mimeType: imageMime, data: base64Data } }, { text: screenshotKindPrompt() }] },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: { kind: { type: Type.STRING, enum: [...SCREENSHOT_KINDS] } },
+            required: ["kind"],
+          },
+        },
+      }));
+      // Never an error: an unreadable answer routes to the only parser that
+      // can refuse a picture gracefully. See `normalizeScreenshotKind`.
+      const parsed = JSON.parse(cleanModelJson(response.text ?? "{}"));
+      res.json({ kind: normalizeScreenshotKind(parsed?.kind) });
+    } catch (error) {
+      const status = quotaStatusOf(error) ?? 502;
+      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識截圖，請稍後再試。" });
     }
   });
 

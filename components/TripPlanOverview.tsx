@@ -57,6 +57,9 @@ import { isGuidanceOutdated } from '../services/entryRuleFreshness';
 import { communityHighlights } from '../services/communityHighlights';
 import { todoLinksFor } from '../services/todoLinks';
 import { BriefQuestion } from '../services/travellerBrief';
+import PlanScreenshotIntake from './PlanScreenshotIntake';
+import type { ParsedRental } from '../services/rentalIntake';
+import type { ItinerarySlice } from '../services/itineraryImageSlices';
 
 interface Props {
   /**
@@ -72,6 +75,9 @@ interface Props {
   briefChips?: string[];
   /** Openers built from the brief, and the one gap worth asking about. */
   promptQuestions?: BriefQuestion[];
+  /** 「新增一個上傳截圖的入口」. Omit to hide the entry entirely. */
+  onAddRentalFromScreenshot?: (rental: ParsedRental) => void;
+  onSavePlacesFromScreenshot?: (slices: ItinerarySlice[]) => Promise<number> | number;
   expenses: Expense[];
   shoppingList: ShoppingItem[];
   itinerary: ItineraryItem[];
@@ -194,7 +200,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptQuestions = [], expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], onAddRentalFromScreenshot, onSavePlacesFromScreenshot, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -959,6 +965,24 @@ const TripPlanOverview: React.FC<Props> = ({
           )}
           <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>
         </form>
+
+        {/*
+          The information is already on their phone.
+
+          「旅行靈感的截圖、租車或是訂了什麼旅遊票的截圖都可以上傳上來 協助安排
+            行程」 — placed under the box rather than on its own screen, because
+          this is the moment the traveller is being asked what the trip should
+          be, and the answer is usually a screenshot they already saved.
+        */}
+        {onAddRentalFromScreenshot && onSavePlacesFromScreenshot && (
+          <PlanScreenshotIntake
+            destination={destination}
+            destinationCountry={destinationCountry}
+            onAddRental={onAddRentalFromScreenshot}
+            onSavePlaces={onSavePlacesFromScreenshot}
+          />
+        )}
+
         {onRequestHumanHelp && (
           <button type="button" onClick={() => onRequestHumanHelp({ topic: prompt.trim() || '行前準備', destination: planningDestination(destination, destinationCountry) })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700">
             <Handshake size={16} />需要真人協助
