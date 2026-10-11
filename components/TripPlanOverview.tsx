@@ -1,4 +1,5 @@
 import { entryPoints, worthListing } from '../services/entryPoints';
+import { planningDestination } from '../services/planningDestination';
 import React, { useEffect, useState } from 'react';
 import { HelpRequest } from '../services/serviceMatching';
 import { classifyTask } from '../services/taskAssistance';
@@ -304,7 +305,7 @@ const TripPlanOverview: React.FC<Props> = ({
     // just a pin. The site comes from the map service's record of the place —
     // a URL nobody wrote for this purpose and nobody can invent.
     const names = ownTaskNames ? ownTaskNames.split('|').filter(Boolean).slice(0, 6) : [];
-    const place = destinationCountry || destination;
+    const place = planningDestination(destination, destinationCountry);
     if (!names.length || !place) return;
     let cancelled = false;
     void fetchSuggestedPlaces(names.map(name => `${name} ${place}`)).then(groups => {
@@ -365,7 +366,7 @@ const TripPlanOverview: React.FC<Props> = ({
     try {
       const result = await fetchActivityPlans({
         intent: askedTopic || plan.title,
-        destination: destinationCountry || destination,
+        destination: planningDestination(destination, destinationCountry),
         originLatitude,
         originLongitude,
         startDate: tripStartDate,
@@ -433,7 +434,7 @@ const TripPlanOverview: React.FC<Props> = ({
     try {
       const result = await fetchActivityPlans({
         intent: question,
-        destination: destinationCountry || destination,
+        destination: planningDestination(destination, destinationCountry),
         originLatitude,
         originLongitude,
         startDate: tripStartDate,
@@ -748,7 +749,7 @@ const TripPlanOverview: React.FC<Props> = ({
             {ownTasks.map(task => {
               const links = todoLinksFor({
                 taskName: task.name,
-                destination: destinationCountry || destination,
+                destination: planningDestination(destination, destinationCountry),
                 posts: communityPosts,
               });
               return (
@@ -852,7 +853,7 @@ const TripPlanOverview: React.FC<Props> = ({
            without an AI call that might be wrong about what exists. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
           <h2 className="mb-1 flex items-center gap-2 font-black"><Compass size={18} className="text-violet-600" />旅人最近推薦</h2>
-          <p className="mb-3 text-xs text-slate-500">{askedTopic ? `社群裡跟「${askedTopic.slice(0, 12)}」有關的經驗。` : `去過 ${destinationCountry || destination} 的人寫下的經驗。`}</p>
+          <p className="mb-3 text-xs text-slate-500">{askedTopic ? `社群裡跟「${askedTopic.slice(0, 12)}」有關的經驗。` : `去過 ${planningDestination(destination, destinationCountry)} 的人寫下的經驗。`}</p>
           <div className="space-y-2">
             {highlights.map(({ post, savers }) => (
               <button key={post.id} type="button" onClick={() => onOpenPost(post.id)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left">
@@ -946,7 +947,7 @@ const TripPlanOverview: React.FC<Props> = ({
           <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>
         </form>
         {onRequestHumanHelp && (
-          <button type="button" onClick={() => onRequestHumanHelp({ topic: prompt.trim() || '行前準備', destination: destinationCountry || destination })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700">
+          <button type="button" onClick={() => onRequestHumanHelp({ topic: prompt.trim() || '行前準備', destination: planningDestination(destination, destinationCountry) })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700">
             <Handshake size={16} />需要真人協助
           </button>
         )}
@@ -965,7 +966,7 @@ const TripPlanOverview: React.FC<Props> = ({
             onApplyPlanOption?.(items);
             onPlanAddedToItinerary?.(planRequestId, plan, planOptions, items.map(item => item.id));
           }}
-          onRequestHelp={taskName => onRequestHumanHelp?.({ topic: taskName, destination: destinationCountry || destination })}
+          onRequestHelp={taskName => onRequestHumanHelp?.({ topic: taskName, destination: planningDestination(destination, destinationCountry) })}
           onAddPreparation={onAddPreparationItems}
           tripStartDate={tripStartDate}
           onRevise={handleRevisePlan}
