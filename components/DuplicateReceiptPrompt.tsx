@@ -217,18 +217,28 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = '
                 : '全部分開記，直接匯入'}
           </button>
           {/*
-            No cancel. The receipts are read either way; the only question this
-            screen asks is how many bills they become, and closing it without
-            answering would leave the import half done.
+            Only while there is something to abandon.
+
+            「這兩個按鈕是一樣的意思」 — and with nothing ticked they were not
+            merely similar, they ran the same line: `merging` is empty, so
+            both called `onResolve([])` under two labels claiming to be
+            different choices.
+
+            It earns its place once a pair is ticked, as the way back out
+            without unticking each one. No cancel beyond that: the receipts
+            are read either way, and the only question this screen asks is
+            how many bills they become.
           */}
-          <button
-            type="button"
-            data-testid="keep-all-separate"
-            onClick={() => onResolve([])}
-            className="mt-2 w-full py-2 text-xs font-bold text-slate-400"
-          >
-            都不是重複的，全部分開記
-          </button>
+          {merging.length > 0 && (
+            <button
+              type="button"
+              data-testid="keep-all-separate"
+              onClick={() => onResolve([])}
+              className="mt-2 w-full py-2 text-xs font-bold text-slate-400"
+            >
+              都不是重複的，全部分開記
+            </button>
+          )}
         </div>
       </div>
     </div>

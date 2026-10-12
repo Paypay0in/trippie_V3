@@ -118,6 +118,7 @@ import {
 } from "./services/expenseMigration";
 import {
   canEditExpense,
+  isExpenseCreator,
   resolveExpenseDeleteRequest,
 } from "./services/expensePermissions";
 import {
@@ -1474,8 +1475,27 @@ const App: React.FC = () => {
     if (ledgerScannedForRef.current === tripId) return;
     ledgerScannedForRef.current = tripId;
 
+    /*
+      Only the viewer's own bills.
+
+      「目前這個畫面是出現在Gina的帳本 然後這些是我的帳」. The scan read every
+      expense on a shared trip, so the second traveller was shown his receipts
+      and asked whether to merge them — and merging is an edit, which
+      `canEditExpense` gives to the creator alone. The screen was asking her
+      to do something the permission layer would have refused.
+
+      Filtered on the way in rather than on the way out, so a pair can never
+      contain somebody else's record even by accident: a merge rewrites both
+      halves, so both have to be hers.
+    */
+    const mine = expenses.filter(expense => isExpenseCreator({
+      expense,
+      viewerMemberId,
+      tripOwnerMemberId: activeOwnerMemberId,
+    }));
+
     const pairs = stillWorthAsking(
-      findDuplicateReceipts({ incoming: expenses }),
+      findDuplicateReceipts({ incoming: mine }),
       dismissedDuplicatesRef.current,
       tripId,
     );
@@ -5725,7 +5745,18 @@ const App: React.FC = () => {
     ];
     const duplicates = findDuplicateReceipts({
       incoming,
-      existing: [...expenses, ...tripHistory.flatMap((trip) => trip.expenses)],
+      /*
+        Compared only against the viewer's own history, for the same reason
+        the ledger scan is: a receipt of theirs that looks like one of
+        somebody else's is not an invitation to merge the two. The incoming
+        receipts are theirs by definition — they just read them.
+      */
+      existing: [...expenses, ...tripHistory.flatMap((trip) => trip.expenses)]
+        .filter(expense => isExpenseCreator({
+          expense,
+          viewerMemberId,
+          tripOwnerMemberId: activeOwnerMemberId,
+        })),
     });
     /*
       Asked after the bills land, not instead of them.
