@@ -8,7 +8,7 @@ import { resolvePlace } from '../services/placeService';
 import { flightAnchorsFromParsed, normalizeParsedFlight } from '../services/flightIntake';
 import { ItineraryItem, FlightAnchor } from '../types';
 import { readScreenshot } from '../services/screenshotIntake';
-import { AnchorContradiction, anchorContradictions } from '../services/anchorContradictions';
+import { AnchorContradiction, anchorContradictions, contradictionHeadline } from '../services/anchorContradictions';
 import { ParsedFlight } from '../services/flightIntake';
 
 /**
@@ -68,6 +68,8 @@ interface Props {
  * which.
  */
 interface HeldFlight {
+  /** The question, as one sentence. See `contradictionHeadline`. */
+  headline: string;
   anchors: FlightAnchor[];
   /** The legs as read, kept so a new trip can be derived from them. */
   flights: ParsedFlight[];
@@ -186,7 +188,13 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         */
         const against = anchorContradictions({ anchors, destination, tripStartDate, tripEndDate });
         if (against.length > 0) {
-          setHeld({ anchors, flights: read, contradictions: against });
+          const check = { anchors, destination, tripStartDate, tripEndDate };
+          setHeld({
+            headline: contradictionHeadline(against, check),
+            anchors,
+            flights: read,
+            contradictions: against,
+          });
           return;
         }
 
@@ -248,7 +256,9 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       */}
       {held && (
         <div data-testid="plan-flight-confirm" className="mt-2 rounded-xl bg-amber-50 px-3 py-2.5 text-left">
-          <p className="text-xs font-black text-amber-900">這張機票跟這趟旅程對不起來</p>
+          <p data-testid="plan-flight-confirm-headline" className="text-xs font-black leading-5 text-amber-900">
+            {held.headline || '這張機票跟這趟旅程對不起來'}
+          </p>
           <ul className="mt-1.5 space-y-1">
             {held.contradictions.map(item => (
               <li key={`${item.anchorId}-${item.kind}`} className="text-[11px] leading-4 text-amber-800">

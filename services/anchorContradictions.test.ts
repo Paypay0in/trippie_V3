@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anchorContradictions, anchorsAreTrustworthy } from './anchorContradictions';
+import { anchorContradictions, anchorsAreTrustworthy, contradictionHeadline } from './anchorContradictions';
 
 /**
  * 「有一個問題點：我的標題是沖繩」.
@@ -133,5 +133,52 @@ describe('the airport', () => {
       tripEndDate: '2026-11-10',
       anchors: [anchor()],
     })).toEqual([]);
+  });
+});
+
+/**
+ * 「這張票是成田，但旅程是沖繩，確定嗎？」 — the Founder's own wording.
+ *
+ * Better than the heading it replaced. 「航班跟這趟旅程對不起來」 states a
+ * verdict and then makes the reader assemble the two facts from a list; this
+ * puts them side by side, which is the comparison being asked about.
+ */
+describe('the question, in one sentence', () => {
+  const headlineFor = (input: Parameters<typeof contradictionHeadline>[1]) =>
+    contradictionHeadline(anchorContradictions(input), input);
+
+  it('puts the ticket and the trip next to each other', () => {
+    const text = headlineFor({
+      ...trip,
+      anchors: [anchor({
+        departureDate: '2026-10-20',
+        arrivalAirport: 'NRT · Narita International Airport',
+      })],
+    });
+
+    expect(text).toContain('2026-10-20');
+    expect(text).toContain('Narita International Airport');
+    expect(text).toContain('日本沖繩');
+    expect(text).toContain('2026-11-05 – 2026-11-10');
+    expect(text.endsWith('確定嗎？')).toBe(true);
+    // The IATA prefix is dropped; the name is what a traveller reads.
+    expect(text).not.toContain('NRT ·');
+  });
+
+  it('says only the half that disagrees', () => {
+    const dateOnly = headlineFor({ ...trip, anchors: [anchor({ departureDate: '2026-10-20' })] });
+    expect(dateOnly).toContain('2026-10-20');
+    expect(dateOnly).not.toContain('日本沖繩');
+
+    const airportOnly = headlineFor({
+      ...trip,
+      anchors: [anchor({ arrivalAirport: 'NRT · Narita International Airport' })],
+    });
+    expect(airportOnly).toContain('日本沖繩');
+    expect(airportOnly).not.toContain('2026-11-05');
+  });
+
+  it('says nothing when nothing disagrees', () => {
+    expect(headlineFor({ ...trip, anchors: [anchor()] })).toBe('');
   });
 });

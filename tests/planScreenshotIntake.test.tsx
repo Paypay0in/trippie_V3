@@ -233,8 +233,14 @@ describe('the screenshot entry', () => {
     upload();
 
     const confirm = await screen.findByTestId('plan-flight-confirm');
+    // 「這張票是成田，但旅程是沖繩，確定嗎？」 — both facts in one sentence,
+    // first, rather than a verdict followed by a list to assemble.
+    const headline = screen.getByTestId('plan-flight-confirm-headline').textContent || '';
+    expect(headline).toContain('這張票是');
+    expect(headline).toContain('Narita International Airport');
+    expect(headline).toContain('日本沖繩');
+    expect(headline.endsWith('確定嗎？')).toBe(true);
     expect(confirm.textContent).toContain('2026-10-20');
-    expect(confirm.textContent).toContain('Narita');
     // Nothing is filed while the question is open; neither answer is default.
     expect(onAddFlightAnchors).not.toHaveBeenCalled();
   });

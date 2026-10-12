@@ -116,3 +116,52 @@ export const anchorContradictions = ({
  */
 export const anchorsAreTrustworthy = (input: AnchorCheckInput): boolean =>
   anchorContradictions(input).length === 0;
+
+/**
+ * The whole disagreement in one sentence, ending in a question.
+ *
+ * 「這張票是成田，但旅程是沖繩，確定嗎？」 — the Founder's own wording, and
+ * better than the heading it replaced. 「航班跟這趟旅程對不起來」 states a
+ * verdict and then makes the reader assemble the two facts from a list; this
+ * puts them side by side, which is the comparison being asked about.
+ *
+ * Both halves when both disagree, because a ticket that is the wrong city
+ * *and* the wrong month is a different situation from either alone — it is
+ * almost certainly another trip.
+ */
+const shortAirport = (airport: string): string => {
+  // 「NRT · Narita International Airport」 → 「Narita International Airport」.
+  const named = airport.split('·').pop()?.trim();
+  return named || airport.trim();
+};
+
+export const contradictionHeadline = (
+  found: AnchorContradiction[],
+  { anchors, destination, tripStartDate, tripEndDate }: AnchorCheckInput,
+): string => {
+  if (found.length === 0) return '';
+
+  const dateOf = found.find(item => item.kind === 'date');
+  const airportOf = found.find(item => item.kind === 'airport');
+
+  const ticket: string[] = [];
+  const trip: string[] = [];
+
+  if (dateOf) {
+    const anchor = anchors.find(candidate => candidate.id === dateOf.anchorId);
+    if (anchor?.departureDate) ticket.push(anchor.departureDate);
+    if (tripStartDate && tripEndDate) trip.push(`${tripStartDate} – ${tripEndDate}`);
+  }
+
+  if (airportOf) {
+    const anchor = anchors.find(candidate => candidate.id === airportOf.anchorId);
+    const airport = anchor
+      ? (anchor.direction === 'OUTBOUND' ? anchor.arrivalAirport : anchor.departureAirport)
+      : undefined;
+    if (airport) ticket.push(shortAirport(airport));
+    if (destination) trip.push(destination);
+  }
+
+  if (ticket.length === 0 || trip.length === 0) return '';
+  return `這張票是${ticket.join('・')}，但旅程是${trip.join('・')}，確定嗎？`;
+};
