@@ -58,7 +58,8 @@ import { communityHighlights } from '../services/communityHighlights';
 import { todoLinksFor } from '../services/todoLinks';
 import { BriefQuestion } from '../services/travellerBrief';
 import { ANCHOR_LABEL, anchorsBrief, missingAnchors } from '../services/planningAnchors';
-import type { FlightAnchor } from '../types';
+import type { FlightAnchor, ItineraryItem as PlanItineraryItem } from '../types';
+import type { FlightArrival } from '../services/stayIntake';
 import type { StaySpan } from '../services/stayIntake';
 import PlanScreenshotIntake from './PlanScreenshotIntake';
 import type { ParsedRental } from '../services/rentalIntake';
@@ -92,6 +93,15 @@ interface Props {
   /** 「新增一個上傳截圖的入口」. Omit to hide the entry entirely. */
   onAddRentalFromScreenshot?: (rental: ParsedRental) => void;
   onSavePlacesFromScreenshot?: (slices: ItinerarySlice[]) => Promise<number> | number;
+  /*
+    The other two kinds, filed here rather than sent to another screen.
+
+    「這個不能直接讓用戶在這個介面上傳」 — this card refuses to plan without
+    flights and a hotel, so the upload under that refusal has to accept them.
+  */
+  onAddStayItemsFromScreenshot?: (items: PlanItineraryItem[]) => void;
+  onAddFlightAnchorsFromScreenshot?: (anchors: FlightAnchor[]) => void;
+  screenshotFlightArrivals?: FlightArrival[];
   expenses: Expense[];
   shoppingList: ShoppingItem[];
   itinerary: ItineraryItem[];
@@ -214,7 +224,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -1024,12 +1034,16 @@ const TripPlanOverview: React.FC<Props> = ({
           this is the moment the traveller is being asked what the trip should
           be, and the answer is usually a screenshot they already saved.
         */}
-        {onAddRentalFromScreenshot && onSavePlacesFromScreenshot && (
+        {onAddRentalFromScreenshot && onSavePlacesFromScreenshot
+          && onAddStayItemsFromScreenshot && onAddFlightAnchorsFromScreenshot && (
           <PlanScreenshotIntake
             destination={destination}
             destinationCountry={destinationCountry}
             onAddRental={onAddRentalFromScreenshot}
             onSavePlaces={onSavePlacesFromScreenshot}
+            onAddStayItems={onAddStayItemsFromScreenshot}
+            onAddFlightAnchors={onAddFlightAnchorsFromScreenshot}
+            flightArrivals={screenshotFlightArrivals}
           />
         )}
 

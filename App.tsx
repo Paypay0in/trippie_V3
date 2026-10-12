@@ -7459,6 +7459,9 @@ const App: React.FC = () => {
                 onAddAnchors={openAnchorCards}
                 onAddRentalFromScreenshot={addRentalFromScreenshot}
                 onSavePlacesFromScreenshot={handleSaveScreenshotPlaces}
+                onAddStayItemsFromScreenshot={handleAddStayItems}
+                onAddFlightAnchorsFromScreenshot={anchors => setFlightAnchors(current => dedupeFlightAnchors([...current, ...anchors]) || [])}
+                screenshotFlightArrivals={flightArrivals(flightAnchors)}
                 onPublishServiceRequest={handlePublishServiceRequest}
                 expenses={expenses}
                 shoppingList={shoppingList}
@@ -7567,6 +7570,9 @@ const App: React.FC = () => {
               onAddAnchors={openAnchorCards}
               onAddRentalFromScreenshot={addRentalFromScreenshot}
               onSavePlacesFromScreenshot={handleSaveScreenshotPlaces}
+              onAddStayItemsFromScreenshot={handleAddStayItems}
+              onAddFlightAnchorsFromScreenshot={anchors => setFlightAnchors(current => dedupeFlightAnchors([...current, ...anchors]) || [])}
+              screenshotFlightArrivals={flightArrivals(flightAnchors)}
               onPublishServiceRequest={handlePublishServiceRequest}
               variant="reference"
               expenses={expenses}

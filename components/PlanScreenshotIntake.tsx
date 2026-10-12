@@ -2,6 +2,9 @@ import React, { useRef, useState } from 'react';
 import { ImagePlus, Loader2 } from 'lucide-react';
 import { ParsedRental } from '../services/rentalIntake';
 import { ItinerarySlice } from '../services/itineraryImageSlices';
+import { FlightArrival, ParsedStay, stayToItineraryItems } from '../services/stayIntake';
+import { flightAnchorsFromParsed, normalizeParsedFlight } from '../services/flightIntake';
+import { ItineraryItem, FlightAnchor } from '../types';
 import { readScreenshot } from '../services/screenshotIntake';
 
 /**
@@ -28,24 +31,24 @@ interface Props {
   onAddRental: (rental: ParsedRental) => void;
   /** Places go to the collection, not onto a day. Returns how many landed. */
   onSavePlaces: (slices: ItinerarySlice[]) => Promise<number> | number;
+  /** The booking's own cards, exactly as 住宿資訊 adds them. */
+  onAddStayItems: (items: ItineraryItem[]) => void;
+  /** Appended to the trip's anchors, as 航班資訊 would. */
+  onAddFlightAnchors: (anchors: FlightAnchor[]) => void;
+  /** Lets a check-in time follow the landing time, as the stay card does. */
+  flightArrivals?: FlightArrival[];
 }
 
-/**
- * The two kinds this entry acts on.
- *
- * A stay and a flight are classified and handed back unparsed. Each has a
- * card that does more than record it — it works out the nights, or the two
- * legs the first night is timed from — and a booking filed here without that
- * lands on the trip with nothing hanging off it. Naming them here means the
- * second model call is never spent on a document this screen would refuse.
- */
-const HANDLES = ['rental', 'inspiration'] as const;
+const makeId = () => `shot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const PlanScreenshotIntake: React.FC<Props> = ({
   destination,
   destinationCountry,
   onAddRental,
   onSavePlaces,
+  onAddStayItems,
+  onAddFlightAnchors,
+  flightArrivals = [],
 }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -69,8 +72,6 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         mimeType: file.type,
         destination,
         destinationCountry,
-        // A room and a flight are classified and then left alone: see below.
-        handles: HANDLES,
       });
 
       if ('rental' in result) {
@@ -80,20 +81,40 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       }
 
       /*
-        Pointed at the right card rather than half-filed.
+        Filed here, not redirected.
 
-        A stay and a flight each have a card that does more than record them —
-        it works out the nights, or the two legs and the arrival the first
-        night is timed from. Dropping a booking in here without that would
-        put a hotel on the trip with nothing hanging off it, and the gap only
-        shows up later as a night nobody has a room for.
+        「這個不能直接讓用戶在這個介面上傳」. This screen tells the traveller it
+        cannot plan without their flights and their hotel, and the upload
+        directly under that message used to refuse exactly those two and send
+        them somewhere else. Two cards on one screen arguing with each other.
+
+        Both go through the conversions their own cards use — the nights, and
+        the two legs — so what lands is the same record, however it arrived.
       */
-      if (result.kind === 'stay') {
-        setError('這看起來是訂房截圖，用上面的「住宿資訊」上傳，才會算進住幾晚。');
+      if ('stay' in result) {
+        const items = stayToItineraryItems(result.stay, makeId, flightArrivals) as ItineraryItem[];
+        onAddStayItems(items);
+        setDone(`讀到住宿：${result.stay.hotelName}，已加到行程。`);
         return;
       }
-      if (result.kind === 'flight') {
-        setError('這看起來是機票截圖，用上面的「航班資訊」上傳，去回程才會分開放對。');
+
+      if ('flights' in result) {
+        // The route answers { OUTBOUND?, RETURN? }. The direction comes from
+        // the key rather than the body: the key is what the server decided,
+        // and a leg disagreeing with its own slot would file two outbounds
+        // and lose the return date.
+        const legs = result.flights as Record<string, unknown>;
+        const read = (['OUTBOUND', 'RETURN'] as const).flatMap(direction => {
+          const parsed = normalizeParsedFlight(legs?.[direction]);
+          return parsed ? [{ ...parsed, direction }] : [];
+        });
+        const anchors = flightAnchorsFromParsed(read, makeId);
+        if (anchors.length === 0) {
+          setError('這張機票讀不出完整的日期與時間，請用航班資訊手動確認。');
+          return;
+        }
+        onAddFlightAnchors(anchors);
+        setDone(`讀到 ${anchors.length} 段航班，已加到航班資訊。`);
         return;
       }
 
@@ -138,7 +159,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         {busy ? '讀取截圖中…' : '上傳截圖'}
       </button>
       <p className="mt-1.5 text-center text-[11px] leading-4 text-slate-400">
-        旅行靈感、租車訂單、訂好的票券截圖都可以，我讀出來幫你排
+機票、訂房、租車訂單、旅行靈感截圖都可以，我讀出來放到對的地方
       </p>
 
       {error && (

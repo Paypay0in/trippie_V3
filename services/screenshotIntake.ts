@@ -21,23 +21,13 @@ export type ScreenshotResult =
   | { kind: 'rental'; rental: ParsedRental }
   | { kind: 'stay'; stay: ParsedStay }
   | { kind: 'flight'; flights: unknown }
-  | { kind: 'inspiration'; slices: ItinerarySlice[] }
-  /**
-   * Classified, deliberately not parsed.
-   *
-   * A caller that cannot act on a kind says so up front, and then the second
-   * call is never made. Parsing a booking only to refuse it spends a model
-   * call on an answer nobody reads, and leaves the traveller waiting for it.
-   */
-  | { kind: ScreenshotKind; elsewhere: true };
+  | { kind: 'inspiration'; slices: ItinerarySlice[] };
 
 export interface ScreenshotInput {
   base64Data: string;
   mimeType?: string;
   destination?: string;
   destinationCountry?: string;
-  /** Kinds this caller can act on. Omit to accept all four. */
-  handles?: readonly ScreenshotKind[];
 }
 
 /**
@@ -84,7 +74,6 @@ const refusal = '這張截圖讀不出完整的訂單，請改用該區塊的上
 
 export const readScreenshot = async (input: ScreenshotInput): Promise<ScreenshotResult> => {
   const kind = await classifyScreenshot(input);
-  if (input.handles && !input.handles.includes(kind)) return { kind, elsewhere: true };
   const route = routeFor(kind);
   const picture = { base64Data: input.base64Data, mimeType: input.mimeType };
 

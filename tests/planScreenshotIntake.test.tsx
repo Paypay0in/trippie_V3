@@ -33,16 +33,20 @@ afterEach(() => {
 const mount = (props: Partial<React.ComponentProps<typeof PlanScreenshotIntake>> = {}) => {
   const onAddRental = vi.fn<(rental: ParsedRental) => void>();
   const onSavePlaces = vi.fn<(slices: ItinerarySlice[]) => Promise<number>>(async () => 2);
+  const onAddStayItems = vi.fn();
+  const onAddFlightAnchors = vi.fn();
   render(
     <PlanScreenshotIntake
       destination="沖繩"
       destinationCountry="日本"
       onAddRental={onAddRental}
       onSavePlaces={onSavePlaces}
+      onAddStayItems={onAddStayItems}
+      onAddFlightAnchors={onAddFlightAnchors}
       {...props}
     />,
   );
-  return { onAddRental, onSavePlaces };
+  return { onAddRental, onSavePlaces, onAddStayItems, onAddFlightAnchors };
 };
 
 const upload = () => fireEvent.change(screen.getByTestId('plan-screenshot-file'), {
@@ -50,13 +54,13 @@ const upload = () => fireEvent.change(screen.getByTestId('plan-screenshot-file')
 });
 
 describe('the screenshot entry', () => {
-  it('offers one upload for all three kinds the Founder named', () => {
+  it('offers one upload for everything the trip needs', () => {
     mount();
     expect(screen.getByTestId('plan-screenshot-upload')).toBeTruthy();
     // 靈感、租車、票券 — the traveller is told what may be thrown at it,
     // because an upload button that does not say what it takes gets used
     // for one thing only.
-    const hint = screen.getByText(/旅行靈感、租車訂單、訂好的票券截圖都可以/);
+    const hint = screen.getByText(/機票、訂房、租車訂單、旅行靈感截圖都可以/);
     expect(hint).toBeTruthy();
   });
 
@@ -93,26 +97,83 @@ describe('the screenshot entry', () => {
   });
 
   /**
-   * A room and a flight are sent to their own cards rather than half-filed.
+   * 「這個不能直接讓用戶在這個介面上傳」.
    *
-   * Those cards work out the nights, and the two legs the first night is
-   * timed from. A booking dropped in here without that lands on the trip with
-   * nothing hanging off it, and the gap shows up later as a night nobody has
-   * a room for.
+   * These two used to be classified and then refused, with the traveller sent
+   * to another screen — on a card whose own message says it cannot plan
+   * without them. Two things on one screen arguing with each other.
    */
-  it('points a booking at the card that knows what to do with it', async () => {
-    const fetched = vi.fn(() => Promise.resolve(ok({ kind: 'stay' })));
-    vi.stubGlobal('fetch', fetched);
-    const { onAddRental, onSavePlaces } = mount();
+  it('files a hotel booking from here', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'stay' })
+        : ok({
+            hotelName: '博多站前飯店',
+            address: '福岡市博多區',
+            checkInDate: '2026-11-05',
+            checkOutDate: '2026-11-10',
+          }),
+    )));
+
+    const { onAddStayItems } = mount();
     upload();
 
-    await screen.findByText(/住宿資訊/);
-    expect(onAddRental).not.toHaveBeenCalled();
-    expect(onSavePlaces).not.toHaveBeenCalled();
-    // Classified and then left alone: parsing a booking only to refuse it
-    // spends a model call on an answer nobody reads, and makes the traveller
-    // wait out the parse before being told to use another card.
-    expect(fetched).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onAddStayItems).toHaveBeenCalledTimes(1));
+    // The booking's own cards, through the conversion 住宿資訊 uses — what
+    // lands has to be the same record however it arrived.
+    expect(onAddStayItems.mock.calls[0]?.[0].length).toBeGreaterThan(0);
+    await screen.findByText(/博多站前飯店/);
+  });
+
+  it('files both legs of a flight from here', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'flight' })
+        : ok({
+            OUTBOUND: {
+              departureAirport: '桃園國際機場',
+              departureDate: '2026-11-05',
+              departureTime: '14:20',
+              arrivalAirport: '福岡機場',
+              arrivalDate: '2026-11-05',
+              arrivalTime: '18:40',
+            },
+            RETURN: {
+              departureAirport: '福岡機場',
+              departureDate: '2026-11-10',
+              departureTime: '09:15',
+            },
+          }),
+    )));
+
+    const { onAddFlightAnchors } = mount();
+    upload();
+
+    await waitFor(() => expect(onAddFlightAnchors).toHaveBeenCalledTimes(1));
+    const anchors = onAddFlightAnchors.mock.calls[0]?.[0] as Array<{ direction: string }>;
+    expect(anchors).toHaveLength(2);
+    // The direction comes from the envelope key, not the body: a leg that
+    // disagreed with its own slot would file two outbounds.
+    expect(anchors.map(anchor => anchor.direction)).toEqual(['OUTBOUND', 'RETURN']);
+    await screen.findByText(/讀到 2 段航班/);
+  });
+
+  /**
+   * A leg with no time anchors nothing, and everything downstream is built
+   * from the date and the hour. Refused rather than filed with a blank.
+   */
+  it('refuses a flight it could not fully read', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'flight' })
+        : ok({ OUTBOUND: { departureAirport: '桃園國際機場', departureDate: '2026-11-05' } }),
+    )));
+
+    const { onAddFlightAnchors } = mount();
+    upload();
+
+    await screen.findByText(/讀不出完整的日期與時間/);
+    expect(onAddFlightAnchors).not.toHaveBeenCalled();
   });
 
   it('shows the server message when reading fails', async () => {

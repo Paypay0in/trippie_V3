@@ -224,3 +224,46 @@ export const applyFlightToDraft = (
     if (flight.arrivalTime) next.arrivalTime = flight.arrivalTime;
     return next;
   });
+
+/**
+ * A read boarding pass, as the anchor the trip is planned around.
+ *
+ * 「這個不能直接讓用戶在這個介面上傳」 — the planning card tells the traveller
+ * it needs their flights, and the upload sitting directly under that message
+ * used to refuse exactly those screenshots and send them to another screen.
+ * This is the conversion that lets the one entry answer its own demand.
+ *
+ * `FlightAnchor` requires a date, a time and a departure airport because
+ * everything downstream is built from those three: which hours of which day
+ * are gone, and where the traveller is standing when the trip starts. A leg
+ * missing any of them is dropped rather than filed with a blank — the same
+ * refusal `normalizeParsedRental` makes for a hire with no company.
+ */
+export const flightAnchorsFromParsed = (
+  flights: ParsedFlight[],
+  makeId: () => string,
+): FlightAnchor[] => flights.flatMap(flight => {
+  const { direction, departureDate, departureTime, departureAirport } = flight;
+  if (!direction || !departureDate || !departureTime || !departureAirport) return [];
+
+  const anchor: FlightAnchor = {
+    id: makeId(),
+    direction,
+    departureDate,
+    departureTime,
+    departureAirport,
+    // The same two the manual form starts every anchor with. A screenshot
+    // does not say how early somebody wants to be at the airport, and
+    // `source` stays MANUAL because the traveller still owns and edits it.
+    airportArrivalBufferMinutes: 120,
+    source: 'MANUAL',
+  };
+
+  if (flight.departureAirportIata) anchor.departureAirportIata = flight.departureAirportIata;
+  if (flight.arrivalAirport) anchor.arrivalAirport = flight.arrivalAirport;
+  if (flight.arrivalAirportIata) anchor.arrivalAirportIata = flight.arrivalAirportIata;
+  if (flight.arrivalDate) anchor.arrivalDate = flight.arrivalDate;
+  if (flight.arrivalTime) anchor.arrivalTime = flight.arrivalTime;
+
+  return [anchor];
+});
