@@ -58,6 +58,7 @@ import { communityHighlights } from '../services/communityHighlights';
 import { todoLinksFor } from '../services/todoLinks';
 import { BriefQuestion } from '../services/travellerBrief';
 import { ANCHOR_LABEL, anchorsBrief, missingAnchors } from '../services/planningAnchors';
+import { anchorContradictions } from '../services/anchorContradictions';
 import type { FlightAnchor, ItineraryItem as PlanItineraryItem } from '../types';
 import type { FlightArrival } from '../services/stayIntake';
 import type { StaySpan } from '../services/stayIntake';
@@ -405,7 +406,7 @@ const TripPlanOverview: React.FC<Props> = ({
         endDate: tripEndDate,
         daysBrief: tripDaysBrief(planDays),
         travellerBrief,
-        anchorsBrief: anchorsBrief({ flightAnchors, stays }),
+        anchorsBrief: contradictions.length > 0 ? '' : anchorsBrief({ flightAnchors, stays }),
         budgetBrief,
         revising: { plan, feedback },
       });
@@ -452,6 +453,25 @@ const TripPlanOverview: React.FC<Props> = ({
     exactly like one written with it, right up to the day they try to use it.
   */
   const missing = missingAnchors({ flightAnchors, stays });
+
+  /*
+    Flights that disagree with the trip they are on.
+
+    「有一個問題點：我的標題是沖繩」 — a 沖繩 trip, 11/05–11/10, carrying a
+    ticket to 成田 on 10/20. Both facts sat on the same screen and nothing
+    read them together.
+
+    The planner is fed these as fact now, so a contradicted anchor is
+    withheld from the brief rather than sent with a caveat: the model cannot
+    weigh our doubt against our own precise times. See
+    `anchorContradictions`.
+  */
+  const contradictions = anchorContradictions({
+    anchors: flightAnchors,
+    destination,
+    tripStartDate,
+    tripEndDate,
+  });
 
   /*
     One upload, placed by what the trip still needs.
@@ -513,7 +533,7 @@ const TripPlanOverview: React.FC<Props> = ({
         daysBrief: tripDaysBrief(planDays),
         travellerBrief,
         // The flights and the hotel, which the planner never used to see.
-        anchorsBrief: anchorsBrief({ flightAnchors, stays }),
+        anchorsBrief: contradictions.length > 0 ? '' : anchorsBrief({ flightAnchors, stays }),
         budgetBrief,
       });
       setPlanOptions(result.options);
@@ -979,6 +999,31 @@ const TripPlanOverview: React.FC<Props> = ({
           <p data-testid="plan-brief-empty" className="mb-3 rounded-2xl bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">
             這趟還沒有旅行計畫表單，AI 只會看到你寫的這句話。
           </p>
+        )}
+
+        {/*
+          The contradiction, named on the screen that caused it.
+
+          「有一個問題點：我的標題是沖繩」. Shown above the box rather than inside
+          the flight card, because this is where the consequence lands: the
+          planner is not being told about these flights, and somebody who
+          cannot see why would only notice that its plans ignore their
+          arrival time.
+        */}
+        {contradictions.length > 0 && (
+          <div data-testid="plan-anchor-contradictions" className="mb-3 rounded-2xl bg-amber-50 px-3 py-2.5">
+            <p className="text-[11px] font-black text-amber-800">航班跟這趟旅程對不起來</p>
+            <ul className="mt-1.5 space-y-1">
+              {contradictions.map(item => (
+                <li key={`${item.anchorId}-${item.kind}`} className="text-[11px] leading-4 text-amber-800">
+                  {item.message}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[11px] leading-4 text-amber-700">
+              先改成對的，AI 才會依照落地時間安排 —— 在這之前它不會看到這些航班。
+            </p>
+          </div>
         )}
 
         {missing.length > 0 ? (

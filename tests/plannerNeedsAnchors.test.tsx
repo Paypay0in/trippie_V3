@@ -30,7 +30,7 @@ const flight = {
   departureAirport: '桃園國際機場',
   arrivalDate: '2026-11-05',
   arrivalTime: '18:40',
-  arrivalAirport: '福岡機場',
+  arrivalAirport: 'OKA · Naha Airport',
 };
 
 const stay = {
@@ -51,7 +51,7 @@ const mount = (props: Partial<Props> = {}) => render(
     itinerary={[]}
     companionCount={1}
     dateRange="2026/11/05 - 2026/11/10"
-    destination="福岡"
+    destination="日本沖繩"
     destinationCountry="日本"
     tripStartDate="2026-11-05"
     tripEndDate="2026-11-10"
@@ -140,11 +140,55 @@ describe('a trip with no flights and no hotel', () => {
   });
 });
 
+/**
+ * 「有一個問題點：我的標題是沖繩」.
+ *
+ * The trip was 沖繩 11/05–11/10 and the flights were to 成田 on 10/20. The
+ * gate was satisfied — there were flights and there was a hotel — so the
+ * planner would have been told those dates and that airport as fact.
+ */
+describe('a trip whose flights contradict it', () => {
+  const wrongFlight = { ...flight, departureDate: '2026-10-20', arrivalAirport: 'NRT · Narita International Airport' };
+
+  it('says so, on the screen where the consequence lands', () => {
+    mount({ flightAnchors: [wrongFlight] as never, stays: [stay] as never });
+
+    const warning = screen.getByTestId('plan-anchor-contradictions');
+    expect(warning.textContent).toContain('2026-10-20');
+    expect(warning.textContent).toContain('不會看到這些航班');
+  });
+
+  /**
+   * And the contradicted facts are withheld rather than sent with a caveat.
+   * The model has no way to weigh our doubt against our own precise times.
+   */
+  it('does not tell the planner the flights it does not trust', async () => {
+    const sent: string[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+      sent.push(String(init?.body));
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ requestId: 'r-1', options: [], sources: [], grounded: true }),
+      } as unknown as Response);
+    }));
+
+    mount({ flightAnchors: [wrongFlight] as never, stays: [stay] as never });
+    fireEvent.change(screen.getByPlaceholderText(/例如：我想滑雪/), { target: { value: '想走走' } });
+    fireEvent.click(screen.getByText('AI 幫我想方案'));
+
+    await waitFor(() => expect(sent.length).toBeGreaterThan(0));
+    const body = sent.find(entry => entry.includes('anchorsBrief')) || '';
+    expect(body).not.toContain('2026-10-20');
+    expect(body).not.toContain('Narita');
+  });
+});
+
 describe('a trip that has both', () => {
   it('lets the traveller ask', () => {
     mount({ flightAnchors: [flight] as never, stays: [stay] as never });
 
     expect(screen.queryByTestId('plan-anchors-required')).toBeNull();
+    expect(screen.queryByTestId('plan-anchor-contradictions')).toBeNull();
     expect(screen.getByText('AI 幫我想方案')).toBeTruthy();
   });
 
