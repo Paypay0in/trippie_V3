@@ -37,12 +37,14 @@ const mount = (props: Partial<React.ComponentProps<typeof PlanScreenshotIntake>>
   const onAddFlightAnchors = vi.fn();
   render(
     <PlanScreenshotIntake
-      destination="沖繩"
+      destination="日本沖繩"
       destinationCountry="日本"
       onAddRental={onAddRental}
       onSavePlaces={onSavePlaces}
       onAddStayItems={onAddStayItems}
       onAddFlightAnchors={onAddFlightAnchors}
+      tripStartDate="2026-11-05"
+      tripEndDate="2026-11-10"
       {...props}
     />,
   );
@@ -173,12 +175,12 @@ describe('the screenshot entry', () => {
               departureAirport: '桃園國際機場',
               departureDate: '2026-11-05',
               departureTime: '14:20',
-              arrivalAirport: '福岡機場',
+              arrivalAirport: 'OKA · Naha Airport',
               arrivalDate: '2026-11-05',
               arrivalTime: '18:40',
             },
             RETURN: {
-              departureAirport: '福岡機場',
+              departureAirport: 'OKA · Naha Airport',
               departureDate: '2026-11-10',
               departureTime: '09:15',
             },
@@ -201,6 +203,80 @@ describe('the screenshot entry', () => {
    * A leg with no time anchors nothing, and everything downstream is built
    * from the date and the hour. Refused rather than filed with a blank.
    */
+  /**
+   * 「應該要跳出提示詢問用戶」.
+   *
+   * A ticket to 成田 on a 沖繩 trip is either the wrong picture or a
+   * connection. Filing it quietly means the planner is later told a landing
+   * time for a different journey as fact — so it is held and asked about at
+   * the moment the picture was chosen, not reported later on another card.
+   */
+  it('asks before filing a flight that disagrees with the trip', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'flight' })
+        : ok({
+            OUTBOUND: {
+              departureAirport: '桃園國際機場',
+              departureDate: '2026-10-20',
+              departureTime: '06:35',
+              arrivalAirport: 'NRT · Narita International Airport',
+              arrivalDate: '2026-10-20',
+              arrivalTime: '11:00',
+            },
+          }),
+    )));
+
+    const { onAddFlightAnchors } = mount();
+    upload();
+
+    const confirm = await screen.findByTestId('plan-flight-confirm');
+    expect(confirm.textContent).toContain('2026-10-20');
+    expect(confirm.textContent).toContain('Narita');
+    // Nothing is filed while the question is open; neither answer is default.
+    expect(onAddFlightAnchors).not.toHaveBeenCalled();
+  });
+
+  it('files it anyway when the traveller says it is right', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'flight' })
+        : ok({ OUTBOUND: {
+            departureAirport: '桃園國際機場',
+            departureDate: '2026-10-20',
+            departureTime: '06:35',
+            arrivalAirport: 'NRT · Narita International Airport',
+          } }),
+    )));
+
+    const { onAddFlightAnchors } = mount();
+    upload();
+
+    fireEvent.click(await screen.findByTestId('plan-flight-confirm-add'));
+    expect(onAddFlightAnchors).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('plan-flight-confirm')).toBeNull();
+  });
+
+  it('drops it when the traveller says it was the wrong picture', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'flight' })
+        : ok({ OUTBOUND: {
+            departureAirport: '桃園國際機場',
+            departureDate: '2026-10-20',
+            departureTime: '06:35',
+            arrivalAirport: 'NRT · Narita International Airport',
+          } }),
+    )));
+
+    const { onAddFlightAnchors } = mount();
+    upload();
+
+    fireEvent.click(await screen.findByTestId('plan-flight-confirm-cancel'));
+    expect(onAddFlightAnchors).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('plan-flight-confirm')).toBeNull();
+  });
+
   it('refuses a flight it could not fully read', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
       url === '/api/screenshots/kind'

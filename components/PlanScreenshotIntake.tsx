@@ -8,6 +8,7 @@ import { resolvePlace } from '../services/placeService';
 import { flightAnchorsFromParsed, normalizeParsedFlight } from '../services/flightIntake';
 import { ItineraryItem, FlightAnchor } from '../types';
 import { readScreenshot } from '../services/screenshotIntake';
+import { AnchorContradiction, anchorContradictions } from '../services/anchorContradictions';
 
 /**
  * 有截圖就丟上來 — one entry, whatever the picture is.
@@ -39,6 +40,26 @@ interface Props {
   onAddFlightAnchors: (anchors: FlightAnchor[]) => void;
   /** Lets a check-in time follow the landing time, as the stay card does. */
   flightArrivals?: FlightArrival[];
+  /** Checked against what was read, so a ticket for another trip is queried. */
+  tripStartDate?: string;
+  tripEndDate?: string;
+}
+
+/**
+ * A flight that was read, held back for an answer.
+ *
+ * 「應該要跳出提示詢問用戶」 — asked at the moment of the upload rather than
+ * reported later on another card. Later is where it was, and a traveller
+ * who has moved on reads it as the app being broken rather than as a
+ * question about the picture they just chose.
+ *
+ * Never resolved automatically in either direction: a ticket to 成田 on a
+ * 沖繩 trip is a mistake or a connection, and only the traveller knows
+ * which.
+ */
+interface HeldFlight {
+  anchors: FlightAnchor[];
+  contradictions: AnchorContradiction[];
 }
 
 const makeId = () => `shot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -51,15 +72,19 @@ const PlanScreenshotIntake: React.FC<Props> = ({
   onAddStayItems,
   onAddFlightAnchors,
   flightArrivals = [],
+  tripStartDate,
+  tripEndDate,
 }) => {
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
+  const [held, setHeld] = useState<HeldFlight | null>(null);
 
   const handleFile = async (file: File) => {
     setError('');
     setDone('');
+    setHeld(null);
     setBusy(true);
     try {
       const base64Data = await new Promise<string>((resolve, reject) => {
@@ -138,6 +163,20 @@ const PlanScreenshotIntake: React.FC<Props> = ({
           setError('這張機票讀不出完整的日期與時間，請用航班資訊手動確認。');
           return;
         }
+        /*
+          Asked before it is filed, when it disagrees with the trip.
+
+          「應該要跳出提示詢問用戶」. A ticket to 成田 on a 沖繩 trip is either
+          the wrong picture or a connection, and filing it quietly means the
+          planner is later told a landing time for a different journey as
+          fact. The question costs one tap; the wrong answer costs a plan.
+        */
+        const against = anchorContradictions({ anchors, destination, tripStartDate, tripEndDate });
+        if (against.length > 0) {
+          setHeld({ anchors, contradictions: against });
+          return;
+        }
+
         onAddFlightAnchors(anchors);
         setDone(`讀到 ${anchors.length} 段航班，已加到航班資訊。`);
         return;
@@ -186,6 +225,48 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       <p className="mt-1.5 text-center text-[11px] leading-4 text-slate-400">
 機票、訂房、租車訂單、旅行靈感截圖都可以，我讀出來放到對的地方
       </p>
+
+      {/*
+        The question, where the picture was chosen.
+
+        Both answers are real: 「還是加入」 for a connection or a trip whose
+        dates are about to change, 「取消」 for the wrong screenshot. Neither is
+        the default, so nothing happens until the traveller says.
+      */}
+      {held && (
+        <div data-testid="plan-flight-confirm" className="mt-2 rounded-xl bg-amber-50 px-3 py-2.5 text-left">
+          <p className="text-xs font-black text-amber-900">這張機票跟這趟旅程對不起來</p>
+          <ul className="mt-1.5 space-y-1">
+            {held.contradictions.map(item => (
+              <li key={`${item.anchorId}-${item.kind}`} className="text-[11px] leading-4 text-amber-800">
+                {item.message}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2.5 flex gap-2">
+            <button
+              type="button"
+              data-testid="plan-flight-confirm-add"
+              onClick={() => {
+                onAddFlightAnchors(held.anchors);
+                setDone(`讀到 ${held.anchors.length} 段航班，已加到航班資訊。`);
+                setHeld(null);
+              }}
+              className="min-h-10 flex-1 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
+            >
+              還是加入
+            </button>
+            <button
+              type="button"
+              data-testid="plan-flight-confirm-cancel"
+              onClick={() => setHeld(null)}
+              className="min-h-10 flex-1 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-800"
+            >
+              取消，我傳錯了
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p data-testid="plan-screenshot-error" className="mt-2 rounded-xl bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">

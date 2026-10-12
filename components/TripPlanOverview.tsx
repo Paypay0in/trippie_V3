@@ -497,6 +497,8 @@ const TripPlanOverview: React.FC<Props> = ({
         onAddStayItems={onAddStayItemsFromScreenshot}
         onAddFlightAnchors={onAddFlightAnchorsFromScreenshot}
         flightArrivals={screenshotFlightArrivals}
+        tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
       />
     )
     : null;
