@@ -3128,6 +3128,24 @@ const App: React.FC = () => {
     [flightAnchors, itinerary],
   );
 
+  /*
+    The trip's fixed points, for the planner.
+
+    「要先確定航班與住宿地點 才能相應依據這兩個點做規劃」. Derived from the
+    itinerary the same way the airport transfer is, rather than stored again —
+    a second copy of where somebody sleeps is a second thing that can disagree
+    with the first.
+  */
+  const planningStays = useMemo(() => staysFromItinerary(itinerary), [itinerary]);
+
+  /** Takes the traveller to the cards that collect flights and stays. */
+  const openAnchorCards = () => {
+    setWorkspaceSection("planning");
+    // The flight and stay cards are the first two on that screen; landing at
+    // the top is landing on them.
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const estimateKeyFor = (pair: { arrival: { airport?: string }; stay: { name: string; address?: string } }) =>
     `${pair.arrival.airport || ""}→${pair.stay.name}`;
 
@@ -7436,6 +7454,9 @@ const App: React.FC = () => {
                 travellerBrief={travellerBrief}
                 briefChips={planBriefChips}
                 promptQuestions={planPromptQuestions}
+                flightAnchors={flightAnchors}
+                stays={planningStays}
+                onAddAnchors={openAnchorCards}
                 onAddRentalFromScreenshot={addRentalFromScreenshot}
                 onSavePlacesFromScreenshot={handleSaveScreenshotPlaces}
                 onPublishServiceRequest={handlePublishServiceRequest}
@@ -7541,6 +7562,9 @@ const App: React.FC = () => {
               travellerBrief={travellerBrief}
               briefChips={planBriefChips}
               promptQuestions={planPromptQuestions}
+              flightAnchors={flightAnchors}
+              stays={planningStays}
+              onAddAnchors={openAnchorCards}
               onAddRentalFromScreenshot={addRentalFromScreenshot}
               onSavePlacesFromScreenshot={handleSaveScreenshotPlaces}
               onPublishServiceRequest={handlePublishServiceRequest}

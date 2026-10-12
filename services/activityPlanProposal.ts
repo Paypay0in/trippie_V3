@@ -132,6 +132,15 @@ export const fetchActivityPlans = async (request: {
   daysBrief?: string;
   /** The traveller's own answers: people, pace, start time, car days. */
   travellerBrief?: string;
+  /**
+   * The trip's fixed points: when they land, where they sleep.
+   *
+   * 「要先確定航班與住宿地點 才能相應依據這兩個點做規劃」. The planner used to
+   * get the destination and the dates and nothing about either, so it had no
+   * way to group a day geographically or to know the arrival day is half a
+   * day. See `planningAnchors`.
+   */
+  anchorsBrief?: string;
   budgetBrief?: string;
   /**
    * A plan the traveller is looking at, plus what they want changed, in their

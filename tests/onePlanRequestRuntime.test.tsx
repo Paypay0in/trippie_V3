@@ -67,6 +67,31 @@ const renderPlanner = async () => {
       onAddPreparationItems={() => {}}
       tripStartDate="2026-10-01"
       tripEndDate="2026-10-03"
+      /*
+        The trip's fixed points, now required before the box appears at all.
+
+        「要先確定航班與住宿地點 才能相應依據這兩個點做規劃」 — this test is about
+        what one press sends, so it needs a trip that is allowed to ask. The
+        gate itself is covered in `plannerNeedsAnchors`.
+      */
+      flightAnchors={[{
+        id: 'f-1',
+        direction: 'OUTBOUND',
+        departureDate: '2026-10-01',
+        departureTime: '08:00',
+        departureAirport: '桃園國際機場',
+        arrivalDate: '2026-10-01',
+        arrivalTime: '12:10',
+        arrivalAirport: '成田國際機場',
+      }] as never}
+      stays={[{
+        name: '新宿站前飯店',
+        address: '東京都新宿區',
+        checkInDate: '2026-10-01',
+        checkOutDate: '2026-10-03',
+        nights: ['2026-10-01', '2026-10-02'],
+        itemId: 'i-1',
+      }] as never}
     />,
   );
 };

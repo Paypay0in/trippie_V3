@@ -57,6 +57,9 @@ import { isGuidanceOutdated } from '../services/entryRuleFreshness';
 import { communityHighlights } from '../services/communityHighlights';
 import { todoLinksFor } from '../services/todoLinks';
 import { BriefQuestion } from '../services/travellerBrief';
+import { ANCHOR_LABEL, anchorsBrief, missingAnchors } from '../services/planningAnchors';
+import type { FlightAnchor } from '../types';
+import type { StaySpan } from '../services/stayIntake';
 import PlanScreenshotIntake from './PlanScreenshotIntake';
 import type { ParsedRental } from '../services/rentalIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
@@ -75,6 +78,17 @@ interface Props {
   briefChips?: string[];
   /** Openers built from the brief, and the one gap worth asking about. */
   promptQuestions?: BriefQuestion[];
+  /**
+   * The trip's fixed points: when they land, where they sleep.
+   *
+   * 「要先確定航班與住宿地點 才能相應依據這兩個點做規劃」. Without these the
+   * planner cannot group a day geographically or know that the arrival day is
+   * half a day, so it is not allowed to run at all. See `planningAnchors`.
+   */
+  flightAnchors?: FlightAnchor[];
+  stays?: StaySpan[];
+  /** Takes the traveller to the cards that collect them. */
+  onAddAnchors?: () => void;
   /** 「新增一個上傳截圖的入口」. Omit to hide the entry entirely. */
   onAddRentalFromScreenshot?: (rental: ParsedRental) => void;
   onSavePlacesFromScreenshot?: (slices: ItinerarySlice[]) => Promise<number> | number;
@@ -200,7 +214,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptQuestions = [], onAddRentalFromScreenshot, onSavePlacesFromScreenshot, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -381,6 +395,7 @@ const TripPlanOverview: React.FC<Props> = ({
         endDate: tripEndDate,
         daysBrief: tripDaysBrief(planDays),
         travellerBrief,
+        anchorsBrief: anchorsBrief({ flightAnchors, stays }),
         budgetBrief,
         revising: { plan, feedback },
       });
@@ -418,6 +433,16 @@ const TripPlanOverview: React.FC<Props> = ({
   /** Everything the traveller has said this time, chosen or typed. */
   const askText = [...picked, prompt.trim()].filter(Boolean).join('、');
 
+  /*
+    The two things a plan is shaped around, and whether this trip has them.
+
+    「要先確定航班與住宿地點 才能相應依據這兩個點做規劃」. Asked for as a gate
+    rather than a hint, and the reason is that the output does not look any
+    different: a plan written without knowing where the traveller sleeps reads
+    exactly like one written with it, right up to the day they try to use it.
+  */
+  const missing = missingAnchors({ flightAnchors, stays });
+
   const handleGenerate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const question = askText;
@@ -449,6 +474,8 @@ const TripPlanOverview: React.FC<Props> = ({
         endDate: tripEndDate,
         daysBrief: tripDaysBrief(planDays),
         travellerBrief,
+        // The flights and the hotel, which the planner never used to see.
+        anchorsBrief: anchorsBrief({ flightAnchors, stays }),
         budgetBrief,
       });
       setPlanOptions(result.options);
@@ -916,6 +943,26 @@ const TripPlanOverview: React.FC<Props> = ({
           </p>
         )}
 
+        {missing.length > 0 ? (
+          <div data-testid="plan-anchors-required" className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 px-4 py-4 text-center">
+            <p className="text-sm font-black text-[#11183d]">
+              先補上{missing.map(item => ANCHOR_LABEL[item]).join('與')}
+            </p>
+            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
+              要先確定航班與住宿地點，才能依據這兩個點規劃 —— 知道幾點落地才知道第一天剩多少時間，知道住哪裡才排得出同一區的行程。
+            </p>
+            {onAddAnchors && (
+              <button
+                type="button"
+                data-testid="plan-anchors-cta"
+                onClick={onAddAnchors}
+                className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20"
+              >
+                去填{missing.map(item => ANCHOR_LABEL[item]).join('與')}<ArrowRight size={16} />
+              </button>
+            )}
+          </div>
+        ) : (
         <form onSubmit={handleGenerate} className="space-y-2">
           <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：我想滑雪、想泡溫泉、想帶長輩看海.." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
 
@@ -967,6 +1014,7 @@ const TripPlanOverview: React.FC<Props> = ({
           )}
           <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>
         </form>
+        )}
 
         {/*
           The information is already on their phone.
