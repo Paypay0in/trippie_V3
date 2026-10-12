@@ -188,7 +188,8 @@ import FriendsPanel from "./components/FriendsPanel";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
 import { TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
-import { DerivedTrip, tripFromBookings } from "./services/tripFromBookings";
+import { BookingReadout, DerivedTrip, tripFromBookings } from "./services/tripFromBookings";
+import { flightAnchorsFromParsed } from "./services/flightIntake";
 import type { ParsedFlight } from "./services/flightIntake";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
 import {
@@ -218,7 +219,7 @@ import { ParsedRental } from "./services/rentalIntake";
 import { briefChips, promptQuestions, travellerBriefText } from "./services/travellerBrief";
 import { drivingPreparationFor } from "./services/drivingDocuments";
 import { flightArrivals, reconcileFlightDerivedItems } from "./services/flightDerivedItems";
-import { staysFromItinerary } from "./services/stayIntake";
+import { stayToItineraryItems, staysFromItinerary } from "./services/stayIntake";
 import {
   TransferEstimate,
   checkInTimeFromArrival,
@@ -855,6 +856,15 @@ const App: React.FC = () => {
   // Declared beside the rest of the trip's state, below `initialActiveDraft`,
   // because a cold start has to seed them from the stored draft. See there.
   const [importedTrip, setImportedTrip] = useState<DerivedTrip | null>(null);
+  /*
+    What the import actually read, kept until the trip exists to put it on.
+
+    「我剛從這邊上傳機票 有成功建立旅冊 但是沒有將航班資訊放入行程表」. The sheet
+    has always handed the readout over as its second argument and this screen
+    took only the first, so the trip was created from the flights and the
+    flights themselves were dropped on the floor.
+  */
+  const [importedBookings, setImportedBookings] = useState<BookingReadout | null>(null);
 
   const reloadFriendships = useCallback(async () => {
     if (!authUser?.id) { setFriendships([]); setCompanionSeats([]); return; }
@@ -4892,6 +4902,22 @@ const App: React.FC = () => {
           cannot be got wrong later.
         */
         planBrief: brief,
+        /*
+          The bookings the trip was created from, on the trip.
+
+          「我剛從這邊上傳機票 有成功建立旅冊 但是沒有將航班資訊放入行程表」 — the
+          import derived the dates and the destination from these flights and
+          then threw the flights away, so the traveller watched a trip appear
+          out of their ticket and arrive with no ticket in it.
+
+          On the draft for the same reason `planBrief` is: hydrating resets
+          both, so anything set after that call is wiped by it. This is the
+          only ordering that cannot be got wrong later.
+
+          Converted with the same functions the upload cards use, so what
+          lands is the same record however it arrived.
+        */
+        ...importedBookingsForDraft(),
         createdAt: now,
         updatedAt: now,
       };
@@ -4915,6 +4941,17 @@ const App: React.FC = () => {
         here, not any one missing line.
       */
       hydrateDraft(newDraft);
+      /*
+        Spent, so cleared.
+
+        Both of these are read only while `tripSetupMode === "create"`, and
+        neither was cleared when a trip was actually created — so the next
+        trip created on this device would have opened pre-filled with the
+        last import's dates, and now its flights too. That is the same shape
+        as 「我建立沖繩行程 裏面有這個機票資訊」, one state away.
+      */
+      setImportedTrip(null);
+      setImportedBookings(null);
       /*
         Only what hydrating cannot know follows.
 
@@ -6504,6 +6541,34 @@ const App: React.FC = () => {
     — rather than being saved here and found weeks later on a trip the
     traveller believes they typed.
   */
+  /**
+   * The imported flights and stays, shaped for a brand-new draft.
+   *
+   * Returns {} when nothing was imported, so the spread is a no-op on a trip
+   * typed by hand rather than a set of empty fields overwriting defaults.
+   */
+  const importedBookingsForDraft = (): Partial<TripDraft> => {
+    if (!importedBookings) return {};
+
+    const anchors = flightAnchorsFromParsed(
+      importedBookings.flights,
+      () => generateId(),
+    );
+    const arrivals = flightArrivals(anchors);
+    const stayItems = importedBookings.stays.flatMap(stay =>
+      stayToItineraryItems(stay, () => generateId(), arrivals) as ItineraryItem[]);
+
+    return {
+      ...(anchors.length > 0 ? {
+        flightAnchors: anchors,
+        // Both legs read means a return trip; one leg leaves it one-way,
+        // which is what the form would have shown for the same anchors.
+        flightMode: flightModeFromAnchors(anchors),
+      } : {}),
+      ...(stayItems.length > 0 ? { itinerary: stayItems } : {}),
+    };
+  };
+
   const startTripFromScreenshotFlights = (flights: ParsedFlight[]) => {
     setImportedTrip(tripFromBookings({ flights, stays: [] }));
     handleCreateNewTrip();
@@ -6537,14 +6602,17 @@ const App: React.FC = () => {
       onManual={() => {
         setIsBookingImportOpen(false);
         setImportedTrip(null);
+        setImportedBookings(null);
         handleCreateNewTrip();
       }}
-      onCreate={(trip) => {
+      onCreate={(trip, readout) => {
         setIsBookingImportOpen(false);
         // Carried into the ordinary setup form, not saved here: the traveller
         // confirms a misread date on a screen, rather than finding it weeks
         // later on a trip they believe they typed.
         setImportedTrip(trip);
+        // And the bookings themselves, which used to stop here.
+        setImportedBookings(readout);
         handleCreateNewTrip();
       }}
     />
