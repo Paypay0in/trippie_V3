@@ -165,6 +165,39 @@ describe('通知面板的位置', () => {
     expect(panel.className).toContain('left-3');
     expect(panel.className).toContain('right-3');
   });
+
+  /**
+   * 「這個通知我覺得邊框有一點被切掉 要調整」.
+   *
+   * The panel declared only `overflow-y-auto`. CSS computes a `visible` axis
+   * to `auto` when the other one is not visible, so it quietly became a
+   * horizontal scroll container — and a scroll container clips to its padding
+   * box with square corners, cutting the filter row across the rounded corner
+   * and over the border.
+   *
+   * jsdom cannot measure any of that, so this asserts the pairing rather than
+   * the pixels: a rounded, bordered panel that scrolls on one axis has to say
+   * what the other axis does.
+   */
+  it('圓角會裁切內容，邊框不會被壓到', async () => {
+    const panel = await openPanel();
+    expect(panel.className).toContain('rounded-[1.75rem]');
+    expect(panel.className).toContain('overflow-y-auto');
+    expect(panel.className).toContain('overflow-x-hidden');
+  });
+
+  /**
+   * The row keeps its own scrolling, and keeps bleeding to the edge — that
+   * bleed is the affordance that says it can be swiped. Clipping it at the
+   * padding boundary instead would fix the border by removing the only hint
+   * that there is more to see.
+   */
+  it('分類那排仍然可以滑，仍然貼齊邊緣', async () => {
+    await openPanel();
+    const filters = screen.getByTestId('notification-filters');
+    expect(filters.className).toContain('overflow-x-auto');
+    expect(filters.className).toContain('-mx-5');
+  });
 });
 
 /**

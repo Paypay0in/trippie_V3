@@ -64,7 +64,22 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
         so it opens below the bell on a phone with an island and on one without.
       */}
       <div
-        className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top)+3.75rem)] max-h-[76vh] overflow-y-auto rounded-[1.75rem] border border-slate-200/80 bg-white pb-5 shadow-[0_24px_60px_rgba(30,41,90,.22)] md:left-1/2 md:right-auto md:w-full md:max-w-md md:-translate-x-1/2"
+        /*
+          `overflow-x-hidden` is load-bearing, not tidying.
+
+          「這個通知我覺得邊框有一點被切掉 要調整」. The panel declared only
+          `overflow-y-auto`, and CSS computes a `visible` axis to `auto` when
+          the other one is not visible — so this became a horizontal scroll
+          container nobody asked for. A scroll container clips to its padding
+          box with square corners, so the filter row that deliberately bleeds
+          to the edge (`-mx-5 … px-5`, the affordance that says it can be
+          swiped) was being cut across the rounded corner and over the border.
+
+          Hidden on that axis clips to the border radius instead, so the last
+          chip disappears around the curve the way the card's own edge does.
+          The row keeps its own `overflow-x-auto` and still scrolls.
+        */
+        className="absolute left-3 right-3 top-[calc(env(safe-area-inset-top)+3.75rem)] max-h-[76vh] overflow-y-auto overflow-x-hidden rounded-[1.75rem] border border-slate-200/80 bg-white pb-5 shadow-[0_24px_60px_rgba(30,41,90,.22)] md:left-1/2 md:right-auto md:w-full md:max-w-md md:-translate-x-1/2"
         onClick={event => event.stopPropagation()}
       >
         <div className="sticky top-0 z-10 rounded-t-[1.75rem] bg-white px-5 pb-3 pt-5">
