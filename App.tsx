@@ -188,7 +188,8 @@ import FriendsPanel from "./components/FriendsPanel";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
 import { TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
-import { DerivedTrip } from "./services/tripFromBookings";
+import { DerivedTrip, tripFromBookings } from "./services/tripFromBookings";
+import type { ParsedFlight } from "./services/flightIntake";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
 import {
   deletedTripIds,
@@ -6494,6 +6495,20 @@ const App: React.FC = () => {
     planning card cannot drift into a second way of adding a car — which is
     how one of them ends up skipping the toast, or the state, or both.
   */
+  /*
+    A ticket that belongs to a journey nobody has created yet.
+
+    「跳出問用戶是否建立新旅行 或是要捨棄這個紀錄」. Routed through the same
+    `importedTrip` path a booking import uses, so the dates and destination
+    land on the ordinary setup form where a misread is corrected on a screen
+    — rather than being saved here and found weeks later on a trip the
+    traveller believes they typed.
+  */
+  const startTripFromScreenshotFlights = (flights: ParsedFlight[]) => {
+    setImportedTrip(tripFromBookings({ flights, stays: [] }));
+    handleCreateNewTrip();
+  };
+
   const addRentalFromScreenshot = (rental: ParsedRental) => {
     setCarRentals(current => [...current, rental]);
     showToast(`已加入 ${rental.company}`);
@@ -7461,6 +7476,7 @@ const App: React.FC = () => {
                 onSavePlacesFromScreenshot={handleSaveScreenshotPlaces}
                 onAddStayItemsFromScreenshot={handleAddStayItems}
                 onAddFlightAnchorsFromScreenshot={anchors => setFlightAnchors(current => dedupeFlightAnchors([...current, ...anchors]) || [])}
+                onStartTripFromScreenshotFlights={startTripFromScreenshotFlights}
                 screenshotFlightArrivals={flightArrivals(flightAnchors)}
                 onPublishServiceRequest={handlePublishServiceRequest}
                 expenses={expenses}
@@ -7572,6 +7588,7 @@ const App: React.FC = () => {
               onSavePlacesFromScreenshot={handleSaveScreenshotPlaces}
               onAddStayItemsFromScreenshot={handleAddStayItems}
               onAddFlightAnchorsFromScreenshot={anchors => setFlightAnchors(current => dedupeFlightAnchors([...current, ...anchors]) || [])}
+              onStartTripFromScreenshotFlights={startTripFromScreenshotFlights}
               screenshotFlightArrivals={flightArrivals(flightAnchors)}
               onPublishServiceRequest={handlePublishServiceRequest}
               variant="reference"

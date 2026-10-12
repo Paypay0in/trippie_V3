@@ -9,6 +9,7 @@ import { flightAnchorsFromParsed, normalizeParsedFlight } from '../services/flig
 import { ItineraryItem, FlightAnchor } from '../types';
 import { readScreenshot } from '../services/screenshotIntake';
 import { AnchorContradiction, anchorContradictions } from '../services/anchorContradictions';
+import { ParsedFlight } from '../services/flightIntake';
 
 /**
  * 有截圖就丟上來 — one entry, whatever the picture is.
@@ -38,6 +39,15 @@ interface Props {
   onAddStayItems: (items: ItineraryItem[]) => void;
   /** Appended to the trip's anchors, as 航班資訊 would. */
   onAddFlightAnchors: (anchors: FlightAnchor[]) => void;
+  /**
+   * Starts a new trip from a ticket that belongs to a different journey.
+   *
+   * 「跳出問用戶是否建立新旅行 或是要捨棄這個紀錄」 — a ticket to 成田 on a 沖繩
+   * trip is usually neither a mistake to discard nor a leg to file here. It
+   * is the next trip, read before anybody made it. Omit to offer only the
+   * other two answers.
+   */
+  onStartTripFromFlights?: (flights: ParsedFlight[]) => void;
   /** Lets a check-in time follow the landing time, as the stay card does. */
   flightArrivals?: FlightArrival[];
   /** Checked against what was read, so a ticket for another trip is queried. */
@@ -59,6 +69,8 @@ interface Props {
  */
 interface HeldFlight {
   anchors: FlightAnchor[];
+  /** The legs as read, kept so a new trip can be derived from them. */
+  flights: ParsedFlight[];
   contradictions: AnchorContradiction[];
 }
 
@@ -72,6 +84,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
   onAddStayItems,
   onAddFlightAnchors,
   flightArrivals = [],
+  onStartTripFromFlights,
   tripStartDate,
   tripEndDate,
 }) => {
@@ -173,7 +186,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         */
         const against = anchorContradictions({ anchors, destination, tripStartDate, tripEndDate });
         if (against.length > 0) {
-          setHeld({ anchors, contradictions: against });
+          setHeld({ anchors, flights: read, contradictions: against });
           return;
         }
 
@@ -243,27 +256,63 @@ const PlanScreenshotIntake: React.FC<Props> = ({
               </li>
             ))}
           </ul>
-          <div className="mt-2.5 flex gap-2">
-            <button
-              type="button"
-              data-testid="plan-flight-confirm-add"
-              onClick={() => {
-                onAddFlightAnchors(held.anchors);
-                setDone(`讀到 ${held.anchors.length} 段航班，已加到航班資訊。`);
-                setHeld(null);
-              }}
-              className="min-h-10 flex-1 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
-            >
-              還是加入
-            </button>
-            <button
-              type="button"
-              data-testid="plan-flight-confirm-cancel"
-              onClick={() => setHeld(null)}
-              className="min-h-10 flex-1 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-800"
-            >
-              取消，我傳錯了
-            </button>
+          <div className="mt-2.5 space-y-2">
+            {/*
+              The outcome this usually is.
+
+              「跳出問用戶是否建立新旅行 或是要捨棄這個紀錄」 — a ticket for
+              another city and another month is rarely a mistake. It is the
+              next trip, read before anybody made it, and discarding it
+              throws away a booking somebody already paid for.
+
+              Always offered once a flight is held, and that is not an
+              oversight. `worthKeeping` guards the booking import against a
+              readout with no date and no destination — but a leg only
+              becomes an anchor at all if it has a date, so by the time it
+              reaches this question the trip is always nameable. Calling it
+              here would be a condition that cannot be false.
+            */}
+            {onStartTripFromFlights && (
+              <button
+                type="button"
+                data-testid="plan-flight-new-trip"
+                onClick={() => {
+                  onStartTripFromFlights(held.flights);
+                  setHeld(null);
+                }}
+                className="min-h-11 w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-xs font-black text-white"
+              >
+                用這張機票建立新旅程
+              </button>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                data-testid="plan-flight-confirm-cancel"
+                onClick={() => setHeld(null)}
+                className="min-h-10 flex-1 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-800"
+              >
+                捨棄這筆紀錄
+              </button>
+              {/*
+                Kept, quietly. A traveller connecting through 成田 to 那霸 is
+                doing something real, and removing this answer would leave
+                them no way to record a flight that is genuinely theirs.
+              */}
+              <button
+                type="button"
+                data-testid="plan-flight-confirm-add"
+                onClick={() => {
+                  onAddFlightAnchors(held.anchors);
+                  setDone(`讀到 ${held.anchors.length} 段航班，已加到航班資訊。`);
+                  setHeld(null);
+                }}
+                className="min-h-10 flex-1 rounded-xl px-3 text-xs font-bold text-amber-700 underline underline-offset-4"
+              >
+                還是加進這趟
+              </button>
+            </div>
           </div>
         </div>
       )}

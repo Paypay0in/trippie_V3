@@ -35,6 +35,7 @@ const mount = (props: Partial<React.ComponentProps<typeof PlanScreenshotIntake>>
   const onSavePlaces = vi.fn<(slices: ItinerarySlice[]) => Promise<number>>(async () => 2);
   const onAddStayItems = vi.fn();
   const onAddFlightAnchors = vi.fn();
+  const onStartTripFromFlights = vi.fn();
   render(
     <PlanScreenshotIntake
       destination="日本沖繩"
@@ -43,12 +44,13 @@ const mount = (props: Partial<React.ComponentProps<typeof PlanScreenshotIntake>>
       onSavePlaces={onSavePlaces}
       onAddStayItems={onAddStayItems}
       onAddFlightAnchors={onAddFlightAnchors}
+      onStartTripFromFlights={onStartTripFromFlights}
       tripStartDate="2026-11-05"
       tripEndDate="2026-11-10"
       {...props}
     />,
   );
-  return { onAddRental, onSavePlaces, onAddStayItems, onAddFlightAnchors };
+  return { onAddRental, onSavePlaces, onAddStayItems, onAddFlightAnchors, onStartTripFromFlights };
 };
 
 const upload = () => fireEvent.change(screen.getByTestId('plan-screenshot-file'), {
@@ -255,6 +257,61 @@ describe('the screenshot entry', () => {
     fireEvent.click(await screen.findByTestId('plan-flight-confirm-add'));
     expect(onAddFlightAnchors).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('plan-flight-confirm')).toBeNull();
+  });
+
+  /**
+   * 「跳出問用戶是否建立新旅行 或是要捨棄這個紀錄」.
+   *
+   * A ticket for another city in another month is rarely a mistake — it is
+   * the next trip, read before anybody made it. Discarding it throws away a
+   * booking somebody already paid for.
+   */
+  it('offers to start a new trip from the ticket', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'flight' })
+        : ok({ OUTBOUND: {
+            departureAirport: '桃園國際機場',
+            departureDate: '2026-10-20',
+            departureTime: '06:35',
+            arrivalAirport: 'NRT · Narita International Airport',
+            arrivalAirportIata: 'NRT',
+          } }),
+    )));
+
+    const { onStartTripFromFlights, onAddFlightAnchors } = mount();
+    upload();
+
+    fireEvent.click(await screen.findByTestId('plan-flight-new-trip'));
+    expect(onStartTripFromFlights).toHaveBeenCalledTimes(1);
+    // The legs as read, so the new trip can take its dates and destination
+    // from them. Anchors belong to a trip, and this one does not exist yet.
+    expect(onStartTripFromFlights.mock.calls[0]?.[0]?.[0]?.departureDate).toBe('2026-10-20');
+    expect(onAddFlightAnchors).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The question is only ever reached by a leg that already has a date —
+   * that is what makes it an anchor — so the trip it would create is always
+   * nameable. There is no case here where the offer is withheld.
+   */
+  it('offers the new trip whenever a flight is held', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'flight' })
+        : ok({ OUTBOUND: {
+            departureAirport: '桃園國際機場',
+            departureDate: '2026-10-20',
+            departureTime: '06:35',
+            arrivalAirport: '某個沒人認得的機場',
+          } }),
+    )));
+
+    mount();
+    upload();
+
+    await screen.findByTestId('plan-flight-confirm');
+    expect(screen.getByTestId('plan-flight-new-trip')).toBeTruthy();
   });
 
   it('drops it when the traveller says it was the wrong picture', async () => {

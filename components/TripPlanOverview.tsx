@@ -61,6 +61,7 @@ import { ANCHOR_LABEL, anchorsBrief, missingAnchors } from '../services/planning
 import { anchorContradictions } from '../services/anchorContradictions';
 import type { FlightAnchor, ItineraryItem as PlanItineraryItem } from '../types';
 import type { FlightArrival } from '../services/stayIntake';
+import type { ParsedFlight } from '../services/flightIntake';
 import type { StaySpan } from '../services/stayIntake';
 import PlanScreenshotIntake from './PlanScreenshotIntake';
 import type { ParsedRental } from '../services/rentalIntake';
@@ -103,6 +104,8 @@ interface Props {
   onAddStayItemsFromScreenshot?: (items: PlanItineraryItem[]) => void;
   onAddFlightAnchorsFromScreenshot?: (anchors: FlightAnchor[]) => void;
   screenshotFlightArrivals?: FlightArrival[];
+  /** 「跳出問用戶是否建立新旅行 或是要捨棄這個紀錄」. */
+  onStartTripFromScreenshotFlights?: (flights: ParsedFlight[]) => void;
   expenses: Expense[];
   shoppingList: ShoppingItem[];
   itinerary: ItineraryItem[];
@@ -225,7 +228,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
@@ -497,6 +500,7 @@ const TripPlanOverview: React.FC<Props> = ({
         onAddStayItems={onAddStayItemsFromScreenshot}
         onAddFlightAnchors={onAddFlightAnchorsFromScreenshot}
         flightArrivals={screenshotFlightArrivals}
+        onStartTripFromFlights={onStartTripFromScreenshotFlights}
         tripStartDate={tripStartDate}
         tripEndDate={tripEndDate}
       />
