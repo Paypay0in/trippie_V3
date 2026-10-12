@@ -83,6 +83,47 @@ describe('a trip with no flights and no hotel', () => {
     expect(screen.getByText(/知道幾點落地才知道第一天剩多少時間/)).toBeTruthy();
   });
 
+  /**
+   * 「為什麼分兩個格子啊」.
+   *
+   * The gate said 「去補航班住宿」 and the upload directly under it was how you
+   * added them — in a second dashed frame of its own. Two frames for one job
+   * reads as two unrelated things.
+   *
+   * Asserted by containment rather than by eye: the upload has to be inside
+   * the gate, which is the only way to say they are one thing.
+   */
+  it('puts the upload inside the gate, not in a second box', () => {
+    mount({
+      onAddRentalFromScreenshot: vi.fn(),
+      onSavePlacesFromScreenshot: vi.fn(),
+      onAddStayItemsFromScreenshot: vi.fn(),
+      onAddFlightAnchorsFromScreenshot: vi.fn(),
+    } as never);
+
+    const gate = screen.getByTestId('plan-anchors-required');
+    expect(gate.contains(screen.getByTestId('plan-screenshot-intake'))).toBe(true);
+  });
+
+  /**
+   * And the faster path gets the button. A screenshot of the booking is the
+   * whole of what is being asked for; typing it in is the fallback for when
+   * the picture cannot be read, so it is a line of text rather than a
+   * gradient button competing with the upload.
+   */
+  it('offers the screenshot first and typing as the fallback', () => {
+    mount({
+      onAddAnchors: vi.fn(),
+      onAddRentalFromScreenshot: vi.fn(),
+      onSavePlacesFromScreenshot: vi.fn(),
+      onAddStayItemsFromScreenshot: vi.fn(),
+      onAddFlightAnchorsFromScreenshot: vi.fn(),
+    } as never);
+
+    expect(screen.getByTestId('plan-screenshot-upload')).toBeTruthy();
+    expect(screen.getByTestId('plan-anchors-cta').textContent).toContain('手動填寫');
+  });
+
   it('offers to take them there', () => {
     const onAddAnchors = vi.fn();
     mount({ onAddAnchors });

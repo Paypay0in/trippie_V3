@@ -453,6 +453,34 @@ const TripPlanOverview: React.FC<Props> = ({
   */
   const missing = missingAnchors({ flightAnchors, stays });
 
+  /*
+    One upload, placed by what the trip still needs.
+
+    「為什麼分兩個格子啊」 — the gate said 「去補航班住宿」 and the box directly
+    under it was how you added them, in a second dashed frame of its own. Two
+    frames for one job reads as two unrelated things, and it put the slower
+    path (typing it in) on the primary button while the faster one sat below
+    looking optional.
+
+    So it moves inside the gate while the gate is up, and back under the box
+    once it lifts — where it is still how the car hire, the tickets and the
+    saved places arrive.
+  */
+  const screenshotIntake = onAddRentalFromScreenshot && onSavePlacesFromScreenshot
+    && onAddStayItemsFromScreenshot && onAddFlightAnchorsFromScreenshot
+    ? (
+      <PlanScreenshotIntake
+        destination={destination}
+        destinationCountry={destinationCountry}
+        onAddRental={onAddRentalFromScreenshot}
+        onSavePlaces={onSavePlacesFromScreenshot}
+        onAddStayItems={onAddStayItemsFromScreenshot}
+        onAddFlightAnchors={onAddFlightAnchorsFromScreenshot}
+        flightArrivals={screenshotFlightArrivals}
+      />
+    )
+    : null;
+
   const handleGenerate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const question = askText;
@@ -961,14 +989,23 @@ const TripPlanOverview: React.FC<Props> = ({
             <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
               要先確定航班與住宿地點，才能依據這兩個點規劃 —— 知道幾點落地才知道第一天剩多少時間，知道住哪裡才排得出同一區的行程。
             </p>
+
+            {/*
+              The fast way first. A screenshot of the booking is the whole of
+              what is being asked for, and typing it in is the fallback for
+              when the picture cannot be read — so the picture gets the button
+              and the form gets a line of text under it.
+            */}
+            {screenshotIntake}
+
             {onAddAnchors && (
               <button
                 type="button"
                 data-testid="plan-anchors-cta"
                 onClick={onAddAnchors}
-                className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20"
+                className="mt-3 inline-flex min-h-11 items-center justify-center gap-1.5 text-xs font-black text-violet-700 underline underline-offset-4"
               >
-                去填{missing.map(item => ANCHOR_LABEL[item]).join('與')}<ArrowRight size={16} />
+                手動填寫{missing.map(item => ANCHOR_LABEL[item]).join('與')}<ArrowRight size={14} />
               </button>
             )}
           </div>
@@ -1030,22 +1067,12 @@ const TripPlanOverview: React.FC<Props> = ({
           The information is already on their phone.
 
           「旅行靈感的截圖、租車或是訂了什麼旅遊票的截圖都可以上傳上來 協助安排
-            行程」 — placed under the box rather than on its own screen, because
-          this is the moment the traveller is being asked what the trip should
-          be, and the answer is usually a screenshot they already saved.
+            行程」 — under the box once the trip can be planned, because by then
+          it is how the car hire, the tickets and the saved places arrive.
+          While the gate is up it sits inside the gate instead; see
+          `screenshotIntake`.
         */}
-        {onAddRentalFromScreenshot && onSavePlacesFromScreenshot
-          && onAddStayItemsFromScreenshot && onAddFlightAnchorsFromScreenshot && (
-          <PlanScreenshotIntake
-            destination={destination}
-            destinationCountry={destinationCountry}
-            onAddRental={onAddRentalFromScreenshot}
-            onSavePlaces={onSavePlacesFromScreenshot}
-            onAddStayItems={onAddStayItemsFromScreenshot}
-            onAddFlightAnchors={onAddFlightAnchorsFromScreenshot}
-            flightArrivals={screenshotFlightArrivals}
-          />
-        )}
+        {missing.length === 0 && screenshotIntake}
 
         {onRequestHumanHelp && (
           <button type="button" onClick={() => onRequestHumanHelp({ topic: prompt.trim() || '行前準備', destination: planningDestination(destination, destinationCountry) })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700">
