@@ -125,6 +125,45 @@ describe('the screenshot entry', () => {
     await screen.findByText(/博多站前飯店/);
   });
 
+  /**
+   * Linked to the place it is, before it lands.
+   *
+   * I first shipped this without the lookup and said what lands is the same
+   * record however it arrived. It was not: a hotel with an address and no
+   * `placeId` is invisible downstream — no photo, no map, and no travel time
+   * into or out of the place they sleep.
+   */
+  it('links the hotel to its place, as 住宿資訊 does', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind' ? ok({ kind: 'stay' })
+        : url === '/api/places/resolve'
+          ? ok({ placeId: 'place-hakata', latitude: 33.5898, longitude: 130.4207, name: '博多站前飯店' })
+          : ok({ hotelName: '博多站前飯店', address: '福岡市博多區', checkInDate: '2026-11-05', checkOutDate: '2026-11-10' }),
+    )));
+
+    const { onAddStayItems } = mount();
+    upload();
+
+    await waitFor(() => expect(onAddStayItems).toHaveBeenCalledTimes(1));
+    const items = onAddStayItems.mock.calls[0]?.[0] as Array<{ placeId?: string }>;
+    expect(items.some(item => item.placeId === 'place-hakata')).toBe(true);
+  });
+
+  /** A lookup that finds nothing must never hold the booking back. */
+  it('still files the hotel when the lookup fails', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url === '/api/screenshots/kind') return Promise.resolve(ok({ kind: 'stay' }));
+      if (url === '/api/places/resolve') return Promise.reject(new Error('offline'));
+      return Promise.resolve(ok({ hotelName: '博多站前飯店', address: '福岡市博多區', checkInDate: '2026-11-05', checkOutDate: '2026-11-10' }));
+    }));
+
+    const { onAddStayItems } = mount();
+    upload();
+
+    await waitFor(() => expect(onAddStayItems).toHaveBeenCalledTimes(1));
+    expect(onAddStayItems.mock.calls[0]?.[0].length).toBeGreaterThan(0);
+  });
+
   it('files both legs of a flight from here', async () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
       url === '/api/screenshots/kind'

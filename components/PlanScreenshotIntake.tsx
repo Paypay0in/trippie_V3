@@ -3,6 +3,8 @@ import { ImagePlus, Loader2 } from 'lucide-react';
 import { ParsedRental } from '../services/rentalIntake';
 import { ItinerarySlice } from '../services/itineraryImageSlices';
 import { FlightArrival, ParsedStay, stayToItineraryItems } from '../services/stayIntake';
+import { linkStayItems, stayPlaceQuery } from '../services/stayPlaceLink';
+import { resolvePlace } from '../services/placeService';
 import { flightAnchorsFromParsed, normalizeParsedFlight } from '../services/flightIntake';
 import { ItineraryItem, FlightAnchor } from '../types';
 import { readScreenshot } from '../services/screenshotIntake';
@@ -93,7 +95,30 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       */
       if ('stay' in result) {
         const items = stayToItineraryItems(result.stay, makeId, flightArrivals) as ItineraryItem[];
-        onAddStayItems(items);
+
+        /*
+          Linked to the place it is, before it lands — exactly as 住宿資訊 does.
+
+          I claimed what lands here is the same record however it arrived, and
+          without this it was not: a hotel with an address and no `placeId` is
+          invisible downstream — no photo, no map, and no travel time into or
+          out of the place they sleep, which reads as 「其中一個地點還沒連結地圖，
+          無法計算交通時間」 on every leg touching it.
+
+          Best effort, for the same reason the other card gives: a booking that
+          never reaches the itinerary is a worse outcome than one with no photo.
+        */
+        const query = stayPlaceQuery(result.stay.hotelName, result.stay.address);
+        if (query) {
+          try {
+            onAddStayItems(linkStayItems(items, await resolvePlace(query, destinationCountry)));
+          } catch {
+            onAddStayItems(items);
+          }
+        } else {
+          onAddStayItems(items);
+        }
+
         setDone(`讀到住宿：${result.stay.hotelName}，已加到行程。`);
         return;
       }
