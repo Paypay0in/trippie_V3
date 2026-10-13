@@ -17,6 +17,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import DuplicateReceiptPrompt from '../components/DuplicateReceiptPrompt';
 import { findDuplicateReceipts } from '../services/duplicateReceipts';
 import { isExpenseCreator } from '../services/expensePermissions';
+import { resolveViewer } from '../services/tripRoster';
 
 afterEach(cleanup);
 
@@ -76,6 +77,70 @@ describe('whose receipts get compared', () => {
 
     expect(hers).toHaveLength(2);
     expect(findDuplicateReceipts({ incoming: hers }).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * 「這還是我的帳 Gina 依然收到」.
+   *
+   * Filtering to the viewer's own expenses was not enough. `resolveViewer`
+   * answers `owner-fallback` when it cannot match the signed-in user to a
+   * seat — so her device believed she was him, and his receipts passed a
+   * filter that asks 「are these yours」.
+   */
+  it('cannot tell her apart from him when her seat is unlinked', () => {
+    const roster = [
+      { id: OWNER, type: 'owner', userId: 'auth-north', name: 'North' },
+      // Her seat exists but was never linked to her account.
+      { id: GINA, type: 'companion', name: 'Gina' },
+    ] as never;
+
+    const asGina = resolveViewer({
+      roster,
+      authUserId: 'auth-gina',
+      tripOwnerMemberId: OWNER,
+    });
+
+    expect(asGina.isResolved).toBe(false);
+    expect(asGina.memberId).toBe(OWNER);
+    // Which is why his expense looks like hers to every ownership check.
+    expect(isExpenseCreator({
+      expense: expense('e-1', OWNER),
+      viewerMemberId: asGina.memberId,
+      tripOwnerMemberId: OWNER,
+    })).toBe(true);
+  });
+
+  /**
+   * So the scan does not run at all on a guessed identity. A merge rewrites
+   * two records, and that is the one case where asking nothing is the only
+   * safe answer.
+   */
+  it('asks nothing until it knows who is looking', () => {
+    const scan = APP.slice(APP.indexOf('const dismissedDuplicatesRef'));
+    const guard = scan.indexOf('if (sharedWithOthers && !viewerResolution.isResolved) return;');
+    const scanCall = scan.indexOf('findDuplicateReceipts({ incoming: mine })');
+
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(scanCall);
+  });
+
+  /**
+   * And only on a shared trip. A solo traveller who never signed in is
+   * unresolved too, and for them the fallback is simply correct — every
+   * expense really is theirs. Refusing there would switch the feature off for
+   * the common case to protect the rare one, which an existing runtime test
+   * said out loud the moment I tried it.
+   */
+  it('still asks a solo traveller who never signed in', () => {
+    const solo = resolveViewer({
+      roster: [{ id: OWNER, type: 'owner', name: 'North' }] as never,
+      authUserId: undefined,
+      tripOwnerMemberId: OWNER,
+    });
+
+    expect(solo.isResolved).toBe(false);
+    // Nobody else on the roster, so nothing is being guessed at.
+    expect(APP).toContain("const sharedWithOthers = settlementMembers.some(member => member.type !== 'owner');");
   });
 
   /** Both scans, because a receipt of hers is compared against history too. */

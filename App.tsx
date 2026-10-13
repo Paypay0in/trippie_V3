@@ -1476,6 +1476,28 @@ const App: React.FC = () => {
     ledgerScannedForRef.current = tripId;
 
     /*
+      Nobody is asked to merge records on a guessed identity.
+
+      「這還是我的帳 Gina 依然收到」 — filtering to the viewer's own expenses was
+      not enough, because `resolveViewer` answers `owner-fallback` when it
+      cannot match the signed-in user to a seat: her device believed she was
+      him, so his receipts passed a filter that asks 「are these yours」.
+
+      `isResolved` already guards the payer default and two screens for the
+      same reason. A merge rewrites two records; doing that on an identity the
+      app admits it is guessing at is the one case where asking nothing is the
+      only safe answer.
+
+      Only on a shared trip, though. A solo traveller who never signed in is
+      unresolved too, and for them the fallback is simply correct — every
+      expense really is theirs. Refusing there would have switched the whole
+      feature off for the common case to protect the rare one, which an
+      existing test said out loud the moment I tried it.
+    */
+    const sharedWithOthers = settlementMembers.some(member => member.type !== 'owner');
+    if (sharedWithOthers && !viewerResolution.isResolved) return;
+
+    /*
       Only the viewer's own bills.
 
       「目前這個畫面是出現在Gina的帳本 然後這些是我的帳」. The scan read every
@@ -5751,12 +5773,18 @@ const App: React.FC = () => {
         somebody else's is not an invitation to merge the two. The incoming
         receipts are theirs by definition — they just read them.
       */
-      existing: [...expenses, ...tripHistory.flatMap((trip) => trip.expenses)]
-        .filter(expense => isExpenseCreator({
-          expense,
-          viewerMemberId,
-          tripOwnerMemberId: activeOwnerMemberId,
-        })),
+      existing: viewerResolution.isResolved
+        || !settlementMembers.some(member => member.type !== 'owner')
+        ? [...expenses, ...tripHistory.flatMap((trip) => trip.expenses)]
+          .filter(expense => isExpenseCreator({
+            expense,
+            viewerMemberId,
+            tripOwnerMemberId: activeOwnerMemberId,
+          }))
+        // Unresolved: the receipts just read are theirs either way, so those
+        // are still compared with each other — but nothing in the ledger can
+        // be attributed to them, so nothing in it is offered.
+        : [],
     });
     /*
       Asked after the bills land, not instead of them.
