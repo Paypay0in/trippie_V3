@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { ImagePlus, Loader2 } from 'lucide-react';
 import { ParsedRental } from '../services/rentalIntake';
 import { ItinerarySlice } from '../services/itineraryImageSlices';
-import { FlightArrival, ParsedStay, stayToItineraryItems } from '../services/stayIntake';
+import { FlightArrival, ParsedStay, stayToItineraryItems, stayWithTripDates } from '../services/stayIntake';
 import { linkStayItems, stayPlaceQuery } from '../services/stayPlaceLink';
 import { resolvePlace } from '../services/placeService';
 import { flightAnchorsFromParsed, normalizeParsedFlight } from '../services/flightIntake';
@@ -132,7 +132,16 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         the two legs — so what lands is the same record, however it arrived.
       */
       if ('stay' in result) {
-        const items = stayToItineraryItems(result.stay, makeId, flightArrivals) as ItineraryItem[];
+        /*
+          A friend's address has no check-in date, and without one nothing
+          lands on the itinerary at all — the upload would look like it had
+          failed silently. See `stayWithTripDates`.
+        */
+        const { stay, filledFromTrip } = stayWithTripDates(result.stay, {
+          startDate: tripStartDate,
+          endDate: tripEndDate,
+        });
+        const items = stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[];
 
         /*
           Linked to the place it is, before it lands — exactly as 住宿資訊 does.
@@ -146,7 +155,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
           Best effort, for the same reason the other card gives: a booking that
           never reaches the itinerary is a worse outcome than one with no photo.
         */
-        const query = stayPlaceQuery(result.stay.hotelName, result.stay.address);
+        const query = stayPlaceQuery(stay.hotelName, stay.address);
         if (query) {
           try {
             onAddStayItems(linkStayItems(items, await resolvePlace(query, destinationCountry)));
@@ -157,7 +166,9 @@ const PlanScreenshotIntake: React.FC<Props> = ({
           onAddStayItems(items);
         }
 
-        setDone(`讀到住宿：${result.stay.hotelName}，已加到行程。`);
+        setDone(filledFromTrip
+          ? `讀到住宿：${stay.hotelName}。這張沒有入住退房日期，先用這趟旅程的日期填入，請確認。`
+          : `讀到住宿：${stay.hotelName}，已加到行程。`);
         return;
       }
 

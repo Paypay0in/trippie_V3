@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultCheckInTime, formatStayDates, normalizeParsedStay, stayForNight, stayMapUrl, stayNights, staysFromItinerary, stayToItineraryItems } from './stayIntake';
+import { ParsedStay, defaultCheckInTime, formatStayDates, normalizeParsedStay, stayForNight, stayMapUrl, stayNights, staysFromItinerary, stayToItineraryItems, stayWithTripDates } from './stayIntake';
 
 let counter = 0;
 const makeId = () => `stay-${++counter}`;
@@ -349,5 +349,70 @@ describe('defaultCheckInTime', () => {
       { date: '2026-10-05', time: '09:00' },
     ];
     expect(defaultCheckInTime('2026-10-05', arrivals)).toBe('11:30');
+  });
+});
+
+/**
+ * 「我傳的是這個」 — a LINE message with a friend's address in 台東区, uploaded
+ * on the screen that had just asked for accommodation.
+ *
+ * It is a real stay and the right thing to upload. It also carries what no
+ * booking has to: no check-in and no check-out, because nobody books a
+ * friend's spare room. Without a check-in date `stayToItineraryItems`
+ * produces nothing, so the upload appeared to do nothing at all — a failure
+ * nobody can act on.
+ */
+describe('a stay that states no dates', () => {
+  const friendsPlace = {
+    hotelName: 'ハーモニーレジデンス浅草',
+    address: '〒110042 東京都台東区寿4丁目6-2 #002 503号室',
+  } as ParsedStay;
+
+  const trip = { startDate: '2026-10-20', endDate: '2026-10-24' };
+
+  it('takes the trip’s own dates, and says it had to', () => {
+    const { stay, filledFromTrip } = stayWithTripDates(friendsPlace, trip);
+
+    expect(filledFromTrip).toBe(true);
+    expect(stay.checkInDate).toBe('2026-10-20');
+    expect(stay.checkOutDate).toBe('2026-10-24');
+    // The two fields filled in for the traveller are the two to check.
+    expect(stay.isUncertain).toBe(true);
+  });
+
+  /** And then it actually reaches the itinerary, which was the whole problem. */
+  it('becomes itinerary items once it has them', () => {
+    const { stay } = stayWithTripDates(friendsPlace, trip);
+    const items = stayToItineraryItems(stay, () => 'id');
+
+    expect(items.length).toBeGreaterThan(0);
+    expect(items[0]?.date).toBe('2026-10-20');
+    // The name is the card's title; `location` carries the address, which is
+    // what the map and the travel-time legs read.
+    expect(items[0]?.title).toContain('ハーモニーレジデンス浅草');
+    expect(items[0]?.location).toContain('台東区');
+  });
+
+  /** A booking that states its own dates is never touched. */
+  it('leaves a real booking alone', () => {
+    const booked = {
+      hotelName: '東橫INN',
+      checkInDate: '2026-10-21',
+      checkOutDate: '2026-10-23',
+    } as ParsedStay;
+
+    const { stay, filledFromTrip } = stayWithTripDates(booked, trip);
+
+    expect(filledFromTrip).toBe(false);
+    expect(stay.checkInDate).toBe('2026-10-21');
+    expect(stay.isUncertain).toBeUndefined();
+  });
+
+  /** Nothing to borrow from is not an excuse to invent dates. */
+  it('fills nothing when the trip has no dates either', () => {
+    const { stay, filledFromTrip } = stayWithTripDates(friendsPlace, {});
+
+    expect(filledFromTrip).toBe(false);
+    expect(stay.checkInDate).toBeUndefined();
   });
 });

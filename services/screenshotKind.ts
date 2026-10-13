@@ -81,8 +81,11 @@ export const screenshotKindPrompt = () => `
 
       - "rental": a car hire booking or confirmation. Names a rental company,
         a pickup and a return.
-      - "stay": a hotel, guesthouse or apartment booking. Names a property
-        with a check-in and check-out.
+      - "stay": where the traveller will sleep. A hotel, guesthouse or
+        apartment booking — and also a message in which somebody gives the
+        address of a home or flat the traveller is staying at. A shared
+        address with no booking is still a stay; staying at a friend's place
+        is not a booking and never will be.
       - "flight": a flight booking, e-ticket or boarding pass. Names flight
         numbers, airports, or a departure and arrival.
       - "inspiration": anything else a traveller saved — a social post, a
@@ -90,9 +93,12 @@ export const screenshotKindPrompt = () => `
         a restaurant page, a schedule.
 
       Rules:
-      - A booking confirmation is only "rental", "stay" or "flight" when the
+      - A booking confirmation is only "rental" or "flight" when the
         screenshot actually shows the booking. A blog post recommending a
         rental company is "inspiration".
+      - "stay" does not require a booking, only a place to sleep and enough
+        of an address to find it. A chat message containing a home address
+        is "stay"; a blog post about a neighbourhood is "inspiration".
       - An attraction, museum, show or transit-pass ticket is "inspiration".
         Those three kinds are only for a car, a room and a flight.
       - If it is not clearly one of the three bookings, answer

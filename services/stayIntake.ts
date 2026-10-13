@@ -94,11 +94,19 @@ export const normalizeParsedStay = (raw: unknown): ParsedStay | null => {
 };
 
 export const stayPrompt = () => `
-      Analyze this image. It is a hotel, guesthouse, or short-stay booking
-      confirmation — from a booking site, an email, or the property itself.
+      Analyze this image. It shows where somebody will sleep on a trip.
+
+      Usually that is a hotel, guesthouse or short-stay booking confirmation.
+      It may instead be a message in which somebody gives the address of a
+      home or flat the traveller is staying at — 「你能給我你日本家的地址嗎」 and
+      the reply. Staying at a friend's place is not a booking and never will
+      be, so there is no confirmation number, no total, and usually no dates.
 
       Extract:
-      1. "hotelName": the property name, as written.
+      1. "hotelName": the property name as written. For a shared address with
+         no hotel, use the building or residence name printed in it
+         (「ハーモニーレジデンス浅草」). Never invent a name, and never write
+         「朋友家」 or anything the image does not say.
       2. "checkInDate" and "checkOutDate": as YYYY-MM-DD.
       3. "checkInTime" and "checkOutTime": as HH:mm, 24-hour, only if stated.
       4. "address": the street address, only if shown.
@@ -111,6 +119,8 @@ export const stayPrompt = () => `
       - Return only what the image actually shows. Omit anything it does not.
       - The nights count is not a date. Derive checkOutDate only if the image
         shows it directly.
+      - A shared address usually states no dates at all. Omit them rather
+        than guessing; the app fills them from the trip and says that it did.
       - Set "isUncertain" to true if the image is blurry, cropped, or ambiguous.
 
       Return JSON.
@@ -398,4 +408,41 @@ export const stayMapUrl = (stay: { name: string; address?: string; mapsUri?: str
   if (stay.mapsUri) return stay.mapsUri;
   const query = [stay.name, stay.address].filter(Boolean).join(' ');
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+};
+
+/**
+ * A stay that states no dates, given the trip's own.
+ *
+ * 「我傳的是這個」 — a LINE message with a friend's address in 台東区, uploaded
+ * where the app had just asked for accommodation. It is a real stay and the
+ * right thing to upload, and it carries what a booking never has to: no
+ * check-in, no check-out, because nobody books a friend's spare room.
+ *
+ * Without dates `stayToItineraryItems` produces nothing, so the upload
+ * appeared to do nothing at all — the worst outcome of the three, because it
+ * looks like a failure nobody can act on.
+ *
+ * The trip's own dates are used instead. That is an assumption, and it is
+ * made out of the traveller's own data rather than a guess about the world:
+ * somebody staying at a friend's place is there for the trip. It is marked
+ * uncertain so the two fields that were filled in for them are the two they
+ * check.
+ */
+export const stayWithTripDates = (
+  stay: ParsedStay,
+  trip: { startDate?: string; endDate?: string },
+): { stay: ParsedStay; filledFromTrip: boolean } => {
+  if (stay.checkInDate || !trip.startDate || !trip.endDate) {
+    return { stay, filledFromTrip: false };
+  }
+
+  return {
+    stay: {
+      ...stay,
+      checkInDate: trip.startDate,
+      checkOutDate: trip.endDate,
+      isUncertain: true,
+    },
+    filledFromTrip: true,
+  };
 };

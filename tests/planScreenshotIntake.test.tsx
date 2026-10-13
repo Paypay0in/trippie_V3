@@ -130,6 +130,35 @@ describe('the screenshot entry', () => {
   });
 
   /**
+   * 「我傳的是這個」 — a friend's address, where the card asked for a hotel.
+   *
+   * No check-in and no check-out, because nobody books a friend's spare
+   * room. Without a date nothing reaches the itinerary and the upload looks
+   * like a silent failure, so the trip's own dates are used and said out
+   * loud.
+   */
+  it('files a friend’s address using the trip’s dates', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+      url === '/api/screenshots/kind'
+        ? ok({ kind: 'stay' })
+        : url === '/api/places/resolve'
+          ? ok({ placeId: 'p', latitude: 35.71, longitude: 139.79, name: 'ハーモニーレジデンス浅草' })
+          : ok({
+              hotelName: 'ハーモニーレジデンス浅草',
+              address: '東京都台東区寿4丁目6-2',
+            }),
+    )));
+
+    const { onAddStayItems } = mount();
+    upload();
+
+    await waitFor(() => expect(onAddStayItems).toHaveBeenCalledTimes(1));
+    // It reaches the itinerary at all, which it could not before.
+    expect(onAddStayItems.mock.calls[0]?.[0].length).toBeGreaterThan(0);
+    await screen.findByText(/先用這趟旅程的日期填入，請確認/);
+  });
+
+  /**
    * Linked to the place it is, before it lands.
    *
    * I first shipped this without the lookup and said what lands is the same
