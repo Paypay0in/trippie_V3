@@ -35,6 +35,16 @@ export interface ScreenshotInput {
  * nothing usable in the picture — so they are surfaced as written. A generic
  * replacement would hide the only thing they need: whether retrying helps.
  */
+/**
+ * How long one call may take before the traveller is told it will not finish.
+ *
+ * Generous because a parse walks a ladder of models when the first is out of
+ * quota, and each attempt is a real request. Finite because the alternative is
+ * a spinner with no end: 「讀取很久」 was a screen that could spin forever and
+ * never say so.
+ */
+const CALL_TIMEOUT_MS = 60_000;
+
 const post = async (endpoint: string, body: unknown, fallback: string): Promise<unknown> => {
   let response: Response;
   try {
@@ -42,8 +52,14 @@ const post = async (endpoint: string, body: unknown, fallback: string): Promise<
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
     });
-  } catch {
+  } catch (error) {
+    // Separated because the answers differ: one is worth retrying now, the
+    // other is worth retrying with a smaller or clearer picture.
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new Error('讀太久了，辨識服務可能忙碌中，請稍後再試一次。');
+    }
     throw new Error('現在無法辨識截圖，請確認連線後再試。');
   }
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;

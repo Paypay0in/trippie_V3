@@ -81,3 +81,75 @@ export const readAndDownscale = (file: File, options: DownscaleOptions = {}): Pr
     };
     reader.readAsDataURL(file);
   });
+
+/**
+ * How long shrinking may take before the original is sent instead.
+ *
+ * Decoding happens on an `Image`, which answers with `onload` or `onerror` —
+ * or, for a format the browser will not touch, with neither. A promise that
+ * never settles is a spinner that never stops, and 「讀取很久」 was already one
+ * of those for a different reason.
+ */
+const DOWNSCALE_TIMEOUT_MS = 5_000;
+
+export interface UploadPayload {
+  /** Base64 without the data-URL prefix, as every parse route expects. */
+  data: string;
+  mimeType: string;
+}
+
+const readRaw = (file: File): Promise<UploadPayload> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({
+      data: String(reader.result).split(',')[1] || '',
+      mimeType: file.type,
+    });
+    reader.onerror = () => reject(new Error('read_failed'));
+    reader.readAsDataURL(file);
+  });
+
+/**
+ * One picture, made small enough to send — or sent as it is.
+ *
+ * 「讀取很久」. The screenshot entry read the file whole and sent it twice, once
+ * to classify and once to parse, so a 4 MB screenshot became roughly 11 MB of
+ * base64 over a mobile connection before any model had started thinking.
+ *
+ * Shrinking is an optimisation, so it is never allowed to be the reason an
+ * upload fails: a format the canvas cannot decode, or will not answer about,
+ * falls back to the original. A slow upload beats a booking that cannot be
+ * uploaded at all.
+ */
+const canDownscale = (): boolean => {
+  /*
+    Asked rather than assumed.
+
+    Without a drawing context there is nothing to shrink into, and the decode
+    would simply never answer — so the timer below would be the only thing
+    ending it, five seconds per upload, every upload.
+  */
+  try {
+    return Boolean(document.createElement('canvas').getContext('2d'));
+  } catch {
+    return false;
+  }
+};
+
+export const readForUpload = async (
+  file: File,
+  options: DownscaleOptions = RECEIPT_SCAN_OPTIONS,
+): Promise<UploadPayload> => {
+  if (!canDownscale()) return readRaw(file);
+
+  try {
+    const smaller = await Promise.race([
+      readAndDownscale(file, options),
+      new Promise<null>(resolve => { setTimeout(() => resolve(null), DOWNSCALE_TIMEOUT_MS); }),
+    ]);
+    if (smaller) return { data: smaller.split(',')[1] || '', mimeType: 'image/jpeg' };
+  } catch {
+    // Falls through to the original below.
+  }
+  return readRaw(file);
+};

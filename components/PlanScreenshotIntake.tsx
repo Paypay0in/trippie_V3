@@ -8,6 +8,7 @@ import { resolvePlace } from '../services/placeService';
 import { flightAnchorsFromParsed, normalizeParsedFlight } from '../services/flightIntake';
 import { ItineraryItem, FlightAnchor } from '../types';
 import { readScreenshot } from '../services/screenshotIntake';
+import { readForUpload } from '../services/postPhotos';
 import { AnchorContradiction, anchorContradictions, contradictionHeadline } from '../services/anchorContradictions';
 import { ParsedFlight } from '../services/flightIntake';
 
@@ -102,16 +103,13 @@ const PlanScreenshotIntake: React.FC<Props> = ({
     setHeld(null);
     setBusy(true);
     try {
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-        reader.onerror = () => reject(new Error('read failed'));
-        reader.readAsDataURL(file);
-      });
+      // Shrunk when the browser can, sent whole when it cannot. See
+      // `readForUpload` for why that fallback exists.
+      const picture = await readForUpload(file);
 
       const result = await readScreenshot({
-        base64Data,
-        mimeType: file.type,
+        base64Data: picture.data,
+        mimeType: picture.mimeType,
         destination,
         destinationCountry,
       });
