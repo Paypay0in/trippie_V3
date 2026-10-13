@@ -77,6 +77,23 @@ interface HeldFlight {
   contradictions: AnchorContradiction[];
 }
 
+/**
+ * A stay that was read, waiting for the dates it never stated.
+ *
+ * 「那這樣可以跳出顯示住宿日期讓用戶填寫」 — better than the version it replaces,
+ * which filled the trip's dates in and told the traveller afterwards. Both
+ * avoid the silent failure, but one of them asks and the other assumes, and
+ * only the person who is going knows which nights they are actually there.
+ *
+ * The trip's dates still seed the fields, because they are usually right and
+ * the traveller should have to change two characters rather than type eight.
+ */
+interface HeldStay {
+  stay: ParsedStay;
+  checkInDate: string;
+  checkOutDate: string;
+}
+
 const makeId = () => `shot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 const PlanScreenshotIntake: React.FC<Props> = ({
@@ -96,11 +113,31 @@ const PlanScreenshotIntake: React.FC<Props> = ({
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
   const [held, setHeld] = useState<HeldFlight | null>(null);
+  const [heldStay, setHeldStay] = useState<HeldStay | null>(null);
+
+  /*
+    One stay onto the trip, linked to the place it is.
+
+    Shared by the booking that stated its own dates and the address that had
+    to be asked about, so what lands is the same record either way — the
+    reason the place lookup lives here rather than in one of the two callers.
+  */
+  const fileStay = async (stay: ParsedStay) => {
+    const items = stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[];
+    const query = stayPlaceQuery(stay.hotelName, stay.address);
+    if (!query) { onAddStayItems(items); return; }
+    try {
+      onAddStayItems(linkStayItems(items, await resolvePlace(query, destinationCountry)));
+    } catch {
+      onAddStayItems(items);
+    }
+  };
 
   const handleFile = async (file: File) => {
     setError('');
     setDone('');
     setHeld(null);
+    setHeldStay(null);
     setBusy(true);
     try {
       // Shrunk when the browser can, sent whole when it cannot. See
@@ -135,40 +172,28 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         /*
           A friend's address has no check-in date, and without one nothing
           lands on the itinerary at all — the upload would look like it had
-          failed silently. See `stayWithTripDates`.
+          failed silently.
+
+          「那這樣可以跳出顯示住宿日期讓用戶填寫」. Asked rather than assumed: the
+          trip's dates seed the fields because they are usually right, and
+          only the person going knows which nights they are actually there.
         */
         const { stay, filledFromTrip } = stayWithTripDates(result.stay, {
           startDate: tripStartDate,
           endDate: tripEndDate,
         });
-        const items = stayToItineraryItems(stay, makeId, flightArrivals) as ItineraryItem[];
 
-        /*
-          Linked to the place it is, before it lands — exactly as 住宿資訊 does.
-
-          I claimed what lands here is the same record however it arrived, and
-          without this it was not: a hotel with an address and no `placeId` is
-          invisible downstream — no photo, no map, and no travel time into or
-          out of the place they sleep, which reads as 「其中一個地點還沒連結地圖，
-          無法計算交通時間」 on every leg touching it.
-
-          Best effort, for the same reason the other card gives: a booking that
-          never reaches the itinerary is a worse outcome than one with no photo.
-        */
-        const query = stayPlaceQuery(stay.hotelName, stay.address);
-        if (query) {
-          try {
-            onAddStayItems(linkStayItems(items, await resolvePlace(query, destinationCountry)));
-          } catch {
-            onAddStayItems(items);
-          }
-        } else {
-          onAddStayItems(items);
+        if (!result.stay.checkInDate) {
+          setHeldStay({
+            stay: result.stay,
+            checkInDate: filledFromTrip ? stay.checkInDate || '' : '',
+            checkOutDate: filledFromTrip ? stay.checkOutDate || '' : '',
+          });
+          return;
         }
 
-        setDone(filledFromTrip
-          ? `讀到住宿：${stay.hotelName}。這張沒有入住退房日期，先用這趟旅程的日期填入，請確認。`
-          : `讀到住宿：${stay.hotelName}，已加到行程。`);
+        await fileStay(stay);
+        setDone(`讀到住宿：${stay.hotelName}，已加到行程。`);
         return;
       }
 
@@ -255,6 +280,81 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       <p className="mt-1.5 text-center text-[11px] leading-4 text-slate-400">
 機票、訂房、租車訂單、旅行靈感截圖都可以，我讀出來放到對的地方
       </p>
+
+      {/*
+        The dates a shared address never carries.
+
+        「那這樣可以跳出顯示住宿日期讓用戶填寫」. Seeded from the trip, because
+        those are usually right and changing two characters beats typing
+        eight — but typed by the traveller, because only they know which
+        nights they are actually there.
+      */}
+      {heldStay && (
+        <div data-testid="plan-stay-dates" className="mt-2 rounded-xl bg-violet-50 px-3 py-2.5 text-left">
+          <p className="text-xs font-black text-violet-900">
+            讀到住宿：{heldStay.stay.hotelName}
+          </p>
+          <p className="mt-1 text-[11px] leading-4 text-violet-800">
+            這張沒有寫入住與退房日期，請填一下。
+          </p>
+
+          <div className="mt-2 flex items-center gap-2">
+            <label className="flex-1">
+              <span className="block text-[10px] font-bold text-violet-700">入住</span>
+              <input
+                type="date"
+                data-testid="plan-stay-check-in"
+                value={heldStay.checkInDate}
+                onChange={event => setHeldStay(current =>
+                  (current ? { ...current, checkInDate: event.target.value } : current))}
+                className="mt-0.5 w-full rounded-lg border border-violet-200 bg-white px-2 py-1.5 text-xs font-bold text-[#11183d]"
+              />
+            </label>
+            <label className="flex-1">
+              <span className="block text-[10px] font-bold text-violet-700">退房</span>
+              <input
+                type="date"
+                data-testid="plan-stay-check-out"
+                value={heldStay.checkOutDate}
+                onChange={event => setHeldStay(current =>
+                  (current ? { ...current, checkOutDate: event.target.value } : current))}
+                className="mt-0.5 w-full rounded-lg border border-violet-200 bg-white px-2 py-1.5 text-xs font-bold text-[#11183d]"
+              />
+            </label>
+          </div>
+
+          <div className="mt-2.5 flex gap-2">
+            <button
+              type="button"
+              data-testid="plan-stay-confirm"
+              // Both dates, because a stay with only one end cannot say which
+              // nights it covers — which is the whole reason it is being asked.
+              disabled={!heldStay.checkInDate || !heldStay.checkOutDate}
+              onClick={async () => {
+                const filed = {
+                  ...heldStay.stay,
+                  checkInDate: heldStay.checkInDate,
+                  checkOutDate: heldStay.checkOutDate,
+                };
+                setHeldStay(null);
+                await fileStay(filed);
+                setDone(`已加入住宿：${filed.hotelName}。`);
+              }}
+              className="min-h-10 flex-1 rounded-xl bg-violet-600 px-3 text-xs font-black text-white disabled:opacity-40"
+            >
+              加入行程
+            </button>
+            <button
+              type="button"
+              data-testid="plan-stay-cancel"
+              onClick={() => setHeldStay(null)}
+              className="min-h-10 flex-1 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-700"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
 
       {/*
         The question, where the picture was chosen.

@@ -130,32 +130,76 @@ describe('the screenshot entry', () => {
   });
 
   /**
-   * 「我傳的是這個」 — a friend's address, where the card asked for a hotel.
+   * 「我傳的是這個」 — a friend's address, where the card asked for a hotel —
+   * and then 「那這樣可以跳出顯示住宿日期讓用戶填寫」.
    *
    * No check-in and no check-out, because nobody books a friend's spare
    * room. Without a date nothing reaches the itinerary and the upload looks
-   * like a silent failure, so the trip's own dates are used and said out
-   * loud.
+   * like a silent failure; filling the trip's dates in silently was the
+   * first answer, and asking is the better one — only the person going knows
+   * which nights they are there.
    */
-  it('files a friend’s address using the trip’s dates', async () => {
-    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
-      url === '/api/screenshots/kind'
-        ? ok({ kind: 'stay' })
-        : url === '/api/places/resolve'
-          ? ok({ placeId: 'p', latitude: 35.71, longitude: 139.79, name: 'ハーモニーレジデンス浅草' })
-          : ok({
-              hotelName: 'ハーモニーレジデンス浅草',
-              address: '東京都台東区寿4丁目6-2',
-            }),
-    )));
+  const friendsAddress = () => vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(
+    url === '/api/screenshots/kind'
+      ? ok({ kind: 'stay' })
+      : url === '/api/places/resolve'
+        ? ok({ placeId: 'p', latitude: 35.71, longitude: 139.79, name: 'ハーモニーレジデンス浅草' })
+        : ok({ hotelName: 'ハーモニーレジデンス浅草', address: '東京都台東区寿4丁目6-2' }),
+  )));
 
+  it('asks for the dates instead of filing without them', async () => {
+    friendsAddress();
     const { onAddStayItems } = mount();
     upload();
 
+    const prompt = await screen.findByTestId('plan-stay-dates');
+    expect(prompt.textContent).toContain('ハーモニーレジデンス浅草');
+    expect(prompt.textContent).toContain('請填一下');
+    // Nothing is filed while the question is open.
+    expect(onAddStayItems).not.toHaveBeenCalled();
+  });
+
+  /** Seeded from the trip, so two characters change rather than eight typed. */
+  it('starts from the trip dates', async () => {
+    friendsAddress();
+    mount();
+    upload();
+
+    await screen.findByTestId('plan-stay-dates');
+    expect((screen.getByTestId('plan-stay-check-in') as HTMLInputElement).value)
+      .toBe('2026-11-05');
+    expect((screen.getByTestId('plan-stay-check-out') as HTMLInputElement).value)
+      .toBe('2026-11-10');
+  });
+
+  it('files the stay on the dates the traveller typed', async () => {
+    friendsAddress();
+    const { onAddStayItems } = mount();
+    upload();
+
+    await screen.findByTestId('plan-stay-dates');
+    fireEvent.change(screen.getByTestId('plan-stay-check-in'), { target: { value: '2026-11-06' } });
+    fireEvent.change(screen.getByTestId('plan-stay-check-out'), { target: { value: '2026-11-08' } });
+    fireEvent.click(screen.getByTestId('plan-stay-confirm'));
+
     await waitFor(() => expect(onAddStayItems).toHaveBeenCalledTimes(1));
-    // It reaches the itinerary at all, which it could not before.
-    expect(onAddStayItems.mock.calls[0]?.[0].length).toBeGreaterThan(0);
-    await screen.findByText(/先用這趟旅程的日期填入，請確認/);
+    const items = onAddStayItems.mock.calls[0]?.[0] as Array<{ date?: string }>;
+    expect(items[0]?.date).toBe('2026-11-06');
+  });
+
+  /**
+   * One end is not an answer: a stay with only a check-in cannot say which
+   * nights it covers, which is the whole reason it is being asked.
+   */
+  it('will not file on half an answer', async () => {
+    friendsAddress();
+    mount();
+    upload();
+
+    await screen.findByTestId('plan-stay-dates');
+    fireEvent.change(screen.getByTestId('plan-stay-check-out'), { target: { value: '' } });
+
+    expect((screen.getByTestId('plan-stay-confirm') as HTMLButtonElement).disabled).toBe(true);
   });
 
   /**
