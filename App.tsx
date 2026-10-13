@@ -1514,6 +1514,7 @@ const App: React.FC = () => {
     const mine = expenses.filter(expense => isExpenseCreator({
       expense,
       viewerMemberId,
+      viewerIsKnown,
       tripOwnerMemberId: activeOwnerMemberId,
     }));
 
@@ -3740,6 +3741,7 @@ const App: React.FC = () => {
         !canEditExpense({
           expense: editingExpense,
           viewerMemberId,
+          viewerIsKnown,
           tripOwnerMemberId: activeOwnerMemberId,
         })
       ) {
@@ -3874,6 +3876,21 @@ const App: React.FC = () => {
     banner is absent for everybody the app can actually identify. See
     `viewerIdentityNotice`.
   */
+  /*
+    Whether `viewerMemberId` is known rather than guessed.
+
+    「你想辦法修好就對了」. The owner fallback does not merely fail to identify
+    the second traveller — it asserts she is the owner, so every ownership
+    question returns a confident wrong answer on her device. Passing this into
+    the permission layer makes 「I could not identify you」 mean 「you own
+    nothing here」 everywhere at once, instead of each caller remembering.
+
+    True on a solo trip even when unresolved: with nobody else on the roster
+    the fallback is simply correct, and every expense really is theirs.
+  */
+  const viewerIsKnown = viewerResolution.isResolved
+    || !settlementMembers.some(member => member.type !== 'owner');
+
   const identityNotice = viewerIdentityNotice({
     roster: settlementMembers,
     authUserId: authUser?.id,
@@ -4209,6 +4226,7 @@ const App: React.FC = () => {
       expenses,
       expenseId: id,
       viewerMemberId,
+      viewerIsKnown,
       tripOwnerMemberId: activeOwnerMemberId,
     });
 
@@ -4270,6 +4288,7 @@ const App: React.FC = () => {
       !canEditExpense({
         expense: target,
         viewerMemberId,
+        viewerIsKnown,
         tripOwnerMemberId: activeOwnerMemberId,
       })
     ) {
@@ -4306,6 +4325,7 @@ const App: React.FC = () => {
       !canEditExpense({
         expense: target,
         viewerMemberId,
+        viewerIsKnown,
         tripOwnerMemberId: activeOwnerMemberId,
       })
     ) {
@@ -4339,6 +4359,7 @@ const App: React.FC = () => {
       !canEditExpense({
         expense: target,
         viewerMemberId,
+        viewerIsKnown,
         tripOwnerMemberId: activeOwnerMemberId,
       })
     ) {
@@ -4381,6 +4402,7 @@ const App: React.FC = () => {
   const disputeContextFor = (expense: Expense) => ({
     expense,
     viewerMemberId,
+    viewerIsKnown,
     tripOwnerMemberId: activeOwnerMemberId,
   });
 
@@ -4451,12 +4473,14 @@ const App: React.FC = () => {
     const mayEdit = canEditExpense({
       expense,
       viewerMemberId,
+      viewerIsKnown,
       tripOwnerMemberId: activeOwnerMemberId,
     });
     if (!mayEdit) {
       const mayPropose = canRaiseDispute({
         expense,
         viewerMemberId,
+        viewerIsKnown,
         tripOwnerMemberId: activeOwnerMemberId,
       }).allowed;
       if (!mayPropose) {
@@ -5793,6 +5817,7 @@ const App: React.FC = () => {
           .filter(expense => isExpenseCreator({
             expense,
             viewerMemberId,
+            viewerIsKnown,
             tripOwnerMemberId: activeOwnerMemberId,
           }))
         // Unresolved: the receipts just read are theirs either way, so those

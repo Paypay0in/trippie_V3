@@ -5,6 +5,7 @@ import {
   canEditExpense,
   getExpenseCreatorMemberId,
   getExpenseDeletePermission,
+  isExpenseCreator,
   resolveExpenseDeleteRequest,
 } from './expensePermissions';
 
@@ -194,5 +195,58 @@ describe('delete action boundary', () => {
         tripOwnerMemberId: ANN,
       }).status,
     ).toBe('not-found');
+  });
+});
+
+/**
+ * 「這還是我的帳 Gina 依然收到」, and then 「你想辦法修好就對了」.
+ *
+ * `resolveViewer` answers with the trip owner when it cannot match the
+ * signed-in user to a seat, so on her device `viewerMemberId` *was* his. Every
+ * question in this file then returned a confident wrong answer about records
+ * that were never hers — including the administrative delete, which would have
+ * handed her the owner's power to remove anybody's entry behind a dialog
+ * calling her the trip owner.
+ *
+ * A viewer the app could not identify owns nothing. That is both the honest
+ * answer and the safe one.
+ */
+describe('a viewer the app could not identify', () => {
+  const OWNER = 'seat-north';
+  const bill = {
+    id: 'e-1',
+    description: '艾蒙德咖啡',
+    amount: 5000,
+    createdByMemberId: OWNER,
+  } as never;
+
+  const guessed = {
+    expense: bill,
+    // What the fallback produces: her device, holding his id.
+    viewerMemberId: OWNER,
+    viewerIsKnown: false,
+    tripOwnerMemberId: OWNER,
+  };
+
+  it('creates nothing, edits nothing', () => {
+    expect(isExpenseCreator(guessed)).toBe(false);
+    expect(canEditExpense(guessed)).toBe(false);
+  });
+
+  it('deletes nothing, not even as the owner', () => {
+    const permission = getExpenseDeletePermission(guessed);
+
+    expect(permission.allowed).toBe(false);
+    expect(permission.reason).toBe('denied');
+    // The branch this closes: without the flag, an id equal to the owner's
+    // takes the administrative path.
+    expect(getExpenseDeletePermission({ ...guessed, viewerIsKnown: undefined }).reason)
+      .toBe('creator');
+  });
+
+  /** Unset means no reason to doubt it, so nothing already working changes. */
+  it('leaves every existing caller alone', () => {
+    expect(isExpenseCreator({ expense: bill, viewerMemberId: OWNER, tripOwnerMemberId: OWNER }))
+      .toBe(true);
   });
 });

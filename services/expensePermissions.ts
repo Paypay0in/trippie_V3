@@ -18,6 +18,21 @@ export interface ExpensePermissionContext {
   expense: Expense;
   /** Canonical TripMember id of whoever is looking at the ledger. */
   viewerMemberId: string;
+  /**
+   * Whether that id is known rather than guessed.
+   *
+   * 「這還是我的帳 Gina 依然收到」. `resolveViewer` answers with the trip owner
+   * when it cannot match the signed-in user to a seat, so on her device
+   * `viewerMemberId` *was* his — and every question here then returned a
+   * confident wrong answer: his expenses were hers to edit, to merge, to be
+   * labelled with.
+   *
+   * The caller passes false only when it is both unsure and it matters: on a
+   * solo trip the fallback is simply correct, because every expense really is
+   * theirs. Optional so existing callers keep today's behaviour, and absent
+   * means 「no reason to doubt it」.
+   */
+  viewerIsKnown?: boolean;
   /** Canonical TripMember id of the trip owner. */
   tripOwnerMemberId: string;
 }
@@ -43,14 +58,24 @@ export const getExpenseCreatorMemberId = (
   return normalizeOwnerMemberId(stored, tripOwnerMemberId);
 };
 
-/** True when the viewer is the member who created this expense. */
+/**
+ * True when the viewer is the member who created this expense.
+ *
+ * A viewer the app could not identify owns nothing. That is the honest answer
+ * and the safe one: the alternative is the owner fallback asserting that one
+ * traveller's records belong to another, which is what put his receipts in
+ * her ledger asking to be merged.
+ */
 export const isExpenseCreator = ({
   expense,
   viewerMemberId,
+  viewerIsKnown,
   tripOwnerMemberId,
-}: ExpensePermissionContext): boolean =>
-  getExpenseCreatorMemberId(expense, tripOwnerMemberId) ===
-  normalizeOwnerMemberId(viewerMemberId, tripOwnerMemberId);
+}: ExpensePermissionContext): boolean => {
+  if (viewerIsKnown === false) return false;
+  return getExpenseCreatorMemberId(expense, tripOwnerMemberId) ===
+    normalizeOwnerMemberId(viewerMemberId, tripOwnerMemberId);
+};
 
 /**
  * Edit is creator-only, with no administrative override.
@@ -82,12 +107,30 @@ export interface ExpenseDeletePermission {
 export const getExpenseDeletePermission = (
   context: ExpensePermissionContext,
 ): ExpenseDeletePermission => {
-  const { viewerMemberId, tripOwnerMemberId } = context;
+  const { viewerMemberId, viewerIsKnown, tripOwnerMemberId } = context;
   const creatorMemberId = getExpenseCreatorMemberId(
     context.expense,
     tripOwnerMemberId,
   );
   const viewer = normalizeOwnerMemberId(viewerMemberId, tripOwnerMemberId);
+
+  /*
+    A viewer the app could not identify deletes nothing — not even as owner.
+
+    This is the sharpest edge of the owner fallback. `resolveViewer` answers
+    with the trip owner when it cannot place the signed-in user, so the
+    administrative branch below would have handed the second traveller the
+    owner's power to remove anybody's record, behind a confirmation dialog
+    that calls her the trip owner.
+  */
+  if (viewerIsKnown === false) {
+    return {
+      allowed: false,
+      reason: 'denied',
+      requiresAdminConfirmation: false,
+      creatorMemberId,
+    };
+  }
 
   if (viewer === creatorMemberId) {
     return {
@@ -135,11 +178,14 @@ export const resolveExpenseDeleteRequest = ({
   expenses,
   expenseId,
   viewerMemberId,
+  viewerIsKnown,
   tripOwnerMemberId,
 }: {
   expenses: Expense[];
   expenseId: string;
   viewerMemberId: string;
+  /** See `ExpensePermissionContext`. A guessed viewer deletes nothing. */
+  viewerIsKnown?: boolean;
   tripOwnerMemberId: string;
 }): ExpenseDeleteRequestOutcome => {
   const expense = expenses.find(item => item.id === expenseId);
@@ -148,6 +194,7 @@ export const resolveExpenseDeleteRequest = ({
   const permission = getExpenseDeletePermission({
     expense,
     viewerMemberId,
+    viewerIsKnown,
     tripOwnerMemberId,
   });
 

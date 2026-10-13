@@ -19,6 +19,8 @@ import { normalizeOwnerMemberId } from './memberIdentity';
 export interface DisputeContext {
   expense: Expense;
   viewerMemberId: string;
+  /** See `ExpensePermissionContext`. A guessed viewer raises nothing. */
+  viewerIsKnown?: boolean;
   tripOwnerMemberId: string;
 }
 
@@ -97,7 +99,10 @@ export interface RaiseDisputePermission {
 export const canRaiseDispute = (
   context: DisputeContext,
 ): RaiseDisputePermission => {
-  const { expense, viewerMemberId, tripOwnerMemberId } = context;
+  const { expense, viewerMemberId, viewerIsKnown, tripOwnerMemberId } = context;
+  // Raising a question in somebody else's name is the same mistake as
+  // editing in it. See `ExpensePermissionContext`.
+  if (viewerIsKnown === false) return { allowed: false, reason: 'not-involved' };
   const viewer = canonical(viewerMemberId, tripOwnerMemberId);
   const creator = getExpenseCreatorMemberId(expense, tripOwnerMemberId);
 
