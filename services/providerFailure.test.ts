@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, expect, it } from 'vitest';
 import {
   isNetworkError,
@@ -81,5 +83,36 @@ describe('whether to try the next model', () => {
   it('stops on a malformed request rather than walking the whole list', () => {
     // Four slow failures instead of one clear one helps nobody.
     expect(shouldTryNextModel(BAD_REQUEST)).toBe(false);
+  });
+});
+
+/**
+ * 「上傳訂房，我剛剛傳同一個line截圖依然不行」.
+ *
+ * The same screenshot this service read correctly twice in a row, taking 76
+ * and 73 seconds. Under that load some attempts simply fail — and every
+ * non-429 failure was reported as 「現在無法辨識訂房截圖，請手動輸入。」
+ *
+ * Those are opposite instructions. One says wait and press it again; the
+ * other says this will never work, go and type it in. The distinction has
+ * existed all along and only the retry loop used it.
+ */
+describe('a busy service is not an unreadable picture', () => {
+  it('knows high demand from a bad request', () => {
+    expect(isOverloadedError({ message: 'The model is overloaded. Please try again later.' }))
+      .toBe(true);
+    expect(isOverloadedError({ status: 400, message: 'Unable to process input image' }))
+      .toBe(false);
+  });
+
+  /** The server picks its wording from this, not from the status alone. */
+  it('is wired into every parse route', () => {
+    const SERVER = readFileSync(resolve(__dirname, '../server.ts'), 'utf8');
+    const busyBranches = SERVER.split('serviceWasBusy(error) ?').length - 1;
+
+    // Receipts, screenshots, stays, rentals, itinerary, flights, and the
+    // generic reader — the seven that read a picture.
+    expect(busyBranches).toBe(7);
+    expect(SERVER).not.toContain('status === 429 ? "辨識服務忙碌中');
   });
 });

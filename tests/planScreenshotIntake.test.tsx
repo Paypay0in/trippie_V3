@@ -84,7 +84,7 @@ describe('the screenshot entry', () => {
       }));
     }));
 
-    const { onAddStayItems } = mount({ offerKindShortcuts: true });
+    const { onAddStayItems } = mount({ offerKindShortcuts: ['flight', 'stay'] });
     fireEvent.click(screen.getByTestId('plan-screenshot-kind-stay'));
     upload();
 
@@ -105,7 +105,7 @@ describe('the screenshot entry', () => {
         : ok({ slices: [{ type: 'place', title: '暖暮拉麵' }] }));
     }));
 
-    mount({ offerKindShortcuts: true });
+    mount({ offerKindShortcuts: ['flight', 'stay'] });
     fireEvent.click(screen.getByTestId('plan-screenshot-upload'));
     upload();
 
@@ -117,6 +117,20 @@ describe('the screenshot entry', () => {
   it('offers no shortcuts outside the gate', () => {
     mount();
     expect(screen.queryByTestId('plan-screenshot-kinds')).toBeNull();
+  });
+
+  /**
+   * 「我在成立這個旅冊的時候，一開始就已上傳機票，因此這個欄位這邊要先判讀用戶是否
+   *   上傳過了」.
+   *
+   * The line above already said 先補上住宿資訊, singular. A 機票 button beside
+   * it is the card contradicting itself one row later.
+   */
+  it('offers only what the trip is still missing', () => {
+    mount({ offerKindShortcuts: ['stay'] });
+
+    expect(screen.getByTestId('plan-screenshot-kind-stay')).toBeTruthy();
+    expect(screen.queryByTestId('plan-screenshot-kind-flight')).toBeNull();
   });
 
   it('says which half of the wait it is in', async () => {

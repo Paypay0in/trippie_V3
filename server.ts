@@ -10,7 +10,7 @@ import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
-import { isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
+import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { chooseMerchantPlace, merchantSearchQuery, placeLanguageFor } from "./services/merchantPlaceQuery";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
@@ -106,6 +106,24 @@ async function startServer() {
    */
   const quotaStatusOf = (error: unknown): number | undefined =>
     (isQuotaError(error) ? 429 : undefined);
+
+  /**
+   * Whether the picture was fine and the service was not.
+   *
+   * 「上傳訂房，我剛剛傳同一個line截圖依然不行」 — the same screenshot that this
+   * service read correctly twice in a row, taking 76 and 73 seconds. Under
+   * that load some attempts simply fail, and every non-429 failure was being
+   * reported as 「現在無法辨識訂房截圖，請手動輸入。」
+   *
+   * Those are opposite instructions. One says wait a moment and press it
+   * again; the other says this will never work, go and type it in. Telling
+   * somebody to give up on a picture the reader can actually read is the
+   * worse of the two mistakes, and 「high demand」 is already distinguishable
+   * — `isOverloadedError` has existed all along and only the retry loop used
+   * it.
+   */
+  const serviceWasBusy = (error: unknown): boolean =>
+    isQuotaError(error) || isOverloadedError(error) || isNetworkError(error);
 
   /** Models wrap JSON in a markdown fence often enough to be worth stripping. */
   const cleanModelJson = (raw: string) => raw.replace(/```json|```/g, "").trim() || "null";
@@ -373,7 +391,7 @@ async function startServer() {
       res.json(place ? { ...parsed, ...place } : parsed);
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
-      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識收據，請手動輸入。" });
+      res.status(status).json({ error: serviceWasBusy(error) ? "辨識服務忙碌中，請稍後再試一次。" : "現在無法辨識收據，請手動輸入。" });
     }
   });
 
@@ -414,7 +432,7 @@ async function startServer() {
       res.json({ kind: normalizeScreenshotKind(parsed?.kind) });
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
-      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識截圖，請稍後再試。" });
+      res.status(status).json({ error: serviceWasBusy(error) ? "辨識服務忙碌中，請稍後再試一次。" : "現在無法辨識截圖，請稍後再試。" });
     }
   });
 
@@ -457,7 +475,7 @@ async function startServer() {
       res.json(stay);
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
-      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識訂房截圖，請手動輸入。" });
+      res.status(status).json({ error: serviceWasBusy(error) ? "辨識服務忙碌中，請稍後再試一次。" : "現在無法辨識訂房截圖，請手動輸入。" });
     }
   });
 
@@ -509,7 +527,7 @@ async function startServer() {
       res.json(rental);
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
-      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識租車訂單，請手動輸入。" });
+      res.status(status).json({ error: serviceWasBusy(error) ? "辨識服務忙碌中，請稍後再試一次。" : "現在無法辨識租車訂單，請手動輸入。" });
     }
   });
 
@@ -595,7 +613,7 @@ async function startServer() {
       res.json({ slices });
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
-      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識截圖，請稍後再試。" });
+      res.status(status).json({ error: serviceWasBusy(error) ? "辨識服務忙碌中，請稍後再試一次。" : "現在無法辨識截圖，請稍後再試。" });
     }
   });
 
@@ -661,7 +679,7 @@ async function startServer() {
       res.json(legs);
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
-      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法辨識機票，請手動輸入。" });
+      res.status(status).json({ error: serviceWasBusy(error) ? "辨識服務忙碌中，請稍後再試一次。" : "現在無法辨識機票，請手動輸入。" });
     }
   });
 
@@ -697,7 +715,7 @@ async function startServer() {
       res.json(parsed);
     } catch (error) {
       const status = quotaStatusOf(error) ?? 502;
-      res.status(status).json({ error: status === 429 ? "辨識服務忙碌中，請稍後再試。" : "現在無法自動辨識，請手動輸入。" });
+      res.status(status).json({ error: serviceWasBusy(error) ? "辨識服務忙碌中，請稍後再試一次。" : "現在無法自動辨識，請手動輸入。" });
     }
   });
 

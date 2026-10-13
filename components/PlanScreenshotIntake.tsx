@@ -53,7 +53,7 @@ interface Props {
   /** Lets a check-in time follow the landing time, as the stay card does. */
   flightArrivals?: FlightArrival[];
   /**
-   * Offers 機票 / 訂房 as their own buttons, skipping classification.
+   * Which kinds get their own button, skipping classification.
    *
    * 「一直卡在這個畫面」 — stuck on 「看看這是什麼…」, which is the classify call.
    * On the deployed service that call took 10.5s, then 23.9s, then 57.4s for
@@ -61,10 +61,15 @@ interface Props {
    * gate above has already said 「先補上航班資訊與住宿資訊」, so a traveller
    * pressing 訂房 has answered the question the model was about to be asked.
    *
-   * Only where the card has named those two. Everywhere else one entry that
-   * works it out is the right shape, and the extra call is worth it.
+   * 「我在成立這個旅冊的時候，一開始就已上傳機票，因此這個欄位這邊要先判讀用戶是否
+   *   上傳過了」 — so it is the kinds still missing, not both. A button asking
+   * for something the trip already has is the app not reading its own screen:
+   * the line above it says 先補上住宿資訊, singular, and then offered 機票 too.
+   *
+   * Empty everywhere the card has named nothing. There one entry that works
+   * it out is the right shape, and the extra call is worth what it costs.
    */
-  offerKindShortcuts?: boolean;
+  offerKindShortcuts?: ScreenshotKind[];
   /** Checked against what was read, so a ticket for another trip is queried. */
   tripStartDate?: string;
   tripEndDate?: string;
@@ -119,7 +124,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
   onAddFlightAnchors,
   flightArrivals = [],
   onStartTripFromFlights,
-  offerKindShortcuts = false,
+  offerKindShortcuts = [],
   tripStartDate,
   tripEndDate,
 }) => {
@@ -294,9 +299,11 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         limit tightened. Saying 訂房 skips it entirely — one call instead of
         two, on the only API that is actually slow here.
       */}
-      {offerKindShortcuts && (
+      {offerKindShortcuts.length > 0 && (
         <div data-testid="plan-screenshot-kinds" className="mb-2 flex gap-2">
-          {([['flight', '機票'], ['stay', '訂房']] as const).map(([kind, label]) => (
+          {([['flight', '機票'], ['stay', '訂房']] as const)
+            .filter(([kind]) => offerKindShortcuts.includes(kind))
+            .map(([kind, label]) => (
             <button
               key={kind}
               type="button"

@@ -493,10 +493,14 @@ const TripPlanOverview: React.FC<Props> = ({
     && onAddStayItemsFromScreenshot && onAddFlightAnchorsFromScreenshot
     ? (
       <PlanScreenshotIntake
-        /* Named buttons only while the gate is up, because that is where the
-           card has just said which two things it wants. Everywhere else one
-           entry that works it out is the right shape. */
-        offerKindShortcuts={missing.length > 0}
+        /*
+          A button for each thing the trip is still missing, and only those.
+
+          「一開始就已上傳機票，因此這個欄位這邊要先判讀用戶是否上傳過了」 — the
+          line above already says 先補上住宿資訊, singular. Offering 機票 beside
+          it is the card contradicting itself one row later.
+        */
+        offerKindShortcuts={missing.map(item => (item === 'flights' ? 'flight' : 'stay'))}
         destination={destination}
         destinationCountry={destinationCountry}
         onAddRental={onAddRentalFromScreenshot}
