@@ -81,7 +81,9 @@ describe('the list the picker is given', () => {
 });
 
 describe('picking one into a trip', () => {
-  const mount = (props: Record<string, unknown> = {}) => {
+  type Props = React.ComponentProps<typeof CompanionsModal>;
+
+  const mount = (props: Partial<Props> = {}) => {
     const onAddFriendToTrip = vi.fn();
     render(
       <CompanionsModal
@@ -92,7 +94,7 @@ describe('picking one into a trip', () => {
         onAddFriendToTrip={onAddFriendToTrip}
         onRemove={vi.fn()}
         onClose={vi.fn()}
-        {...(props as never)}
+        {...(props as Props)}
       />,
     );
     return { onAddFriendToTrip };
