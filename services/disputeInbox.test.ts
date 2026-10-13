@@ -129,3 +129,86 @@ describe('the list itself', () => {
     expect(loadSeenNotices()).toEqual([]);
   });
 });
+
+/**
+ * 「若有分帳指給我 要跳通知」.
+ *
+ * Until now the bell only carried questions about bills, never the bills
+ * themselves — so a traveller learned what they owed by opening the ledger and
+ * reading it, which is the thing a shared ledger exists to stop. The bell's own
+ * hint already promised 「當有人新增支出…我們會立即通知你」.
+ */
+describe('a bill somebody else split to me', () => {
+  const OWNER = 'seat-north';
+  const GINA = 'seat-gina';
+
+  const bill = (over: Record<string, unknown> = {}) => ({
+    id: 'e-1',
+    description: '燒肉',
+    amount: 60000,
+    currency: 'KRW',
+    date: '2026-10-05',
+    createdByMemberId: OWNER,
+    payerId: OWNER,
+    beneficiaries: [OWNER, GINA],
+    splitMethod: 'EQUAL',
+    splitAllocations: {},
+    ...over,
+  }) as never;
+
+  const noticesFor = (viewer: string, expenses: unknown[]) => disputeNoticesFor({
+    expenses: expenses as never,
+    viewerMemberId: viewer,
+    tripOwnerMemberId: OWNER,
+    members: [
+      { id: OWNER, name: 'North', type: 'owner' },
+      { id: GINA, name: 'Gina', type: 'companion' },
+    ] as never,
+  });
+
+  it('tells the person who was split in', () => {
+    const [notice] = noticesFor(GINA, [bill()]);
+
+    expect(notice?.kind).toBe('split_to_me');
+    expect(describeNotice(notice)).toContain('North');
+    expect(describeNotice(notice)).toContain('燒肉');
+    // The share, not only that there is one — the number is the whole point.
+    expect(notice?.message).toContain('2');
+  });
+
+  /**
+   * Never for a bill I recorded, even though I am in its split: I put myself
+   * there, and reporting it back is the app repeating what I just typed.
+   */
+  it('says nothing to the person who recorded it', () => {
+    expect(noticesFor(OWNER, [bill()])).toEqual([]);
+  });
+
+  it('says nothing about a bill that leaves me out', () => {
+    expect(noticesFor(GINA, [bill({ beneficiaries: [OWNER] })])).toEqual([]);
+  });
+
+  /** An exact split counts as much as a named beneficiary. */
+  it('reads an exact allocation too', () => {
+    const [notice] = noticesFor(GINA, [bill({
+      beneficiaries: [OWNER],
+      splitMethod: 'EXACT',
+      splitAllocations: { [GINA]: 20000 },
+    })]);
+
+    expect(notice?.kind).toBe('split_to_me');
+    expect(notice?.message).toContain('20,000');
+  });
+
+  /**
+   * Keyed on the expense, so editing the split later does not produce a second
+   * notice for the same bill — and so dismissing it stays dismissed.
+   */
+  it('is one notice per bill, however the split is edited', () => {
+    const first = noticesFor(GINA, [bill()])[0];
+    const second = noticesFor(GINA, [bill({ splitAllocations: { [GINA]: 30000 } })])[0];
+
+    expect(first?.id).toBe(second?.id);
+    expect(unseenNotices([second], [first.id])).toEqual([]);
+  });
+});

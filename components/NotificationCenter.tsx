@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircleQuestion, CheckCircle2, X, Lightbulb } from 'lucide-react';
+import { MessageCircleQuestion, CheckCircle2, Receipt, X, Lightbulb } from 'lucide-react';
 import { DisputeNotice, describeNotice } from '../services/disputeInbox';
 import {
   NOTICE_CATEGORIES,
@@ -154,20 +154,30 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
           <ul className="divide-y divide-slate-100">
             {shown.map(notice => {
               const waiting = notice.kind === 'awaiting_my_answer';
+              // 「若有分帳指給我 要跳通知」 — a bill, not a question, so it is
+              // neither the amber 「somebody is waiting on you」 nor the green
+              // 「settled」. See `describeNotice`.
+              const split = notice.kind === 'split_to_me';
               return (
                 <li key={notice.id}>
                   <button
                     type="button"
-                    data-testid={`notification-${notice.disputeId}`}
+                    // Keyed on the notice, not the dispute: a split notice is
+                    // about the bill itself and carries no dispute id.
+                    data-testid={`notification-${notice.disputeId || notice.expenseId}`}
                     onClick={() => onOpen(notice)}
                     className="flex w-full items-start gap-3 px-5 py-4 text-left active:bg-slate-50"
                   >
                     <span
                       className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                        waiting ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+                        waiting ? 'bg-amber-50 text-amber-600'
+                          : split ? 'bg-violet-50 text-violet-600'
+                            : 'bg-emerald-50 text-emerald-600'
                       }`}
                     >
-                      {waiting ? <MessageCircleQuestion size={16} /> : <CheckCircle2 size={16} />}
+                      {waiting ? <MessageCircleQuestion size={16} />
+                        : split ? <Receipt size={16} />
+                          : <CheckCircle2 size={16} />}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-black text-[#11183d]">

@@ -19,7 +19,19 @@ import { normalizeOwnerMemberId } from './memberIdentity';
  * would hide which of the two you are looking at.
  */
 
-export type DisputeNoticeKind = 'awaiting_my_answer' | 'my_question_answered';
+export type DisputeNoticeKind =
+  | 'awaiting_my_answer'
+  | 'my_question_answered'
+  /**
+   * 「若有分帳指給我 要跳通知」.
+   *
+   * Somebody else recorded a bill and put the viewer in its split. Until now
+   * the only way to find out was to open the ledger and read it — so a
+   * traveller learned what they owed by going looking, which is the thing a
+   * shared ledger exists to stop. The bell's own hint already promised this
+   * (「當有人新增支出…我們會立即通知你」) and only disputes were ever produced.
+   */
+  | 'split_to_me';
 
 export interface DisputeNotice {
   /** `${expenseId}:${disputeId}:${kind}` — stable, so 「seen」 can be stored. */
@@ -27,7 +39,8 @@ export interface DisputeNotice {
   kind: DisputeNoticeKind;
   expenseId: string;
   expenseDescription: string;
-  disputeId: string;
+  /** Absent on a notice that is about the bill itself, not a question on it. */
+  disputeId?: string;
   /** The question, or the answer, depending on which way this is pointing. */
   message: string;
   /** Who it is from: the asker, or whoever answered. */
@@ -36,6 +49,41 @@ export interface DisputeNotice {
   /** When the thing being reported happened, newest first in the list. */
   at: string;
 }
+
+/**
+ * Whether this bill puts the member on the hook, by either of the two ways a
+ * split is recorded.
+ *
+ * Deliberately not `expenseConcernsMember`: that answers 「is this any of your
+ * business」 and says yes to a bill you merely paid for somebody else. Being
+ * told 「someone split a cost to you」 about your own purchase would be noise.
+ */
+const isSplitTo = (expense: Expense, me: string, ownerId: string): boolean => {
+  const named = (expense.beneficiaries || [])
+    .some(id => normalizeOwnerMemberId(id || '', ownerId) === me);
+  if (named) return true;
+
+  const allocations = expense.splitAllocations || {};
+  return Object.entries(allocations).some(([id, amount]) =>
+    normalizeOwnerMemberId(id, ownerId) === me
+    && typeof amount === 'number' && amount !== 0);
+};
+
+/** 「你分到 2,500 KRW」, or the bill's own total when the share is not stated. */
+const shareLine = (expense: Expense, me: string): string => {
+  const exact = expense.splitAllocations?.[me];
+  const currency = expense.currency || '';
+  if (typeof exact === 'number' && exact !== 0) {
+    return `你分到 ${Math.round(exact).toLocaleString()} ${currency}`.trim();
+  }
+  const people = expense.beneficiaries?.length || 0;
+  if (people > 1 && typeof expense.amount === 'number') {
+    return `${people} 人均分 ${Math.round(expense.amount).toLocaleString()} ${currency}`.trim();
+  }
+  return typeof expense.amount === 'number'
+    ? `${Math.round(expense.amount).toLocaleString()} ${currency}`.trim()
+    : '這筆有分到你';
+};
 
 const nameOf = (members: TripMember[], memberId?: string): string | undefined =>
   members.find(member => member.id === memberId)?.name?.trim() || undefined;
@@ -113,6 +161,36 @@ export const disputeNoticesFor = ({
         });
       }
     }
+
+    /*
+      A bill somebody else split to me.
+
+      「若有分帳指給我 要跳通知」. Until now the only way to learn that you owed
+      something was to open the ledger and read it — a traveller finding out
+      what they owe by going looking is the thing a shared ledger exists to
+      stop. The bell's own hint already promised this.
+
+      Never for a bill I recorded, even when I am in its split: I put myself
+      there, and telling me about it is the app repeating what I just typed.
+
+      Keyed on the expense rather than a dispute, so editing the split later
+      does not produce a second notice for the same bill — and so dismissing
+      it stays dismissed.
+    */
+    if (!mine && isSplitTo(expense, me, tripOwnerMemberId)) {
+      notices.push({
+        expenseId: expense.id,
+        expenseDescription: expense.description || '這筆支出',
+        id: `${expense.id}:split_to_me`,
+        kind: 'split_to_me',
+        message: shareLine(expense, me),
+        fromMemberId: creator,
+        fromName: nameOf(members, creator),
+        // The bill's own date: an Expense carries no creation timestamp, and
+        // inventing `now` would reshuffle the list on every render.
+        at: expense.date || '',
+      });
+    }
   }
 
   return notices.sort((left, right) => (right.at || '').localeCompare(left.at || ''));
@@ -146,10 +224,16 @@ export const saveSeenNotices = (ids: string[]): void => {
 };
 
 /** What a dispute looks like to the person who must answer it. */
-export const describeNotice = (notice: DisputeNotice): string =>
-  (notice.kind === 'awaiting_my_answer'
-    ? `${notice.fromName || '旅伴'} 對「${notice.expenseDescription}」提出疑問`
-    : `${notice.fromName || '旅伴'} 回覆了你對「${notice.expenseDescription}」的疑問`);
+export const describeNotice = (notice: DisputeNotice): string => {
+  const who = notice.fromName || '旅伴';
+  if (notice.kind === 'awaiting_my_answer') {
+    return `${who} 對「${notice.expenseDescription}」提出疑問`;
+  }
+  if (notice.kind === 'split_to_me') {
+    return `${who} 新增「${notice.expenseDescription}」並分帳給你`;
+  }
+  return `${who} 回覆了你對「${notice.expenseDescription}」的疑問`;
+};
 
 /** Only the ones the viewer has to act on. */
 export const awaitingMyAnswer = (notices: DisputeNotice[]): DisputeNotice[] =>
