@@ -40,8 +40,33 @@ export interface ParsedFlight {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const YEARLESS_DATE = /^(\d{1,2})-(\d{1,2})$/;
 const CLOCK = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 const IATA = /^[A-Z]{3}$/;
+
+/**
+ * A date off a ticket, with the year separated from the day it fell on.
+ *
+ * 「這張航班時間如此明確 為何一直說讀不出來」 — and it was. The ticket printed
+ * 「10 月 20 日（二）· 6:35」 and the read came back `"10-20"`, which the old
+ * check rejected outright, so both legs came back empty and the traveller was
+ * told the screenshot was unreadable.
+ *
+ * This was self-inflicted. The prompt was told not to fall back on a year it
+ * had seen in training data — the repair for 「我傳機票資訊 結果日期不正確」 — and
+ * it obeyed by printing no year at all, which nothing downstream accepted. A
+ * yearless date is the honest answer most confirmations support, so it is read
+ * as one rather than thrown away.
+ */
+const readTicketDate = (value: unknown): { monthDay: string; year?: number } | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  if (ISO_DATE.test(text)) return { monthDay: text.slice(5), year: Number(text.slice(0, 4)) };
+  const yearless = text.match(YEARLESS_DATE);
+  return yearless
+    ? { monthDay: `${yearless[1].padStart(2, '0')}-${yearless[2].padStart(2, '0')}` }
+    : undefined;
+};
 
 const cleanTime = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -132,10 +157,17 @@ export const normalizeParsedFlight = (raw: unknown): ParsedFlight | null => {
   if (!raw || typeof raw !== 'object') return null;
   const value = raw as Record<string, unknown>;
 
-  const readDate = typeof value.departureDate === 'string' && ISO_DATE.test(value.departureDate.trim())
-    ? value.departureDate.trim() : undefined;
+  const read = readTicketDate(value.departureDate);
   const departureTime = cleanTime(value.departureTime);
-  if (!readDate || !departureTime) return null;
+  if (!read || !departureTime) return null;
+
+  /*
+    A ticket that prints no year is read against this one, then checked by the
+    weekday like any other. Today's year is a starting point, not an answer:
+    `yearFromWeekday` walks outward from it, so 「10 月 20 日（二）」 lands on the
+    year 10/20 is actually a Tuesday.
+  */
+  const readDate = `${read.year ?? new Date().getUTCFullYear()}-${read.monthDay}`;
 
   /*
     The year, checked against the weekday the ticket printed.
@@ -154,7 +186,7 @@ export const normalizeParsedFlight = (raw: unknown): ParsedFlight | null => {
     so the traveller checks the one field a screenshot could not state. The
     booking is still filed: an unflagged wrong year was the actual harm.
   */
-  if (departureDate !== readDate) flight.isUncertain = true;
+  if (departureDate !== readDate || read.year === undefined) flight.isUncertain = true;
 
   if (value.direction === 'OUTBOUND' || value.direction === 'RETURN') flight.direction = value.direction;
 
@@ -165,18 +197,29 @@ export const normalizeParsedFlight = (raw: unknown): ParsedFlight | null => {
   flight.arrivalAirportIata = cleanIata(value.arrivalAirportIata);
   flight.arrivalTime = cleanTime(value.arrivalTime);
 
-  const readArrival = typeof value.arrivalDate === 'string' && ISO_DATE.test(value.arrivalDate.trim())
-    ? value.arrivalDate.trim() : undefined;
+  const readArrival = readTicketDate(value.arrivalDate);
   /*
     Moved by the same number of years as the departure, not re-derived.
 
     The arrival carries its own weekday only sometimes, and a flight that
     lands the next morning would be dragged to a different year by a weekday
     lookup of its own. The two ends of one flight move together or not at all.
+
+    A yearless arrival simply takes the departure's year, with one exception:
+    a flight that lands on an earlier month and day than it left crossed New
+    Year, so it belongs to the next one. Only a day or two of crossing counts
+    — anything wider apart is a misread, and falls through to the check below.
   */
-  const arrivalDate = readArrival && departureDate !== readDate
-    ? `${Number(readArrival.slice(0, 4)) + (Number(departureDate.slice(0, 4)) - Number(readDate.slice(0, 4)))}${readArrival.slice(4)}`
-    : readArrival;
+  const departureYear = Number(departureDate.slice(0, 4));
+  let arrivalDate: string | undefined;
+  if (readArrival?.year !== undefined) {
+    arrivalDate = `${readArrival.year + (departureYear - Number(readDate.slice(0, 4)))}-${readArrival.monthDay}`;
+  } else if (readArrival) {
+    arrivalDate = `${departureYear}-${readArrival.monthDay}`;
+    const rolled = `${departureYear + 1}-${readArrival.monthDay}`;
+    const daysLater = (Date.parse(rolled) - Date.parse(departureDate)) / 86_400_000;
+    if (arrivalDate < departureDate && daysLater >= 0 && daysLater <= 2) arrivalDate = rolled;
+  }
   // Landing before take-off is a misread, not a timezone. An overnight flight
   // arrives the next day, which is later, so this only catches genuine errors.
   if (arrivalDate && arrivalDate < departureDate) {
@@ -300,9 +343,10 @@ export const flightPrompt = (tripStartDate?: string, tripEndDate?: string) => `
       - If only one flight is shown, return an array of one.
       - Set "isUncertain" to true if the image is blurry, cropped, or ambiguous.
       - Many confirmations print the day and month and no year. Do not fall
-        back on a year you have seen in training data: copy the weekday into
-        "departureWeekday" and let the caller resolve it. If a year really is
-        printed, use it.
+        back on a year you have seen in training data: return the date as
+        "MM-DD" with no year, copy the weekday into "departureWeekday", and
+        let the caller resolve it. If a year really is printed, use the full
+        "YYYY-MM-DD".
 
       Return JSON shaped { "flights": [ ... ] }.
     `;

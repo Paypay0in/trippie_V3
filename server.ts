@@ -651,7 +651,7 @@ async function startServer() {
                     flightNumber: { type: Type.STRING },
                     departureAirport: { type: Type.STRING },
                     departureAirportIata: { type: Type.STRING },
-                    departureDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+                    departureDate: { type: Type.STRING, description: "YYYY-MM-DD, or MM-DD when the ticket prints no year" },
                     // The weekday beside the date, as printed. Most tickets
                     // state no year, and this is what pins it — see
                     // `yearFromWeekday`.
@@ -659,7 +659,7 @@ async function startServer() {
                     departureTime: { type: Type.STRING, description: "HH:mm local" },
                     arrivalAirport: { type: Type.STRING },
                     arrivalAirportIata: { type: Type.STRING },
-                    arrivalDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+                    arrivalDate: { type: Type.STRING, description: "YYYY-MM-DD, or MM-DD when the ticket prints no year" },
                     arrivalTime: { type: Type.STRING, description: "HH:mm local" },
                     isUncertain: { type: Type.BOOLEAN },
                   },
