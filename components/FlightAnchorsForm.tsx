@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlightAirport, FlightAnchor, TripFlightMode } from '../types';
-import { Plane, PlaneTakeoff, PlaneLanding, Settings2, Clock, MapPin, X, Check, Camera, Loader2, AlertTriangle } from 'lucide-react';
+import { Plane, PlaneTakeoff, PlaneLanding, Settings2, Clock, MapPin, X, Check, Camera, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
 import { formatAirportLabel, searchAirports } from '../services/airportDirectory';
 import { applyFlightToDraft, legsToApply, ParsedFlight } from '../services/flightIntake';
 import {
@@ -251,6 +251,25 @@ export default function FlightAnchorsForm({
     setDraft(items => buildFlightAnchorDraft(items, context, mode));
   };
 
+  /*
+    One leg, taken back off the trip.
+
+    「這邊要可以重設 因為有可能會有傳錯或改航班的狀況」 — and until now there was
+    none: a saved anchor could be edited field by field, but a ticket read
+    from the wrong screenshot had no way off the trip at all.
+
+    Asked first, because an anchor is not only itself. The itinerary cards it
+    generated — 抵達機場, 航班起飛, 航班抵達 — go with it, and so does the
+    arrival time the first night's check-in is timed from. That is a lot to
+    undo by accident on a single tap.
+  */
+  const [clearing, setClearing] = useState<TripFlightMode | 'OUTBOUND' | 'RETURN' | null>(null);
+
+  const clearLeg = (direction: 'OUTBOUND' | 'RETURN') => {
+    onChange(anchors.filter(anchor => anchor.direction !== direction));
+    setClearing(null);
+  };
+
   const save = () => {
     setHasAttemptedSave(true);
     // Validate the same draft the inputs render from — one source of truth.
@@ -387,10 +406,23 @@ export default function FlightAnchorsForm({
                     )}
                     {legLabel(direction)}
                   </span>
-                  <span
-                    className={`rounded-full px-2 py-1 text-[10px] font-bold ${item ? 'bg-[#eeeaff] text-[#5b3df5]' : 'bg-white text-slate-400'}`}
-                  >
-                    {item ? '已儲存' : '尚未設定'}
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className={`rounded-full px-2 py-1 text-[10px] font-bold ${item ? 'bg-[#eeeaff] text-[#5b3df5]' : 'bg-white text-slate-400'}`}
+                    >
+                      {item ? '已儲存' : '尚未設定'}
+                    </span>
+                    {item && (
+                      <button
+                        type="button"
+                        data-testid={`clear-flight-${direction}`}
+                        aria-label={`清除${legLabel(direction)}航班`}
+                        onClick={() => setClearing(direction)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </span>
                 </div>
                 {item ? (
@@ -426,6 +458,39 @@ export default function FlightAnchorsForm({
                   </>
                 ) : (
                   <p className="mt-3 text-xs text-slate-400">新增{legLabel(direction)}航班資訊</p>
+                )}
+
+                {/*
+                  What goes with it, said before it goes.
+
+                  An anchor is not only itself: the three itinerary cards it
+                  generated leave with it, and so does the arrival time the
+                  first night's check-in is timed from.
+                */}
+                {clearing === direction && (
+                  <div data-testid={`clear-flight-confirm-${direction}`} className="mt-3 rounded-xl bg-rose-50 px-3 py-2.5">
+                    <p className="text-[11px] font-black leading-4 text-rose-800">
+                      清除{legLabel(direction)}航班？行程表上由它產生的卡片也會一起移除。
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        data-testid={`clear-flight-yes-${direction}`}
+                        onClick={() => clearLeg(direction)}
+                        className="min-h-9 flex-1 rounded-lg bg-rose-600 px-3 text-[11px] font-black text-white"
+                      >
+                        清除
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`clear-flight-no-${direction}`}
+                        onClick={() => setClearing(null)}
+                        className="min-h-9 flex-1 rounded-lg border border-rose-200 bg-white px-3 text-[11px] font-black text-rose-700"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             );
