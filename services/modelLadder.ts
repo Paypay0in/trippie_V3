@@ -38,6 +38,19 @@ const COOLDOWN_MS: Record<LadderFailure, number> = {
   busy: 60_000,
 };
 
+/**
+ * How many times the whole ladder is walked before giving up.
+ *
+ * Since an overloaded model no longer gets slow retries of its own, the case
+ * of "every model was busy in the same instant" has to be caught somewhere,
+ * and after a cheap full pass is the cheaper place: one wait for the ladder
+ * rather than one per rung.
+ */
+export const LADDER_PASSES = 2;
+
+/** The pause between passes — long enough for a per-minute bucket to move. */
+export const PASS_PAUSE_MS = 2000;
+
 export interface ModelLadder {
   /** The models to try, in order, best first. Always all of them. */
   order: (models: readonly string[]) => string[];

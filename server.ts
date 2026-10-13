@@ -11,7 +11,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
-import { createModelLadder } from "./services/modelLadder";
+import { createModelLadder, LADDER_PASSES, PASS_PAUSE_MS } from "./services/modelLadder";
 import { chooseMerchantPlace, merchantSearchQuery, placeLanguageFor } from "./services/merchantPlaceQuery";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
@@ -178,6 +178,21 @@ async function startServer() {
           code had not.
         */
         if (isQuotaError(error)) throw error;
+        /*
+          Nor does a model under load get better while you hold the line.
+
+          Re-asking the same overloaded model is the most expensive thing this
+          server does: a call against a throttled key measured 34.8 seconds
+          just to answer 503, so three attempts is a hundred seconds spent on
+          one rung while three untouched models wait below it. 「還是不行」 was
+          the client timing out at 120 seconds on a request whose answer was
+          sitting one model further down.
+
+          Handed to the ladder instead, which is the thing that knows there is
+          somewhere else to ask. A genuine network blip still retries here,
+          because there is no other model to move to for one of those.
+        */
+        if (isOverloadedError(error)) throw error;
         // 1s, then 2s. Long enough for a per-minute bucket to refill a little,
         // short enough that someone holding a phone has not given up.
         await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt));
@@ -237,7 +252,16 @@ async function startServer() {
   ): Promise<T> => {
     let lastError: unknown;
     let thin: { value: T } | undefined;
-    for (const model of ladder.order(INTAKE_MODELS)) {
+    // Round the models once quickly, then once more after a pause. See
+    // `LADDER_PASSES`.
+    for (let pass = 0; pass < LADDER_PASSES; pass += 1) {
+      // Only worth a second lap if the first one actually failed.
+      if (pass > 0) {
+        if (!lastError) break;
+        await new Promise(resolve => setTimeout(resolve, PASS_PAUSE_MS));
+      }
+      // Re-read, so the first pass's refusals order the second one.
+      for (const model of ladder.order(INTAKE_MODELS)) {
       try {
         const value = await withRetry(() => call(model));
         if (!accept || accept(value)) return value;
@@ -264,6 +288,7 @@ async function startServer() {
         if (process.env.NODE_ENV !== "production") {
           console.warn(`[intake] ${model} unavailable, trying the next model`);
         }
+      }
       }
     }
     if (thin) return thin.value;
