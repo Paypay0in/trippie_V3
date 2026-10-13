@@ -58,6 +58,29 @@ const upload = () => fireEvent.change(screen.getByTestId('plan-screenshot-file')
 });
 
 describe('the screenshot entry', () => {
+  /**
+   * 「讀取很久」, then the measurement: the Founder's own LINE screenshot, run
+   * against the deployed service, took 7 seconds to classify and 51 to read.
+   * One unchanging label across the better part of a minute is
+   * indistinguishable from a screen that has stopped.
+   */
+  it('says which half of the wait it is in', async () => {
+    let releaseParse: (value: unknown) => void = () => {};
+    vi.stubGlobal('fetch', vi.fn((url: string) => (url === '/api/screenshots/kind'
+      ? Promise.resolve(ok({ kind: 'inspiration' }))
+      // The long half: 51 seconds against the real service.
+      : new Promise(resolve => { releaseParse = resolve; }))));
+
+    mount();
+    upload();
+
+    // Classification is done; the wait now names what it is actually doing.
+    await screen.findByText(/讀取資料中，約需一分鐘/);
+
+    releaseParse(ok({ slices: [{ type: 'place', title: '暖暮拉麵' }] }));
+    await screen.findByText('上傳截圖');
+  });
+
   it('offers one upload for everything the trip needs', () => {
     mount();
     expect(screen.getByTestId('plan-screenshot-upload')).toBeTruthy();

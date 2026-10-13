@@ -109,7 +109,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
   tripEndDate,
 }) => {
   const fileInput = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'' | 'classifying' | 'reading'>('');
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
   const [held, setHeld] = useState<HeldFlight | null>(null);
@@ -138,7 +138,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
     setDone('');
     setHeld(null);
     setHeldStay(null);
-    setBusy(true);
+    setBusy('classifying');
     try {
       // Shrunk when the browser can, sent whole when it cannot. See
       // `readForUpload` for why that fallback exists.
@@ -149,6 +149,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         mimeType: picture.mimeType,
         destination,
         destinationCountry,
+        onStage: setBusy,
       });
 
       if ('rental' in result) {
@@ -245,7 +246,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       // the traveller needs from them.
       setError(caught instanceof Error ? caught.message : '現在無法辨識截圖，請稍後再試。');
     } finally {
-      setBusy(false);
+      setBusy('');
       // Clearing lets the same file be picked again after a failure.
       if (fileInput.current) fileInput.current.value = '';
     }
@@ -268,14 +269,21 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       <button
         type="button"
         data-testid="plan-screenshot-upload"
-        disabled={busy}
+        disabled={Boolean(busy)}
         onClick={() => fileInput.current?.click()}
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 px-4 text-sm font-black text-violet-700 disabled:opacity-50"
       >
         {busy
           ? <Loader2 size={16} className="animate-spin" />
           : <ImagePlus size={16} />}
-        {busy ? '讀取截圖中…' : '上傳截圖'}
+        {/*
+          Two calls, the better part of a minute between them. One unchanging
+          label for all of it is indistinguishable from a screen that has
+          stopped — which is how 「讀取很久」 gets reported as a bug.
+        */}
+        {busy === 'classifying' ? '看看這是什麼…'
+          : busy === 'reading' ? '讀取資料中，約需一分鐘…'
+            : '上傳截圖'}
       </button>
       <p className="mt-1.5 text-center text-[11px] leading-4 text-slate-400">
 機票、訂房、租車訂單、旅行靈感截圖都可以，我讀出來放到對的地方

@@ -28,6 +28,14 @@ export interface ScreenshotInput {
   mimeType?: string;
   destination?: string;
   destinationCountry?: string;
+  /**
+   * Told which half is running, so the wait can say so.
+   *
+   * Reading one screenshot is two calls and takes the better part of a
+   * minute. A single 「讀取截圖中…」 for all of it is indistinguishable from a
+   * screen that has stopped, which is how 「讀取很久」 gets reported as a bug.
+   */
+  onStage?: (stage: 'classifying' | 'reading') => void;
 }
 
 /**
@@ -38,12 +46,19 @@ export interface ScreenshotInput {
 /**
  * How long one call may take before the traveller is told it will not finish.
  *
- * Generous because a parse walks a ladder of models when the first is out of
- * quota, and each attempt is a real request. Finite because the alternative is
- * a spinner with no end: 「讀取很久」 was a screen that could spin forever and
- * never say so.
+ * Measured, not guessed. The first number here was sixty seconds, chosen
+ * because it sounded generous — and then the Founder's own LINE screenshot,
+ * run against the deployed service, came back correct in 51 seconds for the
+ * parse alone and 7 for the classification. It was succeeding two seconds
+ * inside a limit I had invented.
+ *
+ * A parse walks a ladder of models, and each rung that answers 503 costs a
+ * retry and a backoff before the next is tried, so a slow day is several
+ * real requests deep. Two minutes is well past the worst measured case and
+ * still finite: the alternative is a spinner with no end, which is what
+ * 「讀取很久」 was.
  */
-const CALL_TIMEOUT_MS = 60_000;
+const CALL_TIMEOUT_MS = 120_000;
 
 const post = async (endpoint: string, body: unknown, fallback: string): Promise<unknown> => {
   let response: Response;
@@ -89,7 +104,9 @@ export const classifyScreenshot = async (input: ScreenshotInput): Promise<Screen
 const refusal = '這張截圖讀不出完整的訂單，請改用該區塊的上傳按鈕手動確認。';
 
 export const readScreenshot = async (input: ScreenshotInput): Promise<ScreenshotResult> => {
+  input.onStage?.('classifying');
   const kind = await classifyScreenshot(input);
+  input.onStage?.('reading');
   const route = routeFor(kind);
   const picture = { base64Data: input.base64Data, mimeType: input.mimeType };
 
