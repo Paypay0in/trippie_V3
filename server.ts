@@ -634,6 +634,10 @@ async function startServer() {
                     departureAirport: { type: Type.STRING },
                     departureAirportIata: { type: Type.STRING },
                     departureDate: { type: Type.STRING, description: "YYYY-MM-DD" },
+                    // The weekday beside the date, as printed. Most tickets
+                    // state no year, and this is what pins it — see
+                    // `yearFromWeekday`.
+                    departureWeekday: { type: Type.STRING, description: "as printed: 二, Tue" },
                     departureTime: { type: Type.STRING, description: "HH:mm local" },
                     arrivalAirport: { type: Type.STRING },
                     arrivalAirportIata: { type: Type.STRING },

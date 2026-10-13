@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FlightAnchor } from '../types';
-import { applyFlightToDraft, assignFlightsToLegs, legsToApply, normalizeParsedFlight } from './flightIntake';
+import { applyFlightToDraft, assignFlightsToLegs, legsToApply, normalizeParsedFlight, yearFromWeekday } from './flightIntake';
 
 const ticket = {
   direction: 'OUTBOUND',
@@ -194,5 +194,81 @@ describe('legsToApply', () => {
     // A one-way trip has no return field, so a return read still lands somewhere.
     expect(legsToApply({ RETURN: back }, 'ONE_WAY')).toEqual([['OUTBOUND', back]]);
     expect(legsToApply({}, 'ONE_WAY')).toEqual([]);
+  });
+});
+
+/**
+ * 「我傳機票資訊 結果日期不正確」.
+ *
+ * The confirmation printed 「10 月 20 日（二）」 and 「10 月 24 日（六）」 and no
+ * year anywhere. The read came back 2023-10-20 — a Friday — and a trip was
+ * created three years in the past.
+ *
+ * The weekday was on the page the whole time, and 10/20 lands on a Tuesday
+ * once every five or six years, so it names the year outright:
+ *
+ *   2023  10/20 Fri      2026  10/20 Tue   10/24 Sat   ← the only match
+ */
+describe('the year a ticket does not print', () => {
+  it('fixes the year from the weekday beside the date', () => {
+    expect(yearFromWeekday('2023-10-20', '二')).toBe('2026-10-20');
+    expect(yearFromWeekday('2023-10-24', '六')).toBe('2026-10-24');
+  });
+
+  it('reads an English weekday too', () => {
+    expect(yearFromWeekday('2023-10-20', 'Tue')).toBe('2026-10-20');
+    expect(yearFromWeekday('2023-10-20', 'Tuesday')).toBe('2026-10-20');
+  });
+
+  it('leaves a date the weekday already agrees with', () => {
+    expect(yearFromWeekday('2026-10-20', '二')).toBe('2026-10-20');
+  });
+
+  /** No evidence, no repair: the read date came off the page, a guess would not. */
+  it('changes nothing without a weekday it can read', () => {
+    expect(yearFromWeekday('2023-10-20', undefined)).toBe('2023-10-20');
+    expect(yearFromWeekday('2023-10-20', '')).toBe('2023-10-20');
+    expect(yearFromWeekday('2023-10-20', '週末')).toBe('2023-10-20');
+  });
+
+  /**
+   * Nearest wins, and only within five years. Beyond that a disagreeing
+   * weekday is more likely a misread character than a date six years out.
+   */
+  it('takes the closest year that fits', () => {
+    // 2027-10-20 is a Wednesday; 2021 is one too, and is further away.
+    expect(yearFromWeekday('2026-10-20', '三')).toBe('2027-10-20');
+  });
+
+  it('repairs the whole flight, and says it had to', () => {
+    const flight = normalizeParsedFlight({
+      departureDate: '2023-10-20',
+      departureWeekday: '二',
+      departureTime: '06:35',
+      departureAirport: 'Taipei (TPE)',
+      arrivalAirport: 'Tokyo (NRT)',
+      arrivalDate: '2023-10-20',
+      arrivalTime: '11:00',
+    });
+
+    expect(flight?.departureDate).toBe('2026-10-20');
+    // Both ends move together: the arrival follows the departure's shift
+    // rather than being looked up on its own, so an overnight flight is not
+    // dragged into a different year from its own take-off.
+    expect(flight?.arrivalDate).toBe('2026-10-20');
+    // A year nobody printed and we worked out is worth one look.
+    expect(flight?.isUncertain).toBe(true);
+  });
+
+  it('says nothing about a flight whose year was printed correctly', () => {
+    const flight = normalizeParsedFlight({
+      departureDate: '2026-10-20',
+      departureWeekday: '二',
+      departureTime: '06:35',
+      departureAirport: 'Taipei (TPE)',
+    });
+
+    expect(flight?.departureDate).toBe('2026-10-20');
+    expect(flight?.isUncertain).toBeUndefined();
   });
 });

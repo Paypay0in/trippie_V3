@@ -21,6 +21,15 @@ export interface ParsedFlight {
   departureAirport?: string;
   departureAirportIata?: string;
   departureDate?: string;
+  /**
+   * The weekday beside the date, exactly as printed.
+   *
+   * 「我傳機票資訊 結果日期不正確」 — the ticket said 「10 月 20 日（二）」 and no
+   * year, and the read came back 2023-10-20, which was a Friday. The weekday
+   * was on the page the whole time and is enough to pin the year on its own:
+   * 10/20 falls on a Tuesday once every five or six years.
+   */
+  departureWeekday?: string;
   departureTime?: string;
   arrivalAirport?: string;
   arrivalAirportIata?: string;
@@ -56,16 +65,95 @@ const cleanText = (value: unknown, limit: number): string | undefined => {
  * of an anchor is to fix a moment the rest of the day is arranged around. It
  * is refused rather than half-filled.
  */
+/**
+ * The weekday a ticket prints, as a day index, or undefined.
+ *
+ * Chinese 「（二）」 and English 「Tue」 are the two forms these confirmations use;
+ * anything else is read as nothing rather than guessed at, because a wrong
+ * weekday would move a correct date by years.
+ */
+const WEEKDAY_INDEX: Record<string, number> = {
+  日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6,
+  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+};
+
+export const weekdayIndex = (printed: string | undefined): number | undefined => {
+  const raw = (printed || '').trim();
+  if (!raw) return undefined;
+
+  const chinese = raw.match(/[日天一二三四五六]/);
+  if (chinese) return WEEKDAY_INDEX[chinese[0]];
+
+  const english = raw.toLowerCase().slice(0, 3);
+  return english in WEEKDAY_INDEX ? WEEKDAY_INDEX[english] : undefined;
+};
+
+/**
+ * The year the ticket meant, when the weekday says the read one is wrong.
+ *
+ * 「我傳機票資訊 結果日期不正確」. A confirmation that prints 「10 月 20 日（二）」
+ * and no year leaves the model to pick one, and it picked 2023 — a Friday.
+ * The weekday is evidence we already had on the page, and the month and day
+ * only land on a given weekday once every five or six years, so it names the
+ * year outright.
+ *
+ * Searched outward from the read year so the nearest match wins, and only
+ * within five years: beyond that a disagreeing weekday is more likely a
+ * misread character than a date six years away.
+ *
+ * Returns the date unchanged when there is no weekday, when it cannot be
+ * read, or when nothing nearby agrees — a repair nobody can justify is worse
+ * than the original, which at least came off the page.
+ */
+export const yearFromWeekday = (isoDate: string, printedWeekday?: string): string => {
+  const wanted = weekdayIndex(printedWeekday);
+  if (wanted === undefined || !ISO_DATE.test(isoDate)) return isoDate;
+
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const asRead = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(asRead.getTime())) return isoDate;
+  if (asRead.getUTCDay() === wanted) return isoDate;
+
+  for (let delta = 1; delta <= 5; delta += 1) {
+    for (const candidateYear of [year + delta, year - delta]) {
+      const candidate = new Date(Date.UTC(candidateYear, month - 1, day));
+      if (candidate.getUTCMonth() !== month - 1) continue; // 2/29 in a common year
+      if (candidate.getUTCDay() === wanted) {
+        return `${candidateYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+  }
+
+  return isoDate;
+};
+
 export const normalizeParsedFlight = (raw: unknown): ParsedFlight | null => {
   if (!raw || typeof raw !== 'object') return null;
   const value = raw as Record<string, unknown>;
 
-  const departureDate = typeof value.departureDate === 'string' && ISO_DATE.test(value.departureDate.trim())
+  const readDate = typeof value.departureDate === 'string' && ISO_DATE.test(value.departureDate.trim())
     ? value.departureDate.trim() : undefined;
   const departureTime = cleanTime(value.departureTime);
-  if (!departureDate || !departureTime) return null;
+  if (!readDate || !departureTime) return null;
+
+  /*
+    The year, checked against the weekday the ticket printed.
+
+    「我傳機票資訊 結果日期不正確」 — 「10 月 20 日（二）」 with no year came back
+    as 2023-10-20, a Friday, and a trip was created three years in the past.
+    See `yearFromWeekday`.
+  */
+  const printedWeekday = cleanText(value.departureWeekday, 12);
+  const departureDate = yearFromWeekday(readDate, printedWeekday);
 
   const flight: ParsedFlight = { departureDate, departureTime };
+  if (printedWeekday) flight.departureWeekday = printedWeekday;
+  /*
+    A year the ticket did not print and we had to work out is worth flagging,
+    so the traveller checks the one field a screenshot could not state. The
+    booking is still filed: an unflagged wrong year was the actual harm.
+  */
+  if (departureDate !== readDate) flight.isUncertain = true;
 
   if (value.direction === 'OUTBOUND' || value.direction === 'RETURN') flight.direction = value.direction;
 
@@ -76,8 +164,18 @@ export const normalizeParsedFlight = (raw: unknown): ParsedFlight | null => {
   flight.arrivalAirportIata = cleanIata(value.arrivalAirportIata);
   flight.arrivalTime = cleanTime(value.arrivalTime);
 
-  const arrivalDate = typeof value.arrivalDate === 'string' && ISO_DATE.test(value.arrivalDate.trim())
+  const readArrival = typeof value.arrivalDate === 'string' && ISO_DATE.test(value.arrivalDate.trim())
     ? value.arrivalDate.trim() : undefined;
+  /*
+    Moved by the same number of years as the departure, not re-derived.
+
+    The arrival carries its own weekday only sometimes, and a flight that
+    lands the next morning would be dragged to a different year by a weekday
+    lookup of its own. The two ends of one flight move together or not at all.
+  */
+  const arrivalDate = readArrival && departureDate !== readDate
+    ? `${Number(readArrival.slice(0, 4)) + (Number(departureDate.slice(0, 4)) - Number(readDate.slice(0, 4)))}${readArrival.slice(4)}`
+    : readArrival;
   // Landing before take-off is a misread, not a timezone. An overnight flight
   // arrives the next day, which is later, so this only catches genuine errors.
   if (arrivalDate && arrivalDate < departureDate) {
@@ -180,6 +278,10 @@ export const flightPrompt = (tripStartDate?: string, tripEndDate?: string) => `
       3. "arrivalAirport" and "arrivalAirportIata": the same for the destination.
       4. "departureDate" (YYYY-MM-DD) and "departureTime" (HH:mm, 24-hour),
          in the departure airport's own local time.
+      4b. "departureWeekday": the weekday printed beside that date, exactly as
+         written — 「二」 from 「10 月 20 日（二）」, or "Tue". Omit it if the
+         ticket does not print one. It is how the year is checked when the
+         ticket does not state a year, which is most of them.
       5. "arrivalDate" and "arrivalTime", in the arrival airport's local time,
          only if the image shows them.
       6. "direction": "OUTBOUND" if this flight leaves for the destination,
@@ -196,6 +298,10 @@ export const flightPrompt = (tripStartDate?: string, tripEndDate?: string) => `
       - One entry per flight. Do not repeat the same flight twice.
       - If only one flight is shown, return an array of one.
       - Set "isUncertain" to true if the image is blurry, cropped, or ambiguous.
+      - Many confirmations print the day and month and no year. Do not fall
+        back on a year you have seen in training data: copy the weekday into
+        "departureWeekday" and let the caller resolve it. If a year really is
+        printed, use it.
 
       Return JSON shaped { "flights": [ ... ] }.
     `;
