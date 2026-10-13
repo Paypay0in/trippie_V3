@@ -493,6 +493,10 @@ const TripPlanOverview: React.FC<Props> = ({
     && onAddStayItemsFromScreenshot && onAddFlightAnchorsFromScreenshot
     ? (
       <PlanScreenshotIntake
+        /* Named buttons only while the gate is up, because that is where the
+           card has just said which two things it wants. Everywhere else one
+           entry that works it out is the right shape. */
+        offerKindShortcuts={missing.length > 0}
         destination={destination}
         destinationCountry={destinationCountry}
         onAddRental={onAddRentalFromScreenshot}

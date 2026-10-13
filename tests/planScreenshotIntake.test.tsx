@@ -64,6 +64,61 @@ describe('the screenshot entry', () => {
    * One unchanging label across the better part of a minute is
    * indistinguishable from a screen that has stopped.
    */
+  /**
+   * 「一直卡在這個畫面」 — stuck on 「看看這是什麼…」, which is the classify call.
+   *
+   * On the deployed service that call took 10.5s, then 23.9s, then 57.4s for
+   * the same image as the rate limit tightened. It is also pure overhead
+   * where the card has already said 「先補上航班資訊與住宿資訊」: a traveller
+   * pressing 訂房 has answered the question the model was about to be asked.
+   */
+  it('skips classification when the traveller names the kind', async () => {
+    const called: string[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      called.push(url);
+      return Promise.resolve(ok({
+        hotelName: '博多站前飯店',
+        address: '福岡市博多區',
+        checkInDate: '2026-11-05',
+        checkOutDate: '2026-11-10',
+      }));
+    }));
+
+    const { onAddStayItems } = mount({ offerKindShortcuts: true });
+    fireEvent.click(screen.getByTestId('plan-screenshot-kind-stay'));
+    upload();
+
+    await waitFor(() => expect(onAddStayItems).toHaveBeenCalledTimes(1));
+    // The classify route is never asked. The place lookup that follows is a
+    // different service and not the one that was slow.
+    expect(called).not.toContain('/api/screenshots/kind');
+    expect(called[0]).toBe('/api/stays/parse-image');
+  });
+
+  /** The plain entry still works it out, because it has not been told. */
+  it('still classifies when nobody said', async () => {
+    const called: string[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      called.push(url);
+      return Promise.resolve(url === '/api/screenshots/kind'
+        ? ok({ kind: 'inspiration' })
+        : ok({ slices: [{ type: 'place', title: '暖暮拉麵' }] }));
+    }));
+
+    mount({ offerKindShortcuts: true });
+    fireEvent.click(screen.getByTestId('plan-screenshot-upload'));
+    upload();
+
+    await waitFor(() => expect(called.length).toBe(2));
+    expect(called[0]).toBe('/api/screenshots/kind');
+  });
+
+  /** And the shortcuts are absent where the card never named anything. */
+  it('offers no shortcuts outside the gate', () => {
+    mount();
+    expect(screen.queryByTestId('plan-screenshot-kinds')).toBeNull();
+  });
+
   it('says which half of the wait it is in', async () => {
     let releaseParse: (value: unknown) => void = () => {};
     vi.stubGlobal('fetch', vi.fn((url: string) => (url === '/api/screenshots/kind'

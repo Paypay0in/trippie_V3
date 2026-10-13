@@ -29,6 +29,19 @@ export interface ScreenshotInput {
   destination?: string;
   destinationCountry?: string;
   /**
+   * What this picture is, when the traveller already said.
+   *
+   * Classifying costs a whole model call, and on a throttled key that call
+   * is the difference between twenty seconds and a minute — measured on the
+   * deployed service, where three classifications of the same image took
+   * 10.5s, 23.9s and 57.4s as the rate limit tightened.
+   *
+   * The gate has already named what it wants（「先補上航班資訊與住宿資訊」）, so
+   * somebody pressing 訂房 there has answered the question the model was
+   * about to be paid to answer. Omit it and it is worked out as before.
+   */
+  assumeKind?: ScreenshotKind;
+  /**
    * Told which half is running, so the wait can say so.
    *
    * Reading one screenshot is two calls and takes the better part of a
@@ -104,8 +117,15 @@ export const classifyScreenshot = async (input: ScreenshotInput): Promise<Screen
 const refusal = '這張截圖讀不出完整的訂單，請改用該區塊的上傳按鈕手動確認。';
 
 export const readScreenshot = async (input: ScreenshotInput): Promise<ScreenshotResult> => {
-  input.onStage?.('classifying');
-  const kind = await classifyScreenshot(input);
+  /*
+    One call instead of two when the traveller already said what it is.
+    See `assumeKind`.
+  */
+  let kind = input.assumeKind;
+  if (!kind) {
+    input.onStage?.('classifying');
+    kind = await classifyScreenshot(input);
+  }
   input.onStage?.('reading');
   const route = routeFor(kind);
   const picture = { base64Data: input.base64Data, mimeType: input.mimeType };

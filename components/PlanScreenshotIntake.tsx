@@ -8,6 +8,7 @@ import { resolvePlace } from '../services/placeService';
 import { flightAnchorsFromParsed, normalizeParsedFlight } from '../services/flightIntake';
 import { ItineraryItem, FlightAnchor } from '../types';
 import { readScreenshot } from '../services/screenshotIntake';
+import type { ScreenshotKind } from '../services/screenshotKind';
 import { readForUpload } from '../services/postPhotos';
 import { AnchorContradiction, anchorContradictions, contradictionHeadline } from '../services/anchorContradictions';
 import { ParsedFlight } from '../services/flightIntake';
@@ -51,6 +52,19 @@ interface Props {
   onStartTripFromFlights?: (flights: ParsedFlight[]) => void;
   /** Lets a check-in time follow the landing time, as the stay card does. */
   flightArrivals?: FlightArrival[];
+  /**
+   * Offers 機票 / 訂房 as their own buttons, skipping classification.
+   *
+   * 「一直卡在這個畫面」 — stuck on 「看看這是什麼…」, which is the classify call.
+   * On the deployed service that call took 10.5s, then 23.9s, then 57.4s for
+   * the same image as the rate limit tightened, and it is pure overhead: the
+   * gate above has already said 「先補上航班資訊與住宿資訊」, so a traveller
+   * pressing 訂房 has answered the question the model was about to be asked.
+   *
+   * Only where the card has named those two. Everywhere else one entry that
+   * works it out is the right shape, and the extra call is worth it.
+   */
+  offerKindShortcuts?: boolean;
   /** Checked against what was read, so a ticket for another trip is queried. */
   tripStartDate?: string;
   tripEndDate?: string;
@@ -105,6 +119,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
   onAddFlightAnchors,
   flightArrivals = [],
   onStartTripFromFlights,
+  offerKindShortcuts = false,
   tripStartDate,
   tripEndDate,
 }) => {
@@ -133,6 +148,9 @@ const PlanScreenshotIntake: React.FC<Props> = ({
     }
   };
 
+  /** What the traveller said this is, when they used a shortcut. */
+  const assumedKind = useRef<ScreenshotKind | undefined>(undefined);
+
   const handleFile = async (file: File) => {
     setError('');
     setDone('');
@@ -149,6 +167,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         mimeType: picture.mimeType,
         destination,
         destinationCountry,
+        assumeKind: assumedKind.current,
         onStage: setBusy,
       });
 
@@ -247,6 +266,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       setError(caught instanceof Error ? caught.message : '現在無法辨識截圖，請稍後再試。');
     } finally {
       setBusy('');
+      assumedKind.current = undefined;
       // Clearing lets the same file be picked again after a failure.
       if (fileInput.current) fileInput.current.value = '';
     }
@@ -266,11 +286,39 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         }}
       />
 
+      {/*
+        Named buttons where the card has already named what it wants.
+
+        「一直卡在這個畫面」 was the classify call, which costs a whole model
+        request and grew from 10.5s to 57.4s across three tries as the rate
+        limit tightened. Saying 訂房 skips it entirely — one call instead of
+        two, on the only API that is actually slow here.
+      */}
+      {offerKindShortcuts && (
+        <div data-testid="plan-screenshot-kinds" className="mb-2 flex gap-2">
+          {([['flight', '機票'], ['stay', '訂房']] as const).map(([kind, label]) => (
+            <button
+              key={kind}
+              type="button"
+              data-testid={`plan-screenshot-kind-${kind}`}
+              disabled={Boolean(busy)}
+              onClick={() => {
+                assumedKind.current = kind;
+                fileInput.current?.click();
+              }}
+              className="min-h-11 flex-1 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-xs font-black text-white disabled:opacity-50"
+            >
+              上傳{label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <button
         type="button"
         data-testid="plan-screenshot-upload"
         disabled={Boolean(busy)}
-        onClick={() => fileInput.current?.click()}
+        onClick={() => { assumedKind.current = undefined; fileInput.current?.click(); }}
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 px-4 text-sm font-black text-violet-700 disabled:opacity-50"
       >
         {busy
