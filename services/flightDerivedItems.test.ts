@@ -220,3 +220,62 @@ describe('landing', () => {
     expect(result).toEqual([]);
   });
 });
+
+/**
+ * 「這個機票有明確的起降機場 行程表應該要做到自動帶入地點」.
+ *
+ * The card showed 抵達機場 and 航班起飛 at 「Taipei」 and, under each,
+ * 「其中一個地點還沒連結地圖，無法計算交通時間」 — on a trip whose ticket printed
+ * TPE and NRT.
+ *
+ * Both ends were already known. `FlightAnchor` has carried the three place
+ * fields since it was written and the directory has held the coordinates for
+ * both airports; the derived items simply never copied them across, so every
+ * leg touching an airport had one unmapped end.
+ */
+describe('an airport as a place', () => {
+  const anchor = {
+    id: 'f-1',
+    direction: 'OUTBOUND' as const,
+    departureDate: '2026-10-20',
+    departureTime: '06:35',
+    departureAirport: 'TPE · Taiwan Taoyuan International Airport',
+    departureAirportLatitude: 25.0777,
+    departureAirportLongitude: 121.2328,
+    arrivalAirport: 'NRT · Narita International Airport',
+    arrivalTime: '11:00',
+    arrivalAirportLatitude: 35.772,
+    arrivalAirportLongitude: 140.3929,
+    airportArrivalBufferMinutes: 120,
+    source: 'MANUAL' as const,
+  };
+
+  it('puts the departure airport on both of its cards', () => {
+    const [arrive, takeOff] = itemsFromFlightAnchor(anchor);
+
+    expect(arrive.latitude).toBe(25.0777);
+    expect(takeOff.latitude).toBe(25.0777);
+    expect(takeOff.longitude).toBe(121.2328);
+  });
+
+  it('puts the arrival airport on the landing card', () => {
+    const landing = itemsFromFlightAnchor(anchor)[2];
+
+    expect(landing?.title).toBe('航班抵達');
+    expect(landing?.latitude).toBe(35.772);
+  });
+
+  /**
+   * An anchor without coordinates writes none, rather than a pair of
+   * undefined keys that read as a place that failed to resolve.
+   */
+  it('writes nothing when the anchor has no place', () => {
+    const [arrive] = itemsFromFlightAnchor({
+      ...anchor,
+      departureAirportLatitude: undefined,
+      departureAirportLongitude: undefined,
+    });
+
+    expect('latitude' in arrive).toBe(false);
+  });
+});

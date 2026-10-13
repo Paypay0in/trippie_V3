@@ -12,6 +12,7 @@
  */
 
 import { FlightAnchor } from '../types';
+import { findAirportByIata } from './airportDirectory';
 
 export const FLIGHT_MODEL = 'gemini-3-flash-preview';
 
@@ -368,6 +369,31 @@ export const flightAnchorsFromParsed = (
   if (flight.departureAirportIata) anchor.departureAirportIata = flight.departureAirportIata;
   if (flight.arrivalAirport) anchor.arrivalAirport = flight.arrivalAirport;
   if (flight.arrivalAirportIata) anchor.arrivalAirportIata = flight.arrivalAirportIata;
+
+  /*
+    Where those airports actually are.
+
+    「這個機票有明確的起降機場 行程表應該要做到自動帶入地點」 — the ticket prints
+    TPE and NRT, the directory has held both with coordinates since it was
+    written, and the anchor has had the fields all along. Nothing joined them,
+    so every flight card arrived unmapped and every leg touching one read
+    「其中一個地點還沒連結地圖，無法計算交通時間」.
+
+    From the curated table and nowhere else: an airport this app has not been
+    told about gets no coordinates rather than a guessed pair, which is the
+    same rule the destination lookup follows.
+  */
+  const from = flight.departureAirportIata ? findAirportByIata(flight.departureAirportIata) : undefined;
+  if (from?.latitude !== undefined && from.longitude !== undefined) {
+    anchor.departureAirportLatitude = from.latitude;
+    anchor.departureAirportLongitude = from.longitude;
+  }
+
+  const to = flight.arrivalAirportIata ? findAirportByIata(flight.arrivalAirportIata) : undefined;
+  if (to?.latitude !== undefined && to.longitude !== undefined) {
+    anchor.arrivalAirportLatitude = to.latitude;
+    anchor.arrivalAirportLongitude = to.longitude;
+  }
   if (flight.arrivalDate) anchor.arrivalDate = flight.arrivalDate;
   if (flight.arrivalTime) anchor.arrivalTime = flight.arrivalTime;
 

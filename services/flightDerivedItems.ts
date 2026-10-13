@@ -45,6 +45,25 @@ export const derivedItemIdsFor = (anchorId: string): string[] => [
   `flight-landing-${anchorId}`,
 ];
 
+/**
+ * The airport as a place, not only as a name.
+ *
+ * 「這個機票有明確的起降機場 行程表應該要做到自動帶入地點」 — and the card said
+ * 「其中一個地點還沒連結地圖，無法計算交通時間」 under a flight whose ticket
+ * printed TPE and NRT. Both ends were known: `FlightAnchor` has carried these
+ * three fields all along and the derived items simply never copied them, so
+ * every leg touching an airport was a leg with one unmapped end.
+ */
+const placeOf = (
+  placeId?: string,
+  latitude?: number,
+  longitude?: number,
+): Pick<ItineraryItem, 'placeId' | 'latitude' | 'longitude'> => ({
+  ...(placeId ? { placeId } : {}),
+  ...(typeof latitude === 'number' ? { latitude } : {}),
+  ...(typeof longitude === 'number' ? { longitude } : {}),
+});
+
 export const itemsFromFlightAnchor = (anchor: FlightAnchor): ItineraryItem[] => {
   if (!anchor.departureDate || !anchor.departureTime || !anchor.departureAirport) return [];
   const [arrivalId, departureId, landingId] = derivedItemIdsFor(anchor.id);
@@ -54,6 +73,7 @@ export const itemsFromFlightAnchor = (anchor: FlightAnchor): ItineraryItem[] => 
       time: shiftClock(anchor.departureTime, anchor.airportArrivalBufferMinutes || DEFAULT_AIRPORT_BUFFER_MINUTES),
       title: '抵達機場',
       location: anchor.departureAirport,
+      ...placeOf(anchor.departureAirportPlaceId, anchor.departureAirportLatitude, anchor.departureAirportLongitude),
       notes: '依航班起飛時間與機場緩衝自動推算，於「航班資訊」修改',
       type: 'TRANSPORT',
       date: anchor.departureDate,
@@ -65,6 +85,7 @@ export const itemsFromFlightAnchor = (anchor: FlightAnchor): ItineraryItem[] => 
       time: anchor.departureTime,
       title: '航班起飛',
       location: anchor.departureAirport,
+      ...placeOf(anchor.departureAirportPlaceId, anchor.departureAirportLatitude, anchor.departureAirportLongitude),
       notes: '由已保存航班錨點產生，於「航班資訊」修改',
       type: 'FLIGHT',
       date: anchor.departureDate,
@@ -84,6 +105,7 @@ export const itemsFromFlightAnchor = (anchor: FlightAnchor): ItineraryItem[] => 
       time: anchor.arrivalTime,
       title: '航班抵達',
       location: anchor.arrivalAirport || anchor.arrivalAirportIata || '目的地機場',
+      ...placeOf(anchor.arrivalAirportPlaceId, anchor.arrivalAirportLatitude, anchor.arrivalAirportLongitude),
       notes: '由已保存航班錨點產生，於「航班資訊」修改',
       type: 'FLIGHT' as const,
       date: anchor.arrivalDate || anchor.departureDate,

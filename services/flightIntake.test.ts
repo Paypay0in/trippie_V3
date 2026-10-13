@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FlightAnchor } from '../types';
-import { applyFlightToDraft, assignFlightsToLegs, legsToApply, normalizeParsedFlight, yearFromWeekday } from './flightIntake';
+import { applyFlightToDraft, assignFlightsToLegs, legsToApply, normalizeParsedFlight, yearFromWeekday, flightAnchorsFromParsed } from './flightIntake';
 
 const ticket = {
   direction: 'OUTBOUND',
@@ -270,5 +270,45 @@ describe('the year a ticket does not print', () => {
 
     expect(flight?.departureDate).toBe('2026-10-20');
     expect(flight?.isUncertain).toBeUndefined();
+  });
+});
+
+/**
+ * 「這個機票有明確的起降機場 行程表應該要做到自動帶入地點」.
+ *
+ * The ticket prints TPE and NRT. The directory has held both with
+ * coordinates since it was written, and the anchor has had the fields all
+ * along — nothing joined them, so a flight read from a screenshot arrived
+ * unmapped and every leg touching it could not be timed.
+ */
+describe('the airports a ticket names', () => {
+  const read = (over: Record<string, unknown> = {}) => flightAnchorsFromParsed([{
+    direction: 'OUTBOUND',
+    departureAirport: 'Taipei (TPE)',
+    departureAirportIata: 'TPE',
+    departureDate: '2026-10-20',
+    departureTime: '06:35',
+    arrivalAirport: 'Tokyo (NRT)',
+    arrivalAirportIata: 'NRT',
+    ...over,
+  }] as never, () => 'id')[0];
+
+  it('places both ends from the curated table', () => {
+    const anchor = read();
+
+    expect(anchor?.departureAirportLatitude).toBe(25.0777);
+    expect(anchor?.arrivalAirportLatitude).toBe(35.772);
+  });
+
+  /**
+   * An airport this app has not been told about gets no coordinates rather
+   * than a guessed pair — the same rule the destination lookup follows, and
+   * the reason the table is hand-maintained.
+   */
+  it('places nothing it does not know', () => {
+    const anchor = read({ arrivalAirportIata: 'ISG', arrivalAirport: 'Ishigaki' });
+
+    expect(anchor?.departureAirportLatitude).toBe(25.0777);
+    expect(anchor?.arrivalAirportLatitude).toBeUndefined();
   });
 });
