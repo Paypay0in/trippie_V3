@@ -795,11 +795,6 @@ const App: React.FC = () => {
   const currentUserId = authUser?.id ?? anonymousUserId;
   const userId = currentUserId;
 
-  const [friends, setFriends] = useState<Companion[]>(() => {
-    const saved = localStorage.getItem("trippie_friends");
-    return saved ? JSON.parse(saved) : [];
-  });
-
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
@@ -818,6 +813,31 @@ const App: React.FC = () => {
   */
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [friendPeople, setFriendPeople] = useState<Record<string, Person>>({});
+
+  /*
+    The friend list every trip screen reads, derived from real friendships.
+
+    「未來建立旅程可以直接從好友名單加入旅伴」 — and the screen for it was already
+    built: `CompanionsModal` computes `availableFriends` and offers
+    `onAddFriendToTrip`, and the create-trip screen already hands it `friends`.
+
+    It was always empty. `friends` was a `useState` seeded from a localStorage
+    key nobody ever wrote — `setFriends` had no callers anywhere — so the array
+    could only ever be `[]`, and a working picker was offering a list that
+    could not be filled.
+
+    One source now, so the friends panel and the companion picker cannot
+    disagree about who your friends are. A friend whose profile has not loaded
+    yet is left out rather than listed as 「旅伴」: a row you cannot recognise is
+    not a row you can choose from.
+  */
+  const friends = useMemo<Companion[]>(
+    () => friendIdsFor(friendships, authUser?.id)
+      .map(id => friendPeople[id])
+      .filter((person): person is Person => Boolean(person?.displayName?.trim()))
+      .map(person => ({ id: person.id, name: person.displayName.trim() })),
+    [friendships, friendPeople, authUser?.id],
+  );
   /*
     Seats on shared trips, read from the server.
 
