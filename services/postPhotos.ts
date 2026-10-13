@@ -136,20 +136,68 @@ const canDownscale = (): boolean => {
   }
 };
 
+/**
+ * What a parse route will actually carry.
+ *
+ * Measured against the deployed service rather than chosen: a body of a few
+ * megabytes comes back 502, and one of eight is dropped before any status is
+ * returned at all — which the browser reports as a failed request, and the
+ * app then reports as 「請確認連線後再試」. A connection message for a picture
+ * that was simply too big sends somebody to check their wifi.
+ */
+export const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+
+/** Base64 carries three bytes in four characters. */
+export const uploadBytes = (base64: string): number => Math.floor((base64.length * 3) / 4);
+
+export class PictureTooLarge extends Error {
+  constructor() {
+    super('這張圖太大，傳不過去。請改傳螢幕截圖，或用相簿裡壓縮過的版本。');
+    this.name = 'PictureTooLarge';
+  }
+}
+
 export const readForUpload = async (
   file: File,
   options: DownscaleOptions = RECEIPT_SCAN_OPTIONS,
 ): Promise<UploadPayload> => {
-  if (!canDownscale()) return readRaw(file);
+  if (!canDownscale()) {
+    /*
+      Nothing can be shrunk here, so the only honest choice is to send it or
+      to say it will not fit. Saying so beats a request that is dropped on
+      the way and reported as a network problem.
+    */
+    const raw = await readRaw(file);
+    if (uploadBytes(raw.data) > MAX_UPLOAD_BYTES) throw new PictureTooLarge();
+    return raw;
+  }
 
   try {
     const smaller = await Promise.race([
       readAndDownscale(file, options),
       new Promise<null>(resolve => { setTimeout(() => resolve(null), DOWNSCALE_TIMEOUT_MS); }),
     ]);
-    if (smaller) return { data: smaller.split(',')[1] || '', mimeType: 'image/jpeg' };
-  } catch {
-    // Falls through to the original below.
+    if (smaller) {
+      const data = smaller.split(',')[1] || '';
+      if (uploadBytes(data) <= MAX_UPLOAD_BYTES) return { data, mimeType: 'image/jpeg' };
+
+      /*
+        Still too big after the first pass — a very tall screenshot, usually.
+        One more at half the edge rather than giving up: 900px still reads a
+        booking confirmation, and the alternative is refusing a picture that
+        would have worked.
+      */
+      const smallest = await readAndDownscale(file, { maxEdge: 900, quality: 0.7 });
+      const retry = smallest.split(',')[1] || '';
+      if (uploadBytes(retry) > MAX_UPLOAD_BYTES) throw new PictureTooLarge();
+      return { data: retry, mimeType: 'image/jpeg' };
+    }
+  } catch (error) {
+    if (error instanceof PictureTooLarge) throw error;
+    // Anything else falls through to the original below.
   }
-  return readRaw(file);
+
+  const raw = await readRaw(file);
+  if (uploadBytes(raw.data) > MAX_UPLOAD_BYTES) throw new PictureTooLarge();
+  return raw;
 };
