@@ -11,6 +11,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
+import { createModelLadder } from "./services/modelLadder";
 import { chooseMerchantPlace, merchantSearchQuery, placeLanguageFor } from "./services/merchantPlaceQuery";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
@@ -152,6 +153,12 @@ async function startServer() {
    * move to the server, which is the same "second path drops the first path's
    * guards" shape that keeps costing this project.
    */
+  /*
+    Remembered across requests, deliberately. The failure this avoids is not
+    within one upload — it is the next upload walking the same dead rungs.
+  */
+  const ladder = createModelLadder();
+
   const withRetry = async <T>(call: () => Promise<T>, attempts = 3): Promise<T> => {
     let lastError: unknown;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -161,6 +168,16 @@ async function startServer() {
         lastError = error;
         // A malformed request fails identically however many times it is sent.
         if (!isRetryable(error) || attempt === attempts - 1) throw error;
+        /*
+          A spent allowance does not refill in three seconds.
+
+          Sleeping on a quota refusal buys nothing and costs the traveller the
+          wait twice over, because the model below in the ladder has its own
+          allowance and is the thing actually worth trying. The doc comment on
+          `withModelFallback` has claimed this behaviour all along; only the
+          code had not.
+        */
+        if (isQuotaError(error)) throw error;
         // 1s, then 2s. Long enough for a per-minute bucket to refill a little,
         // short enough that someone holding a phone has not given up.
         await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt));
@@ -220,7 +237,7 @@ async function startServer() {
   ): Promise<T> => {
     let lastError: unknown;
     let thin: { value: T } | undefined;
-    for (const model of INTAKE_MODELS) {
+    for (const model of ladder.order(INTAKE_MODELS)) {
       try {
         const value = await withRetry(() => call(model));
         if (!accept || accept(value)) return value;
@@ -231,6 +248,9 @@ async function startServer() {
         continue;
       } catch (error) {
         lastError = error;
+        // So the next request does not queue behind this same refusal.
+        if (isQuotaError(error)) ladder.note(model, 'quota');
+        else if (isOverloadedError(error) || isNetworkError(error)) ladder.note(model, 'busy');
         /*
           Step aside for anything the next model could survive.
 
