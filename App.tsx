@@ -190,6 +190,7 @@ import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
 import { TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
 import { BookingReadout, DerivedTrip, tripFromBookings } from "./services/tripFromBookings";
+import { viewerIdentityNotice } from "./services/viewerIdentityNotice";
 import { flightAnchorsFromParsed } from "./services/flightIntake";
 import type { ParsedFlight } from "./services/flightIntake";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
@@ -3865,6 +3866,19 @@ const App: React.FC = () => {
   // every permission check still runs against the selected member.
   const viewerMemberId =
     (import.meta.env.DEV && devViewerOverride) || viewerResolution.memberId;
+
+  /*
+    Why this device cannot name the traveller holding it, when it cannot.
+
+    Null on a solo trip and null whenever the viewer is resolved, so the
+    banner is absent for everybody the app can actually identify. See
+    `viewerIdentityNotice`.
+  */
+  const identityNotice = viewerIdentityNotice({
+    roster: settlementMembers,
+    authUserId: authUser?.id,
+    tripOwnerMemberId: activeOwnerMemberId,
+  });
   /**
    * Who an expense belongs to when nobody has said otherwise.
    *
@@ -7578,6 +7592,40 @@ const App: React.FC = () => {
           onSectionChange={setWorkspaceSection}
           onQuickAdd={() => setIsGlobalActionOpen(true)}
         >
+          {/*
+            Said where she is, not where she happens to end up.
+
+            「這還是我的帳 Gina 依然收到」. Her device answers every ownership
+            question as the trip owner, and the only notice for it lived inside
+            the expense form — shown while adding a bill, by which point she is
+            mid-task, and saying neither which cause it is nor what to do.
+
+            Here it sits above every section of a shared trip, because the
+            consequence is not limited to one screen: whose expense this is,
+            who may edit it, and who the settlement says owes whom all read the
+            same guessed answer.
+          */}
+          {identityNotice && (
+            <div data-testid="viewer-identity-notice" className="mx-4 mt-3 rounded-2xl bg-amber-50 px-4 py-3">
+              <p className="text-xs font-black text-amber-900">這台裝置還不確定你是誰</p>
+              <p className="mt-1 text-[11px] leading-5 text-amber-800">{identityNotice.message}</p>
+              <button
+                type="button"
+                data-testid="viewer-identity-action"
+                onClick={() => {
+                  // The same two doors the rest of the app uses: the roster
+                  // for a seat nobody claimed, and the sign-in event that
+                  // already exists so a prompt never has to invent its own.
+                  if (identityNotice.problem === 'seat-unlinked') setIsCompanionsOpen(true);
+                  else window.dispatchEvent(new Event(OPEN_SIGN_IN_EVENT));
+                }}
+                className="mt-2 min-h-10 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
+              >
+                {identityNotice.action}
+              </button>
+            </div>
+          )}
+
           {workspaceSection === "overview" && currentPhase === "pre" && (
             <>
               <TripPlanOverview
