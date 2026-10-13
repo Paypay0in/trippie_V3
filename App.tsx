@@ -185,6 +185,7 @@ import {
   removeFriend,
   requestFriend,
 } from "./services/friendships";
+import { friendRequestNotices } from "./services/friendRequestNotices";
 import FriendsPanel from "./components/FriendsPanel";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
@@ -3921,19 +3922,51 @@ const App: React.FC = () => {
   */
   const disputeNotices = useMemo(
     () => unseenNotices(
-      disputeNoticesFor({
-        expenses,
-        viewerMemberId,
-        tripOwnerMemberId: activeOwnerMemberId,
-        members: settlementMembers,
-      }),
+      [
+        ...disputeNoticesFor({
+          expenses,
+          viewerMemberId,
+          tripOwnerMemberId: activeOwnerMemberId,
+          members: settlementMembers,
+        }),
+        /*
+          Invitations waiting on the person who received them.
+
+          「當我發送好友邀請通知 Gina 要收到通知」. The sender's screen says 「已邀請」
+          and the other person was told nothing — so the request sat waiting
+          for somebody with no way to know it existed. The rows were already
+          on her device; only the bell never saw them.
+        */
+        ...friendRequestNotices({
+          friendships,
+          people: friendPeople,
+          myUserId: authUser?.id,
+        }),
+      ],
       seenDisputeNotices,
     ),
-    [expenses, viewerMemberId, activeOwnerMemberId, settlementMembers, seenDisputeNotices],
+    [
+      expenses, viewerMemberId, activeOwnerMemberId, settlementMembers, seenDisputeNotices,
+      friendships, friendPeople, authUser?.id,
+    ],
   );
   const openDisputeNotice = useCallback((notice: DisputeNotice) => {
     dismissDisputeNotice(notice.id);
-    setDisputeExpenseId(notice.expenseId);
+
+    /*
+      A friend request has no expense to open.
+
+      Opening nothing is how a notice becomes a thing people stop tapping, so
+      this goes where the request can actually be answered — the friends panel
+      on the account screen, which already draws incoming invitations.
+    */
+    if (notice.kind === 'friend_request') {
+      setAppSection('profile');
+      setAccountView('account');
+      return;
+    }
+
+    if (notice.expenseId) setDisputeExpenseId(notice.expenseId);
   }, [dismissDisputeNotice]);
   // Settlement is consumed per Expense x Member. An expense leaves the
   // outstanding set only when every non-owner participant is settled, so
@@ -6758,7 +6791,11 @@ const App: React.FC = () => {
           // The thread lives in the ledger, so the notice has to take the
           // reader there as well as open it — otherwise tapping dismisses the
           // one sign that anything was asked.
-          setAppSection("trips");
+          //
+          // Except a friend request, which is not in any ledger: forcing 旅行
+          // first would land the reader on a trip and then move them again.
+          // `openDisputeNotice` sends that one where it can be answered.
+          if (notice.kind !== "friend_request") setAppSection("trips");
           openDisputeNotice(notice);
         }}
         activeSection="trips"

@@ -31,14 +31,24 @@ export type DisputeNoticeKind =
    * shared ledger exists to stop. The bell's own hint already promised this
    * (「當有人新增支出…我們會立即通知你」) and only disputes were ever produced.
    */
-  | 'split_to_me';
+  | 'split_to_me'
+  /**
+   * 「當我發送好友邀請通知 Gina 要收到通知」.
+   *
+   * The sender's screen says 「已邀請」 and 「對方接受後才會成為好友」 — but the
+   * other person was told nothing, so the invitation sat waiting for someone
+   * who had no way to know it existed. The data was already on her device;
+   * only the bell never saw it.
+   */
+  | 'friend_request';
 
 export interface DisputeNotice {
   /** `${expenseId}:${disputeId}:${kind}` — stable, so 「seen」 can be stored. */
   id: string;
   kind: DisputeNoticeKind;
-  expenseId: string;
-  expenseDescription: string;
+  /** Absent on a notice that is not about a bill at all. */
+  expenseId?: string;
+  expenseDescription?: string;
   /** Absent on a notice that is about the bill itself, not a question on it. */
   disputeId?: string;
   /** The question, or the answer, depending on which way this is pointing. */
@@ -231,6 +241,9 @@ export const describeNotice = (notice: DisputeNotice): string => {
   }
   if (notice.kind === 'split_to_me') {
     return `${who} 新增「${notice.expenseDescription}」並分帳給你`;
+  }
+  if (notice.kind === 'friend_request') {
+    return `${who} 想加你為好友`;
   }
   return `${who} 回覆了你對「${notice.expenseDescription}」的疑問`;
 };

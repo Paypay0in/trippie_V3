@@ -29,7 +29,13 @@ export const NOTICE_CATEGORIES: [NoticeCategory, string][] = [
  * A dispute is a question about money between two travellers, so it is
  * settlement — not an itinerary change, even though it is raised inside a trip.
  */
-export const noticeCategory = (_notice: DisputeNotice): NoticeCategory => 'settlement';
+export const noticeCategory = (notice: DisputeNotice): NoticeCategory =>
+  /*
+    A friend request is the one notice that is not about a trip at all — it
+    is between two accounts, and it would be found under 分帳與收款 by nobody.
+    「系統通知」 is the shelf for things the app tells you about itself.
+  */
+  (notice.kind === 'friend_request' ? 'system' : 'settlement');
 
 export const noticesInCategory = (
   notices: DisputeNotice[],
