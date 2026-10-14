@@ -1270,15 +1270,24 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 data-item-id={item.id}
                 data-start={item.time}
                 data-collision={collidingIds.has(item.id) ? 'true' : 'false'}
-                className={`relative flex gap-2 ${item.isCompleted ? 'opacity-60' : ''} ${dragItemId === item.id ? 'opacity-70 shadow-lg transition-transform' : ''}`}
+                className={`relative flex gap-1.5 ${item.isCompleted ? 'opacity-60' : ''} ${dragItemId === item.id ? 'opacity-70 shadow-lg transition-transform' : ''}`}
               >
                 {/* Insertion indicator: where the lifted card would land. */}
                 {dragItemId && !overDate && overIndex === index && dragItemId !== item.id && (
-                  <div data-testid="drop-indicator" className="absolute -top-1.5 left-14 right-0 h-0.5 rounded bg-[#6b4df6]" />
+                  <div data-testid="drop-indicator" className="absolute -top-1.5 left-[62px] right-0 h-0.5 rounded bg-[#6b4df6]" />
                 )}
 
-                {/* Left: this row's own start time, and the journey line. */}
-                <div className="relative flex w-12 shrink-0 flex-col items-end pt-3.5">
+                {/*
+                  Left: this row's own start time, and the journey line.
+
+                  「這塊還是太大 要讓行程的版面更大」. The rail measures
+                  40 + 6 + 10 + 6 = 62px, and seven blocks in this file already
+                  hardcode `62px` to line up with it — they were written against
+                  that number while the rail was actually 76px wide, so they all
+                  hung 14px left of the cards they belong to. Changing this
+                  arithmetic means changing those offsets with it.
+                */}
+                <div className="relative flex w-10 shrink-0 flex-col items-end pt-3.5">
                   <span className={`font-mono text-[11px] font-black ${dragItemId === item.id && previewMinutes !== null ? 'text-white' : 'text-[#6b4df6]'}`}>
                     {item.time}
                   </span>
@@ -1292,10 +1301,10 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     </span>
                   )}
                   {item.durationMinutes ? (
-                    <span className="mt-0.5 text-[9px] font-bold text-slate-400">約 {durationOf(item)} 分</span>
+                    <span className="mt-0.5 whitespace-nowrap text-[9px] font-bold text-slate-400">約{durationOf(item)}分</span>
                   ) : null}
                 </div>
-                <div className="relative w-3 shrink-0">
+                <div className="relative w-2.5 shrink-0">
                   <span className={`absolute left-1/2 top-4 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-white shadow-sm ${collidingIds.has(item.id) ? 'bg-rose-400' : 'bg-[#6b4df6]'}`} />
                   <span className="absolute left-1/2 top-7 bottom-[-12px] w-0.5 -translate-x-1/2 bg-[#ece9fb]" />
                 </div>
@@ -1429,14 +1438,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               <Sparkles size={12} />AI 建議 · 打勾即加入行程
             </div>
             {daySuggestions.map(suggestion => (
-              <div key={suggestion.id} data-testid={`suggestion-${suggestion.id}`} className="relative flex gap-2">
-                <div className="flex w-12 shrink-0 flex-col items-end pt-3.5">
+              <div key={suggestion.id} data-testid={`suggestion-${suggestion.id}`} className="relative flex gap-1.5">
+                <div className="flex w-10 shrink-0 flex-col items-end pt-3.5">
                   <span className="font-mono text-[11px] font-black text-emerald-600">{suggestion.time || '—'}</span>
                   {suggestion.durationMinutes ? (
-                    <span className="mt-0.5 text-[9px] font-bold text-slate-400">約 {suggestion.durationMinutes} 分</span>
+                    <span className="mt-0.5 whitespace-nowrap text-[9px] font-bold text-slate-400">約{suggestion.durationMinutes}分</span>
                   ) : null}
                 </div>
-                <div className="relative w-3 shrink-0">
+                <div className="relative w-2.5 shrink-0">
                   <span className="absolute left-1/2 top-4 h-3 w-3 -translate-x-1/2 rounded-full border-2 border-white bg-emerald-500 shadow-sm" />
                   <span className="absolute left-1/2 top-7 bottom-[-12px] w-0.5 -translate-x-1/2 border-l-2 border-dashed border-emerald-200" />
                 </div>

@@ -130,9 +130,14 @@ describe('itinerary list runtime', () => {
     log('ROWS', renderedTimes());
 
     // Duration is metadata only.
-    expect(screen.getByText('約 180 分')).toBeTruthy();
-    expect(screen.getByText('約 120 分')).toBeTruthy();
-    expect(screen.getByText('約 90 分')).toBeTruthy();
+    /*
+      Written without spaces since 「這塊還是太大 要讓行程的版面更大」: this label is
+      what held the time column open at 48px, and it is the column's width that
+      decides how much of the screen is left for the card.
+    */
+    expect(screen.getByText('約180分')).toBeTruthy();
+    expect(screen.getByText('約120分')).toBeTruthy();
+    expect(screen.getByText('約90分')).toBeTruthy();
 
     // No hourly ruler, no nested scroll region, no proportional gaps.
     expect(screen.queryByTestId('time-axis')).toBeNull();
