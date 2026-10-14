@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
+import { clusterSavedPlaces } from "./services/placeClusters";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { createModelLadder, LADDER_PASSES, PASS_PAUSE_MS } from "./services/modelLadder";
 import { isExpandableMapsLink } from "./services/mapsLinkInput";
@@ -2295,6 +2296,46 @@ async function startServer() {
         Named here, and stated as the task. Left out of 「把空白的日子排滿」,
         which already has its own instruction to plan whole days.
       */
+      /*
+        The trip's own areas, named, with what is in each.
+
+        「我覺得 AI 要有一個概念是 同一區域的可以安排同一天」. The prompt has always
+        said 「同一天的地點集中在同一區」 and then left the model to work out what
+        counts as one area from a list of coordinates. It is the same gap as the
+        ticked places: the app computes this and never says it.
+
+        So the areas go in by name, from `clusterSavedPlaces` — the same
+        clusterer the collection screen and the day summary read, so the AI, the
+        headings and the colours cannot disagree about what 「一區」 is. A ward
+        decides an area before distance does; see that file.
+      */
+      const areaBlock = (() => {
+        const places = [
+          ...((input.existingItinerary || []) as Array<Record<string, unknown>>).map((item, index) => ({
+            id: `plan-${index}`,
+            placeName: String(item.location || item.title || ""),
+            latitude: typeof item.latitude === "number" ? item.latitude : undefined,
+            longitude: typeof item.longitude === "number" ? item.longitude : undefined,
+            formattedAddress: typeof item.address === "string" ? item.address : undefined,
+          })),
+          ...(selections as Array<Record<string, unknown>>).map((entry, index) => ({
+            id: `pick-${index}`,
+            placeName: String(entry.placeName || ""),
+            latitude: (entry.coordinates as { latitude?: number } | undefined)?.latitude,
+            longitude: (entry.coordinates as { longitude?: number } | undefined)?.longitude,
+            formattedAddress: typeof entry.address === "string" ? entry.address : undefined,
+            district: typeof entry.district === "string" ? entry.district : undefined,
+          })),
+        ].filter(place => place.placeName);
+
+        const { clusters } = clusterSavedPlaces(places, undefined, input.destinationCountry);
+        const named = clusters
+          .filter(cluster => cluster.places.length > 0)
+          .map(cluster => `・${cluster.label}：${cluster.places.map(place => place.placeName).join("、")}`);
+        if (named.length < 2) return "";
+        return `\n\n【3d. 這趟旅程的地理分區（系統算的，不要自己重新判斷）】\n${named.join("\n")}\n同一區的地點安排在同一天、相鄰的時段；不同區的分到不同天。\n一天之內最多跨兩區，而且要有理由（例如順路、或那一區只有一個地點）。\n不在上面清單裡的地點，用你自己對這座城市的了解判斷它屬於哪一區。`;
+      })();
+
       const wantedNames = (() => {
         const unused = new Set(Array.isArray(input.analysis?.unusedInspirationIds) ? input.analysis.unusedInspirationIds : []);
         if (unused.size === 0) return [] as string[];
@@ -2353,7 +2394,7 @@ ${JSON.stringify(input.analysis || {})}
 emptyDates 是完全沒有安排的日子；unplannedDates 是整天只有航班與住宿、實際上還沒安排任何行程的日子（包含 emptyDates）；crowdedDates 是已經太滿的日子；untimedItemIds 是沒有時間的項目；tightTransitions 是前後太趕的銜接；longHops 是同一天相隔太遠的移動；unusedInspirationIds 是使用者收藏了但還沒排進行程的地點。
 
 【3b. 使用者已收藏並挑選、可供參考的地點】
-${JSON.stringify(selections)}${wantedBlock}${preferenceBlock}
+${JSON.stringify(selections)}${areaBlock}${wantedBlock}${preferenceBlock}
 
 【5. 模式規則（最重要）】
 ${MODE_RULES[mode]}
