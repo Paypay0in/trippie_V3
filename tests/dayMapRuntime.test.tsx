@@ -7,7 +7,7 @@
  * are dragged, retimed and ticked.
  */
 import React from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import ItineraryCalendar from '../components/ItineraryCalendar';
 import DayMap from '../components/DayMap';
@@ -97,5 +97,65 @@ describe('the picture itself', () => {
     fireEvent.error(screen.getByTestId('day-map-image'));
 
     expect(screen.getByTestId('day-map-failed').textContent).toContain('畫不出地圖');
+  });
+});
+
+/**
+ * 「雖地圖不能用但我希望我去點 1 的時候會出現地名」.
+ *
+ * The map is a PNG — the pins carry no events and nothing can be attached to
+ * them. A numbered pin whose name appears nowhere on the screen is a riddle,
+ * so the numbers are listed under it, which is what the Founder's own mock had.
+ */
+describe('which pin is which', () => {
+  it('names every pin, with its number', () => {
+    render(<DayMap items={[stop('羽田機場', '08:00'), stop('淺草寺', '12:00')]} />);
+
+    const legend = screen.getByTestId('day-map-legend');
+
+    expect(legend.textContent).toContain('1');
+    expect(legend.textContent).toContain('羽田機場');
+    expect(legend.textContent).toContain('2');
+    expect(legend.textContent).toContain('淺草寺');
+  });
+
+  it('shows the time beside the name', () => {
+    render(<DayMap items={[stop('淺草寺', '12:00')]} />);
+
+    expect(screen.getByTestId('day-map-legend').textContent).toContain('12:00');
+  });
+
+  /*
+    The numbers follow the day, not the drawable subset — the same rule the
+    pins follow, because the two have to agree about what 2 means.
+  */
+  it('numbers by position in the day', () => {
+    render(<DayMap items={[
+      stop('a', '09:00'),
+      stop('b', '10:00', { latitude: undefined, longitude: undefined }),
+      stop('c', '11:00'),
+    ]} />);
+
+    const rows = screen.getByTestId('day-map-legend').querySelectorAll('button');
+
+    expect(rows).toHaveLength(2);
+    expect(rows[1].textContent).toContain('3');
+  });
+
+  /** Tapping a row goes to the card, which is what the pin was reached for. */
+  it('scrolls to the stop it names', () => {
+    const scrollIntoView = vi.fn();
+    render(
+      <>
+        <DayMap items={[stop('淺草寺', '12:00')]} />
+        <div data-item-id="淺草寺" />
+      </>,
+    );
+    const card = document.querySelector('[data-item-id="淺草寺"]') as HTMLElement;
+    card.scrollIntoView = scrollIntoView;
+
+    fireEvent.click(screen.getByTestId('day-map-legend-淺草寺'));
+
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 });

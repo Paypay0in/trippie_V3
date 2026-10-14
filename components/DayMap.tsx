@@ -53,8 +53,48 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
           onError={() => setFailed(true)}
         />
       )}
+      {/*
+        Which pin is which.
+
+        「雖地圖不能用但我希望我去點 1 的時候會出現地名」. The map is a PNG, so the
+        pins carry no events and nothing can be attached to them — but a
+        numbered pin whose name is nowhere on the screen is a riddle, and the
+        Founder's own mock had this list under the map from the start.
+
+        Tapping a row scrolls to that stop's card, which is the thing he was
+        reaching for when he pressed the pin: the times, the notes, the photo.
+      */}
+      <ul data-testid="day-map-legend" className="divide-y divide-slate-100 border-t border-slate-100">
+        {stops.map(stop => (
+          <li key={stop.id}>
+            <button
+              type="button"
+              data-testid={`day-map-legend-${stop.id}`}
+              onClick={() => document
+                .querySelector(`[data-item-id="${stop.id}"]`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+            >
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#5b3df5] text-[10px] font-black text-white">
+                {stop.number}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-black text-[#11183d]">
+                  {stop.item.title || stop.item.location}
+                </span>
+                {stop.item.location && stop.item.location !== stop.item.title && (
+                  <span className="block truncate text-[10px] font-medium text-slate-400">{stop.item.location}</span>
+                )}
+              </span>
+              {stop.item.time && (
+                <span className="shrink-0 font-mono text-[10px] font-black text-slate-400">{stop.item.time}</span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
       {unmapped > 0 && (
-        <p data-testid="day-map-unmapped" className="px-3 py-2 text-[10px] font-bold leading-4 text-slate-400">
+        <p data-testid="day-map-unmapped" className="border-t border-slate-100 px-3 py-2 text-[10px] font-bold leading-4 text-slate-400">
           還有 {unmapped} 個行程沒連結地圖，沒有畫在上面。
         </p>
       )}
