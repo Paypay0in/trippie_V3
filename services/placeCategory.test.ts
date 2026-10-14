@@ -115,3 +115,15 @@ describe('types the table does not name', () => {
     expect(placeCategory({ primaryType: 'dentist' })).toBe('other');
   });
 });
+
+/**
+ * 「這也是景點？」 — 豪德寺, the lucky-cat temple. Measured against the live route,
+ * along with the two other kinds of place of worship this app meets.
+ */
+describe('temples and shrines', () => {
+  it('reads them as 景點', () => {
+    expect(placeCategory({ primaryType: 'buddhist_temple' })).toBe('sight');
+    expect(placeCategory({ primaryType: 'shinto_shrine' })).toBe('sight');
+    expect(placeCategory({ primaryType: 'place_of_worship' })).toBe('sight');
+  });
+});

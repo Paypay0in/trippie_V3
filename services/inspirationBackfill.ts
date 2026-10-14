@@ -16,6 +16,7 @@
  * be the one failure that makes this worse than leaving it alone.
  */
 import { SavedTravelInspiration } from '../types';
+import { CATEGORY_RULES } from './placeCategory';
 
 export interface PlaceGap {
   id: string;
@@ -100,8 +101,8 @@ export const cityLooksLikeDistrict = (
  * the same missing answer. A record with no `category` field at all has simply
  * never been through a lookup that could produce one.
  */
-const knowsWhatItIs = (place: { category?: string }): boolean =>
-  Boolean(place.category);
+const knowsWhatItIs = (place: { category?: string; categoryRules?: number }): boolean =>
+  Boolean(place.category) && place.categoryRules === CATEGORY_RULES;
 
 export const knowsWhereItIs = (
   place: { formattedAddress?: string; city?: string; country?: string; district?: string },

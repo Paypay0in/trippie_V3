@@ -36,6 +36,7 @@ const normalize = (value: unknown): SavedTravelInspiration | null => {
       not be able to put an arbitrary string into a typed field.
     */
     category: CATEGORIES.includes(source.category as string) ? source.category as SavedTravelInspiration['category'] : undefined,
+    categoryRules: typeof source.categoryRules === 'number' ? source.categoryRules : undefined,
     district: typeof source.district === 'string' ? source.district : undefined,
     placeResolvedAt: typeof source.placeResolvedAt === 'string' ? source.placeResolvedAt : undefined };
 };

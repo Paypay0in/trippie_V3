@@ -50,6 +50,7 @@ const keepLocalOnlyFields = (current: SavedTravelInspiration[]) => {
     return {
       ...incoming,
       category: incoming.category || local.category,
+      categoryRules: incoming.category ? incoming.categoryRules : local.categoryRules,
       district: incoming.district || local.district,
       placeResolvedAt: incoming.placeResolvedAt || local.placeResolvedAt,
     };

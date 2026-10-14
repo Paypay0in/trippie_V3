@@ -711,6 +711,14 @@ export interface SavedTravelInspiration {
    * See `placeCategory`.
    */
   category?: PlaceCategory;
+  /**
+   * Which version of the tag rules read this record. See `CATEGORY_RULES`.
+   *
+   * 「這也是景點？」 — a record settled as 「other」 is never asked again, so a
+   * reading taken under rules that could not read its type stayed wrong
+   * forever. This is what lets an improvement reach the records it fixes.
+   */
+  categoryRules?: number;
   placeName: string;
   placeId?: string;
   resolvedPlaceName?: string;

@@ -322,7 +322,7 @@ import {
   FixedEventAdjustment,
   isFixedItem,
 } from "./services/itineraryFixedEvents";
-import { placeCategory } from "./services/placeCategory";
+import { CATEGORY_RULES, placeCategory } from "./services/placeCategory";
 import ScreenshotItineraryIntake from "./components/ScreenshotItineraryIntake";
 import GlobalActionSheet, {
   GlobalActionContext,
@@ -2956,6 +2956,8 @@ const App: React.FC = () => {
               category: placeCategory({ primaryType: resolved.primaryType }) !== 'other'
                 ? placeCategory({ primaryType: resolved.primaryType })
                 : inspiration.category || 'other',
+              // Which rules read it, so a better reading can reach it later.
+              categoryRules: CATEGORY_RULES,
               country: preferredCountryName(inspiration.country, resolved.country),
             }
           : inspiration));

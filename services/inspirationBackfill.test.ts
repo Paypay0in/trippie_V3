@@ -11,6 +11,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { cityLooksLikeDistrict, knowsWhereItIs, placesNeedingBackfill } from './inspirationBackfill';
 import { SavedTravelInspiration } from '../types';
+import { CATEGORY_RULES } from './placeCategory';
 
 const saved = (over: Partial<SavedTravelInspiration> = {}): SavedTravelInspiration => ({
   id: 'i1',
@@ -49,7 +50,7 @@ describe('what to look up', () => {
       // a save that still needs correcting. See `cityLooksLikeDistrict`.
       // Stamped, because a record that has never been resolved is offered
       // whatever its city looks like. See `resolvedSinceTheSplit`.
-      saved({ id: 'b', placeName: 'HARRY', formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight' }),
+      saved({ id: 'b', placeName: 'HARRY', formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight', categoryRules: CATEGORY_RULES }),
     ]);
 
     expect(gaps.map(gap => gap.placeName)).toEqual(['嶋']);
@@ -73,7 +74,7 @@ describe('what to look up', () => {
 
   it('says nothing when every save already knows', () => {
     expect(placesNeedingBackfill([
-      saved({ formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight' }),
+      saved({ formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight', categoryRules: CATEGORY_RULES }),
     ])).toHaveLength(0);
   });
 });
@@ -219,6 +220,7 @@ describe('records that predate the city and ward split', () => {
         district: 'Haeundae', formattedAddress: '釜山…',
         placeResolvedAt: '2026-10-14T10:00:00.000Z',
         category: 'sight',
+        categoryRules: CATEGORY_RULES,
       }),
     ])).toHaveLength(0);
   });
@@ -228,7 +230,7 @@ describe('records that predate the city and ward split', () => {
     expect(placesNeedingBackfill([
       saved({
         placeName: '海雲台海水浴場', country: '韓國', city: 'Busan',
-        formattedAddress: '釜山…', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight',
+        formattedAddress: '釜山…', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight', categoryRules: CATEGORY_RULES,
       }),
     ])).toHaveLength(0);
   });
@@ -321,7 +323,42 @@ describe('records settled before the tag existed', () => {
     rather than offered forever.
   */
   it('are left alone once they carry a tag, even 「other」', () => {
-    expect(placesNeedingBackfill([saved({ ...settled, category: 'other' })])).toEqual([]);
-    expect(placesNeedingBackfill([saved({ ...settled, category: 'food' })])).toEqual([]);
+    expect(placesNeedingBackfill([saved({ ...settled, category: 'other', categoryRules: CATEGORY_RULES })])).toEqual([]);
+    expect(placesNeedingBackfill([saved({ ...settled, category: 'food', categoryRules: CATEGORY_RULES })])).toEqual([]);
+  });
+});
+
+/**
+ * 「這也是景點？」.
+ *
+ * 豪德寺 is `buddhist_temple`, which the current rules read correctly. It was
+ * asked an hour earlier, under rules that held neither that type nor any
+ * stems, and settled as 「other」 — which means 「asked, and there was no
+ * answer」, and is exactly what stops the backfill asking again. Correct on its
+ * own terms, and it froze the wrong answer in place.
+ */
+describe('a record read by rules that have since improved', () => {
+  const settled = {
+    formattedAddress: '東京都世田谷区…',
+    city: 'Tokyo',
+    district: 'Setagaya',
+    placeResolvedAt: '2026-10-14T10:00:00.000Z',
+  };
+
+  it('is asked again when the rules that answered it are out of date', () => {
+    const stale = saved({ ...settled, category: 'other', categoryRules: 1 });
+
+    expect(placesNeedingBackfill([stale])).toHaveLength(1);
+  });
+
+  it('is left alone once the current rules have answered it', () => {
+    const fresh = saved({ ...settled, category: 'other', categoryRules: CATEGORY_RULES });
+
+    expect(placesNeedingBackfill([fresh])).toEqual([]);
+  });
+
+  /* A record that never recorded which rules read it predates all of them. */
+  it('is asked again when it never said which rules read it', () => {
+    expect(placesNeedingBackfill([saved({ ...settled, category: 'sight' })])).toHaveLength(1);
   });
 });

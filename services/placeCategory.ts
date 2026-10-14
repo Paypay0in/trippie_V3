@@ -14,6 +14,25 @@ import { PlaceCategory } from '../types';
 
 export type { PlaceCategory };
 
+/**
+ * Which version of the rules below a record was read with.
+ *
+ * 「這也是景點？」 — 豪德寺 is `buddhist_temple`, which the stems read correctly…
+ * now. It was asked an hour earlier, when the table held neither that type nor
+ * any stems, so it was settled as 「other」 — and 「other」 means 「asked, and
+ * there was no answer」, which is exactly what stops the backfill asking again.
+ * Correct on its own terms, and it froze the wrong answer in place.
+ *
+ * So a record remembers which rules answered it. Bumping this re-opens every
+ * record settled under the old ones, once, and they settle again under the new
+ * ones. It still terminates: a place with no readable type is asked once per
+ * rules change, not once per tap.
+ *
+ * 1 — the hand-written table.
+ * 2 — stems, after 「art_museum」 and 「buddhist_temple」 both fell through it.
+ */
+export const CATEGORY_RULES = 2;
+
 export const CATEGORY_LABELS: Record<PlaceCategory, string> = {
   food: '餐廳',
   cafe: '咖啡',

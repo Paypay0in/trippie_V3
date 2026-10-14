@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TripInspirationPlanner from '../components/TripInspirationPlanner';
 import { SavedTravelInspiration } from '../types';
+import { CATEGORY_RULES } from '../services/placeCategory';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -71,7 +72,7 @@ describe('the backfill offer', () => {
     // whatever its city looks like. See `resolvedSinceTheSplit`.
     mount([saved({
       formattedAddress: '東京都渋谷区…', city: 'Tokyo', district: 'Shibuya',
-      placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight',
+      placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight', categoryRules: CATEGORY_RULES,
     })]);
 
     expect(screen.queryByTestId('place-backfill')).toBeNull();

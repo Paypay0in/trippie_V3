@@ -94,6 +94,10 @@ const fold = (
     */
     category: realCategory(first.category) || realCategory(second.category)
       || first.category || second.category,
+    // Carried with the tag it describes; see `CATEGORY_RULES`.
+    categoryRules: realCategory(first.category) ? first.categoryRules
+      : realCategory(second.category) ? second.categoryRules
+      : first.categoryRules ?? second.categoryRules,
     notes,
     sourceNoteIds: Array.from(new Set([...first.sourceNoteIds, ...second.sourceNoteIds])),
   };

@@ -1,5 +1,5 @@
 import { SavedExperienceNote, SavedTravelInspiration } from '../types';
-import { placeCategory } from './placeCategory';
+import { CATEGORY_RULES, placeCategory } from './placeCategory';
 import { ItinerarySlice, dedupeNoteTexts, noteIsCovered } from './itineraryImageSlices';
 
 /**
@@ -113,6 +113,7 @@ export const slicesToSavedInspirations = (
         lookup's opinion.
       */
       category: placeCategory({ sliceType: slice.type, primaryType: place?.primaryType }),
+      categoryRules: CATEGORY_RULES,
       placeId: place?.placeId,
       // Only claimed when a lookup actually resolved it; a screenshot alone
       // never establishes that a name is a real place.
