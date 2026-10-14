@@ -76,6 +76,7 @@ export const cityLooksLikeDistrict = (
 export const knowsWhereItIs = (
   place: { formattedAddress?: string; city?: string; country?: string; district?: string },
 ): boolean => {
+
   const city = (place.city || '').trim();
   const country = (place.country || '').trim();
   const hasRealCity = Boolean(city) && city.toLowerCase() !== country.toLowerCase();
@@ -91,10 +92,24 @@ export const knowsWhereItIs = (
  * Grouped by name because that is what the lookup takes, and two rows for the
  * same restaurant would otherwise spend two requests to learn the same fact.
  */
+/**
+ * Whether this record has been through the current lookup at all.
+ *
+ * 「目前的結果 放到海雲台 釜山是空的」 — 「Haeundae」 carries no suffix to spot it by,
+ * and neither will the next one. Which records have been resolved since the
+ * city and the ward were separated is a fact; which cities are secretly wards
+ * is a guess that cannot be finished.
+ *
+ * Deliberately separate from `knowsWhereItIs`, which asks about the shape of
+ * the data rather than its age — the row's own search button asks that one.
+ */
+const resolvedSinceTheSplit = (place: { placeResolvedAt?: string }): boolean =>
+  Boolean(place.placeResolvedAt?.trim());
+
 export const placesNeedingBackfill = (inspirations: SavedTravelInspiration[]): PlaceGap[] => {
   const gaps = new Map<string, PlaceGap>();
   inspirations.forEach(inspiration => {
-    if (knowsWhereItIs(inspiration)) return;
+    if (knowsWhereItIs(inspiration) && resolvedSinceTheSplit(inspiration)) return;
     const placeName = (inspiration.placeName || '').trim();
     if (!placeName) return;
     const existing = gaps.get(placeName);

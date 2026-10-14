@@ -676,6 +676,20 @@ export interface SavedTravelInspiration {
    * its ward（Shibuya）.
    */
   district?: string;
+  /**
+   * When this place's location was last read from the map provider.
+   *
+   * 「目前的結果 放到海雲台 釜山是空的」 — 「Haeundae」 is a ward with no suffix to
+   * spot it by, so guessing which saves are stale from the shape of their city
+   * could never be complete. Whether a record has been through the current
+   * lookup is a fact, not a guess, and a save without this stamp predates the
+   * split between the city and the ward.
+   *
+   * Written whenever resolved place data is stored, including when the lookup
+   * found no ward — so a place that genuinely has none is corrected once and
+   * never asked about again.
+   */
+  placeResolvedAt?: string;
   placeName: string;
   placeId?: string;
   resolvedPlaceName?: string;

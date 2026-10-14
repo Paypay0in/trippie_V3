@@ -67,7 +67,12 @@ describe('the backfill offer', () => {
   });
 
   it('is absent when every save already knows', () => {
-    mount([saved({ formattedAddress: '東京都渋谷区…', city: 'Shibuya' })]);
+    // Stamped: a record never put through the current lookup is offered
+    // whatever its city looks like. See `resolvedSinceTheSplit`.
+    mount([saved({
+      formattedAddress: '東京都渋谷区…', city: 'Tokyo', district: 'Shibuya',
+      placeResolvedAt: '2026-10-14T10:00:00.000Z',
+    })]);
 
     expect(screen.queryByTestId('place-backfill')).toBeNull();
   });

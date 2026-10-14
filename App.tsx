@@ -2917,6 +2917,9 @@ const App: React.FC = () => {
               */
               city: resolved.city || inspiration.city,
               district: resolved.district || inspiration.district,
+              // Stamped even when no ward came back, so a place that has none
+              // is corrected once rather than offered forever.
+              placeResolvedAt: new Date().toISOString(),
               /*
                 The spelling this trip already uses, when both mean the same
                 country. 「那這個問題點也可以限制在用戶成立旅冊」 — the backfill wrote

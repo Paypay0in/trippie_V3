@@ -47,7 +47,9 @@ describe('what to look up', () => {
       saved({ id: 'a', placeName: '嶋' }),
       // A real city, not a ward — 「Taito City」 is Tokyo's 台東区 and is itself
       // a save that still needs correcting. See `cityLooksLikeDistrict`.
-      saved({ id: 'b', placeName: 'HARRY', formattedAddress: '…', city: 'Tokyo' }),
+      // Stamped, because a record that has never been resolved is offered
+      // whatever its city looks like. See `resolvedSinceTheSplit`.
+      saved({ id: 'b', placeName: 'HARRY', formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z' }),
     ]);
 
     expect(gaps.map(gap => gap.placeName)).toEqual(['嶋']);
@@ -71,7 +73,7 @@ describe('what to look up', () => {
 
   it('says nothing when every save already knows', () => {
     expect(placesNeedingBackfill([
-      saved({ formattedAddress: '…', city: 'Tokyo' }),
+      saved({ formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z' }),
     ])).toHaveLength(0);
   });
 });
@@ -190,5 +192,48 @@ describe('a ward sitting in the city field', () => {
     ]);
 
     expect(gaps).toHaveLength(1);
+  });
+});
+
+/**
+ * 「目前的結果 放到海雲台 釜山是空的」.
+ *
+ * 「Haeundae」 is a ward with no suffix to spot it by, and neither will the next
+ * one have. Which records have been through the current lookup is a fact;
+ * which cities are secretly wards is a guess that cannot be finished.
+ */
+describe('records that predate the city and ward split', () => {
+  it('are offered even when their city looks perfectly fine', () => {
+    const gaps = placesNeedingBackfill([
+      saved({ placeName: '味贊王鹽烤肉', country: '韓國', city: 'Haeundae', formattedAddress: '釜山…' }),
+    ]);
+
+    expect(gaps).toHaveLength(1);
+  });
+
+  it('are left alone once they carry the stamp', () => {
+    expect(placesNeedingBackfill([
+      saved({
+        placeName: '味贊王鹽烤肉', country: '韓國', city: 'Busan',
+        district: 'Haeundae', formattedAddress: '釜山…',
+        placeResolvedAt: '2026-10-14T10:00:00.000Z',
+      }),
+    ])).toHaveLength(0);
+  });
+
+  /* A place that genuinely has no ward is corrected once, not forever. */
+  it('are left alone when the lookup found no ward', () => {
+    expect(placesNeedingBackfill([
+      saved({
+        placeName: '海雲台海水浴場', country: '韓國', city: 'Busan',
+        formattedAddress: '釜山…', placeResolvedAt: '2026-10-14T10:00:00.000Z',
+      }),
+    ])).toHaveLength(0);
+  });
+
+  it('is stamped wherever resolved data is written', () => {
+    const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+
+    expect(app).toContain('placeResolvedAt: new Date().toISOString()');
   });
 });

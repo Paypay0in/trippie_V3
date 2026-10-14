@@ -1042,10 +1042,10 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         <div data-testid="place-backfill" className="mt-3 rounded-2xl border border-[#d9d5f5] bg-[#faf9ff] p-3">
           <p className="flex items-start gap-1.5 text-xs font-black text-[#11183d]">
             <MapPin size={13} className="mt-0.5 shrink-0 text-[#5b3df5]" />
-            有 {placeGaps.length} 個收藏還沒有地址和城市
+            有 {placeGaps.length} 個收藏的地點資料要更新
           </p>
           <p className="mt-1 text-[10px] leading-4 text-slate-500">
-            所以它們分不出區域，也沒辦法照城市分組。按一下回頭查一次就會補上。
+            有的沒有地址，有的城市欄位放的其實是「區」。按一下回頭查一次就會補正。
           </p>
           <button
             type="button"
