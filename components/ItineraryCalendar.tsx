@@ -973,6 +973,20 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             title,
           }) : undefined}
           onChangeDuration={onChangeDuration ? (itemId, minutes) => { onChangeDuration(itemId, minutes); } : undefined}
+          /*
+            Written one item at a time through the path that already persists a
+            time change — the same one the inline time field uses. 「橘色處調 紅色
+            處是不是就要調」 moves the whole day, but it is not a new kind of
+            write, and a second writer would be a second thing to keep in step.
+          */
+          onShiftDay={onUpdateItem ? (shifted) => {
+            // A plain record, not a Map: `Map` in this file is lucide's icon.
+            const before: Record<string, string | undefined> = {};
+            items.forEach(entry => { before[entry.id] = entry.time; });
+            shifted.forEach(entry => {
+              if (before[entry.id] !== entry.time) onUpdateItem(entry.id, { time: entry.time });
+            });
+          } : undefined}
         />
       )}
 

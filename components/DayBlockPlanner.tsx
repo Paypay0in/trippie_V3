@@ -8,6 +8,7 @@ import { cleanManualTitle, MAX_TITLE } from '../services/manualBlockEntry';
 /** Sentinel for the 「type it yourself」 row; never a real place id. */
 const MANUAL_OPTION = '__manual__';
 import { BLOCK_MINUTES, buildDayTemplate, DaySlot } from '../services/dayTemplate';
+import { shiftDayToStart } from '../services/shiftDayStart';
 import { FixedScheduleEntry } from '../services/itineraryDayFloor';
 import { dayAreaSpread, daySpansTooManyAreas } from '../services/dayAreaSpread';
 import { TripAreas } from '../services/tripAreas';
@@ -52,6 +53,13 @@ interface Props {
   onFillBlockManually?: (slot: DaySlot, title: string) => void;
   /** Changes how long a placed item runs; everything after it moves with it. */
   onChangeDuration?: (itemId: string, minutes: number) => void;
+  /**
+   * Writes the day back after 幾點出門 moves it. See `shiftDayToStart`.
+   *
+   * Omit and the offer is not made: this rewrites the traveller's own plan, so
+   * a screen that cannot persist it must not pretend to.
+   */
+  onShiftDay?: (items: ItineraryItem[]) => void;
   /** Items that are fixed and must never be offered a length control. */
   isFixed?: (item: ItineraryItem) => boolean;
 }
@@ -71,6 +79,7 @@ const DayBlockPlanner: React.FC<Props> = ({
   onFillBlock,
   onFillBlockManually,
   onChangeDuration,
+  onShiftDay,
   isFixed,
 }) => {
   /*
@@ -99,6 +108,28 @@ const DayBlockPlanner: React.FC<Props> = ({
     are what is in it.
   */
   const [chosenStart, setChosenStart] = useState('');
+  /*
+    The move 幾點出門 is asking for, computed but not applied. See the button
+    below for why it is an offer rather than an effect.
+  */
+  const shift = useMemo(() => {
+    if (!onShiftDay || !chosenStart) return null;
+    const result = shiftDayToStart(items, chosenStart);
+    return result.movedCount > 0 ? result : null;
+  }, [items, chosenStart, onShiftDay]);
+  const firstMovableTime = useMemo(() => {
+    const times = items
+      .filter(entry => !entry.derivedFromFlightAnchorId && entry.type !== 'FLIGHT')
+      .map(entry => entry.time)
+      .filter(Boolean)
+      .sort();
+    return times[0];
+  }, [items]);
+  const shiftLabel = shift
+    ? (shift.shiftMinutes % 60 === 0
+        ? `${shift.shiftMinutes / 60} 小時`
+        : `${shift.shiftMinutes} 分`)
+    : '';
 
   /*
     The items, by the clock.
@@ -204,6 +235,31 @@ const DayBlockPlanner: React.FC<Props> = ({
           </label>
         )}
       </div>
+
+      {/*
+        What 幾點出門 does to the things already on the day.
+
+        「橘色處調 紅色處是不是就要調」 — it was doing something deliberate and
+        saying nothing: the grid opens at the earliest item already on the day,
+        so that an item at 10:00 on a day starting at 11:00 still has a block
+        rather than reading as deleted. From outside, the input did nothing.
+
+        Offered rather than applied, because a `type="time"` field fires on
+        every digit typed — rewriting the day on the way to 「11:00」 would move
+        everything to 01:00 first. And it is the traveller's plan: it says what
+        it will do before it does it.
+      */}
+      {shift && onShiftDay && (
+        <button
+          type="button"
+          data-testid="shift-day-start"
+          onClick={() => onShiftDay(shift.items)}
+          className="mt-2 w-full rounded-xl border border-[#d9d5f5] bg-[#faf9ff] px-3 py-2 text-left text-[11px] font-bold text-[#5b3df5]"
+        >
+          今天的第一個行程排在 {firstMovableTime}，要把 {shift.movedCount} 個行程往後移 {shiftLabel} 嗎？
+          <span className="mt-0.5 block font-medium text-slate-400">航班與入住時間不會動</span>
+        </button>
+      )}
 
       {/*
         What the day adds up to, geographically.
