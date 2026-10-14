@@ -7,6 +7,7 @@ import { resolveSavedPlaceImage, SavedPlaceImageResult } from '../services/saved
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { AREA_COLORS } from '../constants/areaColors';
 import { countryDisplayName } from '../services/countryIdentity';
+import { CATEGORY_LABELS } from '../services/placeCategory';
 import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import SavedPlaceCard from './SavedPlaceCard';
@@ -268,7 +269,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
           )}
           <article className="relative flex gap-3 rounded-[20px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,.06)]">
           <PlaceThumbnail saved={item} sourcePost={communityPosts.find(post => post.id === item.sourcePostId)} />
-          <div className="min-w-0 flex-1 pr-5"><h2 className="truncate text-base font-black text-[#11183d]"><button type="button" data-testid={`open-place-${item.id}`} onClick={() => setOpenPlaceId(item.id)} className="text-left">{item.placeName}</button></h2><p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{placeWhereLabel(cityDisplayName(item.city), countryDisplayName(item.country))}</p>
+          <div className="min-w-0 flex-1 pr-5"><h2 className="truncate text-base font-black text-[#11183d]"><button type="button" data-testid={`open-place-${item.id}`} onClick={() => setOpenPlaceId(item.id)} className="text-left">{item.placeName}</button></h2><p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{placeWhereLabel(cityDisplayName(item.city), countryDisplayName(item.country))}{/* 「每個收藏給個標籤🏷️景點、餐廳、等等」. See `placeCategory`. */}{item.category && item.category !== 'other' && <span data-testid={`category-${item.id}`} className="ml-1 rounded-lg bg-violet-100 px-1.5 py-0.5 text-[10px] font-black text-violet-700">{CATEGORY_LABELS[item.category]}</span>}</p>
           <button type="button" aria-label={`${item.placeName} 更多選項`} onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-50"><Ellipsis size={20} /></button>
           {menuItemId === item.id && <div className="absolute right-3 top-12 z-10 w-48 rounded-2xl border border-slate-100 bg-white p-1.5 text-left shadow-xl">
             <button type="button" data-testid={`edit-notes-${item.id}`} onClick={() => { setEditing({ id: item.id, drafts: item.notes.map(note => ({ ...note })) }); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯收藏內容<span className="mt-0.5 block text-[10px] font-medium text-slate-400">調整這個地點已收藏的旅行經驗</span></button>

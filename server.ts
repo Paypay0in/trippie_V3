@@ -1216,12 +1216,20 @@ async function startServer() {
       const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=zh-TW`, {
         headers: {
           "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
-          "X-Goog-FieldMask": "id,primaryTypeDisplayName,editorialSummary,rating,userRatingCount,priceLevel,businessStatus,regularOpeningHours,websiteUri",
+          /*
+            `primaryType` alongside `primaryTypeDisplayName`: the display name is
+            localized prose（「義大利餐廳」,「藝術表演場館」）and reads differently in
+            every language, while the type is a stable enum. 「每個收藏給個標籤🏷️
+            景點、餐廳、等等」 needs a tag derived from the fact, not from parsing
+            the sentence.
+          */
+          "X-Goog-FieldMask": "id,primaryType,primaryTypeDisplayName,editorialSummary,rating,userRatingCount,priceLevel,businessStatus,regularOpeningHours,websiteUri",
         },
         signal: AbortSignal.timeout(5_000),
       });
       if (!response.ok) { res.json({ basics: null }); return; }
       const data = await response.json() as {
+        primaryType?: string;
         primaryTypeDisplayName?: { text?: string };
         editorialSummary?: { text?: string };
         rating?: number;
@@ -1233,6 +1241,7 @@ async function startServer() {
       };
       const basics = {
         kind: data.primaryTypeDisplayName?.text,
+        primaryType: data.primaryType,
         summary: data.editorialSummary?.text,
         rating: typeof data.rating === "number" ? data.rating : undefined,
         ratingCount: typeof data.userRatingCount === "number" ? data.userRatingCount : undefined,
@@ -1288,7 +1297,16 @@ async function startServer() {
           headers: {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": apiKey,
-            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.addressComponents,places.photos",
+            /*
+              `places.primaryType` rides along on a request already being made.
+
+              「每個收藏給個標籤🏷️景點、餐廳、等等」 — the alternative was a Place
+              Details call per saved place, which for one collection of 53 is
+              53 billable lookups to print one word each. This costs nothing
+              extra: the field is in the same Pro tier as `addressComponents`,
+              which this mask already asks for.
+            */
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.addressComponents,places.photos,places.primaryType",
           },
           body: JSON.stringify({ textQuery: query, languageCode: "zh-TW", maxResultCount: 5 }),
           signal: AbortSignal.timeout(5_000),
@@ -1298,6 +1316,7 @@ async function startServer() {
             places?: Array<{
               id?: string;
               displayName?: { text?: string };
+              primaryType?: string;
               formattedAddress?: string;
               location?: { latitude?: number; longitude?: number };
               addressComponents?: Array<{ longText?: string; shortText?: string; types?: string[] }>;
@@ -1341,6 +1360,8 @@ async function startServer() {
               */
               countryCode: countryComponent?.shortText || undefined,
               photoAvailable: Array.isArray(selected.photos) && selected.photos.length > 0,
+              // Google's stable category enum, folded into a tag by `placeCategory`.
+              primaryType: selected.primaryType,
             });
             return;
           }

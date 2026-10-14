@@ -662,6 +662,15 @@ export interface SavedExperienceNote {
   text: string;
 }
 
+/**
+ * The tag on a saved place. See `services/placeCategory`.
+ *
+ * Declared here rather than in that service so `types.ts` keeps importing
+ * nothing — it is the file every service reads, and a cycle through it is the
+ * kind of breakage that only shows up at runtime.
+ */
+export type PlaceCategory = 'food' | 'cafe' | 'stay' | 'sight' | 'shop' | 'transport' | 'other';
+
 export interface SavedTravelInspiration {
   id: string;
   savedByUserId: string;
@@ -690,6 +699,18 @@ export interface SavedTravelInspiration {
    * never asked about again.
    */
   placeResolvedAt?: string;
+  /**
+   * 🏷️ 景點 / 餐廳 / 咖啡 / 住宿 / 購物 / 交通.
+   *
+   * 「每個收藏給個標籤🏷️景點、餐廳、等等」. Stored rather than derived on render
+   * because both of its sources are things that happen once: the type the
+   * screenshot's slice carried, and Google's `primaryType` from the lookup the
+   * save already makes. Deriving it later would mean paying for a Place
+   * Details call per row to print one word.
+   *
+   * See `placeCategory`.
+   */
+  category?: PlaceCategory;
   placeName: string;
   placeId?: string;
   resolvedPlaceName?: string;

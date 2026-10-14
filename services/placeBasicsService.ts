@@ -18,6 +18,14 @@
 export interface PlaceBasics {
   /** 「咖啡廳」, 「韓式料理」 — Google's own category for the place. */
   kind?: string;
+  /**
+   * The same category as a stable enum（`restaurant`, `train_station`）.
+   *
+   * 「每個收藏給個標籤🏷️景點、餐廳、等等」 — `kind` is localized prose and reads
+   * differently in every language, so a tag folded out of it would be folding
+   * a sentence. See `placeCategory`.
+   */
+  primaryType?: string;
   /** Google's one-line description, where it has one. */
   summary?: string;
   rating?: number;
@@ -55,6 +63,7 @@ export const normalizePlaceBasics = (value: unknown): PlaceBasics | null => {
 
   const basics: PlaceBasics = {
     kind: text(source.kind),
+    primaryType: text(source.primaryType),
     summary: text(source.summary),
     rating: ratingCount ? positive(source.rating) : undefined,
     ratingCount,

@@ -1,4 +1,4 @@
-import { ItineraryItem, SavedExperienceNote, SavedTravelInspiration } from '../types';
+import { ItineraryItem, PlaceCategory, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { dedupeNoteTexts } from './itineraryImageSlices';
 import { FixedScheduleEntry, fixedAnchorSchedule } from './itineraryDayFloor';
 import { localToday } from './localDate';
@@ -69,6 +69,8 @@ export interface TripInspirationPlaceGroup {
   experienceNotes: SavedExperienceNote[];
   /** True when the saved data has neither a placeId nor usable coordinates. */
   missingPlaceIdentity: boolean;
+  /** 🏷️ 景點 / 餐廳 / … See `placeCategory`. */
+  category?: PlaceCategory;
   matchBasis: DestinationMatchBasis;
   distanceKm?: number;
 }
@@ -350,6 +352,7 @@ export const groupInspirationsByPlace = (
         inspirationIds: [],
         experienceNotes: [],
         missingPlaceIdentity: true,
+        category: item.category,
         matchBasis: match?.basis || 'none',
         distanceKm: match?.distanceKm,
       };
@@ -362,6 +365,8 @@ export const groupInspirationsByPlace = (
     if (!group.coordinates && coordinates) group.coordinates = coordinates;
     if (!group.formattedAddress && item.formattedAddress) group.formattedAddress = item.formattedAddress;
     if (!group.placePhotoUrl && item.placePhotoUrl) group.placePhotoUrl = item.placePhotoUrl;
+    // Two saves of one place: whichever learned its tag first keeps it.
+    if (!group.category && item.category) group.category = item.category;
     group.inspirationIds.push(item.id);
 
     const seen = seenNoteIds.get(id) as Set<string>;

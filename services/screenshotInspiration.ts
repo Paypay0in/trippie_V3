@@ -1,4 +1,5 @@
 import { SavedExperienceNote, SavedTravelInspiration } from '../types';
+import { placeCategory } from './placeCategory';
 import { ItinerarySlice, dedupeNoteTexts, noteIsCovered } from './itineraryImageSlices';
 
 /**
@@ -42,6 +43,8 @@ export interface ScreenshotSaveContext {
     /** Where Google says this is, which beats where the trip says it is. */
     city?: string;
     country?: string;
+    /** Google's category enum, folded into a tag by `placeCategory`. */
+    primaryType?: string;
   }>;
 }
 
@@ -103,6 +106,13 @@ export const slicesToSavedInspirations = (
       */
       city: place?.city || context.city,
       placeName: slice.placeName || slice.title,
+      /*
+        The slice's own type, which was being dropped. 「每個收藏給個標籤🏷️景點、
+        餐廳、等等」 — the screenshot reader already classifies every slice, so
+        this tag costs nothing and is the traveller's own source rather than a
+        lookup's opinion.
+      */
+      category: placeCategory({ sliceType: slice.type, primaryType: place?.primaryType }),
       placeId: place?.placeId,
       // Only claimed when a lookup actually resolved it; a screenshot alone
       // never establishes that a name is a real place.

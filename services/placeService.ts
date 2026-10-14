@@ -4,7 +4,7 @@
  * numeric id that is NOT a Google place id, so callers that need a real Places
  * identity (for photos) must treat `resolvedPlaceName` as the discriminator.
  */
-export type ResolvedPlace = { placeId?: string; resolvedPlaceName?: string; address?: string; country?: string; countryCode?: string; city?: string; district?: string; latitude: number; longitude: number; photoAvailable?: boolean };
+export type ResolvedPlace = { placeId?: string; resolvedPlaceName?: string; address?: string; country?: string; countryCode?: string; city?: string; district?: string; latitude: number; longitude: number; photoAvailable?: boolean; /** Google's category enum; see `placeCategory`. */ primaryType?: string };
 export type PlaceSuggestion = { placeId: string; primaryText: string; secondaryText?: string; city?: string; country?: string };
 
 export const autocompletePlaces = async (query: string, context: { latitude?: number; longitude?: number; country?: string; travelCountry?: string }, signal?: AbortSignal): Promise<PlaceSuggestion[]> => {

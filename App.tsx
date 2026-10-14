@@ -322,6 +322,7 @@ import {
   FixedEventAdjustment,
   isFixedItem,
 } from "./services/itineraryFixedEvents";
+import { placeCategory } from "./services/placeCategory";
 import ScreenshotItineraryIntake from "./components/ScreenshotItineraryIntake";
 import GlobalActionSheet, {
   GlobalActionContext,
@@ -2856,6 +2857,7 @@ const App: React.FC = () => {
           // because the trip's own city field is sometimes the country.
           city: place?.city,
           country: place?.country,
+          primaryType: place?.primaryType,
         }] as const;
       }),
     );
@@ -2900,6 +2902,8 @@ const App: React.FC = () => {
       latitude?: number; longitude?: number; city?: string; country?: string;
       /** The ward, which names the area this place sits in. */
       district?: string;
+      /** Google's category enum, folded into the 🏷️ tag. See `placeCategory`. */
+      primaryType?: string;
     },
     options?: { silent?: boolean },
   ) => {
@@ -2936,6 +2940,15 @@ const App: React.FC = () => {
                 the home screen showed them as two different places to have
                 been. Neither spelling is wrong; the trip has already chosen.
               */
+              /*
+                The 🏷️ tag, written from the lookup this save was already
+                making. 「每個收藏給個標籤🏷️景點、餐廳、等等」 — kept when the lookup
+                says nothing, so a record tagged from its screenshot is not
+                blanked by a resolve that came back without a type.
+              */
+              category: resolved.primaryType
+                ? placeCategory({ primaryType: resolved.primaryType })
+                : inspiration.category,
               country: preferredCountryName(inspiration.country, resolved.country),
             }
           : inspiration));

@@ -42,6 +42,7 @@ import { cityDisplayName } from '../services/cityNames';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
 import { strandedSaves } from '../services/strandedSaves';
+import { CATEGORY_LABELS } from '../services/placeCategory';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
 
@@ -1251,6 +1252,20 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   <span className={`block min-w-0 ${isPlanned ? 'opacity-55' : ''}`}>
                     <span className="flex items-start justify-between gap-2">
                       <span className="block min-w-0 flex-1 truncate text-sm font-black text-[#11183d]">{group.placeName}</span>
+                      {/*
+                        「每個收藏給個標籤🏷️景點、餐廳、等等」. Beside the name rather
+                        than in the grey line below, because the question it
+                        answers — 「這是什麼」 — is asked while scanning, and the
+                        grey line is read only after stopping.
+                      */}
+                      {group.category && group.category !== 'other' && (
+                        <span
+                          data-testid={`category-${group.id}`}
+                          className="shrink-0 rounded-lg bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700"
+                        >
+                          {CATEGORY_LABELS[group.category]}
+                        </span>
+                      )}
                       {isPlanned && (
                         <span className="shrink-0 rounded-lg bg-slate-200/80 px-2 py-0.5 text-[10px] font-black text-slate-600">已在行程中</span>
                       )}
