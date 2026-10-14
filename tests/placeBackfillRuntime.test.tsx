@@ -307,3 +307,27 @@ describe('putting a stranded save back to unresolved', () => {
     expect(screen.queryByTestId('stranded-saves')).toBeNull();
   });
 });
+
+/**
+ * 「沒有補標籤」.
+ *
+ * 補齊 ran over 54 places, fetched each one's category, and threw it away: this
+ * call site builds its object field by field, so a field added to the handler's
+ * signature does nothing here until it is named. The row's own lookup hands the
+ * whole resolved place over and got the tag for free. Two paths, one doing less
+ * — the same shape as every other bug this week.
+ */
+describe('what the backfill hands on', () => {
+  it('carries the category Google already told it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ...RESOLVED, primaryType: 'ramen_restaurant' }),
+    })) as never);
+    const { onResolveInspirationPlace } = mount([saved()]);
+
+    fireEvent.click(screen.getByTestId('run-place-backfill'));
+
+    await waitFor(() => expect(onResolveInspirationPlace).toHaveBeenCalled());
+    expect(onResolveInspirationPlace.mock.calls[0][1].primaryType).toBe('ramen_restaurant');
+  });
+});

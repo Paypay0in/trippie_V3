@@ -1,4 +1,5 @@
 import { SavedTravelInspiration } from '../types';
+import { placeCategory } from './placeCategory';
 import { ResolvedCandidate } from './placeCandidates';
 
 /**
@@ -58,6 +59,8 @@ export const manualInspirationFrom = (
     city: resolved.city || context.city,
     placeName: resolved.placeName,
     placeId: resolved.placeId,
+    // The 🏷️ tag, from the same lookup that confirmed the place.
+    category: placeCategory({ primaryType: resolved.primaryType }),
     // Claimed because the traveller picked this exact place off a list of
     // candidates, which is the strongest confirmation the app ever gets.
     resolvedPlaceName: resolved.placeName,

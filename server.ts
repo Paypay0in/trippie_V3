@@ -1155,9 +1155,9 @@ async function startServer() {
     const placeId = typeof req.body?.placeId === "string" ? req.body.placeId.trim() : "";
     if (!placeId || !process.env.GOOGLE_MAPS_API_KEY) { res.status(404).json({ error: "Place details unavailable." }); return; }
     try {
-      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location,nationalPhoneNumber,internationalPhoneNumber,websiteUri,googleMapsUri" }, signal: AbortSignal.timeout(5_000) });
+      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location,nationalPhoneNumber,internationalPhoneNumber,websiteUri,googleMapsUri,primaryType" }, signal: AbortSignal.timeout(5_000) });
       if (!response.ok) throw new Error("Place details failed");
-      const data = await response.json() as { id?: string; displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number }; addressComponents?: Array<{ longText?: string; types?: string[] }>; nationalPhoneNumber?: string; internationalPhoneNumber?: string; websiteUri?: string; googleMapsUri?: string };
+      const data = await response.json() as { id?: string; displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number }; addressComponents?: Array<{ longText?: string; types?: string[] }>; nationalPhoneNumber?: string; internationalPhoneNumber?: string; websiteUri?: string; googleMapsUri?: string; primaryType?: string };
       if (!data.displayName?.text || typeof data.location?.latitude !== "number" || typeof data.location.longitude !== "number") throw new Error("Incomplete place details");
       res.json({
         placeId: data.id || placeId,
@@ -1166,6 +1166,8 @@ async function startServer() {
         latitude: data.location.latitude,
         longitude: data.location.longitude,
         country: data.addressComponents?.find(c => c.types?.includes("country"))?.longText,
+        // Google's category enum, folded into the 🏷️ tag. See `placeCategory`.
+        primaryType: data.primaryType,
         /*
           Which town this is, which Google has been sending all along.
 

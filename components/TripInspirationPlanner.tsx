@@ -141,6 +141,8 @@ interface Props {
       city?: string; country?: string;
       /** The ward, which is what an area heading is named by. */
       district?: string;
+      /** Google's category enum, folded into the 🏷️ tag. See `placeCategory`. */
+      primaryType?: string;
     },
     /** Set while backfilling, so twenty corrections do not raise twenty toasts. */
     options?: { silent?: boolean },
@@ -414,6 +416,15 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
           city: found.city,
           district: found.district,
           country: found.country,
+          /*
+            「沒有補標籤」 — 54 lookups fetched the category and threw it away.
+
+            This call builds its own object field by field, so a field added to
+            the handler's signature does nothing here until it is named. The
+            row's own lookup below hands the whole resolved place over and so
+            got the tag for free; this one did not. Two paths, one doing less.
+          */
+          primaryType: found.primaryType,
         }, { silent: true });
         filled += 1;
         resolvedNames.add(gap.placeName);

@@ -55,6 +55,8 @@ export const findPlaceCandidates = async (
 export interface ResolvedCandidate {
   placeId: string;
   placeName: string;
+  /** Google's category enum, folded into the 🏷️ tag. See `placeCategory`. */
+  primaryType?: string;
   address?: string;
   latitude?: number;
   longitude?: number;
@@ -87,6 +89,7 @@ export const resolveCandidate = async (candidate: PlaceCandidate): Promise<Resol
     city: details.city,
     district: details.district,
     country: details.country,
+    primaryType: details.primaryType,
   };
 };
 
