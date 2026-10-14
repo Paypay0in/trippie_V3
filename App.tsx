@@ -2842,6 +2842,10 @@ const App: React.FC = () => {
           latitude: place?.latitude,
           longitude: place?.longitude,
           photoUrl: photo?.imageUrl,
+          // 「筆記我希望以國家。城市 為單位」 — the town has to come off the place,
+          // because the trip's own city field is sometimes the country.
+          city: place?.city,
+          country: place?.country,
         }] as const;
       }),
     );

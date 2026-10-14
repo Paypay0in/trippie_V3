@@ -39,6 +39,9 @@ export interface ScreenshotSaveContext {
     latitude?: number;
     longitude?: number;
     photoUrl?: string;
+    /** Where Google says this is, which beats where the trip says it is. */
+    city?: string;
+    country?: string;
   }>;
 }
 
@@ -86,8 +89,19 @@ export const slicesToSavedInspirations = (
     return {
       id: context.makeId(),
       savedByUserId: context.savedByUserId,
-      country: context.country,
-      city: context.city,
+      country: place?.country || context.country,
+      /*
+        The town this place is in, before the one the trip is in.
+
+        「筆記我希望以國家。城市 為單位」 — and every note was filed under its
+        country, because this took the city from the trip's destination field,
+        which on a Japan trip built from a boarding pass holds 「日本」. City and
+        country were the same word, so a whole country collapsed into one card.
+
+        `docs/PRODUCT.md`: Places owns a place's identity. The trip is the
+        fallback for a name that resolved to nothing.
+      */
+      city: place?.city || context.city,
       placeName: slice.placeName || slice.title,
       placeId: place?.placeId,
       // Only claimed when a lookup actually resolved it; a screenshot alone

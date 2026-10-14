@@ -167,3 +167,55 @@ describe('收藏時要把重點一起帶進去', () => {
     expect(saved.notes.every(note => note.sourcePostId.startsWith('screenshot:'))).toBe(true);
   });
 });
+
+/**
+ * 「筆記我希望以國家。城市 為單位」.
+ *
+ * The home screen groups saved notes by country *and* city, and has done all
+ * along — it produced one card per country because every note carried the
+ * country as its city.
+ */
+describe('where a saved note says it is', () => {
+  const slice = {
+    id: 's1',
+    title: 'Alchemy',
+    placeName: 'Alchemy',
+    notes: [] as Array<{ text: string }>,
+  };
+
+  const context = (resolved?: Record<string, unknown>) => ({
+    savedByUserId: 'me',
+    country: '日本',
+    city: '日本',
+    makeId: (() => { let n = 0; return () => `id-${n += 1}`; })(),
+    resolved,
+  }) as never;
+
+  it('takes the town from the place, not from the trip', () => {
+    const [saved] = slicesToSavedInspirations([slice] as never, context({
+      s1: { placeId: 'p1', city: '台東区', country: '日本' },
+    }));
+
+    expect(saved.city).toBe('台東区');
+    expect(saved.country).toBe('日本');
+  });
+
+  /** A name that resolved to nothing still gets filed somewhere. */
+  it('falls back to the trip when nothing resolved', () => {
+    const [saved] = slicesToSavedInspirations([slice] as never, context({}));
+
+    expect(saved.city).toBe('日本');
+  });
+
+  it('groups two wards of one city apart', () => {
+    const saved = slicesToSavedInspirations(
+      [slice, { ...slice, id: 's2', placeName: 'B' }] as never,
+      context({
+        s1: { placeId: 'p1', city: '台東区' },
+        s2: { placeId: 'p2', city: '渋谷区' },
+      }),
+    );
+
+    expect(saved.map(entry => entry.city)).toEqual(['台東区', '渋谷区']);
+  });
+});

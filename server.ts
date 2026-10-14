@@ -13,6 +13,7 @@ import { stripPriceClaims } from "./services/priceClaims";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { createModelLadder, LADDER_PASSES, PASS_PAUSE_MS } from "./services/modelLadder";
 import { isExpandableMapsLink } from "./services/mapsLinkInput";
+import { cityFromComponents } from "./services/addressComponents";
 import { chooseMerchantPlace, merchantSearchQuery, placeLanguageFor } from "./services/merchantPlaceQuery";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
@@ -1177,9 +1178,7 @@ async function startServer() {
           standing in Tokyo than 「東京都」 does, and the prefecture is the last
           resort for a place in no town at all.
         */
-        city: ["locality", "sublocality_level_1", "sublocality", "administrative_area_level_2", "administrative_area_level_1"]
-          .map(type => data.addressComponents?.find(c => c.types?.includes(type))?.longText)
-          .find(Boolean),
+        city: cityFromComponents(data.addressComponents),
         // Contact details, for a stay the traveller may need to phone from the
         // street. Absent for places Google has none for, which is why the UI
         // renders each button only when its value arrived.
@@ -1324,6 +1323,9 @@ async function startServer() {
               latitude: selected.location?.latitude,
               longitude: selected.location?.longitude,
               country: countryComponent?.longText || country,
+              // The town, so a saved place knows more than which country it is
+              // in. See `cityFromComponents`.
+              city: cityFromComponents(selected.addressComponents),
               /*
                 The ISO code, which was always being fetched and thrown away.
 
