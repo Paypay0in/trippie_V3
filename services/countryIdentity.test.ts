@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { countryKey, preferredCountryName, sameCountry } from './countryIdentity';
+import { countryDisplayName, countryKey, preferredCountryName, sameCountry } from './countryIdentity';
 
 describe('two spellings of one country', () => {
   it('knows 日本 and Japan are the same place', () => {
@@ -94,5 +94,49 @@ describe('the home screen groups on it', () => {
     const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
     expect(app).toContain('preferredCountryName(inspiration.country, resolved.country)');
+  });
+});
+
+/**
+ * 「語言一下 Japan 一下日本 這樣不 ok」.
+ *
+ * Both were honestly produced: Google answers 日本 under zh-TW, and the
+ * hand-written airport directory stores Japan because its airport names are
+ * English. Two sources, two languages, one screen.
+ */
+describe('what the reader is shown', () => {
+  it('says one language, whichever the record holds', () => {
+    expect(countryDisplayName('Japan')).toBe('日本');
+    expect(countryDisplayName('日本')).toBe('日本');
+    expect(countryDisplayName('JP')).toBe('日本');
+  });
+
+  it('does the same for the other countries this app is used in', () => {
+    expect(countryDisplayName('South Korea')).toBe('韓國');
+    expect(countryDisplayName('대한민국')).toBe('韓國');
+    expect(countryDisplayName('Taiwan')).toBe('台灣');
+  });
+
+  /** No better name than the one it was given. */
+  it('shows an unknown country exactly as stored', () => {
+    expect(countryDisplayName('摩納哥')).toBe('摩納哥');
+    expect(countryDisplayName('Monaco')).toBe('Monaco');
+  });
+
+  it('shows nothing for nothing', () => {
+    expect(countryDisplayName('')).toBe('');
+    expect(countryDisplayName(undefined)).toBe('');
+  });
+
+  /*
+    Display only. Normalising on the way in would mean rewriting records and
+    picking a winner between two correct answers.
+  */
+  it('is used where the cards are drawn', () => {
+    const home = readFileSync(resolve(__dirname, '../components/TravelHome.tsx'), 'utf8');
+    const planner = readFileSync(resolve(__dirname, '../components/TripInspirationPlanner.tsx'), 'utf8');
+
+    expect(home).toContain('country: countryDisplayName(country)');
+    expect(planner).toContain('countryDisplayName(group.country)');
   });
 });

@@ -32,7 +32,7 @@ import { isSearching, matchesQuery } from "../services/travelHomeSearch";
 import AppWordmark from "./AppWordmark";
 import NotificationCenter from "./NotificationCenter";
 import { DisputeNotice } from "../services/disputeInbox";
-import { countryKey } from '../services/countryIdentity';
+import { countryDisplayName, countryKey } from '../services/countryIdentity';
 import { coverImageQuery, fixtureImageFor } from '../services/destinationCoverImage';
 
 interface Props {
@@ -257,7 +257,14 @@ const TravelHome: React.FC<Props> = ({
       */
       const key = `${countryKey(country)}::${city.toLocaleLowerCase()}`;
       const current = groups.get(key);
-      groups.set(key, current ? { ...current, count: current.count + 1 } : { country, city, count: 1, id: `saved-${key}` });
+      /*
+        Shown in the app's own language. 「語言一下 Japan 一下日本 這樣不 ok」 — the
+        records honestly hold both, because Google answers 日本 and the airport
+        directory stores Japan. See `countryDisplayName`.
+      */
+      groups.set(key, current
+        ? { ...current, count: current.count + 1 }
+        : { country: countryDisplayName(country), city, count: 1, id: `saved-${key}` });
     });
     return Array.from(groups.values());
   }, [savedTravelInspirations]);

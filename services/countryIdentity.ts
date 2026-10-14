@@ -54,6 +54,50 @@ export const countryKey = (country?: string): string => {
   return KEYS.get(text) || text;
 };
 
+/**
+ * What to show the reader, in the language the app speaks.
+ *
+ * 「語言一下 Japan 一下日本 這樣不 ok」 — and both were honestly produced: Google
+ * answers 「日本」 under zh-TW, while the hand-written airport directory stores
+ * 「Japan」 because its airport names are English. Two sources, two languages,
+ * the same screen.
+ *
+ * Normalising on the way *in* would mean rewriting records and picking a
+ * winner between two correct answers. Normalising on the way *out* costs
+ * nothing and fixes every source at once, including whatever a traveller
+ * typed themselves.
+ *
+ * A country the table does not hold is shown exactly as it was stored — the
+ * app has no better name for it than the one it was given.
+ */
+const DISPLAY_NAMES: Record<string, string> = {
+  jp: '日本',
+  kr: '韓國',
+  tw: '台灣',
+  hk: '香港',
+  mo: '澳門',
+  sg: '新加坡',
+  th: '泰國',
+  vn: '越南',
+  my: '馬來西亞',
+  ph: '菲律賓',
+  id: '印尼',
+  cn: '中國',
+  us: '美國',
+  gb: '英國',
+  au: '澳洲',
+  fr: '法國',
+  it: '義大利',
+  es: '西班牙',
+  de: '德國',
+};
+
+export const countryDisplayName = (country?: string): string => {
+  const text = (country || '').trim();
+  if (!text) return '';
+  return DISPLAY_NAMES[countryKey(text)] || text;
+};
+
 export const sameCountry = (left?: string, right?: string): boolean => {
   const a = countryKey(left);
   const b = countryKey(right);
