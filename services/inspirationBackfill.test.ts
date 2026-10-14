@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { knowsWhereItIs, placesNeedingBackfill } from './inspirationBackfill';
+import { cityLooksLikeDistrict, knowsWhereItIs, placesNeedingBackfill } from './inspirationBackfill';
 import { SavedTravelInspiration } from '../types';
 
 const saved = (over: Partial<SavedTravelInspiration> = {}): SavedTravelInspiration => ({
@@ -45,7 +45,9 @@ describe('what to look up', () => {
   it('lists only the ones still missing something', () => {
     const gaps = placesNeedingBackfill([
       saved({ id: 'a', placeName: '嶋' }),
-      saved({ id: 'b', placeName: 'HARRY', formattedAddress: '…', city: 'Taito City' }),
+      // A real city, not a ward — 「Taito City」 is Tokyo's 台東区 and is itself
+      // a save that still needs correcting. See `cityLooksLikeDistrict`.
+      saved({ id: 'b', placeName: 'HARRY', formattedAddress: '…', city: 'Tokyo' }),
     ]);
 
     expect(gaps.map(gap => gap.placeName)).toEqual(['嶋']);
@@ -69,7 +71,7 @@ describe('what to look up', () => {
 
   it('says nothing when every save already knows', () => {
     expect(placesNeedingBackfill([
-      saved({ formattedAddress: '…', city: 'Shibuya' }),
+      saved({ formattedAddress: '…', city: 'Tokyo' }),
     ])).toHaveLength(0);
   });
 });
@@ -142,5 +144,51 @@ describe('which country a save is searched in', () => {
     const planner = readFileSync(resolve(__dirname, '../components/TripInspirationPlanner.tsx'), 'utf8');
 
     expect(planner).toContain('resolvePlace(gap.placeName, gap.country || tripFallbackCountry)');
+  });
+});
+
+/**
+ * 「還是雙語」 — 「韓國・Suyeong-gu」.
+ *
+ * Those saves were written before the city and the ward were separated, so
+ * their city field holds the ward and they look settled to a check that only
+ * asks 「is there a city?」. Measured: Busan addresses carry no `locality` at
+ * all — 「Busan」 is the region, 「Suyeong-gu」 the sublocality — so that value
+ * could only have come from the ward.
+ */
+describe('a ward sitting in the city field', () => {
+  it('is spotted by its suffix', () => {
+    expect(cityLooksLikeDistrict({ city: 'Suyeong-gu', country: '韓國' })).toBe(true);
+    expect(cityLooksLikeDistrict({ city: 'Shibuya-ku', country: '日本' })).toBe(true);
+    expect(cityLooksLikeDistrict({ city: '台東区', country: '日本' })).toBe(true);
+    expect(cityLooksLikeDistrict({ city: 'Chuo Ward', country: '日本' })).toBe(true);
+  });
+
+  /*
+    「○○ City」 only counts in Japan, where Google writes a bare 「Osaka」 and
+    「Sapporo」 for real cities and reserves the suffix for Tokyo's wards.
+  */
+  it('reads 「City」 as a ward only in Japan', () => {
+    expect(cityLooksLikeDistrict({ city: 'Taito City', country: '日本' })).toBe(true);
+    expect(cityLooksLikeDistrict({ city: 'Ho Chi Minh City', country: '越南' })).toBe(false);
+  });
+
+  it('leaves a real city alone', () => {
+    expect(cityLooksLikeDistrict({ city: 'Busan', country: '韓國' })).toBe(false);
+    expect(cityLooksLikeDistrict({ city: 'Tokyo', country: '日本' })).toBe(false);
+    expect(cityLooksLikeDistrict({ city: '釜山', country: '韓國' })).toBe(false);
+  });
+
+  /** A save that already knows both is not one of these. */
+  it('is not triggered once the ward has its own field', () => {
+    expect(cityLooksLikeDistrict({ city: 'Taito City', country: '日本', district: 'Taito City' })).toBe(false);
+  });
+
+  it('is offered for backfill so it can be corrected', () => {
+    const gaps = placesNeedingBackfill([
+      saved({ placeName: 'Nasari Sigdang', country: '韓國', city: 'Suyeong-gu', formattedAddress: '釜山…' }),
+    ]);
+
+    expect(gaps).toHaveLength(1);
   });
 });

@@ -43,13 +43,46 @@ export interface PlaceGap {
  * old save path produced, taking the city from a trip whose destination field
  * held the country.
  */
+/**
+ * A city field that is actually holding a ward.
+ *
+ * 「還是雙語」 — 「韓國・Suyeong-gu」. Those saves were written before the city and
+ * the ward were separated, so their city field holds the ward, and they look
+ * settled to a check that only asks 「is there a city?」.
+ *
+ * Measured against the live Places response: Busan addresses carry no
+ * `locality` at all — 「Busan」 is the region and 「Suyeong-gu」 the sublocality —
+ * so these could only ever have come from the ward.
+ *
+ * The suffixes here are unambiguously below city level. 「City」 is included
+ * only for Japan, where Google writes a bare 「Osaka」 and 「Sapporo」 for real
+ * cities and reserves 「○○ City」 for Tokyo's wards; applying it everywhere
+ * would make 「Ho Chi Minh City」 a ward.
+ */
+const WARD_SUFFIX = /(-gu|-gun|-eup|-ku|\s+Ward|[区區郡邑])$/i;
+const JAPANESE_WARD_SUFFIX = /\s+City$/i;
+
+export const cityLooksLikeDistrict = (
+  place: { city?: string; country?: string; district?: string },
+): boolean => {
+  const city = (place.city || '').trim();
+  if (!city) return false;
+  // Already split: a save that knows both is not one of these.
+  if (place.district?.trim()) return false;
+  if (WARD_SUFFIX.test(city)) return true;
+  return /日本|japan|^jp$/i.test((place.country || '').trim()) && JAPANESE_WARD_SUFFIX.test(city);
+};
+
 export const knowsWhereItIs = (
-  place: { formattedAddress?: string; city?: string; country?: string },
+  place: { formattedAddress?: string; city?: string; country?: string; district?: string },
 ): boolean => {
   const city = (place.city || '').trim();
   const country = (place.country || '').trim();
   const hasRealCity = Boolean(city) && city.toLowerCase() !== country.toLowerCase();
-  return Boolean(place.formattedAddress?.trim()) && hasRealCity;
+  return Boolean(place.formattedAddress?.trim())
+    && hasRealCity
+    // A ward sitting in the city field is not knowing which city it is in.
+    && !cityLooksLikeDistrict(place);
 };
 
 /**

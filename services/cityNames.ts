@@ -35,6 +35,7 @@ const DISPLAY_NAMES: Record<string, string> = {
 
   // Korea
   seoul: '首爾',
+  'busan metropolitan city': '釜山',
   busan: '釜山',
   jeju: '濟州',
   incheon: '仁川',
