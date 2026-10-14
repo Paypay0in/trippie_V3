@@ -2345,7 +2345,7 @@ async function startServer() {
           .filter(Boolean);
       })();
       const wantedBlock = wantedNames.length > 0 && mode !== "fill"
-        ? `\n\n【3c. 使用者剛剛勾選、指定要排進行程的地點（${wantedNames.length} 個）】\n${wantedNames.join("、")}\n這是使用者這次最明確的要求：請把這些地點「全部」排進行程，每一個都要有自己的 add，並依【3b】填好 sourceInspirationIds。\n排進去的時候要顧動線——放在同一天地理上相近的時段，必要時連帶 move 既有項目讓那一天順。\n如果其中有地點真的排不進去（天數不夠、地點太遠、與固定行程衝突），仍然要排進其他的，並在 warnings 逐一說明哪一個沒排、為什麼。不要安靜地略過。`
+        ? `\n\n【3c. 使用者剛剛勾選、指定要排進行程的地點（${wantedNames.length} 個）】\n${wantedNames.join("、")}\n這是使用者這次最明確的要求：請把這些地點「全部」排進行程，每一個都要有自己的 add，並依【3b】填好 sourceInspirationIds。\n但「全部排進去」不等於「排在同一天」：先依【3d】的分區把它們分配到不同日子，同一區的才放同一天。為了一次排完而把三個區塞進一天，是這次最不該出現的結果。\n排進去之後要顧動線——同一天的放在相鄰時段，必要時連帶 move 既有項目讓那一天順。\n如果其中有地點真的排不進去（天數不夠、地點太遠、與固定行程衝突），仍然要排進其他的，並在 warnings 逐一說明哪一個沒排、為什麼。不要安靜地略過。`
         : "";
 
       const preferenceBlock = planningPreferences
