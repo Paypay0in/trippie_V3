@@ -870,6 +870,13 @@ async function startServer() {
       // HEAD first: the destination is in the response URL, and the page body
       // is several hundred kilobytes nobody here reads.
       const response = await fetch(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(8_000) });
+      // Checked explicitly rather than inferred from where it landed: a dead
+      // short code stays on goo.gl and would fail the host test below for the
+      // wrong reason, which is the kind of accident that stops being true.
+      if (!response.ok) {
+        res.status(404).json({ error: "這個連結已經失效了。" });
+        return;
+      }
       const expanded = response.url;
       if (!expanded || !/google\.[a-z.]+$/i.test(new URL(expanded).hostname)) {
         res.status(502).json({ error: "這個連結展不開，請改貼完整網址。" });
