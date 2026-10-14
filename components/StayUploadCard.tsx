@@ -1,11 +1,12 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { BedDouble, Camera, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { BedDouble, Camera, Loader2, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { ParsedStay, normalizeParsedStay, stayToItineraryItems } from '../services/stayIntake';
 import { FlightArrivalPoint } from '../services/flightDerivedItems';
 import { linkStayItems, stayPlaceQuery } from '../services/stayPlaceLink';
 import { findStayConflicts, idsToDropAsCopies, idsToDropForChoice, stayPropertyName } from '../services/stayConflicts';
 import { resolvePlace } from '../services/placeService';
+import { stayBookings, stayFormFromItems } from '../services/stayEdit';
 
 interface Props {
   itinerary: ItineraryItem[];
@@ -45,6 +46,29 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
   const [error, setError] = useState('');
   const [manual, setManual] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  /*
+    The booking this form is replacing, if any.
+
+    「住宿資訊要可以編輯」 — and an edit is a replacement here, because the two
+    itinerary cards a stay produces are derived from it. Holding the old cards'
+    ids means they go at the moment the new ones arrive, rather than leaving
+    the traveller to delete the wrong one afterwards.
+  */
+  const [editingIds, setEditingIds] = useState<string[] | null>(null);
+
+  const openEdit = (bookingItems: ItineraryItem[]) => {
+    setForm(stayFormFromItems(bookingItems));
+    setEditingIds(bookingItems.map(item => item.id));
+    setError('');
+    setManual(true);
+  };
+
+  const closeForm = () => {
+    setForm(EMPTY_FORM);
+    setEditingIds(null);
+    setManual(false);
+    setError('');
+  };
 
   const stays = useMemo(
     () => itinerary
@@ -60,6 +84,9 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
     Dismissable, because a traveller really can change hotel mid-trip and the
     question would otherwise block the card forever.
   */
+  /** The two cards of each booking, so an edit changes both. */
+  const bookings = useMemo(() => stayBookings(itinerary), [itinerary]);
+
   const conflicts = useMemo(() => findStayConflicts(itinerary), [itinerary]);
   const [dismissedConflictIds, setDismissedConflictIds] = useState<string[]>([]);
   const openConflicts = conflicts.filter(conflict => !dismissedConflictIds.includes(conflict.id));
@@ -165,7 +192,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
           <div className="flex shrink-0 gap-2">
             <button
               type="button"
-              onClick={() => { setManual(true); setError(''); }}
+              onClick={() => { setForm(EMPTY_FORM); setEditingIds(null); setManual(true); setError(''); }}
               className="inline-flex min-h-11 items-center rounded-xl border border-[#e4e2f2] bg-white px-3 py-2 text-xs font-black text-slate-500"
             >
               手動
@@ -248,9 +275,11 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
               return;
             }
             setError('');
+            // Removed first, so a failed lookup inside `addStay` cannot leave
+            // the old booking and the new one both on the trip.
+            (editingIds || []).forEach(onRemoveItem);
             void addStay(stay);
-            setForm(EMPTY_FORM);
-            setManual(false);
+            closeForm();
           }}
         >
           <label className="block">
@@ -295,11 +324,11 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
               type="submit"
               className="min-h-11 flex-1 rounded-xl bg-[#5b3df5] px-4 text-xs font-black text-white"
             >
-              加入住宿
+              {editingIds ? '儲存修改' : '加入住宿'}
             </button>
             <button
               type="button"
-              onClick={() => { setManual(false); setForm(EMPTY_FORM); setError(''); }}
+              onClick={closeForm}
               className="min-h-11 rounded-xl border border-[#e4e2f2] bg-white px-4 text-xs font-black text-slate-500"
             >
               取消
@@ -323,7 +352,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
             </button>
             <button
               type="button"
-              onClick={() => setManual(true)}
+              onClick={() => { setForm(EMPTY_FORM); setEditingIds(null); setManual(true); }}
               className="min-h-11 rounded-xl border border-[#e4e2f2] bg-white px-4 text-xs font-black text-[#5b3df5]"
             >
               手動輸入
@@ -346,14 +375,32 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
                   <p className="mt-1 whitespace-pre-line text-[11px] leading-relaxed text-slate-500">{item.notes}</p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => onRemoveItem(item.id)}
-                aria-label={`刪除 ${item.title}`}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
-              >
-                <Trash2 size={15} />
-              </button>
+              <div className="flex shrink-0 items-start">
+                {/*
+                  Edits the whole booking, not this card.
+
+                  「住宿資訊要可以編輯」 — and check-in and check-out are two halves
+                  of one thing: a hotel renamed on one card and not the other is
+                  two bookings as far as the duplicate check is concerned.
+                */}
+                <button
+                  type="button"
+                  onClick={() => openEdit(bookings.get(stayPropertyName(item)) || [item])}
+                  aria-label={`編輯 ${item.title}`}
+                  data-testid={`edit-stay-${item.id}`}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 transition hover:bg-[#f3f0ff] hover:text-[#5b3df5]"
+                >
+                  <Pencil size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRemoveItem(item.id)}
+                  aria-label={`刪除 ${item.title}`}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
