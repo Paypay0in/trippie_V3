@@ -3,6 +3,7 @@ import { Bus, Car, Footprints, ChevronRight, MapPinned, AlertTriangle, X } from 
 import { OVERLAY } from '../constants/layers';
 import { naverRouteUrl } from '../services/naverMapLinks';
 import { fetchRouteLeg, RouteLeg, TravelMode, TRAVEL_MODE_LABELS } from '../services/routesService';
+import { isSameSpot, noRouteDetail, noRouteSummary } from '../services/transportLegWording';
 
 interface Props {
   origin: { latitude: number; longitude: number; title: string };
@@ -109,13 +110,19 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
       )
     : null;
   const mapUrl = naverUrl || googleMapUrl;
+  /*
+    「要去調整說法」 — 「這個地區查不到…路線」 was said of two cards that were both
+    Taoyuan airport. Whether the two ends are the same spot is the difference
+    between a lookup that failed and a journey that does not exist.
+  */
+  const sameSpot = isSameSpot(origin, destination);
   /** The one line on the plan, repeated at the top of the sheet. */
   const summaryLine = loading ? '計算交通中…'
     : error ? error
     : leg?.available ? `約 ${minutesOf(leg.durationSeconds)} 分 · ${TRAVEL_MODE_LABELS[mode]}${summarize(leg) ? ` · ${summarize(leg)}` : ''}`
     : isKorea(destinationCountry)
       ? `🚫 因法規限制，Google 地圖無法以「${TRAVEL_MODE_LABELS[mode]}」查詢`
-      : `這個地區查不到${TRAVEL_MODE_LABELS[mode]}路線`;
+      : noRouteSummary(TRAVEL_MODE_LABELS[mode], sameSpot);
   // Nothing to open while the answer is still being fetched or the request
   // failed outright; a refused mode still opens, because the sheet is where the
   // reason and the alternative live.
@@ -264,7 +271,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
               <p className="mt-4 rounded-2xl bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-700">
                 {isKorea(destinationCountry)
                   ? '🚫 因法規限制，Google 地圖無法以這個交通方式查詢。當地人用 Naver Map 或 KakaoMap，這兩款查得到。'
-                  : `這個地區查不到${TRAVEL_MODE_LABELS[mode]}路線。`}
+                  : noRouteDetail(TRAVEL_MODE_LABELS[mode], sameSpot)}
               </p>
             )}
 

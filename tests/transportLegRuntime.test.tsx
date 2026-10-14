@@ -99,7 +99,8 @@ describe('the transport leg', () => {
 
     await user.click(screen.getByRole('button', { name: /開車/ }));
 
-    await waitFor(() => expect(screen.getByText('這個地區查不到開車路線')).toBeTruthy());
+    // 「要去調整說法」: what failed is this journey's lookup, not the region.
+    await waitFor(() => expect(screen.getByText('查不到這段的開車路線')).toBeTruthy());
     expect(requestedModes).toEqual(['TRANSIT', 'DRIVE']);
     // Never the transit number under a driving label.
     expect(screen.queryByText(/約 78 分/)).toBeNull();
