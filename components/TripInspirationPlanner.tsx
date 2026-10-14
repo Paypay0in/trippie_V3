@@ -34,7 +34,7 @@ import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsS
 import { localToday } from '../services/localDate';
 import { expandMapsShortLink, findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
 import { readMapsInput } from '../services/mapsLinkInput';
-import { placesNeedingBackfill } from '../services/inspirationBackfill';
+import { knowsWhereItIs, placesNeedingBackfill } from '../services/inspirationBackfill';
 import { resolvePlace } from '../services/placeService';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import { countryDisplayName } from '../services/countryIdentity';
@@ -330,6 +330,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     setBackfillDone('');
     setBackfilling({ done: 0, total: placeGaps.length });
     let filled = 0;
+    const resolvedNames = new Set<string>();
     /*
       One at a time. These are the traveller's own saves being corrected, not a
       page waiting to render, and twenty parallel requests against a key this
@@ -348,13 +349,19 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
           country: found.country,
         }, { silent: true });
         filled += 1;
+        resolvedNames.add(gap.placeName);
       }
       setBackfilling({ done: index + 1, total: placeGaps.length });
     }
     setBackfilling(null);
-    setBackfillDone(filled === placeGaps.length
+    /*
+      Named, not counted. 「我要去哪點入搜尋？」 — 「2 個查不到」 does not say which
+      two, and the traveller is left comparing a number against a list.
+    */
+    const missed = placeGaps.filter(gap => !resolvedNames.has(gap.placeName)).map(gap => gap.placeName);
+    setBackfillDone(missed.length === 0
       ? `${filled} 個都補上了。`
-      : `補上 ${filled} 個，${placeGaps.length - filled} 個查不到，可以點進去自己搜尋。`);
+      : `補上 ${filled} 個。查不到：${missed.join('、')} —— 在下面那筆的「在地圖上尋找這個地點」自己搜。`);
   };
 
   /** The place currently being searched for, and what came back. */
@@ -1163,7 +1170,17 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   the right shop; a person who has the screenshot can fix it in a
                   second.
                 */}
-                {!isPlanned && group.missingPlaceIdentity && onResolveInspirationPlace && (
+                {/*
+                  Offered whenever the place does not know where it is, not only
+                  when it has no map identity at all.
+
+                  「這個即使我點選補齊 但若找不到 我要去哪點入搜尋？」 — a save with a
+                  place id but no address passes `missingPlaceIdentity`, so the
+                  backfill listed it, failed on it, and told the traveller to go
+                  and search for it by hand on a row that offered no way to.
+                */}
+                {!isPlanned && onResolveInspirationPlace
+                  && (group.missingPlaceIdentity || !knowsWhereItIs(group)) && (
                   <div className="px-3 pb-3 pl-11">
                     {lookupGroupId !== group.id ? (
                       <button

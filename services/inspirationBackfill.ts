@@ -31,11 +31,13 @@ export interface PlaceGap {
  * old save path produced, taking the city from a trip whose destination field
  * held the country.
  */
-export const knowsWhereItIs = (inspiration: SavedTravelInspiration): boolean => {
-  const city = (inspiration.city || '').trim();
-  const country = (inspiration.country || '').trim();
+export const knowsWhereItIs = (
+  place: { formattedAddress?: string; city?: string; country?: string },
+): boolean => {
+  const city = (place.city || '').trim();
+  const country = (place.country || '').trim();
   const hasRealCity = Boolean(city) && city.toLowerCase() !== country.toLowerCase();
-  return Boolean(inspiration.formattedAddress?.trim()) && hasRealCity;
+  return Boolean(place.formattedAddress?.trim()) && hasRealCity;
 };
 
 /**

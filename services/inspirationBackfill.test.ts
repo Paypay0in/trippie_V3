@@ -7,6 +7,8 @@
  * city to group by.
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { knowsWhereItIs, placesNeedingBackfill } from './inspirationBackfill';
 import { SavedTravelInspiration } from '../types';
 
@@ -69,5 +71,35 @@ describe('what to look up', () => {
     expect(placesNeedingBackfill([
       saved({ formattedAddress: '…', city: 'Shibuya' }),
     ])).toHaveLength(0);
+  });
+});
+
+/**
+ * 「這個即使我點選補齊 但若找不到 我要去哪點入搜尋？」
+ *
+ * A save with a place id but no address is not 「missing place identity」, so
+ * the row offered no search — while the backfill listed it, failed on it, and
+ * told the traveller to go and search for it by hand.
+ */
+describe('a place that has an id but still does not know where it is', () => {
+  it('is listed for backfill', () => {
+    const gaps = placesNeedingBackfill([
+      saved({ placeId: 'p1', latitude: 35.68, longitude: 139.68 }),
+    ]);
+
+    expect(gaps).toHaveLength(1);
+  });
+
+  /* The predicate the row now asks, in the shape a group carries. */
+  it('answers the same question for a group shape', () => {
+    expect(knowsWhereItIs({ formattedAddress: '東京都渋谷区…', city: 'Shibuya', country: '日本' })).toBe(true);
+    expect(knowsWhereItIs({ city: '日本', country: '日本' })).toBe(false);
+    expect(knowsWhereItIs({ formattedAddress: '東京都…', city: '日本', country: '日本' })).toBe(false);
+  });
+
+  it('is offered the search on the row', () => {
+    const planner = readFileSync(resolve(__dirname, '../components/TripInspirationPlanner.tsx'), 'utf8');
+
+    expect(planner).toContain('group.missingPlaceIdentity || !knowsWhereItIs(group)');
   });
 });

@@ -106,14 +106,17 @@ describe('running it', () => {
     await waitFor(() => expect(screen.getByTestId('place-backfill-done').textContent).toContain('1'));
   });
 
-  /** A name Google cannot place is reported, not silently counted as done. */
-  it('counts the ones it could not find', async () => {
+  /** 「我要去哪點入搜尋？」 — a count does not say which two. */
+  it('names the ones it could not find', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) })) as never);
     const { onResolveInspirationPlace } = mount([saved()]);
 
     fireEvent.click(screen.getByTestId('run-place-backfill'));
 
-    await waitFor(() => expect(screen.getByTestId('place-backfill-done').textContent).toContain('查不到'));
+    const done = await screen.findByTestId('place-backfill-done');
+    await waitFor(() => expect(done.textContent).toContain('查不到'));
+    expect(done.textContent).toContain('らぁ麺や 嶋');
+    expect(done.textContent).toContain('在地圖上尋找這個地點');
     expect(onResolveInspirationPlace).not.toHaveBeenCalled();
   });
 });
