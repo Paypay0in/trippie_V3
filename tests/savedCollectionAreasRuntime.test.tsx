@@ -318,3 +318,70 @@ describe('repointing a place that is simply wrong', () => {
     expect(screen.queryByTestId('rebind-a')).toBeNull();
   });
 });
+
+/**
+ * 「資訊重複的太多了」.
+ *
+ * His 味贊王鹽烤肉 card, as photographed: nine notes, several restating the
+ * opening hours in a different script, and the 「旅 Ann」 chip printed beside
+ * every single one of them. The chip exists to say which of several travellers
+ * wrote a note — beside nine notes by one person it says nothing nine times.
+ */
+describe('a card carrying nine notes by one person', () => {
+  const note = (id: string, text: string): SavedExperienceNote => ({
+    id, text, sourceCreatorId: 'c',
+  } as SavedExperienceNote);
+
+  const nine = saved({
+    id: 'a',
+    placeName: '味贊王鹽烤肉',
+    ...HAEUNDAE,
+    notes: [
+      note('n1', '饭点人超多'),
+      note('n2', '营业时间：12:00 - 23:00（15:00 - 17:00 为休息准备时间）'),
+      note('n3', '推荐菜品：五花肉'),
+      note('n4', '營業時間 12:00-23:00'),
+      note('n5', '15:00-17:00 为休息时间'),
+      note('n6', '巨巨好吃的烤肉，强推五花肉'),
+      note('n7', '鹽烤肉餐廳'),
+      note('n8', '五花肉Q彈多汁'),
+      note('n9', '位於海雲台'),
+    ],
+  });
+
+  it('says who wrote them once instead of nine times', () => {
+    mount([nine]);
+
+    expect(screen.getByTestId('notes-author-a').textContent).toContain('9 則筆記');
+    // The chip that used to sit on every row is gone from the rows.
+    expect(screen.queryAllByLabelText(/的原貼文/)).toHaveLength(0);
+  });
+
+  it('shows four and folds the rest, until asked', () => {
+    mount([nine]);
+
+    expect(screen.getByText('饭点人超多')).toBeTruthy();
+    expect(screen.queryByText('位於海雲台')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('toggle-notes-a'));
+    expect(screen.getByText('位於海雲台')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('toggle-notes-a'));
+    expect(screen.queryByText('位於海雲台')).toBeNull();
+  });
+
+  /* Two travellers on one place is the case the chip was built for. */
+  it('keeps the chips when the notes come from different people', () => {
+    mount([saved({
+      id: 'a',
+      placeName: '味贊王鹽烤肉',
+      ...HAEUNDAE,
+      notes: [
+        note('n1', '饭点人超多'),
+        { ...note('n2', '推荐五花肉'), sourceCreatorId: 'other' } as SavedExperienceNote,
+      ],
+    })]);
+
+    expect(screen.queryByTestId('notes-author-a')).toBeNull();
+  });
+});

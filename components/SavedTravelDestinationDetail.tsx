@@ -65,6 +65,15 @@ const PlaceThumbnail: React.FC<{ saved: SavedTravelInspiration; sourcePost?: Com
   return <div className="shrink-0"><div className="relative h-[112px] w-[112px]">{loading ? <div className="h-full w-full animate-pulse rounded-[14px] bg-slate-100" aria-label="圖片載入中" /> : <img src={imageUrl} alt={saved.placeName} className="h-full w-full rounded-[14px] object-cover" />}</div></div>;
 };
 
+/**
+ * How many notes a card shows before folding the rest away.
+ *
+ * 「資訊重複的太多了」 — nine notes on one restaurant, several of them restating
+ * the opening hours in a different script, made a card taller than the screen.
+ * Four is enough to see what kind of place it is without scrolling past it.
+ */
+const NOTE_PREVIEW = 4;
+
 const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
@@ -180,6 +189,8 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
   }, [basicsKey]);
 
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
+  /** Which cards have had their full note list opened. See 「資訊重複的太多了」. */
+  const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
   const [image, setImage] = useState<DestinationImage | null>(null);
   const [removeTarget, setRemoveTarget] = useState<SavedTravelInspiration | null>(null);
   const [attemptedResolution, setAttemptedResolution] = useState<Set<string>>(() => new Set());
@@ -331,15 +342,60 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
               {basicsById[item.id]}
             </p>
           )}
+          {/*
+            「資訊重複的太多了」. Nine notes on one restaurant, and the same
+            「旅 Ann」 chip printed beside every one of them — the chip exists to
+            say which of several travellers wrote a note, and it says nothing at
+            all when there is only one of them. Said once above the list in that
+            case, and the long tail of notes folds away.
+          */}
+          {(() => {
+            const sources = item.notes.map(note => {
+              const sourcePost = note.sourcePostId ? communityPosts.find(post => post.id === note.sourcePostId) : undefined;
+              return sourcePost ? { name: sourcePost.authorName, avatar: sourcePost.authorAvatar, postId: note.sourcePostId } : { ...(creatorById.get(note.sourceCreatorId) || creator), postId: note.sourcePostId };
+            });
+            /*
+              Compared on identity, not on the rendered name: two creators this
+              screen cannot resolve both read 「原作者」, and folding them into one
+              line would claim they are the same person.
+            */
+            const authors = new Set(item.notes.map(note => note.sourcePostId || note.sourceCreatorId || ''));
+            const onlyAuthor = authors.size === 1 && item.notes.length > 1 ? sources[0] : null;
+            const expanded = openNotes.has(item.id);
+            const shown = expanded ? item.notes : item.notes.slice(0, NOTE_PREVIEW);
+            return <>
+            {onlyAuthor && (
+              <button
+                type="button"
+                data-testid={`notes-author-${item.id}`}
+                onClick={(event) => { event.stopPropagation(); onOpenCommunityPost(onlyAuthor.postId); }}
+                className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500"
+              >
+                <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">{onlyAuthor.avatar ? <img src={onlyAuthor.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}</span>
+                {item.notes.length} 則筆記 · 全部來自 {onlyAuthor.name || '原作者'}
+              </button>
+            )}
           <div className="mt-2 space-y-1.5">
-            {item.notes.map(note => {
+            {shown.map(note => {
               const sourcePost = note.sourcePostId ? communityPosts.find(post => post.id === note.sourcePostId) : undefined;
               const noteCreator = sourcePost ? { name: sourcePost.authorName, avatar: sourcePost.authorAvatar } : creatorById.get(note.sourceCreatorId) || creator;
               return <div key={note.id} className="flex min-w-0 items-start gap-1.5 rounded-lg bg-violet-50/75 px-2 py-1.5 text-xs leading-5 text-slate-700">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" /><p className="min-w-0 flex-1 break-words">{note.text}</p><button type="button" aria-label={`查看 ${noteCreator?.name || '原作者'} 的原貼文`} onClick={(event) => { event.stopPropagation(); onOpenCommunityPost(note.sourcePostId); }} className="ml-1 inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-slate-500 transition-opacity hover:opacity-70"><span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">{noteCreator?.avatar ? <img src={noteCreator.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}</span>{noteCreator?.name || '原作者'}</button>
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" /><p className="min-w-0 flex-1 break-words">{note.text}</p>{!onlyAuthor && <button type="button" aria-label={`查看 ${noteCreator?.name || '原作者'} 的原貼文`} onClick={(event) => { event.stopPropagation(); onOpenCommunityPost(note.sourcePostId); }} className="ml-1 inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-slate-500 transition-opacity hover:opacity-70"><span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">{noteCreator?.avatar ? <img src={noteCreator.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}</span>{noteCreator?.name || '原作者'}</button>}
               </div>;
             })}
           </div>
+            {item.notes.length > NOTE_PREVIEW && (
+              <button
+                type="button"
+                data-testid={`toggle-notes-${item.id}`}
+                onClick={(event) => { event.stopPropagation(); setOpenNotes(current => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; }); }}
+                className="mt-1.5 text-[11px] font-black text-violet-600"
+              >
+                {expanded ? '收合' : `展開其餘 ${item.notes.length - NOTE_PREVIEW} 則`}
+              </button>
+            )}
+            </>;
+          })()}
           </div>
         </article>
         </React.Fragment>;
