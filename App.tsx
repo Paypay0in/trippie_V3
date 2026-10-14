@@ -193,6 +193,7 @@ import { TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
 import { BookingReadout, DerivedTrip, tripFromBookings } from "./services/tripFromBookings";
 import { viewerIdentityNotice } from "./services/viewerIdentityNotice";
 import { flightAnchorsFromParsed } from "./services/flightIntake";
+import { tripCountry } from "./services/tripCountry";
 import type { ParsedFlight } from "./services/flightIntake";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
 import {
@@ -7313,9 +7314,15 @@ const App: React.FC = () => {
           startDate={tripStartDate}
           endDate={tripEndDate}
           destination={tripDestination}
-          destinationCountry={
-            tripDestinationDraft?.destinationCountry || travelCountry
-          }
+          /*
+            A trip created from a boarding pass never ran destination
+            detection, so `travelCountry` can be empty while the ticket says
+            NRT. See `tripCountry`.
+          */
+          destinationCountry={tripCountry(
+            tripDestinationDraft?.destinationCountry || travelCountry,
+            flightAnchors,
+          )}
           onReorder={handleReorderItinerary}
           onResequenceTimes={handleResequenceDayTimes}
           onRescheduleItem={handleRescheduleItem}
