@@ -12,6 +12,7 @@ import { markDepartureTiming, withRequiredPreparation } from "./services/planPre
 import { stripPriceClaims } from "./services/priceClaims";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { createModelLadder, LADDER_PASSES, PASS_PAUSE_MS } from "./services/modelLadder";
+import { isExpandableMapsLink } from "./services/mapsLinkInput";
 import { chooseMerchantPlace, merchantSearchQuery, placeLanguageFor } from "./services/merchantPlaceQuery";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
@@ -847,6 +848,39 @@ async function startServer() {
     rather than passed through, so a caller cannot turn this into an open relay
     for arbitrary Google requests on our key.
   */
+  /*
+    Where a `maps.app.goo.gl` link actually points.
+
+    「我希望他可以即使輸入地址或是 google map 連結都可以帶入」 — and a shared pin is
+    almost always the short form, which the browser cannot follow: the redirect
+    is cross-origin and the final URL is not readable from a fetch there.
+
+    Deliberately not a general URL expander. Only Google's own shorteners are
+    followed, checked by `isExpandableMapsLink`, and only the final address is
+    returned — never the body. An endpoint that fetches any URL a caller names
+    is a server that can be pointed at a private network.
+  */
+  app.post("/api/links/expand-maps", async (req, res) => {
+    const url = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+    if (!url || url.length > 500 || !isExpandableMapsLink(url)) {
+      res.status(400).json({ error: "這不是 Google 地圖的短網址。" });
+      return;
+    }
+    try {
+      // HEAD first: the destination is in the response URL, and the page body
+      // is several hundred kilobytes nobody here reads.
+      const response = await fetch(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(8_000) });
+      const expanded = response.url;
+      if (!expanded || !/google\.[a-z.]+$/i.test(new URL(expanded).hostname)) {
+        res.status(502).json({ error: "這個連結展不開，請改貼完整網址。" });
+        return;
+      }
+      res.json({ url: expanded });
+    } catch {
+      res.status(502).json({ error: "這個連結展不開，請改貼完整網址。" });
+    }
+  });
+
   app.get("/api/maps/day", async (req, res) => {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) { res.status(503).json({ error: "地圖服務尚未設定。" }); return; }

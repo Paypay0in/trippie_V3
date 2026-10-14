@@ -32,7 +32,8 @@ import {
 import { ItineraryAcceptanceMode } from '../services/itineraryAcceptance';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { localToday } from '../services/localDate';
-import { findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
+import { expandMapsShortLink, findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
+import { readMapsInput } from '../services/mapsLinkInput';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
@@ -211,20 +212,63 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState('');
 
+  /*
+    A name, an address, or a link somebody shared.
+
+    「我希望他可以即使輸入地址或是 google map 連結都可以帶入」 — and a link is how
+    places are actually passed between people. This box used to send whatever
+    it was given to autocomplete as a shop name, so a pasted
+    `https://maps.app.goo.gl/…` searched for that literal string and found
+    nothing at all.
+
+    The results are still a list to choose from rather than a silent binding:
+    `placeCandidates` explains why, and a link changes nothing about that —
+    what it changes is that the search is given the place's name and the spot
+    it sits on instead of a URL.
+  */
   const runAddSearch = async () => {
     const typed = addQuery.trim();
     if (!typed) return;
     setAddBusy(true);
     setAddError('');
     try {
-      const found = await findPlaceCandidates(typed, {
+      const pasted = readMapsInput(typed);
+      // Only the server can follow a short link; see `expandMapsShortLink`.
+      const input = pasted.kind === 'shortLink'
+        ? readMapsInput(await expandMapsShortLink(pasted.url))
+        : pasted;
+
+      if (input.kind === 'shortLink') {
+        // Expanded into another short link, i.e. it did not expand at all.
+        setAddResults([]);
+        setAddError('這個連結展不開，請改貼完整網址或直接打店名。');
+        return;
+      }
+
+      if (input.kind === 'position') {
+        // A pin with no name. Nothing to search for, and a guessed name would
+        // be worse than saying so.
+        setAddResults([]);
+        setAddError('這個連結只有座標沒有店名，請加上店名再搜尋。');
+        return;
+      }
+
+      const found = await findPlaceCandidates(input.query, {
         city: trip.destination,
         country: trip.destinationCountry || trip.travelCountry,
-        latitude: trip.destinationLatitude,
-        longitude: trip.destinationLongitude,
+        // The link's own spot wins over the trip's centre: a shared pin is
+        // exactly where the place is, and the trip's centre is a whole city.
+        latitude: input.kind === 'link' && input.latitude !== undefined
+          ? input.latitude : trip.destinationLatitude,
+        longitude: input.kind === 'link' && input.longitude !== undefined
+          ? input.longitude : trip.destinationLongitude,
       });
       setAddResults(found);
-      if (found.length === 0) setAddError('找不到這個地點，換個說法試試。');
+      if (found.length === 0) {
+        setAddError(input.kind === 'link'
+          ? '這個連結讀得到店名，但查不到對應的地點，換個說法試試。'
+          : '找不到這個地點，換個說法試試。');
+      }
     } catch {
       setAddError('現在查不到，請稍後再試。');
     } finally {
@@ -800,7 +844,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   value={addQuery}
                   onChange={event => setAddQuery(event.target.value)}
                   onKeyDown={event => { if (event.key === 'Enter') void runAddSearch(); }}
-                  placeholder="店名或景點名稱"
+                  placeholder="店名、地址，或貼上 Google 地圖連結"
                   aria-label="手動新增地點"
                   data-testid="add-place-input"
                   className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-2.5 py-1.5 text-xs font-bold text-[#11183d] outline-none"

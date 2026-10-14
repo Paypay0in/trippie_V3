@@ -86,3 +86,24 @@ export const resolveCandidate = async (candidate: PlaceCandidate): Promise<Resol
     country: details.country,
   };
 };
+
+/**
+ * Expands a Google short link into the full URL, which only the server can do.
+ *
+ * Returns the original on failure: the caller then reads it as text and says
+ * it found nothing, which is a better end than a thrown error on a paste.
+ */
+export const expandMapsShortLink = async (url: string): Promise<string> => {
+  try {
+    const response = await fetch('/api/links/expand-maps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if (!response.ok) return url;
+    const body = await response.json() as { url?: string };
+    return typeof body.url === 'string' && body.url ? body.url : url;
+  } catch {
+    return url;
+  }
+};
