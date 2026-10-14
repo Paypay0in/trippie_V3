@@ -6396,6 +6396,23 @@ const App: React.FC = () => {
     );
     return (
       <SavedTravelDestinationDetail
+        /*
+          「這在釜山 我無法改」 — a record bound to the wrong place is missing
+          nothing, so every repair built around 「what is incomplete」 skipped it.
+          The same writer the planner's lookup uses, stamped like any other
+          resolve so the backfill stops offering it afterwards.
+        */
+        onRebindPlace={(inspirationId, resolved) =>
+          handleResolveInspirationPlace([inspirationId], {
+            placeId: resolved.placeId,
+            placeName: resolved.placeName,
+            address: resolved.address,
+            latitude: resolved.latitude,
+            longitude: resolved.longitude,
+            city: resolved.city,
+            district: resolved.district,
+            country: resolved.country,
+          })}
         onUpdateNotes={(inspirationId, notes) =>
           setSavedTravelInspirations((current) =>
             current.map((inspiration) =>

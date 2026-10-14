@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SavedTravelDestinationDetail from '../components/SavedTravelDestinationDetail';
 import { SavedExperienceNote, SavedTravelInspiration } from '../types';
 
@@ -254,5 +254,67 @@ describe('a saved place nobody wrote anything about', () => {
     const calls = fetchSpy.mock.calls.map(call => String(call[0]));
     expect(calls.some(url => url.includes('/api/places/basics'))).toBe(false);
     vi.unstubAllGlobals();
+  });
+});
+
+/**
+ * 「這在釜山 我無法改」.
+ *
+ * Everything built to repair these records asked 「is anything missing?」, and a
+ * record bound to the wrong place is missing nothing — it had an id, an
+ * address and a city, all of Vancouver. The search that would have fixed it
+ * was hidden on the grounds that it looked complete.
+ */
+describe('repointing a place that is simply wrong', () => {
+  const wrong = () => saved({
+    id: 'a',
+    placeName: 'Working holiday',
+    placeId: 'ChIJ7zvdl4dxhlQRItGrlhpIS6s',
+    formattedAddress: '333 Seymour St, Vancouver',
+    city: 'Vancouver',
+    country: '加拿大',
+    latitude: 49.2853846,
+    longitude: -123.1124584,
+  });
+
+  it('is offered on a record that looks complete', () => {
+    mount([wrong()], { onRebindPlace: vi.fn() });
+
+    fireEvent.click(screen.getByLabelText('Working holiday 更多選項'));
+
+    expect(screen.getByTestId('rebind-a')).toBeTruthy();
+  });
+
+  it('searches and writes the place that was picked', async () => {
+    const onRebindPlace = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => url.includes('/api/places/details')
+        ? { placeId: 'p-busan', location: '포토웨이브', address: '2 Cheongsapo-ro, Haeundae, 부산시', latitude: 35.16, longitude: 129.19, city: '부산시', district: 'Haeundae', country: '南韓' }
+        : { suggestions: [{ placeId: 'p-busan', primaryText: '포토웨이브', secondaryText: 'Haeundae, Busan' }] },
+    })) as never);
+
+    mount([wrong()], { onRebindPlace });
+    fireEvent.click(screen.getByLabelText('Working holiday 更多選項'));
+    fireEvent.click(screen.getByTestId('rebind-a'));
+    fireEvent.click(screen.getByTestId('rebind-search-a'));
+
+    fireEvent.click(await screen.findByTestId('rebind-pick-p-busan'));
+
+    await waitFor(() => expect(onRebindPlace).toHaveBeenCalled());
+    const [id, resolved] = onRebindPlace.mock.calls[0];
+    expect(id).toBe('a');
+    expect(resolved.city).toBe('부산시');
+    expect(resolved.district).toBe('Haeundae');
+    vi.unstubAllGlobals();
+  });
+
+  /** Offered only when the caller can actually write the result. */
+  it('is absent when nothing can receive the change', () => {
+    mount([wrong()]);
+
+    fireEvent.click(screen.getByLabelText('Working holiday 更多選項'));
+
+    expect(screen.queryByTestId('rebind-a')).toBeNull();
   });
 });

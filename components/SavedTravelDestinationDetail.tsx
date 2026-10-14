@@ -11,6 +11,7 @@ import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import SavedPlaceCard from './SavedPlaceCard';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
+import { findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
 
 type Props = {
   country: string;
@@ -33,6 +34,20 @@ type Props = {
    * screen that shows them is the one that knows what the traveller just did.
    */
   onUpdateNotes?: (inspirationId: string, notes: SavedExperienceNote[]) => void;
+  /**
+   * Points a saved place at a different place on the map.
+   *
+   * 「這在釜山 我無法改」 — everything built to repair these records asked 「is
+   * anything missing?」, and a record bound to the wrong place is missing
+   * nothing. It had an id, an address and a city, all of Vancouver, so the
+   * search that would have fixed it was hidden on the grounds that it was
+   * already complete.
+   *
+   * Being wrong is not a state the app can detect. It is one the traveller can
+   * see at a glance, so the way to correct it belongs on every card, not only
+   * on the ones that look unfinished.
+   */
+  onRebindPlace?: (inspirationId: string, resolved: ResolvedCandidate) => void;
 };
 
 const PlaceThumbnail: React.FC<{ saved: SavedTravelInspiration; sourcePost?: CommunityPost }> = ({ saved, sourcePost }) => {
@@ -50,7 +65,7 @@ const PlaceThumbnail: React.FC<{ saved: SavedTravelInspiration; sourcePost?: Com
   return <div className="shrink-0"><div className="relative h-[112px] w-[112px]">{loading ? <div className="h-full w-full animate-pulse rounded-[14px] bg-slate-100" aria-label="圖片載入中" /> : <img src={imageUrl} alt={saved.placeName} className="h-full w-full rounded-[14px] object-cover" />}</div></div>;
 };
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes }) => {
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
@@ -93,6 +108,34 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
   const [openPlaceId, setOpenPlaceId] = useState<string | null>(null);
   /** The place whose notes are being rewritten, and the working copy. */
   const [editing, setEditing] = useState<{ id: string; drafts: SavedExperienceNote[] } | null>(null);
+
+  /** The card being re-pointed, what is being searched for, and what came back. */
+  const [rebinding, setRebinding] = useState<{ id: string; query: string } | null>(null);
+  const [candidates, setCandidates] = useState<PlaceCandidate[]>([]);
+  const [rebindBusy, setRebindBusy] = useState(false);
+  const [rebindError, setRebindError] = useState('');
+
+  const runRebindSearch = async (item: SavedTravelInspiration, typed: string) => {
+    const text = typed.trim();
+    if (!text) return;
+    setRebindBusy(true);
+    setRebindError('');
+    try {
+      /*
+        Searched in the record's own country, not the screen's. A place filed
+        under the wrong country is exactly the case being repaired, so the
+        country on it is the least trustworthy thing about it — the screen's
+        is the one the traveller navigated into.
+      */
+      const found = await findPlaceCandidates(text, { country });
+      setCandidates(found);
+      if (found.length === 0) setRebindError('找不到這個地點，換個說法試試。');
+    } catch {
+      setRebindError('現在查不到，請稍後再試。');
+    } finally {
+      setRebindBusy(false);
+    }
+  };
 
   /*
     What Google already knows about a place nobody wrote anything about.
@@ -218,8 +261,71 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
           <button type="button" aria-label={`${item.placeName} 更多選項`} onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-50"><Ellipsis size={20} /></button>
           {menuItemId === item.id && <div className="absolute right-3 top-12 z-10 w-48 rounded-2xl border border-slate-100 bg-white p-1.5 text-left shadow-xl">
             <button type="button" data-testid={`edit-notes-${item.id}`} onClick={() => { setEditing({ id: item.id, drafts: item.notes.map(note => ({ ...note })) }); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯收藏內容<span className="mt-0.5 block text-[10px] font-medium text-slate-400">調整這個地點已收藏的旅行經驗</span></button>
+            {onRebindPlace && (
+              <button
+                type="button"
+                data-testid={`rebind-${item.id}`}
+                onClick={() => {
+                  setRebinding({ id: item.id, query: item.placeName });
+                  setCandidates([]);
+                  setRebindError('');
+                  setMenuItemId(null);
+                }}
+                className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50"
+              >
+                重新對應地圖地點<span className="mt-0.5 block text-[10px] font-medium text-slate-400">對到錯的店時，搜尋正確的那家</span>
+              </button>
+            )}
             <button type="button" onClick={() => { setRemoveTarget(item); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">移除這個地點<span className="mt-0.5 block text-[10px] font-medium text-rose-400">從我的旅行筆記移除</span></button>
           </div>}
+          {rebinding?.id === item.id && (
+            <div data-testid={`rebind-panel-${item.id}`} className="mt-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
+              <div className="flex gap-1.5">
+                <input
+                  autoFocus
+                  value={rebinding.query}
+                  data-testid={`rebind-input-${item.id}`}
+                  onChange={event => setRebinding(current => current && ({ ...current, query: event.target.value }))}
+                  onKeyDown={event => { if (event.key === 'Enter') void runRebindSearch(item, rebinding.query); }}
+                  placeholder="店名或景點名稱"
+                  className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-2.5 py-1.5 text-xs font-bold text-[#11183d] outline-none"
+                />
+                <button
+                  type="button"
+                  data-testid={`rebind-search-${item.id}`}
+                  disabled={rebindBusy}
+                  onClick={() => void runRebindSearch(item, rebinding.query)}
+                  className="shrink-0 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
+                >
+                  {rebindBusy ? '搜尋中' : '搜尋'}
+                </button>
+              </div>
+              {rebindError && <p className="mt-1.5 text-[11px] font-bold text-amber-600">{rebindError}</p>}
+              {candidates.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {candidates.map(candidate => (
+                    <button
+                      type="button"
+                      key={candidate.placeId}
+                      data-testid={`rebind-pick-${candidate.placeId}`}
+                      onClick={async () => {
+                        const resolved = await resolveCandidate(candidate).catch(() => null);
+                        if (!resolved) { setRebindError('這個地點的資料讀不到，換一個試試。'); return; }
+                        onRebindPlace?.(item.id, resolved);
+                        setRebinding(null);
+                        setCandidates([]);
+                      }}
+                      className="block w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left"
+                    >
+                      <span className="block text-xs font-black text-[#11183d]">{candidate.name}</span>
+                      {candidate.detail && <span className="mt-0.5 block text-[10px] text-slate-500">{candidate.detail}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button type="button" onClick={() => { setRebinding(null); setCandidates([]); setRebindError(''); }} className="mt-2 text-[11px] font-black text-slate-500">取消</button>
+            </div>
+          )}
           {item.notes.length === 0 && basicsById[item.id] && (
             <p data-testid={`basics-${item.id}`} className="mt-1.5 text-[11px] font-bold text-slate-500">
               {basicsById[item.id]}

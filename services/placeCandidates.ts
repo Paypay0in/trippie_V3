@@ -70,6 +70,8 @@ export interface ResolvedCandidate {
    */
   city?: string;
   country?: string;
+  /** The ward, which is what an area heading is named by. */
+  district?: string;
 }
 
 /** Turns a chosen candidate into the fields a saved place stores. */
@@ -83,6 +85,7 @@ export const resolveCandidate = async (candidate: PlaceCandidate): Promise<Resol
     latitude: details.latitude,
     longitude: details.longitude,
     city: details.city,
+    district: details.district,
     country: details.country,
   };
 };
