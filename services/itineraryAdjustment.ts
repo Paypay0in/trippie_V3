@@ -1,3 +1,4 @@
+import { separateOverlaps } from './separateOverlaps';
 import { ItineraryItem } from '../types';
 import {
   buildInspirationIndex,
@@ -676,7 +677,29 @@ export const applyItineraryAdjustment = (
     .concat(additions)
     .sort(byDateThenTime);
 
-  return { items, addedCount, movedCount, updatedCount, removedCount, pinnedConflictCount };
+  /*
+    One thing at a time, after the changes land.
+
+    Measured on the live route: asked to fix a day that zigzagged across Tokyo
+    it returned 「move KITTE丸之內 → 14:30」 and 「move 豪德寺 → 12:00」. The order
+    was right — it swapped the two stops that crossed the city — but 代官山 was
+    already at 14:30. The model reasons about sequence; it does not keep a
+    seating chart, and asking it to in the prompt would be asking it to be a
+    scheduler. The arithmetic is ours.
+
+    Applied here, at the one exit every caller goes through, rather than at any
+    of them: see `separateOverlaps`.
+  */
+  const separated = separateOverlaps(items);
+
+  return {
+    items: separated.items,
+    addedCount,
+    movedCount,
+    updatedCount,
+    removedCount,
+    pinnedConflictCount,
+  };
 };
 
 /* ------------------------------------------------------------------ *
