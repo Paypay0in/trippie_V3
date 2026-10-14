@@ -18,7 +18,7 @@
  * already said.
  */
 import { describe, expect, it } from 'vitest';
-import { earliestFreeStartByDate, fixedAnchorSchedule, isCoveredByFixedSchedule, latestFreeStartByDate } from './itineraryDayFloor';
+import { earliestFreeStartByDate, FixedScheduleEntry, fixedAnchorSchedule, isCoveredByFixedSchedule, latestFreeStartByDate } from './itineraryDayFloor';
 import { normalizeTripInspirationProposal } from './itineraryPlanningService';
 import { TripPlanningInput } from './tripInspirationSelection';
 import { ItineraryItem } from '../types';
@@ -201,5 +201,61 @@ describe('回程那天的提案', () => {
 
     expect(days).toEqual([]);
     expect(warnings.some(warning => warning.includes('出發去機場'))).toBe(true);
+  });
+});
+
+/**
+ * 「我早上11點到東京 為何佔掉所有時間？」
+ *
+ * The floor was the end of the *latest* unmovable entry after the landing, and
+ * a stay whose check-in reads 23:23 is one of those. An eleven o'clock landing
+ * therefore closed the whole day — the opposite of what an eleven o'clock
+ * landing means.
+ */
+describe('the arrival chain stops at the first real gap', () => {
+  const day = (over: Partial<FixedScheduleEntry> = {}): FixedScheduleEntry => ({
+    date: '2026-10-20', time: '11:00', role: 'landing', durationMinutes: 0, ...over,
+  } as FixedScheduleEntry);
+
+  it('does not let a late check-in close the day', () => {
+    const floors = earliestFreeStartByDate([
+      day({ time: '06:35', role: 'departure' }),
+      day({ time: '11:00', role: 'landing' }),
+      day({ time: '23:23', role: 'checkin', durationMinutes: 30 }),
+    ]);
+
+    expect(floors['2026-10-20']).toBe('11:00');
+  });
+
+  /* The case this was written for: off the plane, bags, straight to the room. */
+  it('still chains a check-in that follows the landing', () => {
+    const floors = earliestFreeStartByDate([
+      day({ time: '11:00', role: 'landing' }),
+      day({ time: '12:30', role: 'checkin', durationMinutes: 30 }),
+    ]);
+
+    expect(floors['2026-10-20']).toBe('13:00');
+  });
+
+  /*
+    Two steps, each following on. `other` is the role anything unlabelled
+    carries — the roles are `to_airport`, `departure`, `landing`, `checkin`
+    and `other`, and there is no transfer among them.
+  */
+  it('chains more than one step while each follows on', () => {
+    const floors = earliestFreeStartByDate([
+      day({ time: '11:00', role: 'landing', durationMinutes: 30 }),
+      day({ time: '12:00', role: 'other', durationMinutes: 60 }),
+      day({ time: '13:30', role: 'checkin', durationMinutes: 30 }),
+    ]);
+
+    expect(floors['2026-10-20']).toBe('14:00');
+  });
+
+  /** A landing with nothing after it opens the day at the landing. */
+  it('is the landing itself when nothing follows', () => {
+    const floors = earliestFreeStartByDate([day({ time: '11:00', role: 'landing' })]);
+
+    expect(floors['2026-10-20']).toBe('11:00');
   });
 });

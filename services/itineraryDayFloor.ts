@@ -134,6 +134,15 @@ const byDate = (entries: FixedScheduleEntry[]): Map<string, FixedScheduleEntry[]
   return grouped;
 };
 
+/**
+ * How long a break can be and still count as 「still getting there」.
+ *
+ * Immigration, bags and the ride in are the hour or two this was written for.
+ * A check-in that starts after a gap wider than this is not the end of the
+ * arrival; it is an appointment later in a day that has already opened.
+ */
+const ARRIVAL_CHAIN_GAP_MINUTES = 120;
+
 const isLeaving = (entry: FixedScheduleEntry): boolean =>
   entry.role === 'to_airport' || entry.role === 'departure';
 
@@ -176,11 +185,29 @@ export const earliestFreeStartByDate = (
     // Taiwan. It ends the trip; it does not open a window.
     if (date === homeward && day.some(entry => isLeaving(entry) && entry.time < lastLanding.time)) return;
 
-    // The landing, plus anything unmovable still to come before they leave again.
+    /*
+      The landing and whatever follows it *without a break* — not the latest
+      thing on the day.
+
+      「我早上11點到東京 為何佔掉所有時間？」 — the floor was the end of the last
+      unmovable entry after the landing, and a stay whose check-in time is
+      23:23 is one of those. An eleven o'clock landing therefore closed the
+      whole day, which is the opposite of what an eleven o'clock landing means.
+
+      The intent was always 「the hour in between is spent getting there」, and
+      that only holds while the next thing follows on. So the chain is walked
+      forward and stops at the first real gap: beyond it the traveller is not
+      in transit, they are free.
+    */
     const leavingAfter = day.find(entry => isLeaving(entry) && entry.time > lastLanding.time);
-    const floor = day
-      .filter(entry => entry.time >= lastLanding.time && (!leavingAfter || entry.time < leavingAfter.time))
-      .reduce((latest, entry) => Math.max(latest, endOf(entry)), 0);
+    const following = day.filter(entry =>
+      entry.time >= lastLanding.time && (!leavingAfter || entry.time < leavingAfter.time));
+
+    let floor = endOf(lastLanding);
+    following.forEach(entry => {
+      if (toMinutes(entry.time) > floor + ARRIVAL_CHAIN_GAP_MINUTES) return;
+      floor = Math.max(floor, endOf(entry));
+    });
     floors[date] = toClock(floor);
   });
 
