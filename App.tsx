@@ -7467,6 +7467,13 @@ const App: React.FC = () => {
           inspirations={savedTravelInspirations}
           communityPosts={communityPosts}
           trip={tripInspirationContext}
+          /*
+            Every country his own trips mention, so a save that landed somewhere
+            else can be spotted. See `strandedSaves`.
+          */
+          knownCountries={tripHistory
+            .map((trip) => trip.destinationCountry || trip.travelCountry || "")
+            .filter(Boolean)}
           selectedGroupIds={selectedInspirationGroupIds}
           onSelectionChange={setSelectedInspirationGroupIds}
           onExploreCommunity={() => {

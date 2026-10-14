@@ -41,6 +41,7 @@ import { countryDisplayName, sameCountry } from '../services/countryIdentity';
 import { cityDisplayName } from '../services/cityNames';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
+import { strandedSaves } from '../services/strandedSaves';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
 
@@ -121,6 +122,13 @@ interface Props {
    * has no address, no hours and no directions, and the planner can only guess
    * where to put it. Omit to hide the search entirely.
    */
+  /**
+   * Every country the traveller's own trips mention.
+   *
+   * Used only to spot saves that landed somewhere none of their trips go. See
+   * `strandedSaves` — without it, that panel stays silent rather than guessing.
+   */
+  knownCountries?: string[];
   onResolveInspirationPlace?: (
     inspirationIds: string[],
     resolved: {
@@ -198,7 +206,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace, onPickCountry }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace, onPickCountry, knownCountries }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -324,6 +332,18 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     Saved places with no address or no real city. See `inspirationBackfill`.
   */
   const placeGaps = useMemo(() => placesNeedingBackfill(inspirations), [inspirations]);
+  /*
+    The open trip's own country counts as known even before it is in the
+    history — it is the trip being planned right now.
+  */
+  const stranded = useMemo(
+    () => strandedSaves(inspirations, [
+      ...(knownCountries || []),
+      trip.destinationCountry || '',
+      trip.travelCountry || '',
+    ].filter(Boolean)),
+    [inspirations, knownCountries, trip.destinationCountry, trip.travelCountry],
+  );
   const [backfilling, setBackfilling] = useState<{ done: number; total: number } | null>(null);
   const [backfillDone, setBackfillDone] = useState('');
 
@@ -1079,6 +1099,34 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
               {backfillDone}
             </p>
           )}
+        </div>
+      )}
+
+      {/*
+        Saves in a country none of the traveller's trips mention. See
+        `strandedSaves`: the damage the backfill's broken guard already did is
+        not something the app can detect as 「wrong」, but it can narrow the whole
+        collection down to the few records worth looking at.
+      */}
+      {stranded.length > 0 && (
+        <div data-testid="stranded-saves" className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+          <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            有 {stranded.length} 個收藏在你沒有行程的國家
+          </p>
+          <p className="mt-1 text-[10px] leading-4 text-amber-700">
+            對錯地點時會這樣。到收藏裡用「重新對應地圖地點」搜正確的店名改回來。
+          </p>
+          <ul className="mt-1.5 space-y-0.5">
+            {stranded.map(save => (
+              <li key={save.id} className="text-[10px] font-bold leading-4 text-amber-800">
+                {save.placeName}
+                <span className="font-semibold text-amber-600">
+                  {' '}— 目前在 {[save.country, save.city].filter(Boolean).join('・')}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
