@@ -74,3 +74,41 @@ describe('the strips of cards', () => {
     expect(home).not.toContain('h-40 w-52');
   });
 });
+
+/**
+ * 「這只能顯示三個？要全展開」.
+ *
+ * The strip was never truncating anything — it scrolls — but three visible out
+ * of nine means swiping blind to find out what is in there.
+ */
+describe('the saved-notes strip, expanded', () => {
+  const nine = Array.from({ length: 9 }, (_, index) => saved({
+    id: `i${index}`,
+    country: '韓國',
+    city: `City${index}`,
+  }));
+
+  it('offers the toggle, with the count on it', () => {
+    mount(nine);
+
+    expect(screen.getByTestId('toggle-saved-notes').textContent).toContain('9');
+  });
+
+  /* Two or three cards are already all of them; a toggle would be noise. */
+  it('stays out of the way when everything already fits', () => {
+    mount([saved({ id: 'a', city: 'Busan' }), saved({ id: 'b', city: 'Seoul' })]);
+
+    expect(screen.queryByTestId('toggle-saved-notes')).toBeNull();
+  });
+
+  it('shows every group once opened, and closes again', () => {
+    mount(nine);
+
+    fireEvent.click(screen.getByTestId('toggle-saved-notes'));
+    expect(screen.getByText('韓國・City8')).toBeTruthy();
+    expect(screen.getByTestId('toggle-saved-notes').textContent).toContain('收合');
+
+    fireEvent.click(screen.getByTestId('toggle-saved-notes'));
+    expect(screen.getByTestId('toggle-saved-notes').textContent).toContain('全部展開');
+  });
+});

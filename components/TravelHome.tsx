@@ -291,6 +291,8 @@ const TravelHome: React.FC<Props> = ({
     return Array.from(groups.values());
   }, [savedTravelInspirations]);
   const savedNotesStorageStatus = getSavedNotesStorageStatus(authStatus);
+  /** 「要全展開」 — the strip opens into a grid. Collapsed by default. */
+  const [notesExpanded, setNotesExpanded] = useState(false);
   /*
     What is typed narrows every strip on the page at once, including the trip
     in progress — a hero card that stays put while everything under it filters
@@ -616,14 +618,37 @@ const TravelHome: React.FC<Props> = ({
               <span className="text-xs font-bold text-slate-400">{savedNotes.length} 則</span>
             </div>
           </div>
+          {/*
+            「這只能顯示三個？要全展開」 — nothing was being cut off, the row scrolls,
+            but three at a time out of nine means swiping to find out what is
+            even in there. Collapsed it stays a strip, which is right when there
+            are two or three; expanded it wraps into a grid and shows the lot.
+          */}
+          {visibleSavedNotes.length > 3 && (
+            <button
+              type="button"
+              data-testid="toggle-saved-notes"
+              onClick={() => setNotesExpanded((open) => !open)}
+              className="mb-2 text-xs font-black text-[#5b3df5]"
+            >
+              {notesExpanded ? "收合" : `全部展開（${visibleSavedNotes.length}）`}
+            </button>
+          )}
           {visibleSavedNotes.length ? (
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            <div className={notesExpanded
+              ? "grid grid-cols-3 gap-3 pb-1"
+              : "flex gap-3 overflow-x-auto pb-1"}>
               {visibleSavedNotes.map((note) => (
                 <button
                   key={note.id}
                   type="button"
                   onClick={() => onOpenSavedDestination(note.country, note.city)}
-                  className="relative h-[clamp(5rem,15vh,8.5rem)] w-[calc((100%-24px)/3)] min-w-[108px] shrink-0 overflow-hidden rounded-[1.35rem] shadow-md"
+                  className={`relative h-[clamp(5rem,15vh,8.5rem)] overflow-hidden rounded-[1.35rem] shadow-md ${
+                    notesExpanded
+                      // The grid sets the width; a min-width would overflow it.
+                      ? "w-full"
+                      : "w-[calc((100%-24px)/3)] min-w-[108px] shrink-0"
+                  }`}
                 >
                   <DestinationImageLayer destination={`${note.country} ${note.city}`} />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/85 to-transparent" />
