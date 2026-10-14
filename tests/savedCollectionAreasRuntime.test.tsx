@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import SavedTravelDestinationDetail from '../components/SavedTravelDestinationDetail';
 import { SavedTravelInspiration } from '../types';
 
@@ -73,5 +73,48 @@ describe('the heading', () => {
 
     expect(screen.getByText('韓國・釜山')).toBeTruthy();
     expect(screen.getByText(/建立釜山旅行/)).toBeTruthy();
+  });
+});
+
+/**
+ * 「點下去要有地圖資訊」 — the card carried a 「⋯」 menu and nothing else, so the
+ * one thing a saved place is for, going to it, was not on it.
+ */
+describe('opening a saved place', () => {
+  const place = saved({
+    id: 'a',
+    placeName: '味贊王鹽烤肉',
+    placeId: 'ChIJecTzBkWNaDURHnlmBE4_y3A',
+    formattedAddress: '46 Haeun-daero 608beon-gil, Haeundae, Busan',
+    ...HAEUNDAE,
+  });
+
+  it('shows the place sheet, with somewhere to open it', () => {
+    mount([place]);
+
+    fireEvent.click(screen.getByTestId('open-place-a'));
+
+    // Two of them for a Korean place: NAVER first, Google beneath it.
+    expect(screen.getAllByText(/地圖開啟/).length).toBeGreaterThan(0);
+  });
+
+  /*
+    The same sheet the itinerary and the planner open — so the Korean provider
+    rule, which lives inside it, applies here without being restated.
+  */
+  it('offers NAVER for a Korean place', () => {
+    mount([place]);
+
+    fireEvent.click(screen.getByTestId('open-place-a'));
+
+    expect(screen.getByText(/NAVER/)).toBeTruthy();
+  });
+
+  it('shows the address it has', () => {
+    mount([place]);
+
+    fireEvent.click(screen.getByTestId('open-place-a'));
+
+    expect(screen.getByText(/Haeun-daero/)).toBeTruthy();
   });
 });
