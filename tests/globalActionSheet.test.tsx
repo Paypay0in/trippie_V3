@@ -23,6 +23,7 @@ const sheet = (props: Record<string, unknown> = {}) => render(
     onOpenBookshelf={vi.fn()}
     onAiImport={vi.fn()}
     onAddExpense={vi.fn()}
+    onImportScreenshots={vi.fn()}
     {...props}
   />,
 );

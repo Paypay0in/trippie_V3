@@ -24,7 +24,14 @@ interface Props {
   destination?: string;
   destinationCountry?: string;
   /** Appends the chosen cards; the caller owns persistence and sync. */
-  onAddItems: (items: ItineraryItem[]) => void;
+  /**
+   * Omitted when there is no trip to add to.
+   *
+   * 「這個加號 點開希望可以有匯入旅行筆記截圖」 — reached from the root 「+」 there may
+   * be no open trip at all, and 「直接加到行程」 would have nowhere to put a card.
+   * The collection is still a real destination, so the import works anyway.
+   */
+  onAddItems?: (items: ItineraryItem[]) => void;
   /**
    * Saves the chosen slices into the trip's collection instead of onto a day.
    *
@@ -148,7 +155,7 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
   const add = () => {
     const chosenSlices = picked();
     if (chosenSlices.length === 0) return;
-    onAddItems(chosenSlices.map(slice => sliceToItineraryItem(slice, makeId, date || undefined)));
+    onAddItems?.(chosenSlices.map(slice => sliceToItineraryItem(slice, makeId, date || undefined)));
     setAdded(chosenSlices.length);
     setSlices([]);
     setChosen([]);
@@ -339,18 +346,20 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={add}
-            disabled={chosen.length === 0}
-            className={`w-full rounded-xl py-3 text-sm font-black disabled:opacity-40 ${
-              onSaveToCollection
-                ? 'mt-2 border border-[#d9d5f5] bg-white text-[#5b3df5]'
-                : 'mt-3 bg-gradient-to-r from-blue-600 to-violet-600 text-white'
-            }`}
-          >
-            直接加到{date ? '這一天' : '行程'}（{chosen.length}）
-          </button>
+          {onAddItems && (
+            <button
+              type="button"
+              onClick={add}
+              disabled={chosen.length === 0}
+              className={`w-full rounded-xl py-3 text-sm font-black disabled:opacity-40 ${
+                onSaveToCollection
+                  ? 'mt-2 border border-[#d9d5f5] bg-white text-[#5b3df5]'
+                  : 'mt-3 bg-gradient-to-r from-blue-600 to-violet-600 text-white'
+              }`}
+            >
+              直接加到{date ? '這一天' : '行程'}（{chosen.length}）
+            </button>
+          )}
           <p className="mt-1.5 text-center text-[10px] font-medium text-slate-400">
             截圖讀到的是名稱與筆記，地圖位置會在行程裡再連結
           </p>

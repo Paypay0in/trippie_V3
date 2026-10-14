@@ -32,11 +32,23 @@ interface Props {
    * import has no trip to land in.
    */
   onBatchImport?: () => void;
+  /**
+   * Screenshots of somebody's travel notes, read and cut into places.
+   *
+   * 「這個加號 點開希望可以有匯入旅行筆記截圖 要準備幫用戶切片」. The reader already
+   * existed — it was mounted inside the trip planner, so it could only be
+   * reached by opening a trip first, which is the wrong order: the screenshots
+   * arrive from a friend before there is any trip to put them in.
+   *
+   * Offered in both contexts because that is when the screenshots turn up, and
+   * it needs no open trip: the slices land in the collection.
+   */
+  onImportScreenshots: () => void;
 }
 
-const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCreatePost, onCreateTrip, onOpenBookshelf, onAiImport, onAddExpense, onAddItineraryItem, onBatchImport }) => {
+const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCreatePost, onCreateTrip, onOpenBookshelf, onAiImport, onAddExpense, onAddItineraryItem, onBatchImport, onImportScreenshots }) => {
   const actions = context === 'community'
-    ? [['發布旅行貼文', onCreatePost], ['分享一趟旅程', onClose], ['從相簿建立', onClose], ['儲存為草稿', onCreatePost]]
+    ? [['發布旅行貼文', onCreatePost], ['分享一趟旅程', onClose], ['匯入旅行筆記截圖', onImportScreenshots], ['儲存為草稿', onCreatePost]]
     : context === 'travel'
       /*
         What someone can actually do from here.
@@ -59,6 +71,7 @@ const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCr
           ['新增旅程', onCreateTrip],
           ['旅行書架', onOpenBookshelf],
           ['AI 匯入', onAiImport],
+          ['匯入旅行筆記截圖', onImportScreenshots],
         ]
       : [
           ['新增支出', onAddExpense] as [string, () => void],

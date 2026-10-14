@@ -322,6 +322,7 @@ import {
   FixedEventAdjustment,
   isFixedItem,
 } from "./services/itineraryFixedEvents";
+import ScreenshotItineraryIntake from "./components/ScreenshotItineraryIntake";
 import GlobalActionSheet, {
   GlobalActionContext,
 } from "./components/GlobalActionSheet";
@@ -734,6 +735,14 @@ const App: React.FC = () => {
   const selectedCommunityPost =
     communityPosts.find((post) => post.id === selectedCommunityPostId) ?? null;
   const [isGlobalActionOpen, setIsGlobalActionOpen] = useState(false);
+  /**
+   * The screenshot reader, opened from the root 「+」.
+   *
+   * 「這個加號 點開希望可以有匯入旅行筆記截圖 要準備幫用戶切片」 — the reader was mounted
+   * inside the trip planner, so it could only be reached by opening a trip
+   * first. The screenshots arrive from a friend before there is a trip.
+   */
+  const [isScreenshotIntakeOpen, setIsScreenshotIntakeOpen] = useState(false);
   const [isJoinTripOpen, setIsJoinTripOpen] = useState(false);
   const [tripSetupMode, setTripSetupMode] = useState<"create" | "edit">(
     "create",
@@ -6743,6 +6752,10 @@ const App: React.FC = () => {
           <GlobalActionSheet
             context={appSection === "community" ? "community" : "travel"}
             onClose={() => setIsGlobalActionOpen(false)}
+            onImportScreenshots={() => {
+              setIsGlobalActionOpen(false);
+              setIsScreenshotIntakeOpen(true);
+            }}
             onJoinTrip={() => {
               setIsGlobalActionOpen(false);
               setIsJoinTripOpen(true);
@@ -7051,6 +7064,10 @@ const App: React.FC = () => {
           <GlobalActionSheet
             context="travel"
             onClose={() => setIsGlobalActionOpen(false)}
+            onImportScreenshots={() => {
+              setIsGlobalActionOpen(false);
+              setIsScreenshotIntakeOpen(true);
+            }}
             onJoinTrip={() => {
               setIsGlobalActionOpen(false);
               setIsJoinTripOpen(true);
@@ -8157,6 +8174,10 @@ const App: React.FC = () => {
             <GlobalActionSheet
               context={workspaceSection === "records" ? "wallet" : "travel"}
               onClose={() => setIsGlobalActionOpen(false)}
+            onImportScreenshots={() => {
+              setIsGlobalActionOpen(false);
+              setIsScreenshotIntakeOpen(true);
+            }}
               onJoinTrip={() => {
                 setIsGlobalActionOpen(false);
                 setIsJoinTripOpen(true);
@@ -8737,6 +8758,42 @@ const App: React.FC = () => {
           onRequestDelete={handleRequestDeleteFromForm}
           onManageMembers={() => setIsCompanionsOpen(true)}
         />
+      )}
+
+      {/*
+        The screenshot reader, reachable without a trip. 「要準備幫用戶切片」 — the
+        slicing, the choosing and the saving are the component's own; the only
+        thing the root entry changes is that there is no day to add to, so
+        `onAddItems` is omitted and the collection is the one destination.
+      */}
+      {isScreenshotIntakeOpen && (
+        <div
+          className={`fixed inset-0 ${OVERLAY.sheet} flex items-end justify-center bg-slate-950/40 p-3 sm:items-center sm:p-6`}
+          onClick={() => setIsScreenshotIntakeOpen(false)}
+        >
+          <div
+            className="max-h-[86vh] w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-black text-[#11183d]">匯入旅行筆記截圖</h2>
+              <button
+                type="button"
+                data-testid="close-screenshot-intake"
+                onClick={() => setIsScreenshotIntakeOpen(false)}
+                className="min-h-9 rounded-xl px-3 text-xs font-black text-slate-500"
+              >
+                關閉
+              </button>
+            </div>
+            <ScreenshotItineraryIntake
+              dates={[]}
+              destination={tripInspirationContext.destination}
+              destinationCountry={tripInspirationContext.destinationCountry || travelCountry}
+              onSaveToCollection={handleSaveScreenshotPlaces}
+            />
+          </div>
+        </div>
       )}
 
       {isSettlementOpen && (
