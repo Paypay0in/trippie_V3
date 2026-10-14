@@ -83,6 +83,67 @@ describe('the backfill offer', () => {
   });
 });
 
+/**
+ * 「這個是韓國釜山 不是加拿大」.
+ *
+ * `/api/places/resolve` uses the country to rank, not to filter, so a strong
+ * text match elsewhere wins outright: 「Working holiday」 — a note's title, not
+ * a place — resolves to 「Global Work & Travel Canada」 in Vancouver even when
+ * asked for in Korea. Measured against the live route.
+ */
+describe('a match that lands in another country', () => {
+  const VANCOUVER = {
+    placeId: 'ChIJ7zvdl4dxhlQRItGrlhpIS6s',
+    resolvedPlaceName: 'Global Work & Travel Canada',
+    address: '333 Seymour St Level 8, Vancouver, BC V6B 5A6加拿大',
+    latitude: 49.2853846,
+    longitude: -123.1124584,
+    country: '加拿大',
+    city: 'Vancouver',
+  };
+
+  it('is refused rather than written onto a Korean save', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => VANCOUVER })) as never);
+    const { onResolveInspirationPlace } = mount([
+      saved({ placeName: 'Working holiday', country: '韓國', city: '韓國' }),
+    ]);
+
+    fireEvent.click(screen.getByTestId('run-place-backfill'));
+
+    const done = await screen.findByTestId('place-backfill-done');
+    await waitFor(() => expect(done.textContent).toContain('查不到'));
+    expect(onResolveInspirationPlace).not.toHaveBeenCalled();
+  });
+
+  /* The same country in another language is still the same country. */
+  it('accepts a match whose country is spelled differently', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ...VANCOUVER, country: 'Korea', city: 'Busan' }),
+    })) as never);
+    const { onResolveInspirationPlace } = mount([
+      saved({ placeName: '해운대', country: '韓國', city: '韓國' }),
+    ]);
+
+    fireEvent.click(screen.getByTestId('run-place-backfill'));
+
+    await waitFor(() => expect(onResolveInspirationPlace).toHaveBeenCalled());
+    expect(onResolveInspirationPlace.mock.calls[0][1].city).toBe('Busan');
+  });
+
+  /** A save that never said where it is has nothing to contradict. */
+  it('accepts anything for a save with no country', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => VANCOUVER })) as never);
+    const { onResolveInspirationPlace } = mount([
+      saved({ placeName: 'Working holiday', country: '', city: '' }),
+    ]);
+
+    fireEvent.click(screen.getByTestId('run-place-backfill'));
+
+    await waitFor(() => expect(onResolveInspirationPlace).toHaveBeenCalled());
+  });
+});
+
 describe('running it', () => {
   it('writes the town it found onto the save', async () => {
     const { onResolveInspirationPlace } = mount([saved()]);

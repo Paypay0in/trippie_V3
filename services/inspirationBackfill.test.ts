@@ -103,3 +103,44 @@ describe('a place that has an id but still does not know where it is', () => {
     expect(planner).toContain('group.missingPlaceIdentity || !knowsWhereItIs(group)');
   });
 });
+
+/**
+ * 「這個是韓國釜山 不是加拿大」.
+ *
+ * The backfill searched with the *open trip's* country, so a Busan note looked
+ * at while a Japan trip was open was asked for in the wrong country — and an
+ * English restaurant name found a real place of that name on the other side of
+ * the world. The save has said which country it is in since the day it was
+ * saved; the trip on screen is a coincidence.
+ */
+describe('which country a save is searched in', () => {
+  it('carries the save s own country', () => {
+    const [gap] = placesNeedingBackfill([
+      saved({ placeName: 'Working holiday', country: '韓國', city: '韓國' }),
+    ]);
+
+    expect(gap.country).toBe('韓國');
+  });
+
+  it('carries nothing when the save never said', () => {
+    const [gap] = placesNeedingBackfill([saved({ placeName: 'x', country: '' })]);
+
+    expect(gap.country).toBeUndefined();
+  });
+
+  /** Two rows of one place: the first that names a country settles it. */
+  it('keeps a country when only one row has it', () => {
+    const [gap] = placesNeedingBackfill([
+      saved({ id: 'a', placeName: '嶋', country: '' }),
+      saved({ id: 'b', placeName: '嶋', country: '日本' }),
+    ]);
+
+    expect(gap.country).toBe('日本');
+  });
+
+  it('is what the lookup is given, with the trip only as a fallback', () => {
+    const planner = readFileSync(resolve(__dirname, '../components/TripInspirationPlanner.tsx'), 'utf8');
+
+    expect(planner).toContain('resolvePlace(gap.placeName, gap.country || tripFallbackCountry)');
+  });
+});

@@ -22,6 +22,18 @@ export interface PlaceGap {
   placeName: string;
   /** Every saved row for this place; one lookup settles them together. */
   inspirationIds: string[];
+  /**
+   * The country this save already claims, which is the one to search in.
+   *
+   * 「這個是韓國釜山 不是加拿大」 — the backfill searched with the *open trip's*
+   * country, so a Busan note looked at while a Japan trip was open was asked
+   * for in the wrong country, and an English restaurant name found a real
+   * place with the same name on the other side of the world.
+   *
+   * The save has said which country it is in since the day it was saved. That
+   * is the fact; the trip on screen is a coincidence.
+   */
+  country?: string;
 }
 
 /**
@@ -53,8 +65,17 @@ export const placesNeedingBackfill = (inspirations: SavedTravelInspiration[]): P
     const placeName = (inspiration.placeName || '').trim();
     if (!placeName) return;
     const existing = gaps.get(placeName);
-    if (existing) existing.inspirationIds.push(inspiration.id);
-    else gaps.set(placeName, { id: placeName, placeName, inspirationIds: [inspiration.id] });
+    if (existing) {
+      existing.inspirationIds.push(inspiration.id);
+      existing.country = existing.country || inspiration.country?.trim() || undefined;
+    } else {
+      gaps.set(placeName, {
+        id: placeName,
+        placeName,
+        inspirationIds: [inspiration.id],
+        country: inspiration.country?.trim() || undefined,
+      });
+    }
   });
   return Array.from(gaps.values());
 };

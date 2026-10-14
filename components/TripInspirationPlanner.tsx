@@ -37,7 +37,7 @@ import { readMapsInput } from '../services/mapsLinkInput';
 import { knowsWhereItIs, placesNeedingBackfill } from '../services/inspirationBackfill';
 import { resolvePlace } from '../services/placeService';
 import { placeWhereLabel } from '../services/placeWhereLabel';
-import { countryDisplayName } from '../services/countryIdentity';
+import { countryDisplayName, sameCountry } from '../services/countryIdentity';
 import { cityDisplayName } from '../services/cityNames';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
@@ -327,7 +327,15 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
 
   const runBackfill = async () => {
     if (!onResolveInspirationPlace || placeGaps.length === 0) return;
-    const country = trip.destinationCountry || trip.travelCountry;
+    /*
+      Each save is searched in its own country, not in the open trip's.
+
+      「這個是韓國釜山 不是加拿大」 — a Busan note looked at while a Japan trip was
+      open was asked for in the wrong country, and an English restaurant name
+      found a real place of that name on the other side of the world. The trip
+      on screen is a coincidence; the save has said where it is all along.
+    */
+    const tripFallbackCountry = trip.destinationCountry || trip.travelCountry;
     setBackfillDone('');
     setBackfilling({ done: 0, total: placeGaps.length });
     let filled = 0;
@@ -338,8 +346,24 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       app already leans on is how the throttling starts.
     */
     for (const [index, gap] of placeGaps.entries()) {
-      const found = await resolvePlace(gap.placeName, country).catch(() => null);
-      if (found?.placeId) {
+      const found = await resolvePlace(gap.placeName, gap.country || tripFallbackCountry).catch(() => null);
+      /*
+        Refused when it lands in a different country than the save claims.
+
+        「這個是韓國釜山 不是加拿大」. `/api/places/resolve` uses the country to
+        *rank*, not to filter, so a strong text match elsewhere beats the hint
+        outright: 「Working holiday」 — which is a note's title, not a place —
+        resolves to 「Global Work & Travel Canada」 in Vancouver even when asked
+        for in Korea. Measured, not assumed.
+
+        A Korean save bound to a Canadian address is never right, so this says
+        it could not find it and leaves the search on the row. A wrong binding
+        that looks resolved is worse than an unresolved one: nobody checks it.
+      */
+      const landedElsewhere = Boolean(gap.country)
+        && Boolean(found?.country)
+        && !sameCountry(found!.country, gap.country);
+      if (found?.placeId && !landedElsewhere) {
         onResolveInspirationPlace(gap.inspirationIds, {
           placeId: found.placeId,
           placeName: found.resolvedPlaceName || gap.placeName,
