@@ -33,6 +33,7 @@ import AppWordmark from "./AppWordmark";
 import NotificationCenter from "./NotificationCenter";
 import { DisputeNotice } from "../services/disputeInbox";
 import { countryKey } from '../services/countryIdentity';
+import { coverImageQuery, fixtureImageFor } from '../services/destinationCoverImage';
 
 interface Props {
   activeSection: AppSection;
@@ -112,27 +113,6 @@ const duration = (start?: string, end?: string) => {
       (new Date(end).getTime() - new Date(start).getTime()) / 86400000,
     ) + 1;
   return days > 0 ? `${days} 天` : "";
-};
-
-const destinationImageFixtures: Record<string, string> = {
-  東京: "photo-1493976040374-85c8e12f0c0e",
-  日本: "photo-1493976040374-85c8e12f0c0e",
-  大阪: "photo-1528360983277-13d401cdc186",
-  京都: "photo-1492571350019-22de08371fd3",
-  釜山: "photo-1538485399081-7c897a0c8d7b",
-  濟州島: "photo-1539650116574-75c0c6d73f6e",
-  沖繩: "photo-1507527514-7b7b0c5a7d5a",
-  巴黎: "photo-1502602898657-3e91760cbb34",
-  聖托里尼: "photo-1570077188670-e3a8d69ac5ff",
-};
-
-const fixtureImageFor = (destination?: string) => {
-  const normalized = destination?.trim() || "";
-  const fixtureId = Object.entries(destinationImageFixtures).find(([name]) =>
-    normalized.includes(name),
-  )?.[1] || "photo-1500534623283-312aade485b7";
-
-  return `https://images.unsplash.com/${fixtureId}?auto=format&fit=crop&w=1000&q=85`;
 };
 
 interface DestinationImageLayerProps {
@@ -445,7 +425,7 @@ const TravelHome: React.FC<Props> = ({
           {activeDraft ? (
           <article className="relative overflow-hidden rounded-[22px] bg-slate-900 shadow-sm">
             <div className="relative h-[clamp(7rem,21vh,15.25rem)] w-full">
-              <DestinationImageLayer destination={activeDraft.destination || activeDraft.name} />
+              <DestinationImageLayer destination={coverImageQuery(activeDraft.destination, activeDraft.name)} />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/65" />
               <div className="absolute left-4 top-4">
                 <span className="inline-flex items-center rounded-full bg-black/45 px-3 py-1.5 text-[12px] font-bold text-white backdrop-blur-sm">
@@ -655,7 +635,7 @@ const TravelHome: React.FC<Props> = ({
                     className="absolute inset-0 h-full w-full text-left"
                     aria-label={`開啟 ${draftLabel(draft)}`}
                   >
-                    <DestinationImageLayer destination={draft.destination || draft.name} />
+                    <DestinationImageLayer destination={coverImageQuery(draft.destination, draft.name)} />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/85 to-transparent" />
                     <div className="absolute bottom-4 left-4 text-white">
                       <b className="block truncate text-base">
@@ -708,7 +688,7 @@ const TravelHome: React.FC<Props> = ({
                   className="relative h-48 w-[calc((100%-24px)/3)] min-w-[150px] shrink-0 overflow-hidden rounded-[1.35rem] text-left shadow-md"
                 >
                   <DestinationImageLayer
-                    destination={trip.destination || trip.name}
+                    destination={coverImageQuery(trip.destination, trip.name)}
                     explicitCover={trip.travelBook?.coverPhoto}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/90 to-transparent" />
