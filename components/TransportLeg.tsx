@@ -166,11 +166,35 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
           當地人用 Naver Map 或 KakaoMap，這兩款查得到。
         </div>
       )}
-      {/* The same courtesy where the provider simply has no transit data. */}
+      {/*
+        The answer, one tap away, where the dead end used to be.
+
+        「我點擊了查看地圖 … 就會有大眾運輸的資訊」 — and he is right: Google Maps
+        has Japan's timetables under agreements the Routes API does not carry,
+        so the thing this card cannot compute is sitting behind a link this
+        card already knew how to build. Naming it and not offering it was the
+        mistake; a sentence telling somebody to go and look it up elsewhere is
+        worse than the button that takes them there.
+
+        Transit travelmode explicitly, because that is the question that failed.
+      */}
       {leg && !leg.available && mode === 'TRANSIT' && transitIsUnavailable(destinationCountry) && (
-        <div data-testid="transit-unsupported-hint" className="mt-1.5 text-[10px] font-bold leading-4 text-slate-400">
+        <a
+          data-testid="transit-unsupported-hint"
+          href={googleMapUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1.5 flex items-center gap-1.5 rounded-xl bg-[#f0edff] px-2.5 py-2 text-[10px] font-black leading-4 text-[#5b3df5]"
+        >
+          <MapPinned size={13} className="shrink-0" />
+          <span className="min-w-0 flex-1">用 Google 地圖查這段的大眾運輸</span>
+          <ChevronRight size={12} className="shrink-0" />
+        </a>
+      )}
+      {leg && !leg.available && mode === 'TRANSIT' && transitIsUnavailable(destinationCountry) && (
+        <p className="mt-1 text-[10px] font-bold leading-4 text-slate-400">
           {transitUnavailableHint(destinationCountry)}
-        </div>
+        </p>
       )}
 
       {tooTight && (
