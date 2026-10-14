@@ -194,6 +194,7 @@ import { BookingReadout, DerivedTrip, tripFromBookings } from "./services/tripFr
 import { viewerIdentityNotice } from "./services/viewerIdentityNotice";
 import { flightAnchorsFromParsed } from "./services/flightIntake";
 import { tripCountry } from "./services/tripCountry";
+import { preferredCountryName } from "./services/countryIdentity";
 import type { ParsedFlight } from "./services/flightIntake";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
 import {
@@ -2913,7 +2914,14 @@ const App: React.FC = () => {
                 that returns no city leaves the existing value alone.
               */
               city: resolved.city || inspiration.city,
-              country: resolved.country || inspiration.country,
+              /*
+                The spelling this trip already uses, when both mean the same
+                country. 「那這個問題點也可以限制在用戶成立旅冊」 — the backfill wrote
+                Google's 「Japan」 beside records that had always said 「日本」, and
+                the home screen showed them as two different places to have
+                been. Neither spelling is wrong; the trip has already chosen.
+              */
+              country: preferredCountryName(inspiration.country, resolved.country),
             }
           : inspiration));
     // A backfill of twenty places would otherwise raise twenty toasts.

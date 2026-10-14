@@ -32,6 +32,7 @@ import { isSearching, matchesQuery } from "../services/travelHomeSearch";
 import AppWordmark from "./AppWordmark";
 import NotificationCenter from "./NotificationCenter";
 import { DisputeNotice } from "../services/disputeInbox";
+import { countryKey } from '../services/countryIdentity';
 
 interface Props {
   activeSection: AppSection;
@@ -265,7 +266,16 @@ const TravelHome: React.FC<Props> = ({
       const country = item.country.trim();
       const city = item.city.trim();
       if (!country || !city) return;
-      const key = `${country.toLocaleLowerCase()}::${city.toLocaleLowerCase()}`;
+      /*
+        One key per country, whatever it was written as.
+
+        「那這個問題點也可以限制在用戶成立旅冊」 — a place looked up after the fact
+        comes back as 「Japan」 while everything saved before it says 「日本」, and
+        this screen showed them as two different places to have been. The
+        displayed name is still whichever the records use; only the grouping is
+        normalised. See `countryKey`.
+      */
+      const key = `${countryKey(country)}::${city.toLocaleLowerCase()}`;
       const current = groups.get(key);
       groups.set(key, current ? { ...current, count: current.count + 1 } : { country, city, count: 1, id: `saved-${key}` });
     });
