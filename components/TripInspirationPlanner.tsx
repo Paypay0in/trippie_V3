@@ -903,7 +903,21 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       if (requestRef.current !== requestId) return;
       if (generated.changes.length === 0) {
         setAdjustment(null);
-        setAdjustmentError(generated.warnings[0] || 'AI 這次沒有提出可套用的調整，你的行程沒有被更動。請調整說明後再試一次。');
+        /*
+          Says what was asked for when it says nothing came back.
+
+          「我勾了好幾個行程想要請 AI 放入 幫我重排。結果 AI 完全沒有幫我想辦法」 —
+          the panel knew exactly which ticked places were still unplanned and
+          reported a generic 「沒有提出可套用的調整」, which reads as 「the AI
+          looked at your trip」 rather than 「the thing you asked for did not
+          happen」. The traveller cannot tell those apart.
+        */
+        const unplannedNames = groups
+          .filter(group => selected.includes(group.id) && !plannedGroupIds.has(group.id))
+          .map(group => group.placeName);
+        setAdjustmentError(generated.warnings[0] || (unplannedNames.length > 0
+          ? `AI 這次沒有把你勾的 ${unplannedNames.length} 個地點排進去（${unplannedNames.slice(0, 3).join('、')}${unplannedNames.length > 3 ? '…' : ''}），你的行程沒有被更動。再試一次，或在上面的說明欄寫清楚想排在哪一天。`
+          : 'AI 這次沒有提出可套用的調整，你的行程沒有被更動。請調整說明後再試一次。'));
         return;
       }
       // Founder decision: an `add` suggestion belongs in the itinerary itself,

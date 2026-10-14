@@ -2282,6 +2282,31 @@ async function startServer() {
 無論哪一種模式，isPinned 為 true 的項目都不可以被移動、刪除、改時間或改地點。`,
       } as const;
 
+      /*
+        The places the traveller just ticked and that are not in the plan yet.
+
+        「我勾了好幾個行程想要請 AI 放入 幫我重排。結果 AI 完全沒有幫我想辦法」 —
+        `unusedInspirationIds` is computed for exactly this and then only ever
+        appeared in a glossary line explaining what the field means. Nothing
+        asked the model to *act* on it, so ticking a place said nothing: the
+        strongest statement of intent this screen can produce reached the model
+        as an unexplained list of ids.
+
+        Named here, and stated as the task. Left out of 「把空白的日子排滿」,
+        which already has its own instruction to plan whole days.
+      */
+      const wantedNames = (() => {
+        const unused = new Set(Array.isArray(input.analysis?.unusedInspirationIds) ? input.analysis.unusedInspirationIds : []);
+        if (unused.size === 0) return [] as string[];
+        return (selections as Array<{ placeName?: string; inspirationIds?: string[] }>)
+          .filter(entry => (entry.inspirationIds || []).some((id: string) => unused.has(id)))
+          .map(entry => (entry.placeName || "").trim())
+          .filter(Boolean);
+      })();
+      const wantedBlock = wantedNames.length > 0 && mode !== "fill"
+        ? `\n\n【3c. 使用者剛剛勾選、指定要排進行程的地點（${wantedNames.length} 個）】\n${wantedNames.join("、")}\n這是使用者這次最明確的要求：請把這些地點「全部」排進行程，每一個都要有自己的 add，並依【3b】填好 sourceInspirationIds。\n排進去的時候要顧動線——放在同一天地理上相近的時段，必要時連帶 move 既有項目讓那一天順。\n如果其中有地點真的排不進去（天數不夠、地點太遠、與固定行程衝突），仍然要排進其他的，並在 warnings 逐一說明哪一個沒排、為什麼。不要安靜地略過。`
+        : "";
+
       const preferenceBlock = planningPreferences
         ? `\n\n【4. 使用者這次想怎麼調整（自由文字）】\n"""\n${planningPreferences}\n"""\n這是高優先度的調整指示。請照著調整出發時間、每天的密度、交通方式與活動類型。\n它仍必須服從旅程日期、地理位置、既有地點識別與模式規則；做不到就盡力接近並在 warnings 說明，不要假裝已經滿足。\n這段文字「不會」賦予任何地點收藏靈感的身分：因為這段話而加入的地點，sourceInspirationIds 一律是空陣列。`
         : "";
@@ -2328,7 +2353,7 @@ ${JSON.stringify(input.analysis || {})}
 emptyDates 是完全沒有安排的日子；unplannedDates 是整天只有航班與住宿、實際上還沒安排任何行程的日子（包含 emptyDates）；crowdedDates 是已經太滿的日子；untimedItemIds 是沒有時間的項目；tightTransitions 是前後太趕的銜接；longHops 是同一天相隔太遠的移動；unusedInspirationIds 是使用者收藏了但還沒排進行程的地點。
 
 【3b. 使用者已收藏並挑選、可供參考的地點】
-${JSON.stringify(selections)}${preferenceBlock}
+${JSON.stringify(selections)}${wantedBlock}${preferenceBlock}
 
 【5. 模式規則（最重要）】
 ${MODE_RULES[mode]}
