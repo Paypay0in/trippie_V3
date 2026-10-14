@@ -340,8 +340,30 @@ export const clusterSavedPlaces = <T extends ClusterablePlace>(
   };
   const union = (left: number, right: number) => { parent[find(left)] = find(right); };
 
+  /*
+    The ward decides first; distance only separates places inside one.
+
+    「收藏的景點分區不正確」 — this was single-linkage clustering, and single
+    linkage chains. Measured on a realistic central-Tokyo spread: 渋谷 ↔ 原宿 is
+    1.4 km, 原宿 ↔ 代代木 1.4 km, 代代木 ↔ 新宿 0.8 km… and thirteen places from
+    渋谷 to 四谷 came out as one group spanning 5.8 km — which is exactly the
+    「最遠兩點約 5.9 公里」 his day was reporting while the route zigzagged across
+    the city. Every hop is close enough; the chain is not.
+
+    A ward is what a traveller means by 「一區」, it is what Google states, and it
+    is on the record since the city and the ward were split. So two places in
+    different wards are never joined however close they are, and distance is
+    left to do the one job it is good at: splitting a large ward into separate
+    outings. Records with no ward keep the old behaviour among themselves.
+  */
+  const wardOf = (place: ClusterablePlace): string =>
+    (place.district || '').trim().toLocaleLowerCase();
+
   for (let i = 0; i < located.length; i += 1) {
     for (let j = i + 1; j < located.length; j += 1) {
+      const leftWard = wardOf(located[i]);
+      const rightWard = wardOf(located[j]);
+      if (leftWard && rightWard && leftWard !== rightWard) continue;
       if (distanceKm(located[i], located[j]) <= radiusKm) union(i, j);
     }
   }

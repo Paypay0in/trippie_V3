@@ -320,3 +320,67 @@ describe('a heading for a group whose address says no district', () => {
     expect(labelForCluster([place('a', '朋友家')], '日本')).toBe('朋友家 一帶');
   });
 });
+
+/**
+ * 「收藏的景點分區不正確」.
+ *
+ * This was single-linkage clustering, and single linkage chains. Measured on a
+ * realistic central-Tokyo spread: 渋谷 ↔ 原宿 is 1.4 km, 原宿 ↔ 代代木 1.4 km,
+ * 代代木 ↔ 新宿 0.8 km — thirteen places from 渋谷 to 四谷 came out as one group
+ * spanning 5.8 km, which is exactly the 「最遠兩點約 5.9 公里」 his day reported
+ * while its route zigzagged across the city. Every hop is close enough; the
+ * chain is not.
+ */
+describe('一區不能靠接力串出來', () => {
+  /* Real coordinates and the wards Google states for them. */
+  const tokyo = [
+    { id: 'a', placeName: '渋谷', latitude: 35.6580, longitude: 139.7016, district: 'Shibuya' },
+    { id: 'b', placeName: '原宿', latitude: 35.6702, longitude: 139.7027, district: 'Shibuya' },
+    { id: 'c', placeName: '代代木', latitude: 35.6830, longitude: 139.7020, district: 'Shibuya' },
+    { id: 'd', placeName: '新宿御苑', latitude: 35.6852, longitude: 139.7101, district: 'Shinjuku City' },
+    { id: 'e', placeName: '四谷', latitude: 35.6860, longitude: 139.7300, district: 'Shinjuku City' },
+    { id: 'f', placeName: '中目黑', latitude: 35.6387, longitude: 139.7026, district: 'Meguro City' },
+  ];
+
+  it('不同區的地點不會因為很近就被併在一起', () => {
+    const { clusters } = clusterSavedPlaces(tokyo, 2.5, '日本');
+
+    const labels = clusters
+      .map(cluster => cluster.places.map(place => place.placeName).sort().join('·'))
+      .sort();
+
+    // Three wards, three groups — not one chain of six.
+    expect(labels).toEqual(['中目黑', '代代木·原宿·渋谷', '四谷·新宿御苑']);
+  });
+
+  /* 渋谷 and 新宿御苑 are 2.0 km apart — close enough to have been joined. */
+  it('靠得夠近但分屬兩區的，仍然分開', () => {
+    const { clusters } = clusterSavedPlaces(
+      [tokyo[2], tokyo[3]],
+      2.5,
+      '日本',
+    );
+
+    expect(clusters).toHaveLength(2);
+  });
+
+  /* Distance still does the job it is good at: splitting one large ward. */
+  it('同一區內仍然用距離拆成不同趟', () => {
+    const { clusters } = clusterSavedPlaces([
+      { id: 'x', placeName: '北端', latitude: 35.7200, longitude: 139.7700, district: 'Taito City' },
+      { id: 'y', placeName: '南端', latitude: 35.6900, longitude: 139.7700, district: 'Taito City' },
+    ], 2.5, '日本');
+
+    expect(clusters).toHaveLength(2);
+  });
+
+  /* Records with no ward keep the old behaviour among themselves. */
+  it('沒有區的紀錄之間照舊用距離', () => {
+    const { clusters } = clusterSavedPlaces([
+      { id: 'p', placeName: 'A', latitude: 35.6580, longitude: 139.7016 },
+      { id: 'q', placeName: 'B', latitude: 35.6600, longitude: 139.7020 },
+    ], 2.5, '日本');
+
+    expect(clusters).toHaveLength(1);
+  });
+});
