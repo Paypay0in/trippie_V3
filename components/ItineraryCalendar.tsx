@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
-import { ItineraryItem, PlaceCommerceInfo, TripMember } from '../types';
+import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
@@ -111,6 +111,8 @@ interface Props {
     areaLabel?: string;
     areaColorIndex?: number;
     alreadyPlanned?: boolean;
+    /** 🏷️ 景點 / 餐廳 / … The block dropdown groups by it. */
+    category?: PlaceCategory;
   }>;
   /** Writes a place into a block. The caller owns the item and its persistence. */
   onFillBlock?: (input: { date: string; time: string; durationMinutes: number; placeGroupId: string }) => void;

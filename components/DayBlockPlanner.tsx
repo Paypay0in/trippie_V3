@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Clock3, Plus } from 'lucide-react';
-import { ItineraryItem } from '../types';
+import { ItineraryItem, PlaceCategory } from '../types';
+import { CATEGORY_LABELS } from '../services/placeCategory';
 import { AREA_COLORS } from '../constants/areaColors';
 import { cleanManualTitle, MAX_TITLE } from '../services/manualBlockEntry';
 
@@ -32,6 +33,8 @@ interface PlaceOption {
   areaColorIndex?: number;
   /** True when it is already somewhere on this trip's plan. */
   alreadyPlanned?: boolean;
+  /** 🏷️ 景點 / 餐廳 / … The dropdown groups by it. See `placeCategory`. */
+  category?: PlaceCategory;
 }
 
 interface Props {
@@ -136,6 +139,40 @@ const DayBlockPlanner: React.FC<Props> = ({
       const rightNear = right.areaColorIndex !== undefined && dayAreas.has(right.areaColorIndex) ? 0 : 1;
       return leftNear - rightNear;
     });
+  };
+
+  /**
+   * The same list, under 🏷️ headings.
+   *
+   * 「當有標籤後 這個下拉式選單 展開後就依標籤分類展開」. Fifty-three places in one
+   * flat list is a list nobody reads to the end of — and the block already
+   * knows what it is asking for, since the slot is labelled 午餐 or 下午行程.
+   *
+   * So a meal block leads with 餐廳 and 咖啡, and an activity block with 景點.
+   * Leads, not filters: a café can be lunch and a market can be an afternoon,
+   * and a dropdown that hid them would be answering a question the traveller
+   * did not ask.
+   *
+   * Untagged places keep a heading of their own at the end rather than being
+   * dropped — most of a collection is untagged until 補齊 has been run.
+   */
+  const groupedOptionsFor = (slot: DaySlot): { label: string; places: PlaceOption[] }[] => {
+    const leading: PlaceCategory[] = slot.kind === 'meal'
+      ? ['food', 'cafe', 'sight', 'shop', 'stay', 'transport']
+      : ['sight', 'shop', 'cafe', 'food', 'stay', 'transport'];
+
+    const sorted = optionsFor(slot);
+    const groups = leading
+      .map(category => ({
+        label: CATEGORY_LABELS[category],
+        places: sorted.filter(place => place.category === category),
+      }))
+      .filter(group => group.places.length > 0);
+
+    const untagged = sorted.filter(place => !place.category || place.category === 'other');
+    return untagged.length > 0
+      ? [...groups, { label: '其他', places: untagged }]
+      : groups;
   };
 
   return (
@@ -293,11 +330,15 @@ const DayBlockPlanner: React.FC<Props> = ({
                     className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-violet-50/40 px-2 py-1.5 text-xs font-bold text-[#5b3df5]"
                   >
                     <option value="">＋ 選一個地點</option>
-                    {optionsFor(slot).map(place => (
-                      <option key={place.id} value={place.id} disabled={place.alreadyPlanned}>
-                        {place.areaLabel ? `${place.placeName}（${place.areaLabel}）` : place.placeName}
-                        {place.alreadyPlanned ? '・已在行程中' : ''}
-                      </option>
+                    {groupedOptionsFor(slot).map(group => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.places.map(place => (
+                          <option key={place.id} value={place.id} disabled={place.alreadyPlanned}>
+                            {place.areaLabel ? `${place.placeName}（${place.areaLabel}）` : place.placeName}
+                            {place.alreadyPlanned ? '・已在行程中' : ''}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                     {/* Last, because the saved places are the common answer and
                         this is the way out when none of them is. */}

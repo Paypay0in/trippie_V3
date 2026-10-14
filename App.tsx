@@ -3046,6 +3046,8 @@ const App: React.FC = () => {
         areaLabel: area?.label,
         areaColorIndex: area?.colorIndex,
         alreadyPlanned: planned.has(group.id),
+        // The 🏷️ tag the dropdown groups by. See `placeCategory`.
+        category: group.category,
       };
     });
   }, [tripScopedInspirations, tripInspirationContext, itinerary, tripAreas]);

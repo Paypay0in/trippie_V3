@@ -292,3 +292,61 @@ describe('typing a place into a slot', () => {
     expect(onFillBlock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 「當有標籤後 這個下拉式選單 展開後就依標籤分類展開」.
+ *
+ * Fifty-three places in one flat list is a list nobody reads to the end of,
+ * and the block already knows what it is asking for: the slot is labelled
+ * 午餐 or 下午行程.
+ */
+describe('依標籤分類的下拉選單', () => {
+  const tagged = [
+    { id: 'g-ramen', placeName: 'らぁ麺や 嶋', category: 'food' as const },
+    { id: 'g-coffee', placeName: 'DIART coffee', category: 'cafe' as const },
+    { id: 'g-garden', placeName: '新宿御苑', category: 'sight' as const },
+    { id: 'g-plain', placeName: 'Working holiday' },
+  ];
+
+  /*
+    Found by its label rather than by index: the default day in this file
+    already has an item in it, so which block numbers are still empty depends
+    on the fixture rather than on anything this test is about.
+  */
+  const selectLabelled = (needle: string) => Array
+    .from(document.querySelectorAll('select[data-testid^="fill-block-"]'))
+    .find(node => (node.getAttribute('aria-label') || '').includes(needle)) as HTMLSelectElement;
+
+  const groupsIn = (needle: string) => Array.from(
+    selectLabelled(needle).querySelectorAll('optgroup'),
+  ).map(group => group.label);
+
+  it('把選項放進標籤的分組裡', () => {
+    renderPlanner({ places: tagged });
+
+    expect(groupsIn('行程')).toContain('餐廳');
+    expect(groupsIn('行程')).toContain('景點');
+    expect(groupsIn('行程')).toContain('咖啡');
+  });
+
+  /*
+    Leading, not filtering: a café can be lunch and a market can be an
+    afternoon. A dropdown that hid them would answer a question nobody asked.
+  */
+  it('午餐的格子讓餐廳排在最前面，但沒有藏起別的', () => {
+    renderPlanner({ places: tagged });
+
+    const labels = groupsIn('午餐');
+
+    expect(labels[0]).toBe('餐廳');
+    expect(labels).toContain('景點');
+  });
+
+  /* Most of a collection is untagged until 補齊 has been run. */
+  it('沒有標籤的歸在「其他」，不會消失', () => {
+    renderPlanner({ places: tagged });
+
+    expect(groupsIn('行程')).toContain('其他');
+    expect(screen.getAllByText('Working holiday').length).toBeGreaterThan(0);
+  });
+});
