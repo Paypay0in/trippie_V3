@@ -117,3 +117,52 @@ describe('running it', () => {
     expect(onResolveInspirationPlace).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 「沒有的話 app 要問用戶是哪個國家」.
+ *
+ * A trip with no country reads every address with no conventions, groups every
+ * saved note under one card, and cannot tell whether its transit can be
+ * answered at all. It is detected from the destination, from the trip's name
+ * and from the ticket — and when all three say nothing, asking is the only
+ * honest move. Guessing is how a trip to Tokyo gets Busan's district rules.
+ */
+describe('a trip with no country', () => {
+  const mountWith = (onPickCountry?: () => void) => {
+    render(
+      <TripInspirationPlanner
+        inspirations={[]}
+        communityPosts={[]}
+        trip={{ destination: '沖繩' } as never}
+        selectedGroupIds={[]}
+        onSelectionChange={vi.fn()}
+        existingItinerary={[]}
+        onExploreCommunity={vi.fn()}
+        onAcceptProposal={vi.fn()}
+        onApplyAdjustment={vi.fn()}
+        onProposalAccepted={vi.fn()}
+        onPickCountry={onPickCountry}
+      />,
+    );
+  };
+
+  it('asks, with a way to answer', () => {
+    const onPickCountry = vi.fn();
+    mountWith(onPickCountry);
+
+    expect(screen.getByTestId('country-missing').textContent).toContain('還沒設定國家');
+
+    fireEvent.click(screen.getByTestId('pick-country'));
+    expect(onPickCountry).toHaveBeenCalled();
+  });
+
+  /*
+    The caller decides, because it is the only thing that can see the ticket —
+    a trip named 沖繩 with an NRT boarding pass already knows it is in Japan.
+  */
+  it('says nothing when the caller did not offer', () => {
+    mountWith(undefined);
+
+    expect(screen.queryByTestId('country-missing')).toBeNull();
+  });
+});

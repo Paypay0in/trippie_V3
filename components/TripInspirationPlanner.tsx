@@ -146,6 +146,20 @@ interface Props {
    * hide the control entirely.
    */
   onAddSavedPlace?: (resolved: ResolvedCandidate) => void;
+  /**
+   * Opens the country picker for this trip.
+   *
+   * 「沒有的話 app 要問用戶是哪個國家」 — a trip with no country reads every
+   * address with no conventions, groups every saved note under one card, and
+   * cannot tell whether its transit can be answered at all. It is detected
+   * from the destination, from the trip's name and from the ticket, and when
+   * all three say nothing the only honest move left is to ask.
+   *
+   * Passed only when the country really is unknown — the check belongs to the
+   * caller, which is the only thing that can see the flight anchors. This
+   * component cannot, and a second guess here would disagree with the first.
+   */
+  onPickCountry?: () => void;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -180,7 +194,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace, onPickCountry }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -945,6 +959,37 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         removal is one tap and theirs to make: the name and the notes came off
         their own screenshot, and only the map binding was ever wrong.
       */}
+      {/*
+        A trip that never recorded which country it is in.
+
+        「沒有的話 app 要問用戶是哪個國家」. Everything downstream reads it: which
+        country's address conventions name an area, which card a saved note
+        groups under, whether this country's transit can be answered at all.
+        It is detected from the destination, from the trip's name and from the
+        ticket — and when all three say nothing, asking is the only honest
+        move left. Guessing a country is how a trip to Tokyo gets Busan's
+        district rules.
+      */}
+      {onPickCountry && (
+        <div data-testid="country-missing" className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+          <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+            這趟旅程還沒設定國家
+          </p>
+          <p className="mt-1 text-[10px] leading-4 text-amber-700/80">
+            沒有國家就分不出地區，收藏也沒辦法照城市分組。設定一次就好。
+          </p>
+          <button
+            type="button"
+            data-testid="pick-country"
+            onClick={onPickCountry}
+            className="mt-2 min-h-9 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
+          >
+            選擇國家
+          </button>
+        </div>
+      )}
+
       {/*
         Saved places that never recorded where they are.
 

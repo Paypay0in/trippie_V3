@@ -7447,6 +7447,20 @@ const App: React.FC = () => {
           onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
           onRemoveInspirations={handleRemoveInspirations}
           onResolveInspirationPlace={handleResolveInspirationPlace}
+          /*
+            Offered only when nothing knows the country: not the destination,
+            not the trip's name, and not the ticket. 「沒有的話 app 要問用戶是哪個
+            國家」 — and the ticket is why this check lives here rather than in
+            the planner, which cannot see the flight anchors.
+          */
+          onPickCountry={
+            tripCountry(
+              tripInspirationContext.destinationCountry || travelCountry,
+              flightAnchors,
+            )
+              ? undefined
+              : () => setIsCountryModalOpen(true)
+          }
           onAddSavedPlace={handleAddSavedPlace}
           areas={tripAreas}
           onProposalAccepted={() => setWorkspaceSection("overview")}

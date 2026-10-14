@@ -82,3 +82,36 @@ describe('the itinerary is given the resolved country', () => {
     expect(app).toContain('flightAnchors,\n          )}');
   });
 });
+
+/**
+ * 「沒有的話 app 要問用戶是哪個國家」 — the gate for that question.
+ *
+ * Asserted at the call site, because the decision is App's: it is the only
+ * thing that can see the flight anchors, and a planner that guessed again
+ * would disagree with it.
+ */
+describe('when the app has to ask', () => {
+  it('does not ask when the ticket already answers', () => {
+    expect(tripCountry(undefined, [leg()])).toBe('Japan');
+  });
+
+  it('does not ask when somebody recorded it', () => {
+    expect(tripCountry('日本', [])).toBe('日本');
+  });
+
+  /** Nothing at all: a trip typed by hand, named 沖繩, with no ticket yet. */
+  it('has nothing to go on, which is the case that asks', () => {
+    expect(tripCountry('', [])).toBeUndefined();
+  });
+
+  it('is gated on exactly that in App', () => {
+    const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    const start = app.indexOf('onPickCountry={');
+    expect(start).toBeGreaterThan(-1);
+
+    const gate = app.slice(start, start + 400);
+    expect(gate).toContain('tripCountry(');
+    expect(gate).toContain('flightAnchors');
+    expect(gate).toContain('setIsCountryModalOpen(true)');
+  });
+});
