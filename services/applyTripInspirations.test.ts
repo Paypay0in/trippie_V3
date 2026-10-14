@@ -107,3 +107,59 @@ describe('a place deleted on the other phone', () => {
       .toEqual(['味贊王鹽烤肉', '剛剛存的店']);
   });
 });
+
+/**
+ * 「有出現 但又消失了 沒有穩定存在」 / 「還是沒改呀」.
+ *
+ * `trip_inspirations` has no column for the 🏷️ tag, the ward, or the lookup
+ * stamp, so the server's copy of a record always arrives without them.
+ * Applying a snapshot wiped all three on every pull:
+ *
+ *   補齊 writes 餐廳 → the chip appears
+ *   the next pull    → the server's copy has no category → the chip is gone
+ *
+ * forever, whatever the rendering did.
+ */
+describe('欄位資料庫還沒有的欄位', () => {
+  const belongsToTrip = () => true;
+
+  it('同步拉回來時不會把標籤、行政區、查詢時間洗掉', () => {
+    const local = [place('a', 'らぁ麺や 嶋', {
+      placeId: 'ChIJx',
+      category: 'food',
+      district: 'Shibuya',
+      placeResolvedAt: '2026-10-14T10:00:00.000Z',
+    })];
+    // The server's copy: the same place, with no column for any of the three.
+    const remote = [place('a', 'らぁ麺や 嶋', { placeId: 'ChIJx' })];
+
+    const [applied] = applyTripInspirations(local, remote, belongsToTrip);
+
+    expect(applied.category).toBe('food');
+    expect(applied.district).toBe('Shibuya');
+    expect(applied.placeResolvedAt).toBe('2026-10-14T10:00:00.000Z');
+  });
+
+  /* Matched on the place, not on the row id: the other phone saved it too. */
+  it('另一支手機存的同一個地點也接得起來', () => {
+    const local = [place('mine', '해운대', { placeId: 'ChIJy', category: 'sight' })];
+    const remote = [place('theirs', '해운대', { placeId: 'ChIJy' })];
+
+    expect(applyTripInspirations(local, remote, belongsToTrip)[0].category).toBe('sight');
+  });
+
+  /* A place the server has never heard of locally is left exactly as it came. */
+  it('本機沒有的紀錄原樣帶進來', () => {
+    const applied = applyTripInspirations([], [place('new', 'Levain')], belongsToTrip);
+
+    expect(applied[0].category).toBeUndefined();
+  });
+
+  /* Once the column exists, the server wins — only the blank falls back. */
+  it('伺服器真的有值時以伺服器為準', () => {
+    const local = [place('a', 'x', { placeId: 'ChIJx', category: 'other' })];
+    const remote = [place('a', 'x', { placeId: 'ChIJx', category: 'food' })];
+
+    expect(applyTripInspirations(local, remote, belongsToTrip)[0].category).toBe('food');
+  });
+});
