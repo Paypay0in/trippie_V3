@@ -364,9 +364,23 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         it could not find it and leaves the search on the row. A wrong binding
         that looks resolved is worse than an unresolved one: nobody checks it.
       */
-      const landedElsewhere = Boolean(gap.country)
-        && Boolean(found?.country)
-        && !sameCountry(found!.country, gap.country);
+      /*
+        The country to hold it to is the save's own, and failing that the open
+        trip's. 「怎麼越弄越糟 我的釜山都不見了 還出現美國跟加拿大的」 — the first
+        version of this guard only applied when the save *named* a country, and
+        the saves this repair exists for are exactly the ones that never did.
+        So every unverifiable record was accepted: note titles like 「Working
+        holiday」 matched real American and Canadian businesses, those addresses
+        were written over his Busan saves, and the 釜山 card became 美國.
+
+        With nothing at all to check against, it is refused. A record left
+        unresolved is still his record; a record bound to the wrong continent
+        has lost the only thing it knew.
+      */
+      const expectedCountry = gap.country || tripFallbackCountry;
+      const landedElsewhere = !expectedCountry
+        || !found?.country
+        || !sameCountry(found.country, expectedCountry);
       if (found?.placeId && !landedElsewhere) {
         onResolveInspirationPlace(gap.inspirationIds, {
           placeId: found.placeId,

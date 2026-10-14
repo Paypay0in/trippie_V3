@@ -136,8 +136,17 @@ describe('a match that lands in another country', () => {
     expect(onResolveInspirationPlace.mock.calls[0][1].city).toBe('Busan');
   });
 
-  /** A save that never said where it is has nothing to contradict. */
-  it('accepts anything for a save with no country', async () => {
+  /*
+    This test used to assert the opposite — 「a save that never said where it is
+    has nothing to contradict」 — and that is the bug: 「怎麼越弄越糟 我的釜山都不見
+    了 還出現美國跟加拿大的」. The saves with no country are precisely the ones
+    this repair runs over, so the guard excused itself for every record it was
+    supposed to protect, and Vancouver was written onto Busan.
+
+    The open trip's country stands in. The trip here is 東京/日本, so Vancouver
+    is refused for a save that names nothing.
+  */
+  it('holds a save with no country to the open trip\'s', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => VANCOUVER })) as never);
     const { onResolveInspirationPlace } = mount([
       saved({ placeName: 'Working holiday', country: '', city: '' }),
@@ -145,7 +154,9 @@ describe('a match that lands in another country', () => {
 
     fireEvent.click(screen.getByTestId('run-place-backfill'));
 
-    await waitFor(() => expect(onResolveInspirationPlace).toHaveBeenCalled());
+    const done = await screen.findByTestId('place-backfill-done');
+    await waitFor(() => expect(done.textContent).toContain('查不到'));
+    expect(onResolveInspirationPlace).not.toHaveBeenCalled();
   });
 });
 
