@@ -4,6 +4,7 @@ import { OVERLAY } from '../constants/layers';
 import { naverRouteUrl } from '../services/naverMapLinks';
 import { fetchRouteLeg, RouteLeg, TravelMode, TRAVEL_MODE_LABELS } from '../services/routesService';
 import { isSameSpot, noRouteDetail, noRouteSummary } from '../services/transportLegWording';
+import { defaultTravelMode, transitIsUnavailable, transitUnavailableHint, transitUnavailableReason } from '../services/transitCoverage';
 
 interface Props {
   origin: { latitude: number; longitude: number; title: string };
@@ -64,9 +65,18 @@ const summarize = (leg: RouteLeg): string => {
  * would be blank everywhere that matters. The other modes are one tap away and
  * each answers for itself — a mode with no route says so rather than quietly
  * showing another mode's number.
+ *
+ * Japan is the exception in the other direction — the Routes API carries no
+ * Japanese transit at all — so the default there is driving. See
+ * `defaultTravelMode`.
  */
 const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, departureTime, destinationCountry, onPushBackNext }) => {
-  const [mode, setMode] = useState<TravelMode>('TRANSIT');
+  /*
+    Opening on 大眾運輸 where the provider has no transit data guarantees the
+    first thing the traveller sees is a failure, on every leg of the trip.
+    See `defaultTravelMode`.
+  */
+  const [mode, setMode] = useState<TravelMode>(() => defaultTravelMode(destinationCountry));
   const [leg, setLeg] = useState<RouteLeg | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -122,7 +132,9 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
     : leg?.available ? `約 ${minutesOf(leg.durationSeconds)} 分 · ${TRAVEL_MODE_LABELS[mode]}${summarize(leg) ? ` · ${summarize(leg)}` : ''}`
     : isKorea(destinationCountry)
       ? `🚫 因法規限制，Google 地圖無法以「${TRAVEL_MODE_LABELS[mode]}」查詢`
-      : noRouteSummary(TRAVEL_MODE_LABELS[mode], sameSpot);
+      : mode === 'TRANSIT' && transitIsUnavailable(destinationCountry)
+        ? '這個國家的大眾運輸查不到班次'
+        : noRouteSummary(TRAVEL_MODE_LABELS[mode], sameSpot);
   // Nothing to open while the answer is still being fetched or the request
   // failed outright; a refused mode still opens, because the sheet is where the
   // reason and the alternative live.
@@ -152,6 +164,12 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
       {leg && !leg.available && isKorea(destinationCountry) && (
         <div className="mt-1.5 text-[10px] font-bold leading-4 text-slate-400">
           當地人用 Naver Map 或 KakaoMap，這兩款查得到。
+        </div>
+      )}
+      {/* The same courtesy where the provider simply has no transit data. */}
+      {leg && !leg.available && mode === 'TRANSIT' && transitIsUnavailable(destinationCountry) && (
+        <div data-testid="transit-unsupported-hint" className="mt-1.5 text-[10px] font-bold leading-4 text-slate-400">
+          {transitUnavailableHint(destinationCountry)}
         </div>
       )}
 
@@ -271,7 +289,9 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
               <p className="mt-4 rounded-2xl bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-700">
                 {isKorea(destinationCountry)
                   ? '🚫 因法規限制，Google 地圖無法以這個交通方式查詢。當地人用 Naver Map 或 KakaoMap，這兩款查得到。'
-                  : noRouteDetail(TRAVEL_MODE_LABELS[mode], sameSpot)}
+                  : mode === 'TRANSIT' && transitIsUnavailable(destinationCountry)
+                    ? transitUnavailableReason(destinationCountry)
+                    : noRouteDetail(TRAVEL_MODE_LABELS[mode], sameSpot)}
               </p>
             )}
 

@@ -233,9 +233,15 @@ describe('the brief is recorded, not applied', () => {
     expect(TRANSPORT_LEG).not.toContain('tripPlanBrief');
   });
 
-  /** Every leg still starts where it always did, until somebody chooses. */
-  it('leaves the leg default exactly as it was', () => {
-    expect(TRANSPORT_LEG).toContain("useState<TravelMode>('TRANSIT')");
+  /*
+    The default is still not the traveller's stated preference. It is now
+    `defaultTravelMode(destinationCountry)` — a measured fact about where the
+    provider has data, not a guess about what this traveller likes. Transit
+    everywhere except Japan, where the Routes API carries none.
+  */
+  it('takes the leg default from coverage, never from the brief', () => {
+    expect(TRANSPORT_LEG).toContain('defaultTravelMode(destinationCountry)');
+    expect(TRANSPORT_LEG).not.toContain('brief');
   });
 
   /**
