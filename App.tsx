@@ -6396,6 +6396,10 @@ const App: React.FC = () => {
     );
     return (
       <SavedTravelDestinationDetail
+        onUpdateNotes={(inspirationId, notes) =>
+          setSavedTravelInspirations((current) =>
+            current.map((inspiration) =>
+              inspiration.id === inspirationId ? { ...inspiration, notes } : inspiration))}
         country={selectedSavedDestination.country}
         city={selectedSavedDestination.city}
         items={destinationItems}

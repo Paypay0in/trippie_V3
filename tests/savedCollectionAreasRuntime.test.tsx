@@ -8,7 +8,7 @@ import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import SavedTravelDestinationDetail from '../components/SavedTravelDestinationDetail';
-import { SavedTravelInspiration } from '../types';
+import { SavedExperienceNote, SavedTravelInspiration } from '../types';
 
 afterEach(cleanup);
 
@@ -24,11 +24,12 @@ const saved = (over: Partial<SavedTravelInspiration>): SavedTravelInspiration =>
 const HAEUNDAE = { latitude: 35.1587, longitude: 129.1604, district: 'Haeundae' };
 const GWANGALLI = { latitude: 35.1532, longitude: 129.1186, district: 'Suyeong-gu' };
 
-const mount = (items: SavedTravelInspiration[]) => {
+const mount = (items: SavedTravelInspiration[], over: Record<string, unknown> = {}) => {
   const props = {
     country: '韓國', city: 'Busan', items, communityPosts: [],
     onBack: vi.fn(), onRemove: vi.fn(), onResolveItem: vi.fn(),
     onOpenCommunityPost: vi.fn(), onCreateTrip: vi.fn(),
+    ...over,
   } as unknown as React.ComponentProps<typeof SavedTravelDestinationDetail>;
   render(<SavedTravelDestinationDetail {...props} />);
 };
@@ -116,5 +117,82 @@ describe('opening a saved place', () => {
     fireEvent.click(screen.getByTestId('open-place-a'));
 
     expect(screen.getByText(/Haeun-daero/)).toBeTruthy();
+  });
+});
+
+/**
+ * 「點編輯沒有反應」 — 「編輯收藏內容」 closed the menu and did nothing else. It had
+ * the label, the description and the hover state of a working control.
+ */
+describe('editing what was saved about a place', () => {
+  const note = (id: string, text: string): SavedExperienceNote =>
+    ({ id, sourceNoteId: id, sourceSliceId: 's', sourcePostId: 'p', sourceCreatorId: 'c', type: 'other', text });
+
+  const withNotes = () => saved({
+    id: 'a', placeName: '味贊王鹽烤肉', ...HAEUNDAE,
+    notes: [note('n1', '飯點人超多需排号'), note('n2', '推荐菜品：五花肉')],
+  });
+
+  const openEditor = () => {
+    fireEvent.click(screen.getByLabelText('味贊王鹽烤肉 更多選項'));
+    fireEvent.click(screen.getByTestId('edit-notes-a'));
+  };
+
+  it('opens with what is already saved', () => {
+    mount([withNotes()]);
+    openEditor();
+
+    expect((screen.getByTestId('note-input-0') as HTMLTextAreaElement).value).toBe('飯點人超多需排号');
+    expect((screen.getByTestId('note-input-1') as HTMLTextAreaElement).value).toBe('推荐菜品：五花肉');
+  });
+
+  it('saves an edit', () => {
+    const onUpdateNotes = vi.fn();
+    mount([withNotes()], { onUpdateNotes });
+    openEditor();
+
+    fireEvent.change(screen.getByTestId('note-input-0'), { target: { value: '要排隊，建議早到' } });
+    fireEvent.click(screen.getByTestId('save-notes'));
+
+    expect(onUpdateNotes).toHaveBeenCalledWith('a', [
+      expect.objectContaining({ text: '要排隊，建議早到' }),
+      expect.objectContaining({ text: '推荐菜品：五花肉' }),
+    ]);
+  });
+
+  /** Clearing a note is how you delete it; an empty bullet is nobody's intent. */
+  it('drops a note that was emptied', () => {
+    const onUpdateNotes = vi.fn();
+    mount([withNotes()], { onUpdateNotes });
+    openEditor();
+
+    fireEvent.change(screen.getByTestId('note-input-0'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByTestId('save-notes'));
+
+    expect(onUpdateNotes.mock.calls[0][1]).toHaveLength(1);
+  });
+
+  it('adds one', () => {
+    const onUpdateNotes = vi.fn();
+    mount([withNotes()], { onUpdateNotes });
+    openEditor();
+
+    fireEvent.click(screen.getByTestId('add-note'));
+    fireEvent.change(screen.getByTestId('note-input-2'), { target: { value: '靠窗位子最好' } });
+    fireEvent.click(screen.getByTestId('save-notes'));
+
+    expect(onUpdateNotes.mock.calls[0][1]).toHaveLength(3);
+  });
+
+  /** A working copy, so 取消 really is a cancel. */
+  it('writes nothing when cancelled', () => {
+    const onUpdateNotes = vi.fn();
+    mount([withNotes()], { onUpdateNotes });
+    openEditor();
+
+    fireEvent.change(screen.getByTestId('note-input-0'), { target: { value: '改一半' } });
+    fireEvent.click(screen.getByText('取消'));
+
+    expect(onUpdateNotes).not.toHaveBeenCalled();
   });
 });

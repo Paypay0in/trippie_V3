@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
 import { Ellipsis, MapPin, Plus } from 'lucide-react';
-import { CommunityPost, SavedTravelInspiration } from '../types';
+import { CommunityPost, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { resolveSavedPlaceImage, SavedPlaceImageResult } from '../services/savedPlaceImageService';
 import { clusterSavedPlaces } from '../services/placeClusters';
@@ -22,6 +22,16 @@ type Props = {
   onOpenCommunityPost: (postId?: string) => void;
   /** Opens the existing Create Trip flow with this destination prefilled. */
   onCreateTrip: (country: string, city: string) => void;
+  /**
+   * Rewrites the notes saved against one place.
+   *
+   * 「點編輯沒有反應」 — 「編輯收藏內容」 closed the menu and did nothing else. It
+   * had the label, the description and the hover state of a working control.
+   *
+   * Whole list in, whole list out: a note is edited, emptied or added, and the
+   * screen that shows them is the one that knows what the traveller just did.
+   */
+  onUpdateNotes?: (inspirationId: string, notes: SavedExperienceNote[]) => void;
 };
 
 const PlaceThumbnail: React.FC<{ saved: SavedTravelInspiration; sourcePost?: CommunityPost }> = ({ saved, sourcePost }) => {
@@ -39,7 +49,7 @@ const PlaceThumbnail: React.FC<{ saved: SavedTravelInspiration; sourcePost?: Com
   return <div className="shrink-0"><div className="relative h-[112px] w-[112px]">{loading ? <div className="h-full w-full animate-pulse rounded-[14px] bg-slate-100" aria-label="圖片載入中" /> : <img src={imageUrl} alt={saved.placeName} className="h-full w-full rounded-[14px] object-cover" />}</div></div>;
 };
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip }) => {
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
@@ -80,6 +90,8 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
     in step, and the Korean provider rule lives inside this one.
   */
   const [openPlaceId, setOpenPlaceId] = useState<string | null>(null);
+  /** The place whose notes are being rewritten, and the working copy. */
+  const [editing, setEditing] = useState<{ id: string; drafts: SavedExperienceNote[] } | null>(null);
 
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   const [image, setImage] = useState<DestinationImage | null>(null);
@@ -162,7 +174,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
           <div className="min-w-0 flex-1 pr-5"><h2 className="truncate text-base font-black text-[#11183d]"><button type="button" data-testid={`open-place-${item.id}`} onClick={() => setOpenPlaceId(item.id)} className="text-left">{item.placeName}</button></h2><p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{placeWhereLabel(cityDisplayName(item.city), countryDisplayName(item.country))}</p>
           <button type="button" aria-label={`${item.placeName} 更多選項`} onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-50"><Ellipsis size={20} /></button>
           {menuItemId === item.id && <div className="absolute right-3 top-12 z-10 w-48 rounded-2xl border border-slate-100 bg-white p-1.5 text-left shadow-xl">
-            <button type="button" onClick={() => setMenuItemId(null)} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯收藏內容<span className="mt-0.5 block text-[10px] font-medium text-slate-400">調整這個地點已收藏的旅行經驗</span></button>
+            <button type="button" data-testid={`edit-notes-${item.id}`} onClick={() => { setEditing({ id: item.id, drafts: item.notes.map(note => ({ ...note })) }); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯收藏內容<span className="mt-0.5 block text-[10px] font-medium text-slate-400">調整這個地點已收藏的旅行經驗</span></button>
             <button type="button" onClick={() => { setRemoveTarget(item); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">移除這個地點<span className="mt-0.5 block text-[10px] font-medium text-rose-400">從我的旅行筆記移除</span></button>
           </div>}
           <div className="mt-2 space-y-1.5">
@@ -197,6 +209,80 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
           notes={open.notes}
           onClose={() => setOpenPlaceId(null)}
         />
+      );
+    })()}
+    {/*
+      Editing the points saved against a place.
+
+      「點編輯沒有反應」. A working copy, so 取消 really is a cancel; the list is
+      written back whole on 儲存, because that is what the traveller just
+      arranged. Empty lines are dropped rather than saved as blank bullets —
+      clearing a note is how you delete it, and an empty bullet is nobody's
+      intention.
+    */}
+    {editing && (() => {
+      const place = items.find(entry => entry.id === editing.id);
+      if (!place) return null;
+      return (
+        <div className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-950/35 sm:items-center`}>
+          <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-3xl">
+            <h2 className="text-lg font-black text-[#11183d]">編輯收藏內容</h2>
+            <p className="mt-1 text-xs text-slate-500">{place.placeName}・清空一則就是刪掉它</p>
+            <div className="mt-4 space-y-2">
+              {editing.drafts.map((note, index) => (
+                <textarea
+                  key={note.id}
+                  data-testid={`note-input-${index}`}
+                  value={note.text}
+                  rows={2}
+                  onChange={event => setEditing(current => current && ({
+                    ...current,
+                    drafts: current.drafts.map((entry, at) =>
+                      at === index ? { ...entry, text: event.target.value } : entry),
+                  }))}
+                  className="w-full resize-none rounded-2xl border border-[#e4e2f2] bg-white px-3 py-2.5 text-xs leading-5 text-[#11183d] outline-none focus:border-[#b9adff]"
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              data-testid="add-note"
+              onClick={() => setEditing(current => current && ({
+                ...current,
+                /*
+                  A note the traveller wrote themselves still carries where it
+                  came from, so the attribution line beside it keeps working:
+                  these are their own words on their own save.
+                */
+                drafts: [...current.drafts, {
+                  id: `note-${Date.now().toString(36)}-${current.drafts.length}`,
+                  sourceNoteId: '', sourceSliceId: '', sourcePostId: '',
+                  sourceCreatorId: place.savedByUserId,
+                  type: 'other', text: '',
+                } as SavedExperienceNote],
+              }))}
+              className="mt-2 w-full rounded-xl border border-dashed border-[#d9d5f5] py-2 text-[11px] font-black text-[#5b3df5]"
+            >
+              + 新增一則
+            </button>
+            <div className="mt-5 flex gap-3">
+              <button type="button" onClick={() => setEditing(null)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-black text-slate-600">取消</button>
+              <button
+                type="button"
+                data-testid="save-notes"
+                onClick={() => {
+                  onUpdateNotes?.(editing.id, editing.drafts
+                    .map(note => ({ ...note, text: note.text.trim() }))
+                    .filter(note => note.text));
+                  setEditing(null);
+                }}
+                className="flex-1 rounded-xl bg-[#5b3df5] py-3 text-sm font-black text-white"
+              >
+                儲存
+              </button>
+            </div>
+          </div>
+        </div>
       );
     })()}
     {removeTarget && <div className={`fixed inset-0 ${OVERLAY.modal} flex items-center justify-center bg-slate-950/35 p-6`}>
