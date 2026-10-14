@@ -427,3 +427,41 @@ describe('selectPlannedInspirationGroupIds', () => {
     expect([...planned].sort()).toEqual(['g-1', 'g-2']);
   });
 });
+
+/**
+ * 「有出現 但又消失了 沒有穩定存在」.
+ *
+ * One place is often several saved records — two phones, two screenshots — and
+ * the backfill writes them one at a time. 「other」 means 「asked, and Google had
+ * no category」; it is stored so the backfill stops offering that record, and
+ * it is also truthy, so the first record to land used to lock the group.
+ */
+describe('a place whose records disagree about its tag', () => {
+  const tagged = (id: string, category?: 'food' | 'other') => inspiration({
+    id,
+    placeName: '海雲台',
+    placeId: 'place-haeundae',
+    latitude: 35.1587,
+    longitude: 129.1604,
+    category,
+  });
+
+  it('keeps the real tag when the untagged record is read first', () => {
+    const [group] = groupInspirationsByPlace([tagged('insp-1', 'other'), tagged('insp-2', 'food')]);
+
+    expect(group.category).toBe('food');
+  });
+
+  /* Order must not decide it; this is the same list the other way round. */
+  it('keeps the real tag when the untagged record is read last', () => {
+    const [group] = groupInspirationsByPlace([tagged('insp-1', 'food'), tagged('insp-2', 'other')]);
+
+    expect(group.category).toBe('food');
+  });
+
+  it('reports nothing rather than 「other」 when that is all there is', () => {
+    const [group] = groupInspirationsByPlace([tagged('insp-1', 'other')]);
+
+    expect(group.category).toBeUndefined();
+  });
+});

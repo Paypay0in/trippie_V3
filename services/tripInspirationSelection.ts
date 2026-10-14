@@ -324,6 +324,10 @@ const buildGroupKeyResolver = (items: SavedTravelInspiration[]): ((item: SavedTr
  * through untouched, and duplicate saves of the same source note collapse on
  * sourceNoteId rather than on note text.
  */
+/** 「other」 is stored to end the backfill's loop; it is not a tag. */
+const realCategory = (category?: PlaceCategory): PlaceCategory | undefined =>
+  (category && category !== 'other' ? category : undefined);
+
 export const groupInspirationsByPlace = (
   items: SavedTravelInspiration[],
   matches?: Map<string, DestinationMatch>,
@@ -352,7 +356,9 @@ export const groupInspirationsByPlace = (
         inspirationIds: [],
         experienceNotes: [],
         missingPlaceIdentity: true,
-        category: item.category,
+        // 「有出現 但又消失了 沒有穩定存在」. See the merge below for why this
+        // cannot simply take the first record's value.
+        category: realCategory(item.category),
         matchBasis: match?.basis || 'none',
         distanceKm: match?.distanceKm,
       };
@@ -366,7 +372,22 @@ export const groupInspirationsByPlace = (
     if (!group.formattedAddress && item.formattedAddress) group.formattedAddress = item.formattedAddress;
     if (!group.placePhotoUrl && item.placePhotoUrl) group.placePhotoUrl = item.placePhotoUrl;
     // Two saves of one place: whichever learned its tag first keeps it.
-    if (!group.category && item.category) group.category = item.category;
+    /*
+      「有出現 但又消失了 沒有穩定存在」.
+
+      One place is often several saved records — two phones, two screenshots —
+      and the backfill writes them one at a time. 「other」 is a real stored
+      value meaning 「asked, and Google had no category」, and it is also truthy,
+      so the old guard 「if (!group.category)」 let the first record that landed
+      lock the group. A place whose sibling record carried 餐廳 lost its tag the
+      moment the other one was stamped 「other」, and which happened first
+      depended on the order the backfill got through its list.
+
+      So 「other」 is treated here as what it is: not an answer yet.
+    */
+    if (!realCategory(group.category) && realCategory(item.category)) {
+      group.category = item.category;
+    }
     group.inspirationIds.push(item.id);
 
     const seen = seenNoteIds.get(id) as Set<string>;
