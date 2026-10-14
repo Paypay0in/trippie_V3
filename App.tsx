@@ -2923,10 +2923,19 @@ const App: React.FC = () => {
   */
   const tripAreas = useMemo(
     () => buildTripAreas({
+      /*
+        Read with this country's own conventions. 「你在做分區的時候你要去抓取這個
+        旅冊的國家地點 不然會有誤」 — and `tripCountry` falls back to the ticket,
+        because a trip built from a boarding pass has no destination field.
+      */
+      country: tripCountry(
+        tripInspirationContext.destinationCountry || travelCountry,
+        flightAnchors,
+      ),
       itinerary,
       inspirationGroups: selectTripInspirationGroups(tripScopedInspirations, tripInspirationContext),
     }),
-    [itinerary, tripScopedInspirations, tripInspirationContext],
+    [itinerary, tripScopedInspirations, tripInspirationContext, travelCountry, flightAnchors],
   );
 
   /*

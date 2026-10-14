@@ -66,49 +66,108 @@ const hasCoordinates = <T extends ClusterablePlace>(place: T): place is T & { la
   so one trip's addresses arrive as 「Suyeong-gu」, 「Haeundae」, 「中區」 and
   「영도구」 at the same time. All four forms are read, and none is translated:
   the name on the card should be the name on the map the traveller will open.
+
+  「你在做分區的時候你要去抓取這個旅冊的國家地點 不然會有誤」 — and the Founder is
+  right: run every country's conventions against every address and the first
+  pattern to match wins, whether or not it belongs to the country the trip is
+  in. 「-shi」 is Japanese and 「-si」 Korean; 區 is used in Taiwan and Korea and
+  区 in Japan; 「○○ City」 is how Google writes a Japanese ward in English and
+  also how it writes an ordinary city anywhere else.
+
+  So the trip's country selects the list. An unknown country still tries
+  everything, because a wrong label is better than no label — but a known one
+  never has to guess.
 */
-const DISTRICT_PATTERNS: RegExp[] = [
-  // Korean and Japanese romanisation, suffix included: a label reading
-  // 「Suyeong」 or 「Taito」 is not a word in either language.
-  /\b([A-Z][a-zA-Z]+-(?:gu|gun|eup|ku|cho|machi|shi))\b/,
-  /*
-    「Taito City」, 「Shibuya City」 — how Google writes a Japanese ward when it
-    answers in English, which it does for half the addresses on one trip.
-  */
+
+/** Suffix included: a label reading 「Suyeong」 or 「Taito」 is not a word. */
+const JAPAN_PATTERNS: RegExp[] = [
+  // 「Taito City」, 「Shibuya City」 — how Google writes a ward in English.
   /\b([A-Z][a-zA-Z]+ City)\b/,
-  /*
-    District before city.
-
-    「釜山廣域市海雲台區中洞」 carries three levels, and the one that decides a day
-    is the middle one: the city is the whole trip, and the 洞 is one block of it.
-
-    区 and 區 are different characters — U+533A and U+5340 — and only the
-    traditional one was here. 「110042東京都台東区寿4丁目」 therefore matched
-    nothing at all, and the group fell back to naming itself after a member:
-    a sixty-character apartment address, used as a heading.
-  */
+  /\b([A-Z][a-zA-Z]+-(?:ku|cho|machi|shi))\b/,
   /*
     The prefecture it sits in is not part of its name. Excluded from the
     captured characters rather than trimmed afterwards: a four-character window
     ending at 区 reaches back through 「東京都」 and comes out as 「京都渋谷区」,
     and 「京都」 is a real city, so no suffix trim can tell the two apart.
+
+    区 and 區 are different characters, U+533A and U+5340. Only the traditional
+    one was ever here, so every Japanese address matched nothing at all.
   */
-  /([^都道府県市區区郡邑町村\s\d]{1,4}[区區郡邑町村])/,
-  /([가-힣]{1,4}[구군읍])/,
-  /([一-鿿]{1,4}市)/,
+  /([^都道府県市区郡町村\s\d]{1,4}[区郡町村])/,
+  /([^都道府県\s\d]{1,4}市)/,
 ];
 
-/** Well-known areas that are not administrative units but are how people speak. */
-const AREA_NAMES = ['Haeundae', 'Gwangalli', 'Seomyeon', 'Nampo', 'Gamcheon', 'Songjeong', 'Centum'];
+const KOREA_PATTERNS: RegExp[] = [
+  /\b([A-Z][a-zA-Z]+-(?:gu|gun|eup|si|dong))\b/,
+  /([가-힣]{1,4}[구군읍])/,
+  /*
+    District before city.
 
-export const districtOf = (address?: string): string | undefined => {
+    「釜山廣域市海雲台區中洞」 carries three levels, and the one that decides a day
+    is the middle one: the city is the whole trip, and the 洞 is one block of it.
+  */
+  /([^市道區郡邑\s\d]{1,4}[區郡邑])/,
+  /([^市道\s\d]{1,4}市)/,
+];
+
+/** Traditional characters, and no 都道府県 to trim. */
+const CHINESE_PATTERNS: RegExp[] = [
+  /([^市縣區鄉鎮\s\d]{1,4}[區鄉鎮])/,
+  /([^市縣\s\d]{1,4}[市縣])/,
+];
+
+/**
+ * Everything, for a trip whose country nobody recorded.
+ *
+ * Ordered by how specific the suffix is, not by country — concatenating the
+ * lists made Japan's 「市」 rule match 「釜山廣域市」 before Korea's 「區」 rule was
+ * ever tried, and the label came out as the whole city. That is precisely the
+ * failure this scoping exists to prevent, so the fallback must not reintroduce
+ * it: every district-level rule runs before any city-level one.
+ */
+const ANY_PATTERNS: RegExp[] = [
+  // Romanised, which carries its own country in the suffix.
+  /\b([A-Z][a-zA-Z]+ City)\b/,
+  /\b([A-Z][a-zA-Z]+-(?:gu|gun|eup|si|dong|ku|cho|machi|shi))\b/,
+  // District level.
+  /([^都道府県市区郡町村\s\d]{1,4}[区郡町村])/,
+  /([가-힣]{1,4}[구군읍])/,
+  /([^市道區郡邑\s\d]{1,4}[區郡邑])/,
+  /([^市縣區鄉鎮\s\d]{1,4}[區鄉鎮])/,
+  // City level, last.
+  /([^都道府県\s\d]{1,4}市)/,
+  /([^市縣\s\d]{1,4}[市縣])/,
+];
+
+/**
+ * Well-known areas that are not administrative units but are how people speak.
+ *
+ * Busan's, so they are only consulted on a Korean trip: 「Centum」 or 「Nampo」
+ * appearing inside a Japanese address would otherwise name the group.
+ */
+const KOREA_AREA_NAMES = ['Haeundae', 'Gwangalli', 'Seomyeon', 'Nampo', 'Gamcheon', 'Songjeong', 'Centum'];
+
+const isJapan = (country?: string) => /日本|japan|^jp$/i.test((country || '').trim());
+const isKorea = (country?: string) => /韓國|南韓|韓国|한국|대한민국|korea|^kr$/i.test((country || '').trim());
+const isChinese = (country?: string) => /台灣|臺灣|taiwan|^tw$|香港|hong\s*kong|^hk$|澳門|macau|^mo$/i.test((country || '').trim());
+
+const patternsFor = (country?: string): RegExp[] => {
+  if (isJapan(country)) return JAPAN_PATTERNS;
+  if (isKorea(country)) return KOREA_PATTERNS;
+  if (isChinese(country)) return CHINESE_PATTERNS;
+  return ANY_PATTERNS;
+};
+
+export const districtOf = (address?: string, country?: string): string | undefined => {
   const text = (address || '').trim();
   if (!text) return undefined;
 
-  const area = AREA_NAMES.find(name => text.toLowerCase().includes(name.toLowerCase()));
-  if (area) return area;
+  if (isKorea(country) || !country?.trim()) {
+    const area = KOREA_AREA_NAMES.find(name => text.toLowerCase().includes(name.toLowerCase()));
+    if (area) return area;
+  }
 
-  for (const pattern of DISTRICT_PATTERNS) {
+  for (const pattern of patternsFor(country)) {
     const match = text.match(pattern);
     /*
       The city it sits in is not part of its name.
@@ -132,10 +191,10 @@ export const districtOf = (address?: string): string | undefined => {
  * group, the place that anchors it names it — 「Peak square 一帶」 is still
  * something a person can picture.
  */
-export const labelForCluster = (places: ClusterablePlace[]): string => {
+export const labelForCluster = (places: ClusterablePlace[], country?: string): string => {
   const counts = new Map<string, number>();
   places.forEach(place => {
-    const district = districtOf(place.formattedAddress);
+    const district = districtOf(place.formattedAddress, country);
     if (district) counts.set(district, (counts.get(district) || 0) + 1);
   });
 
@@ -238,6 +297,12 @@ export const disambiguateLabels = <T extends ClusterablePlace>(
 export const clusterSavedPlaces = <T extends ClusterablePlace>(
   places: T[],
   radiusKm: number = SAME_AREA_RADIUS_KM,
+  /*
+    The trip's own country, so a Japanese address is read with Japanese
+    conventions and a Korean one with Korean. 「你在做分區的時候你要去抓取這個旅冊
+    的國家地點 不然會有誤」 — see `patternsFor`.
+  */
+  country?: string,
 ): { clusters: PlaceCluster<T>[]; unlocated: T[] } => {
   const located = places.filter(hasCoordinates);
   const unlocated = places.filter(place => !hasCoordinates(place));
@@ -273,11 +338,11 @@ export const clusterSavedPlaces = <T extends ClusterablePlace>(
     Ties break on the label so the order cannot depend on object identity.
   */
   const ordered = Array.from(groups.values()).sort((left, right) =>
-    right.length - left.length || labelForCluster(left).localeCompare(labelForCluster(right)));
+    right.length - left.length || labelForCluster(left, country).localeCompare(labelForCluster(right, country)));
 
   const clusters = ordered.map((group, index) => ({
-    id: `area-${labelForCluster(group)}-${group.length}`,
-    label: labelForCluster(group),
+    id: `area-${labelForCluster(group, country)}-${group.length}`,
+    label: labelForCluster(group, country),
     colorIndex: index,
     places: group,
     center: {

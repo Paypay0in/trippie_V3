@@ -235,3 +235,50 @@ describe('a group with no district anywhere', () => {
     expect(labelForCluster([])).toBe('這一區');
   });
 });
+
+/**
+ * 「你在做分區的時候你要去抓取這個旅冊的國家地點 不然會有誤」.
+ *
+ * Run every country's conventions against every address and the first pattern
+ * to match wins, whether or not it belongs to the country the trip is in.
+ * 「-shi」 is Japanese and 「-si」 Korean; 區 is Taiwanese and Korean, 区 Japanese;
+ * 「○○ City」 is how Google writes a Japanese ward in English and also how it
+ * writes an ordinary city everywhere else.
+ */
+describe('the trip s country decides how an address is read', () => {
+  it('reads a Japanese address the Japanese way', () => {
+    expect(districtOf('110042東京都台東区寿4丁目 6-2', '日本')).toBe('台東区');
+    expect(districtOf('2-chōme-3-1 Asakusa, Taito City, Tokyo', 'Japan')).toBe('Taito City');
+  });
+
+  it('reads a Korean address the Korean way', () => {
+    expect(districtOf('釜山廣域市海雲台區中洞', '韓國')).toBe('海雲台區');
+    expect(districtOf('남韓 Busan, 영도구 해양힐링로 55', '대한민국')).toBe('영도구');
+  });
+
+  it('reads a Taiwanese address with traditional characters', () => {
+    expect(districtOf('台北市大安區忠孝東路', '台灣')).toBe('大安區');
+  });
+
+  /*
+    The failure this scoping exists to prevent, kept as a test: Japan's 市 rule
+    matches 釜山廣域市, so with the lists merged it beat Korea's 區 rule and the
+    label came out as the whole city.
+  */
+  it('does not let one country s city rule beat another s district rule', () => {
+    expect(districtOf('釜山廣域市海雲台區中洞')).toBe('海雲台區');
+    expect(districtOf('釜山廣域市海雲台區中洞', '韓國')).toBe('海雲台區');
+  });
+
+  /** Busan's own area names are Busan's. */
+  it('does not apply Korean area names to a Japanese trip', () => {
+    expect(districtOf('Centum Building, 東京都渋谷区神南1-1', '日本')).toBe('渋谷区');
+    expect(districtOf('Centum City, Busan', '韓國')).toBe('Centum');
+  });
+
+  /** An unrecorded country still tries everything; a label beats no label. */
+  it('still reads an address when the country is unknown', () => {
+    expect(districtOf('110042東京都台東区寿4丁目')).toBe('台東区');
+    expect(districtOf('台北市大安區忠孝東路')).toBe('大安區');
+  });
+});

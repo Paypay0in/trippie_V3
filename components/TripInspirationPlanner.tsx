@@ -537,8 +537,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       latitude: group.coordinates?.latitude,
       longitude: group.coordinates?.longitude,
       formattedAddress: group.formattedAddress,
-    }))),
-    [groups],
+    })), undefined, trip.destinationCountry || trip.travelCountry),
+    [groups, trip.destinationCountry, trip.travelCountry],
   );
 
   /*

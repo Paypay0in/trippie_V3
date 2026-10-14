@@ -23,6 +23,11 @@ export const ITINERARY_PREFIX = 'item:';
 export const INSPIRATION_PREFIX = 'insp:';
 
 export interface AreaSource {
+  /*
+    The trip's country, so an address is read with its own country's
+    conventions. 「你在做分區的時候你要去抓取這個旅冊的國家地點 不然會有誤」.
+  */
+  country?: string;
   itinerary?: ItineraryItem[];
   inspirationGroups?: Array<{
     id: string;
@@ -59,7 +64,7 @@ export interface TripAreas {
 }
 
 export const buildTripAreas = (source: AreaSource): TripAreas => {
-  const { clusters } = clusterSavedPlaces(tripAreaInputs(source));
+  const { clusters } = clusterSavedPlaces(tripAreaInputs(source), undefined, source.country);
 
   const byMemberId = new Map<string, PlaceCluster>();
   clusters.forEach(cluster => {
