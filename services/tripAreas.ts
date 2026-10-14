@@ -34,6 +34,8 @@ export interface AreaSource {
     placeName: string;
     coordinates?: { latitude: number; longitude: number };
     formattedAddress?: string;
+    /** The ward, which decides the area before distance does. */
+    district?: string;
   }>;
 }
 
@@ -52,6 +54,14 @@ export const tripAreaInputs = ({ itinerary = [], inspirationGroups = [] }: AreaS
     latitude: group.coordinates?.latitude,
     longitude: group.coordinates?.longitude,
     formattedAddress: group.formattedAddress,
+    /*
+      「沒裂」. This list is built field by field and the ward was not in it, so
+      the rule that a ward decides an area before distance does never applied
+      to the trip's own areas — the collection screen passed it and this one
+      did not. Itinerary items have no ward field at all; `clusterSavedPlaces`
+      reads theirs out of the address.
+    */
+    district: group.district,
   })),
 ];
 

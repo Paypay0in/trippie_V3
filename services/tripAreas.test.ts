@@ -74,3 +74,55 @@ describe('buildTripAreas', () => {
     expect(buildTripAreas({}).clusters).toEqual([]);
   });
 });
+
+/**
+ * 「沒裂」.
+ *
+ * The collection screen passed each place's ward to the clusterer and the
+ * trip's own areas did not: this list is built field by field, and the ward was
+ * not in it. So the rule that a ward decides an area before distance does
+ * applied on one screen and not the other, and the day summary kept reporting
+ * one 5.9 km area across half of Tokyo.
+ *
+ * Itinerary items have no ward field at all — only an address — so the
+ * clusterer reads theirs out of it, with the same reader that names the
+ * heading.
+ */
+describe('一區不能跨到別的區', () => {
+  const japan = { country: '日本' };
+
+  it('收藏的地點依照自己的區分開，即使很近', () => {
+    const areas = buildTripAreas({
+      ...japan,
+      inspirationGroups: [
+        { id: 'a', placeName: '代代木', coordinates: { latitude: 35.6830, longitude: 139.7020 }, district: 'Shibuya' },
+        { id: 'b', placeName: '新宿御苑', coordinates: { latitude: 35.6852, longitude: 139.7101 }, district: 'Shinjuku City' },
+      ],
+    });
+
+    // 2.0 km apart: close enough that distance alone had joined them.
+    expect(areas.clusters).toHaveLength(2);
+    expect(areas.areaOfInspiration('a')?.label).not.toBe(areas.areaOfInspiration('b')?.label);
+  });
+
+  /* An itinerary item carries no ward, so it is read out of the address. */
+  it('行程項目的區從地址讀出來', () => {
+    const areas = buildTripAreas({
+      ...japan,
+      itinerary: [
+        {
+          id: 'i1', title: '新宿御苑', location: '新宿御苑', notes: '', type: 'ACTIVITY',
+          date: '2026-10-22', time: '10:00',
+          latitude: 35.6852, longitude: 139.7101, address: '東京都新宿区内藤町11',
+        },
+        {
+          id: 'i2', title: '代代木', location: '代代木', notes: '', type: 'ACTIVITY',
+          date: '2026-10-22', time: '13:00',
+          latitude: 35.6830, longitude: 139.7020, address: '東京都渋谷区代々木1丁目',
+        },
+      ] as never,
+    });
+
+    expect(areas.clusters).toHaveLength(2);
+  });
+});

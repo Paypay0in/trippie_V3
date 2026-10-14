@@ -356,8 +356,18 @@ export const clusterSavedPlaces = <T extends ClusterablePlace>(
     left to do the one job it is good at: splitting a large ward into separate
     outings. Records with no ward keep the old behaviour among themselves.
   */
-  const wardOf = (place: ClusterablePlace): string =>
-    (place.district || '').trim().toLocaleLowerCase();
+  const wardOf = (place: ClusterablePlace): string => {
+    const stated = (place.district || '').trim();
+    /*
+      Read out of the address when the record has no ward of its own.
+
+      An itinerary item has no `district` field at all — only an address — so
+      without this the trip's own areas would fall straight back to distance
+      and chain exactly as before. `districtOf` is the same reader the heading
+      already uses, so a cluster is split by the thing it is then named after.
+    */
+    return (stated || districtOf(place.formattedAddress, country) || '').toLocaleLowerCase();
+  };
 
   for (let i = 0; i < located.length; i += 1) {
     for (let j = i + 1; j < located.length; j += 1) {
