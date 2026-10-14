@@ -290,7 +290,14 @@ describe('AI 行程調整模式 runtime', () => {
     expect(requests.at(-1)!.adjustmentMode).toBe('add');
     expect(document.body.textContent).not.toContain('－ 移除');
     // The suggestions are now in the itinerary itself, green and un-accepted.
-    expect(document.body.textContent).toContain('已把 2 個 AI 建議放進上方行程表');
+    expect(document.body.textContent).toContain('已把 2 個 AI 建議放進行程表');
+    /*
+      「AI 協助勾選好的行程要加入…好似沒有用」 — the work was done and the notice
+      said 「上方行程表」, which from the bottom of a fifty-place collection is a
+      long way off screen. It names what it put there, and offers the way to it.
+    */
+    expect(document.body.textContent).toContain('黑房咖啡（10/15）');
+    expect(screen.getByTestId('go-to-itinerary')).toBeTruthy();
     expect(persistedItinerary()).toHaveLength(3);
 
     // Place resolution is refused here, so the card must say the name cannot be

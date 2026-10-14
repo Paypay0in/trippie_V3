@@ -178,6 +178,14 @@ interface Props {
    * component cannot, and a second guess here would disagree with the first.
    */
   onPickCountry?: () => void;
+  /**
+   * Takes the traveller to the itinerary the AI just put its suggestions on.
+   *
+   * 「好似沒有用」 — in 補充行程 every suggestion is forwarded onto the plan as a
+   * green card, and this panel sits under fifty saved places. The work was
+   * done; it was done somewhere off screen.
+   */
+  onShowItinerary?: () => void;
 }
 
 const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
@@ -212,7 +220,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace, onPickCountry, knownCountries, onUnbindInspirationPlaces }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace, onPickCountry, knownCountries, onUnbindInspirationPlaces, onShowItinerary }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -530,6 +538,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   // Set when the `add` suggestions were handed to the itinerary timeline, so the
   // traveller is told where they went instead of watching the panel go empty.
   const [forwardedCount, setForwardedCount] = useState(0);
+  const [forwardedNames, setForwardedNames] = useState<string[]>([]);
   /** The day a manual add drops the chosen places onto, and what it just added. */
   const [manualAddDate, setManualAddDate] = useState('');
   const [manualAddedCount, setManualAddedCount] = useState(0);
@@ -933,6 +942,13 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
 
       if (forwarded.length > 0) onProposeToItinerary!({ ...generated, changes: forwarded });
       setForwardedCount(forwarded.length);
+      setForwardedNames(forwarded
+        .map(change => {
+          const name = change.proposedItem?.placeName || '';
+          const date = change.toDate ? change.toDate.slice(5).replace('-', '/') : '';
+          return name ? (date ? `${name}（${date}）` : name) : '';
+        })
+        .filter(Boolean));
       setAdjustment(remaining.length > 0 ? { ...generated, changes: remaining } : null);
       setPlacePreviews(new Map());
 
@@ -1773,7 +1789,30 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             <div data-testid="forwarded-suggestion-notice" className="mt-3 flex items-start gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
               <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
               <span className="min-w-0 flex-1 break-words">
-                已把 {forwardedCount} 個 AI 建議放進上方行程表，打勾就會加入正式行程。
+                {/*
+                  「AI 協助勾選好的行程要加入…好似沒有用」. The AI had done the work:
+                  every `add` is forwarded onto the itinerary as a green card,
+                  and this panel only said 「上方行程表」 — from the bottom of a
+                  fifty-place collection that is a long way off screen, so the
+                  result landed somewhere the traveller was not looking.
+
+                  Names them and says which day, so the sentence is evidence
+                  rather than a claim, and offers the way there.
+                */}
+                已把 {forwardedCount} 個 AI 建議放進行程表，打勾就會加入正式行程。
+                {forwardedNames.length > 0 && (
+                  <span className="mt-1 block font-bold">{forwardedNames.join('、')}</span>
+                )}
+                {onShowItinerary && (
+                  <button
+                    type="button"
+                    data-testid="go-to-itinerary"
+                    onClick={onShowItinerary}
+                    className="mt-1.5 block min-h-9 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white"
+                  >
+                    去行程表看
+                  </button>
+                )}
               </span>
             </div>
           )}

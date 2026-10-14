@@ -7596,6 +7596,11 @@ const App: React.FC = () => {
           onAddSavedPlace={handleAddSavedPlace}
           areas={tripAreas}
           onProposalAccepted={() => setWorkspaceSection("overview")}
+          /*
+            「好似沒有用」 — the suggestions were on the plan all along, under
+            fifty saved places. The same destination the accept step uses.
+          */
+          onShowItinerary={() => setWorkspaceSection("overview")}
         />
         {/*
           Founder decision (Phase 1, Saved Inspiration -> Trip Planner):
