@@ -66,6 +66,7 @@ import type { StaySpan } from '../services/stayIntake';
 import PlanScreenshotIntake from './PlanScreenshotIntake';
 import type { ParsedRental } from '../services/rentalIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
+import { placeWhereLabel } from '../services/placeWhereLabel';
 
 interface Props {
   /**
@@ -969,7 +970,7 @@ const TripPlanOverview: React.FC<Props> = ({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-black text-[#11183d]">{post.title}</span>
                   <span className="mt-0.5 block truncate text-[11px] text-slate-400">
-                    {[post.country, post.city].filter(Boolean).join('・')}
+                    {placeWhereLabel(post.country, post.city)}
                     {savers > 0 ? `・${savers} 人收藏` : ''}
                   </span>
                 </span>

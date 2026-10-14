@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Bookmark, ChevronDown, Eye, EyeOff, Heart, LayoutGrid, Lock, MapPin, MoreHorizontal, Plane, Plus, Trash2, MessageCircle } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
 import { countryLabel, groupSavedByPlace, groupSummary, initiallyOpen } from '../services/savedGrouping';
+import { placeWhereLabel } from '../services/placeWhereLabel';
 
 interface Props {
   posts: CommunityPost[];
@@ -153,7 +154,7 @@ const MyPostsPanel: React.FC<Props> = ({
                         className="absolute bottom-2.5 left-3 inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-1 text-[10px] font-bold text-white backdrop-blur-sm"
                       >
                         <MapPin size={10} />
-                        {[post.country, post.city].filter(Boolean).join('・')}
+                        {placeWhereLabel(post.country, post.city)}
                       </span>
                     )}
                     <button
@@ -168,7 +169,7 @@ const MyPostsPanel: React.FC<Props> = ({
                   <div className="pointer-events-none relative p-3.5">
                     <p className="line-clamp-2 text-sm font-black leading-5 text-[#11183d]">{post.title || '未命名貼文'}</p>
                     <p className="mt-1 truncate text-[11px] text-slate-400">
-                      {dateRange(post.publishedAt || post.createdAt) || [post.country, post.city].filter(Boolean).join('・')}
+                      {dateRange(post.publishedAt || post.createdAt) || placeWhereLabel(post.country, post.city)}
                     </p>
                     {/*
                       What this post actually got.

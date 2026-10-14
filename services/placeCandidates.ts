@@ -58,6 +58,18 @@ export interface ResolvedCandidate {
   address?: string;
   latitude?: number;
   longitude?: number;
+  /**
+   * Where this place actually is, as Google states it.
+   *
+   * 「這個我手動加入的景點」 showed 「日本・日本」: the save took its town from the
+   * trip, and on a trip created from a boarding pass the 「city」 is whatever
+   * destination detection wrote, which is sometimes the country itself.
+   *
+   * `docs/PRODUCT.md` already settles this — Places owns a place's identity.
+   * The trip is a fallback for when Google says nothing, not the source.
+   */
+  city?: string;
+  country?: string;
 }
 
 /** Turns a chosen candidate into the fields a saved place stores. */
@@ -70,5 +82,7 @@ export const resolveCandidate = async (candidate: PlaceCandidate): Promise<Resol
     address: details.address,
     latitude: details.latitude,
     longitude: details.longitude,
+    city: details.city,
+    country: details.country,
   };
 };

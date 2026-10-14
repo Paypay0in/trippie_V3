@@ -13,10 +13,10 @@ export const autocompletePlaces = async (query: string, context: { latitude?: nu
   return (await response.json() as { suggestions?: PlaceSuggestion[] }).suggestions || [];
 };
 
-export const getPlaceDetails = async (placeId: string, sessionToken: string): Promise<ResolvedPlace & { location: string }> => {
+export const getPlaceDetails = async (placeId: string, sessionToken: string): Promise<ResolvedPlace & { location: string; city?: string }> => {
   const response = await fetch('/api/places/details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ placeId, sessionToken }) });
   if (!response.ok) throw new Error('Place details unavailable');
-  return await response.json() as ResolvedPlace & { location: string };
+  return await response.json() as ResolvedPlace & { location: string; city?: string };
 };
 
 export const resolvePlace = async (query: string, country?: string): Promise<ResolvedPlace | null> => {

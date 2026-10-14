@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Bookmark, MessageCircle, PenLine } from 'lucide-react';
 import { CommunityPost, PostComment, SavedInspiration } from '../types';
+import { placeWhereLabel } from '../services/placeWhereLabel';
 
 interface Props {
   posts: CommunityPost[];
@@ -102,7 +103,7 @@ const CreatorCenterScreen: React.FC<Props> = ({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-black">{post.title || '未命名貼文'}</span>
                   <span className="mt-0.5 block truncate text-[11px] text-slate-400">
-                    {[post.country, post.city].filter(Boolean).join('・')}
+                    {placeWhereLabel(post.country, post.city)}
                   </span>
                 </span>
                 <span className="shrink-0 text-xs font-black text-violet-600">{savers} 人</span>

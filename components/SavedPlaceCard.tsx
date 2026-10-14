@@ -5,6 +5,7 @@ import { MappablePlace, placeCopyText, placeDirectionsUrl, placeMapsUrl } from '
 import { navigationProviderFor } from '../services/navigationProvider';
 import { naverPlaceUrl } from '../services/naverMapLinks';
 import { fetchPlaceBasics, hoursForToday, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
+import { placeWhereLabel } from '../services/placeWhereLabel';
 
 /**
  * A saved place, opened.
@@ -92,7 +93,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
             <p className="mt-1 flex items-start gap-1.5 text-[11px] font-medium text-slate-500">
               <MapPin size={12} className="mt-0.5 shrink-0" />
               <span className="min-w-0 break-words">
-                {place.formattedAddress || [place.city, place.country].filter(Boolean).join('・')}
+                {place.formattedAddress || placeWhereLabel(place.city, place.country)}
               </span>
             </p>
           </div>

@@ -3044,13 +3044,29 @@ const App: React.FC = () => {
    */
   const handleAddSavedPlace = (resolved: {
     placeId: string; placeName: string; address?: string; latitude?: number; longitude?: number;
+    city?: string; country?: string;
   }) => {
     const savedByUserId =
       authUser?.id || localStorage.getItem("trippie_user_id") || anonymousUserId;
+    /*
+      Where Google says this place is, before where the trip says it is.
+
+      「這個我手動加入的景點」 read 「日本・日本」. The save took its town from
+      `tripDestination`, and on a trip built from a boarding pass that field
+      holds whatever destination detection wrote — which for this one was the
+      country, so the city and the country were the same word.
+
+      `docs/PRODUCT.md` already settles the ownership: Places owns a place's
+      identity. The trip is what to fall back on when Google says nothing.
+    */
     const saved = manualInspirationFrom(resolved, {
       savedByUserId,
-      country: tripInspirationContext.destinationCountry || travelCountry || "",
-      city: tripDestination || "",
+      country:
+        resolved.country ||
+        tripInspirationContext.destinationCountry ||
+        travelCountry ||
+        "",
+      city: resolved.city || tripDestination || "",
       makeId: generateId,
     });
 

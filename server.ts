@@ -1124,6 +1124,21 @@ async function startServer() {
         latitude: data.location.latitude,
         longitude: data.location.longitude,
         country: data.addressComponents?.find(c => c.types?.includes("country"))?.longText,
+        /*
+          Which town this is, which Google has been sending all along.
+
+          「這個我手動加入的景點」 — and it read 「日本・日本」, because the save took
+          its city from the trip and the trip's city *was* the country. The
+          address components were already in the field mask and already in this
+          response body; only the country was ever read out of them.
+
+          Tried widest-useful first: a ward or district says more to somebody
+          standing in Tokyo than 「東京都」 does, and the prefecture is the last
+          resort for a place in no town at all.
+        */
+        city: ["locality", "sublocality_level_1", "sublocality", "administrative_area_level_2", "administrative_area_level_1"]
+          .map(type => data.addressComponents?.find(c => c.types?.includes(type))?.longText)
+          .find(Boolean),
         // Contact details, for a stay the traveller may need to phone from the
         // street. Absent for places Google has none for, which is why the UI
         // renders each button only when its value arrived.

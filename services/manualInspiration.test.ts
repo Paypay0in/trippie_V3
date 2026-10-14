@@ -64,3 +64,41 @@ describe('manualInspirationFrom', () => {
     expect(isManualInspiration({ sourcePostId: 'screenshot:abc' })).toBe(false);
   });
 });
+
+/**
+ * 「這個我手動加入的景點」 — saved, and filed under 「日本・日本」.
+ *
+ * The town came from the trip's own destination field, and on a trip created
+ * from a boarding pass that field holds whatever destination detection wrote:
+ * for this one, the country. `docs/PRODUCT.md` already settles the ownership —
+ * Places owns a place's identity, and the trip is the fallback.
+ */
+describe('where a manually added place says it is', () => {
+  const resolved = {
+    placeId: 'p1',
+    placeName: 'Alchemy',
+    address: '東京都渋谷区…',
+    latitude: 35.6595,
+    longitude: 139.7005,
+  };
+
+  it('prefers the town Google named over the trip s own', () => {
+    const saved = manualInspirationFrom(
+      { ...resolved, city: '渋谷区', country: '日本' },
+      { savedByUserId: 'me', country: '日本', city: '日本', makeId: () => 'x' },
+    );
+
+    expect(saved.city).toBe('渋谷区');
+    expect(saved.country).toBe('日本');
+  });
+
+  /** Google says nothing: the trip is still better than a blank. */
+  it('falls back to the trip when Google named no town', () => {
+    const saved = manualInspirationFrom(
+      resolved,
+      { savedByUserId: 'me', country: '日本', city: '東京', makeId: () => 'x' },
+    );
+
+    expect(saved.city).toBe('東京');
+  });
+});

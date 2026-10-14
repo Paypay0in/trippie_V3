@@ -46,8 +46,16 @@ export const manualInspirationFrom = (
   return {
     id: context.makeId(),
     savedByUserId: context.savedByUserId,
-    country: context.country,
-    city: context.city,
+    /*
+      Where Google says this place is, before where the trip says it is.
+
+      「這個我手動加入的景點」 read 「日本・日本」: the save took its town from the
+      trip's destination field, which on a trip built from a boarding pass
+      holds whatever destination detection wrote — here, the country.
+      `docs/PRODUCT.md`: Places owns a place's identity.
+    */
+    country: resolved.country || context.country,
+    city: resolved.city || context.city,
     placeName: resolved.placeName,
     placeId: resolved.placeId,
     // Claimed because the traveller picked this exact place off a list of
