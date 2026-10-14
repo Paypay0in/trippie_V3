@@ -136,7 +136,9 @@ describe('what the reader is shown', () => {
     const home = readFileSync(resolve(__dirname, '../components/TravelHome.tsx'), 'utf8');
     const planner = readFileSync(resolve(__dirname, '../components/TripInspirationPlanner.tsx'), 'utf8');
 
-    expect(home).toContain('country: countryDisplayName(country)');
+    // The label, kept beside the raw value rather than replacing it — a card
+    // reads 「釜山」 and navigates with 「Busan」. See the saved-note card tests.
+    expect(home).toContain('countryLabel: countryDisplayName(country)');
     expect(planner).toContain('countryDisplayName(group.country)');
   });
 });

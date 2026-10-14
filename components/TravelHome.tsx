@@ -242,7 +242,13 @@ const TravelHome: React.FC<Props> = ({
       return upcomingA ? startA - startB : startB - startA;
     });
   const savedNotes = useMemo(() => {
-    const groups = new Map<string, { country: string; city: string; count: number; id: string }>();
+    const groups = new Map<string, {
+      /** As stored, for navigating and for matching records. */
+      country: string; city: string;
+      /** As read, in the app's own language. */
+      countryLabel: string; cityLabel: string;
+      count: number; id: string;
+    }>();
     savedTravelInspirations.forEach((item) => {
       const country = item.country.trim();
       const city = item.city.trim();
@@ -263,9 +269,24 @@ const TravelHome: React.FC<Props> = ({
         records honestly hold both, because Google answers 日本 and the airport
         directory stores Japan. See `countryDisplayName`.
       */
+      /*
+        Two names per group, and they are not interchangeable.
+
+        「黃色點進去是空白的」 — the card was showing 釜山 and navigating with it,
+        while the records say 「Busan」 and the detail screen matches on the
+        stored text. What is read and what is matched have to be kept apart:
+        the label is for the reader, the raw value is the record's own.
+      */
       groups.set(key, current
         ? { ...current, count: current.count + 1 }
-        : { country: countryDisplayName(country), city: cityDisplayName(city), count: 1, id: `saved-${key}` });
+        : {
+            country,
+            city,
+            countryLabel: countryDisplayName(country),
+            cityLabel: cityDisplayName(city),
+            count: 1,
+            id: `saved-${key}`,
+          });
     });
     return Array.from(groups.values());
   }, [savedTravelInspirations]);
@@ -280,8 +301,11 @@ const TravelHome: React.FC<Props> = ({
     || matchesQuery(query, activeDraft.name, activeDraft.destination);
   const visibleOtherDrafts = otherDrafts.filter((draft) =>
     matchesQuery(query, draft.name, draft.destination));
+  /* Searchable by what is on the card and by what is in the record: somebody
+     typing 「Busan」 and somebody typing 「釜山」 are looking for the same place. */
   const visibleSavedNotes = savedNotes.filter((note) =>
-    matchesQuery(query, note.country, note.city, `${note.country}・${note.city}`));
+    matchesQuery(query, note.country, note.city, note.countryLabel, note.cityLabel,
+      `${note.countryLabel}・${note.cityLabel}`));
   const visibleHistory = tripHistory.filter((trip) =>
     matchesQuery(query, trip.name, trip.destination));
   const nothingFound = searching
@@ -614,9 +638,9 @@ const TravelHome: React.FC<Props> = ({
                         country copied into the city, and the label said it
                         twice. A city equal to its own country is not a city. */}
                     <p className="truncate text-base font-black">
-                      {note.city && note.city !== note.country
-                        ? `${note.country}・${note.city}`
-                        : note.country || note.city}
+                      {note.cityLabel && note.cityLabel !== note.countryLabel
+                        ? `${note.countryLabel}・${note.cityLabel}`
+                        : note.countryLabel || note.cityLabel}
                     </p>
                     <p className="mt-1 flex items-center gap-1 truncate text-xs text-white/75">
                       <MapPin size={12} />
@@ -635,7 +659,16 @@ const TravelHome: React.FC<Props> = ({
               {visibleOtherDrafts.map((draft) => (
                 <div
                   key={draft.id}
-                  className="relative h-40 w-52 shrink-0 overflow-hidden rounded-[1.35rem] shadow-md"
+                  /*
+                    The same size as the strip of finished trips below it.
+
+                    「橘色跑版了吧？」 — this was the one card on the page with a
+                    fixed width. `w-52` is 208px, which on a phone is more than
+                    half the screen, beside two strips that fit three cards
+                    across. Both strips hold trip cards; they should measure
+                    the same.
+                  */
+                  className="relative h-48 w-[calc((100%-24px)/3)] min-w-[150px] shrink-0 overflow-hidden rounded-[1.35rem] shadow-md"
                 >
                   <button
                     type="button"

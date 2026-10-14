@@ -194,7 +194,7 @@ import { BookingReadout, DerivedTrip, tripFromBookings } from "./services/tripFr
 import { viewerIdentityNotice } from "./services/viewerIdentityNotice";
 import { flightAnchorsFromParsed } from "./services/flightIntake";
 import { tripCountry } from "./services/tripCountry";
-import { preferredCountryName } from "./services/countryIdentity";
+import { preferredCountryName, sameCountry } from "./services/countryIdentity";
 import type { ParsedFlight } from "./services/flightIntake";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
 import {
@@ -6384,8 +6384,15 @@ const App: React.FC = () => {
   if (selectedSavedDestination) {
     const destinationItems = savedTravelInspirations.filter(
       (item) =>
-        item.country === selectedSavedDestination.country &&
-        item.city === selectedSavedDestination.city,
+        /*
+          Matched the way the cards are grouped, not by exact text.
+
+          「黃色點進去是空白的」 — the home screen groups 日本 and Japan as one
+          country, so a card can stand for records written both ways; an
+          equality test here then finds only half of them, or none.
+        */
+        sameCountry(item.country, selectedSavedDestination.country) &&
+        item.city.trim().toLowerCase() === selectedSavedDestination.city.trim().toLowerCase(),
     );
     return (
       <SavedTravelDestinationDetail
