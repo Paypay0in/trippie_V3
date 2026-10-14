@@ -5,7 +5,7 @@
  * already at 14:30, so applying it put two places in one slot.
  */
 import { describe, expect, it } from 'vitest';
-import { separateOverlaps } from './separateOverlaps';
+import { separateOverlaps, timeTheUntimed } from './separateOverlaps';
 import { applyItineraryAdjustment } from './itineraryAdjustment';
 import { ItineraryItem } from '../types';
 
@@ -120,5 +120,63 @@ describe('套用 AI 調整之後，沒有兩件事同時發生', () => {
 
     const times = items.map(entry => entry.time).sort();
     expect(new Set(times).size).toBe(times.length);
+  });
+});
+
+/**
+ * 「混排 且沒有給時間」.
+ *
+ * The model returned adds carrying no `toTime`, so they were written with an
+ * empty time and fell into 「尚未安排時間」 — where a suggestion goes to be
+ * forgotten. The prompt does ask for a time; asking harder is not a fix.
+ */
+describe('AI 加進來卻沒給時間的行程', () => {
+  it('接在那天最後一個行程之後', () => {
+    const { items, timedCount } = timeTheUntimed([
+      item('existing', '10:00', { durationMinutes: 120 }),
+      item('added', '', { durationMinutes: 60 }),
+    ], new Set(['added']));
+
+    expect(items.find(entry => entry.id === 'added')?.time).toBe('12:00');
+    expect(timedCount).toBe(1);
+  });
+
+  it('那天還沒有任何行程時，從預設的出發時間開始', () => {
+    const { items } = timeTheUntimed([item('added', '')], new Set(['added']));
+
+    expect(items.find(entry => entry.id === 'added')?.time).toBe('10:00');
+  });
+
+  it('兩筆一起加進來時依序接著排', () => {
+    const { items } = timeTheUntimed([
+      item('a', '', { durationMinutes: 60 }),
+      item('b', '', { durationMinutes: 60 }),
+    ], new Set(['a', 'b']));
+
+    expect(items.map(entry => entry.time)).toEqual(['10:00', '11:00']);
+  });
+
+  /*
+    「尚未安排時間」 is a legitimate place for an item the traveller left untimed;
+    rewriting those would answer a question nobody asked.
+  */
+  it('不碰使用者自己留空的', () => {
+    const { items, timedCount } = timeTheUntimed([
+      item('mine', ''),
+      item('added', ''),
+    ], new Set(['added']));
+
+    expect(items.find(entry => entry.id === 'mine')?.time).toBe('');
+    expect(timedCount).toBe(1);
+  });
+
+  /* Past midnight there is no honest time to give it. */
+  it('那天已經排到太晚就留在未安排', () => {
+    const { timedCount } = timeTheUntimed([
+      item('late', '22:00', { durationMinutes: 120 }),
+      item('added', '', { durationMinutes: 120 }),
+    ], new Set(['added']));
+
+    expect(timedCount).toBe(0);
   });
 });

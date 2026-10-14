@@ -24,6 +24,49 @@ const isFixed = (item: ItineraryItem): boolean =>
   Boolean(item.derivedFromFlightAnchorId) || item.type === 'FLIGHT' || Boolean(item.isPinned);
 
 /**
+ * A time for the items this adjustment added without one.
+ *
+ * 「混排 且沒有給時間」 — the model returned adds carrying no `toTime`, so they
+ * were written with an empty time and fell into 「尚未安排時間」, which is where a
+ * suggestion goes to be forgotten. The prompt does ask for a time; asking
+ * harder is not a fix, and a start time is arithmetic.
+ *
+ * Only the ids given are touched. 「尚未安排時間」 is a legitimate place for an
+ * item the traveller deliberately left untimed, and rewriting those would be
+ * answering a question nobody asked.
+ *
+ * Each one starts where its day currently ends, in the order it arrived, and
+ * `separateOverlaps` then settles anything that still clashes.
+ */
+export const timeTheUntimed = (
+  items: ItineraryItem[],
+  addedIds: Set<string>,
+  dayStart = '10:00',
+): { items: ItineraryItem[]; timedCount: number } => {
+  const endOfDay = new Map<string, number>();
+  items.forEach(item => {
+    if (!item.date || !isTimedItem(item)) return;
+    const start = timeToMinutes(item.time);
+    if (start === undefined) return;
+    endOfDay.set(item.date, Math.max(endOfDay.get(item.date) ?? 0, start + durationOf(item)));
+  });
+
+  const fallback = timeToMinutes(dayStart) ?? 600;
+  let timedCount = 0;
+  const next = items.map(item => {
+    if (!addedIds.has(item.id) || isTimedItem(item) || !item.date) return item;
+    const start = endOfDay.get(item.date) ?? fallback;
+    // Past midnight there is no honest time to give it; it keeps the bucket.
+    if (start + durationOf(item) >= 24 * 60) return item;
+    endOfDay.set(item.date, start + durationOf(item));
+    timedCount += 1;
+    return { ...item, time: minutesToTime(start) };
+  });
+
+  return timedCount === 0 ? { items, timedCount: 0 } : { items: next, timedCount };
+};
+
+/**
  * Pushes overlapping items later until a day reads one thing at a time.
  *
  * @returns the items, and how many had to move.

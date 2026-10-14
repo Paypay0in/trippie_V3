@@ -1,4 +1,4 @@
-import { separateOverlaps } from './separateOverlaps';
+import { separateOverlaps, timeTheUntimed } from './separateOverlaps';
 import { ItineraryItem } from '../types';
 import {
   buildInspirationIndex,
@@ -690,7 +690,15 @@ export const applyItineraryAdjustment = (
     Applied here, at the one exit every caller goes through, rather than at any
     of them: see `separateOverlaps`.
   */
-  const separated = separateOverlaps(items);
+  /*
+    A time for the ones the model added without one. 「混排 且沒有給時間」 — an add
+    with no `toTime` was written with an empty time and fell into 「尚未安排時間」,
+    which is where a suggestion goes to be forgotten. Scoped to this
+    adjustment's own additions: an item the traveller left untimed stays that
+    way. See `timeTheUntimed`.
+  */
+  const timed = timeTheUntimed(items, new Set(additions.map(item => item.id)));
+  const separated = separateOverlaps(timed.items);
 
   return {
     items: separated.items,
