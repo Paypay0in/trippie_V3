@@ -44,6 +44,7 @@ import { fixedAnchorSchedule } from '../services/itineraryDayFloor';
 import SavedPlaceCard from './SavedPlaceCard';
 import StayDetailSheet from './StayDetailSheet';
 import TransportLeg from './TransportLeg';
+import { hasGroundJourneyBetween } from '../services/transportLegVisibility';
 
 interface Props {
   items: ItineraryItem[];
@@ -1325,6 +1326,9 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               {(() => {
                 const next = rendered[index + 1];
                 if (!next || dragItemId) return null;
+                // Nothing to arrange between two halves of the same flight.
+                // See `hasGroundJourneyBetween`.
+                if (!hasGroundJourneyBetween(item, next)) return null;
                 const from = typeof item.latitude === 'number' && typeof item.longitude === 'number' ? item : null;
                 const to = typeof next.latitude === 'number' && typeof next.longitude === 'number' ? next : null;
                 if (!from || !to) {
