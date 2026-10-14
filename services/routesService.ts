@@ -34,6 +34,13 @@ export interface RouteLeg {
   available: boolean;
   durationSeconds?: number;
   distanceMeters?: number;
+  /**
+   * The road geometry, as Google's encoded polyline.
+   *
+   * Never requested until the map mode needed it, so every map this app could
+   * have drawn would have been straight lines between pins.
+   */
+  encodedPolyline?: string;
   steps?: RouteLegStep[];
 }
 
@@ -65,7 +72,14 @@ export async function fetchRouteLeg(
   if (!response.ok || !body || typeof body.available !== 'boolean') {
     throw new Error(typeof body?.error === 'string' ? body.error : '路線服務暫時無法使用。');
   }
-  return { mode, available: body.available, durationSeconds: body.durationSeconds, distanceMeters: body.distanceMeters, steps: body.steps };
+  return {
+    mode,
+    available: body.available,
+    durationSeconds: body.durationSeconds,
+    distanceMeters: body.distanceMeters,
+    encodedPolyline: body.encodedPolyline,
+    steps: body.steps,
+  };
 }
 
 export async function estimateRoute(origin: RouteCoordinates, destination: RouteCoordinates): Promise<RouteEstimate> {

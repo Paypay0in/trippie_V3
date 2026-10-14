@@ -835,6 +835,62 @@ async function startServer() {
    * taxi that will not come, so every answer here names the mode that produced
    * it, and a mode with no route says so rather than borrowing another's number.
    */
+  /*
+    The day's stops as one picture, composed by Google and relayed by us.
+
+    「行程的地圖模式」. The browser never gets a Maps key: it asks this route for
+    an image and this route is the only thing that knows the key — which is
+    also why the bytes are proxied rather than a signed URL returned, since a
+    URL would carry the key straight into an `img` tag.
+
+    Only `markers`, `path` and the frame are forwarded, each rebuilt here
+    rather than passed through, so a caller cannot turn this into an open relay
+    for arbitrary Google requests on our key.
+  */
+  app.get("/api/maps/day", async (req, res) => {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "地圖服務尚未設定。" }); return; }
+
+    const size = typeof req.query.size === "string" && /^\d{2,4}x\d{2,4}$/.test(req.query.size)
+      ? req.query.size : null;
+    if (!size) { res.status(400).json({ error: "需要地圖尺寸。" }); return; }
+
+    const asList = (value: unknown): string[] =>
+      (Array.isArray(value) ? value : value === undefined ? [] : [value])
+        .filter((entry): entry is string => typeof entry === "string" && entry.length > 0 && entry.length <= 4000);
+
+    const markers = asList(req.query.markers).slice(0, 25);
+    if (markers.length === 0) { res.status(400).json({ error: "需要至少一個地點。" }); return; }
+
+    const upstream = new URLSearchParams();
+    upstream.set("size", size);
+    upstream.set("scale", req.query.scale === "1" ? "1" : "2");
+    upstream.set("language", "zh-TW");
+    for (const marker of markers) upstream.append("markers", marker);
+    for (const path of asList(req.query.path).slice(0, 25)) upstream.append("path", path);
+    upstream.set("key", apiKey);
+
+    try {
+      const response = await fetch(`https://maps.googleapis.com/maps/api/staticmap?${upstream.toString()}`, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      // Static Maps answers a refusal in plain text, which must never be sent
+      // on as an image: the browser would show a broken picture and no reason.
+      const contentType = response.headers.get("content-type") || "";
+      if (!response.ok || !contentType.startsWith("image/")) {
+        res.status(502).json({ error: "現在畫不出地圖，請稍後再試。" });
+        return;
+      }
+      res.setHeader("Content-Type", contentType);
+      // The same day drawn twice is the same picture, and every redraw is
+      // billed. A day's plan does not change by the second.
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(Buffer.from(await response.arrayBuffer()));
+    } catch {
+      res.status(502).json({ error: "現在畫不出地圖，請稍後再試。" });
+    }
+  });
+
   app.post("/api/routes/leg", async (req, res) => {
     const values = [req.body?.originLatitude, req.body?.originLongitude, req.body?.destinationLatitude, req.body?.destinationLongitude].map(Number);
     const [originLatitude, originLongitude, destinationLatitude, destinationLongitude] = values;
@@ -863,7 +919,11 @@ async function startServer() {
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": apiKey,
-          "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.legs.steps.travelMode,routes.legs.steps.staticDuration,routes.legs.steps.transitDetails",
+          // The polyline is what a map draws. It was never asked for, so no
+          // map could ever have shown the actual road — only a straight line
+          // between two pins. Requested here because both the static map and
+          // any later interactive one need exactly this field.
+          "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.legs.steps.travelMode,routes.legs.steps.staticDuration,routes.legs.steps.transitDetails",
         },
         body: JSON.stringify({
           origin: { location: { latLng: { latitude: originLatitude, longitude: originLongitude } } },
@@ -881,6 +941,7 @@ async function startServer() {
         routes?: Array<{
           distanceMeters?: number;
           duration?: string;
+          polyline?: { encodedPolyline?: string };
           legs?: Array<{ steps?: Array<Record<string, any>> }>;
         }>;
       };
@@ -913,6 +974,8 @@ async function startServer() {
         available: true,
         durationSeconds,
         distanceMeters: typeof route.distanceMeters === "number" ? route.distanceMeters : undefined,
+        // What a map draws between the two pins.
+        encodedPolyline: typeof route.polyline?.encodedPolyline === "string" ? route.polyline.encodedPolyline : undefined,
         steps,
       });
     } catch { res.status(502).json({ error: "路線服務暫時無法使用。" }); }

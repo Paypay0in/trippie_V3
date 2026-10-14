@@ -3,7 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCommerceInfo, TripMember } from '../types';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
-import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
+import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
 import { fetchPlaceCommerce, hasDisplayableCommerce } from '../services/placeCommerceService';
 import { itemsForDay, orderItemsForDay, hasTimeOrderConflict } from '../services/itineraryOrdering';
@@ -44,6 +44,7 @@ import { fixedAnchorSchedule } from '../services/itineraryDayFloor';
 import SavedPlaceCard from './SavedPlaceCard';
 import StayDetailSheet from './StayDetailSheet';
 import TransportLeg from './TransportLeg';
+import DayMap from './DayMap';
 import { hasGroundJourneyBetween } from '../services/transportLegVisibility';
 
 interface Props {
@@ -202,6 +203,11 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     through Day 1 or overwrite a day the traveller had already tapped.
   */
   const [selectedDate, setSelectedDate] = useState<string | undefined>(undefined);
+  /*
+    「行程的地圖模式」. The button for this has existed in the header since before
+    this state did — rendered, styled, and wired to nothing at all.
+  */
+  const [mapMode, setMapMode] = useState(false);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : defaultItineraryDate(dates);
 
   /**
@@ -899,7 +905,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6b4df6]">ITINERARY</p><h2 className="mt-1 text-xl font-black text-[#111A4A]">行程規劃</h2><p className="mt-1 text-xs text-slate-400">規劃每日行程，讓旅程更順暢、更有趣。</p></div>
-        <div className="flex shrink-0 items-center gap-2">{onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] px-3 py-2 text-xs font-black text-white shadow-[0_6px_14px_rgba(91,61,245,.16)]"><Plus size={14} />新增行程</button>}<button type="button" className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#eceaf5] bg-white px-3 py-2 text-xs font-bold text-[#5b3df5] shadow-sm"><Map size={14} />地圖模式</button><button type="button" aria-label="更多選項" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={17} /></button></div>
+        <div className="flex shrink-0 items-center gap-2">{onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] px-3 py-2 text-xs font-black text-white shadow-[0_6px_14px_rgba(91,61,245,.16)]"><Plus size={14} />新增行程</button>}<button type="button" data-testid="toggle-map-mode" aria-pressed={mapMode} onClick={() => setMapMode(value => !value)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold shadow-sm ${mapMode ? 'bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-white' : 'border border-[#eceaf5] bg-white text-[#5b3df5]'}`}>{mapMode ? <List size={14} /> : <Map size={14} />}{mapMode ? '列表模式' : '地圖模式'}</button><button type="button" aria-label="更多選項" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={17} /></button></div>
       </div>
       {dates.length > 0 && <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{dates.map((date, index) => {
         /*
@@ -1198,6 +1204,18 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         onPointerCancel={endDrag}
         className="relative"
       >
+        {/*
+          The day drawn, above the day listed.
+
+          Kept above rather than instead of: the list is where times are
+          edited, dragged and ticked, and a map that replaced it would take all
+          of that away to show where the stops are.
+        */}
+        {mapMode && dayItems.length > 0 && (
+          <div className="mb-4">
+            <DayMap items={previewItemsTimed ?? previewItems.filter(isTimedItem)} />
+          </div>
+        )}
         {dayItems.length === 0 ? (
           <div className="rounded-[22px] border border-[#eeeaff] bg-[#faf9ff] px-5 py-10 text-center text-sm text-slate-500">
             <div className="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#f0edff] text-[#6b4df6] shadow-inner"><CalendarDays size={27} strokeWidth={1.7} /><Sparkles className="absolute -right-1 -top-1 rounded-full bg-white p-1 text-[#8b3dff]" size={18} /></div><div className="font-black text-[#111A4A]">{activeDate ? '這一天尚未安排行程' : '尚未有行程規劃'}</div><div className="mx-auto mt-2 max-w-[240px] text-xs leading-relaxed text-slate-400">馬上新增行程，或使用 AI 幫你規劃吧！</div>
