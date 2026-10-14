@@ -62,3 +62,46 @@ describe('記住「這兩筆不是同一筆」', () => {
     expect(loadDismissedDuplicates()).toEqual({});
   });
 });
+
+/**
+ * 「每次打開都一直問」.
+ *
+ * Twelve of fourteen pairs had gone quiet and two kept coming back. The answer
+ * was filed under the two record ids, and an id is the one thing about a record
+ * this app does not control: a shared trip is rebuilt from the cloud on every
+ * open, so a row that returns as a new record returns with a new id.
+ */
+describe('當那兩筆的 id 在同步後換了', () => {
+  const kept = bill('old-a', { description: '交通卡儲值', amount: 2000, date: '2026-10-05' });
+  const other = bill('old-b', { description: '咖啡', amount: 2000, date: '2026-10-06' });
+  /** The same two purchases, rebuilt from the cloud under new ids. */
+  const keptAgain = { ...kept, id: 'new-a' };
+  const otherAgain = { ...other, id: 'new-b' };
+
+  it('答案還是算數', () => {
+    const answered = rememberDismissed({}, 'busan', [pair(kept, other)]);
+
+    expect(stillWorthAsking([pair(keptAgain, otherAgain)], answered, 'busan')).toHaveLength(0);
+  });
+
+  it('兩筆換邊也算數', () => {
+    const answered = rememberDismissed({}, 'busan', [pair(kept, other)]);
+
+    expect(stillWorthAsking([pair(otherAgain, keptAgain)], answered, 'busan')).toHaveLength(0);
+  });
+
+  /** A genuinely different purchase is still asked about. */
+  it('真的是另一筆消費還是會問', () => {
+    const answered = rememberDismissed({}, 'busan', [pair(kept, other)]);
+    const beer = bill('new-c', { description: '啤酒', amount: 2000, date: '2026-10-06' });
+
+    expect(stillWorthAsking([pair(keptAgain, beer)], answered, 'busan')).toHaveLength(1);
+  });
+
+  /** And the answer stays inside its own trip. */
+  it('不會外溢到別的旅程', () => {
+    const answered = rememberDismissed({}, 'busan', [pair(kept, other)]);
+
+    expect(stillWorthAsking([pair(keptAgain, otherAgain)], answered, 'seoul')).toHaveLength(1);
+  });
+});
