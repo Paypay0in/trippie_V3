@@ -42,7 +42,8 @@ import { cityDisplayName } from '../services/cityNames';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
 import { strandedSaves } from '../services/strandedSaves';
-import { CATEGORY_LABELS } from '../services/placeCategory';
+import { CATEGORY_LABELS, placeCategory } from '../services/placeCategory';
+import type { PlaceCategory } from '../types';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
 
@@ -239,6 +240,18 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const [openPlaceGroupId, setOpenPlaceGroupId] = useState<string | null>(null);
   /** Google's one-line description, for the saved places that carry no points. */
   const [basicsByGroupId, setBasicsByGroupId] = useState<Record<string, string>>({});
+  /**
+   * The 🏷️ tag read off the basics this row already fetched.
+   *
+   * 「這不是景點嗎」 — the card was printing 「Art museum · ★ 4.4（4,425）」 and
+   * showing no tag beside it, because the stored `category` is written by a
+   * lookup and that record had been settled as 「other」 before the type table
+   * could read `art_museum`.
+   *
+   * The answer was on the screen the whole time. No request is added: this is
+   * the same `fetchPlaceBasics` the line above it already made.
+   */
+  const [categoryByGroupId, setCategoryByGroupId] = useState<Record<string, PlaceCategory>>({});
   /*
     Adding a place by hand, which is its own search.
 
@@ -660,12 +673,15 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     void Promise.all(wanted.map(async ({ groupId, placeId }) => {
       const basics = await fetchPlaceBasics(placeId);
       const line = summarizePlaceBasics(basics) || basics?.summary || '';
-      return line ? [groupId, line] as const : null;
+      const category = placeCategory({ primaryType: basics?.primaryType, kind: basics?.kind });
+      return [groupId, line, category] as const;
     })).then(found => {
       if (cancelled) return;
-      const resolved = found.filter((entry): entry is readonly [string, string] => entry !== null);
-      if (resolved.length === 0) return;
-      setBasicsByGroupId(current => ({ ...current, ...Object.fromEntries(resolved) }));
+      const lines = found.filter(([, line]) => Boolean(line)).map(([id, line]) => [id, line] as const);
+      const tags = found.filter(([, , category]) => category !== 'other')
+        .map(([id, , category]) => [id, category] as const);
+      if (lines.length > 0) setBasicsByGroupId(current => ({ ...current, ...Object.fromEntries(lines) }));
+      if (tags.length > 0) setCategoryByGroupId(current => ({ ...current, ...Object.fromEntries(tags) }));
     });
 
     return () => { cancelled = true; };
@@ -1269,14 +1285,24 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                         answers — 「這是什麼」 — is asked while scanning, and the
                         grey line is read only after stopping.
                       */}
-                      {group.category && group.category !== 'other' && (
-                        <span
-                          data-testid={`category-${group.id}`}
-                          className="shrink-0 rounded-lg bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700"
-                        >
-                          {CATEGORY_LABELS[group.category]}
-                        </span>
-                      )}
+                      {(() => {
+                        /*
+                          The stored tag, or the one this row's own basics say.
+                          See `categoryByGroupId`: 「other」 is 「asked, and there
+                          was no answer」, so it does not block a later reading.
+                        */
+                        const tag = (group.category && group.category !== 'other')
+                          ? group.category
+                          : categoryByGroupId[group.id];
+                        return tag && tag !== 'other' ? (
+                          <span
+                            data-testid={`category-${group.id}`}
+                            className="shrink-0 rounded-lg bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700"
+                          >
+                            {CATEGORY_LABELS[tag]}
+                          </span>
+                        ) : null;
+                      })()}
                       {isPlanned && (
                         <span className="shrink-0 rounded-lg bg-slate-200/80 px-2 py-0.5 text-[10px] font-black text-slate-600">已在行程中</span>
                       )}

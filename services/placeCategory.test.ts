@@ -73,3 +73,45 @@ describe('what gets printed', () => {
     expect(placeCategoryLabel({})).toBe('');
   });
 });
+
+/**
+ * 「這不是景點嗎」.
+ *
+ * 東京都現代美術館 resolved to `art_museum` — measured against the live route —
+ * and the table held `museum` and `art_gallery` but not that one, so the card
+ * printed 「Art museum · ★ 4.4（4,425）」 with no tag beside it.
+ *
+ * Listing every combination Google composes is the list nobody finishes. The
+ * parts are matched instead.
+ */
+describe('types the table does not name', () => {
+  /* Measured from the live resolve route against his own collection. */
+  it('reads a composed type by its parts', () => {
+    expect(placeCategory({ primaryType: 'art_museum' })).toBe('sight');
+    expect(placeCategory({ primaryType: 'wholesale_market' })).toBe('shop');
+    expect(placeCategory({ primaryType: 'vegan_restaurant' })).toBe('food');
+    expect(placeCategory({ primaryType: 'cat_cafe' })).toBe('cafe');
+  });
+
+  /*
+    The order is the whole correctness argument: 「coffee_shop」 contains 「shop」,
+    so the café stems must be read before the shop ones.
+  */
+  it('reads a coffee shop as a café, not a shop', () => {
+    expect(placeCategory({ primaryType: 'coffee_shop' })).toBe('cafe');
+    expect(placeCategory({ primaryType: 'tea_house' })).toBe('cafe');
+  });
+
+  /* These all came back from the live route for places he has saved. */
+  it('still reads the ones the table does name', () => {
+    expect(placeCategory({ primaryType: 'performing_arts_theater' })).toBe('sight');
+    expect(placeCategory({ primaryType: 'transit_station' })).toBe('transport');
+    expect(placeCategory({ primaryType: 'bakery' })).toBe('cafe');
+    expect(placeCategory({ primaryType: 'market' })).toBe('shop');
+  });
+
+  /* A type with no part this app knows is still an honest blank. */
+  it('says nothing for a type it cannot read', () => {
+    expect(placeCategory({ primaryType: 'dentist' })).toBe('other');
+  });
+});

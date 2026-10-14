@@ -54,6 +54,27 @@ const BY_TYPE: Record<string, PlaceCategory> = {
 };
 
 /**
+ * Stems, for the types the table above does not name.
+ *
+ * 「這不是景點嗎」 — 東京都現代美術館 came back as `art_museum`, and the table held
+ * `museum` and `art_gallery` but not that. Google's type names are built out of
+ * parts: `art_museum`, `ramen_restaurant`, `wholesale_market`. Listing every
+ * combination is the list nobody finishes — the same trap as a country synonym
+ * table — so the parts are matched instead.
+ *
+ * Ordered, and the order is the whole correctness argument: `coffee_shop`
+ * contains 「shop」, so the café stems have to be read before the shop ones.
+ */
+const TYPE_STEMS: [RegExp, PlaceCategory][] = [
+  [/cafe|coffee|bakery|dessert|tea_house|patisserie|ice_cream|juice/, 'cafe'],
+  [/restaurant|bbq|steak|diner|eatery|food_court|bar$|_bar|pub|izakaya/, 'food'],
+  [/hotel|lodging|hostel|inn$|_inn|resort|ryokan|campground/, 'stay'],
+  [/museum|gallery|temple|shrine|church|mosque|synagogue|monument|landmark|attraction|theater|theatre|zoo|aquarium|garden|park|observation|castle|tower|historical/, 'sight'],
+  [/store|shop|market|mall|boutique|pharmacy/, 'shop'],
+  [/station|airport|terminal|transit|_rental|parking|bus_|train_|subway|ferry/, 'transport'],
+];
+
+/**
  * The localized category text, for records resolved before `primaryType` was
  * asked for. Substrings rather than whole words: Google writes 「義大利餐廳」 and
  * 「拉麵店」, never the bare word.
@@ -88,7 +109,11 @@ export const placeCategory = (
   if (fromSlice) return fromSlice;
 
   const type = (input.primaryType || '').trim().toLowerCase();
-  if (type && BY_TYPE[type]) return BY_TYPE[type];
+  if (type) {
+    if (BY_TYPE[type]) return BY_TYPE[type];
+    const stem = TYPE_STEMS.find(([pattern]) => pattern.test(type));
+    if (stem) return stem[1];
+  }
 
   const kind = (input.kind || '').trim();
   if (kind) {
