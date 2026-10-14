@@ -3584,7 +3584,15 @@ const App: React.FC = () => {
           return true;
         });
       },
-    );
+    /*
+      Read with this trip's own conventions when the additions are grouped onto
+      their area's day. 「你在做分區的時候你要去抓取這個旅冊的國家地點 不然會有誤」.
+    */
+    tripCountry(
+      tripInspirationContext.destinationCountry || travelCountry,
+      flightAnchors,
+    ),
+  );
     const nextItinerary = result.items;
     const nextDrafts = drafts.map((draft) => draft.id === activeDraftId
       ? { ...draft, itinerary: nextItinerary, updatedAt: new Date().toISOString() }

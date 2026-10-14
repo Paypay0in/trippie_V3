@@ -1,3 +1,4 @@
+import { additionsToTheirArea } from './additionsToTheirArea';
 import { separateOverlaps, timeTheUntimed } from './separateOverlaps';
 import { ItineraryItem } from '../types';
 import {
@@ -589,6 +590,11 @@ export const applyItineraryAdjustment = (
    * shop. Omitted leaves the behaviour as it was.
    */
   notesForInspirations?: (inspirationIds: string[]) => ItineraryItem['savedTravelNotes'],
+  /**
+   * The trip's country, so an address is read with its own conventions when
+   * the additions are grouped onto their area's day. See `districtOf`.
+   */
+  country?: string,
 ): ItineraryAdjustmentApplyResult => {
   const allowed = ALLOWED_CHANGE_TYPES[proposal.mode];
   const byId = new Map(existing.map(item => [item.id, item]));
@@ -697,7 +703,16 @@ export const applyItineraryAdjustment = (
     adjustment's own additions: an item the traveller left untimed stays that
     way. See `timeTheUntimed`.
   */
-  const timed = timeTheUntimed(items, new Set(additions.map(item => item.id)));
+  const addedIds = new Set(additions.map(item => item.id));
+
+  /*
+    The day each addition lands on, decided by its area rather than by the
+    model. 「同一區域的可以安排同一天」, and 「混排」 twice after the areas went into
+    the prompt by name — so the job is taken away from it, the same way the
+    overlap and the missing time were. See `additionsToTheirArea`.
+  */
+  const grouped = additionsToTheirArea(items, addedIds, country);
+  const timed = timeTheUntimed(grouped.items, addedIds);
   const separated = separateOverlaps(timed.items);
 
   return {
