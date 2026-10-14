@@ -38,6 +38,7 @@ import { knowsWhereItIs, placesNeedingBackfill } from '../services/inspirationBa
 import { resolvePlace } from '../services/placeService';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import { countryDisplayName } from '../services/countryIdentity';
+import { cityDisplayName } from '../services/cityNames';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
 import { AREA_COLORS } from '../constants/areaColors';
@@ -1139,7 +1140,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                         <span className="shrink-0 rounded-lg bg-slate-200/80 px-2 py-0.5 text-[10px] font-black text-slate-600">已在行程中</span>
                       )}
                     </span>
-                    <span className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{placeWhereLabel(group.city, countryDisplayName(group.country))}</span>
+                    <span className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{placeWhereLabel(cityDisplayName(group.city), countryDisplayName(group.country))}</span>
                     {!isPlanned && group.missingPlaceIdentity && (
                       <span className="mt-1.5 flex items-start gap-1.5 text-[11px] font-bold text-amber-600"><AlertTriangle size={12} className="mt-0.5 shrink-0" />地圖上還沒找到這個地點</span>
                     )}

@@ -12,21 +12,25 @@ import { cityFromComponents } from './addressComponents';
 
 const component = (longText: string, ...types: string[]) => ({ longText, types });
 
-describe('reading the town off an address', () => {
-  it('takes the locality', () => {
+describe('reading the city off an address', () => {
+  /*
+    「不要以區為單位，要是城市。日本。東京 這樣」. Ward level is what an *area
+    heading* wants, and `districtOf` still does that — a saved note belongs
+    under the city somebody says they went to, and nobody says 台東区.
+  */
+  it('reads a Tokyo address as Tokyo, not as its ward', () => {
     expect(cityFromComponents([
       component('日本', 'country'),
       component('東京都', 'administrative_area_level_1'),
       component('台東区', 'locality'),
-    ])).toBe('台東区');
+    ])).toBe('東京都');
   });
 
-  /* A ward says more to somebody standing in Tokyo than 東京都 does. */
-  it('prefers a ward over the prefecture', () => {
+  it('does the same for a ward in the sublocality', () => {
     expect(cityFromComponents([
       component('東京都', 'administrative_area_level_1'),
       component('渋谷区', 'sublocality_level_1'),
-    ])).toBe('渋谷区');
+    ])).toBe('東京都');
   });
 
   it('falls back to the prefecture for a place in no town', () => {
@@ -43,11 +47,66 @@ describe('reading the town off an address', () => {
     expect(cityFromComponents(undefined)).toBeUndefined();
   });
 
-  it('works for Korea too', () => {
+  it('reads a Korean address as the city, not the district', () => {
     expect(cityFromComponents([
       component('대한민국', 'country'),
       component('부산광역시', 'administrative_area_level_1'),
       component('해운대구', 'sublocality_level_1'),
-    ])).toBe('해운대구');
+    ])).toBe('부산광역시');
+  });
+});
+
+/**
+ * 「不要以區為單位，要是城市。日本。東京 這樣」.
+ *
+ * Measured against the live Places response, asked in zh-TW:
+ *
+ *   淺草寺    locality = Taito City   admin_1 = Tokyo
+ *   札幌時計台 locality = Sapporo      admin_1 = Hokkaido
+ *   大阪城    locality = Osaka        admin_1 = Osaka
+ *
+ * Tokyo's twenty-three special wards are municipalities in their own right, so
+ * there the locality is the ward. Everywhere else it already is the city.
+ */
+describe('city level, not ward level', () => {
+  it('reads a Tokyo ward as Tokyo', () => {
+    expect(cityFromComponents([
+      component('日本', 'country'),
+      component('Tokyo', 'administrative_area_level_1'),
+      component('Taito City', 'locality'),
+      component('Asakusa', 'sublocality_level_2', 'sublocality'),
+    ])).toBe('Tokyo');
+  });
+
+  it('reads Sapporo as Sapporo, not as Hokkaido or Chuo Ward', () => {
+    expect(cityFromComponents([
+      component('日本', 'country'),
+      component('Hokkaido', 'administrative_area_level_1'),
+      component('Sapporo', 'locality'),
+      component('Chuo Ward', 'sublocality_level_1', 'sublocality'),
+    ])).toBe('Sapporo');
+  });
+
+  it('reads Osaka as Osaka', () => {
+    expect(cityFromComponents([
+      component('Osaka', 'administrative_area_level_1'),
+      component('Osaka', 'locality'),
+      component('Chuo Ward', 'sublocality_level_1', 'sublocality'),
+    ])).toBe('Osaka');
+  });
+
+  it('handles the Japanese spelling of the prefecture', () => {
+    expect(cityFromComponents([
+      component('東京都', 'administrative_area_level_1'),
+      component('台東区', 'locality'),
+    ])).toBe('東京都');
+  });
+
+  /** A beach belongs to its region when it belongs to no town. */
+  it('falls back to the region for a place in no town', () => {
+    expect(cityFromComponents([
+      component('南韓', 'country'),
+      component('Busan', 'administrative_area_level_1'),
+    ])).toBe('Busan');
   });
 });

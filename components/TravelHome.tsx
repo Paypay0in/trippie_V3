@@ -33,6 +33,7 @@ import AppWordmark from "./AppWordmark";
 import NotificationCenter from "./NotificationCenter";
 import { DisputeNotice } from "../services/disputeInbox";
 import { countryDisplayName, countryKey } from '../services/countryIdentity';
+import { cityDisplayName } from '../services/cityNames';
 import { coverImageQuery, fixtureImageFor } from '../services/destinationCoverImage';
 
 interface Props {
@@ -264,7 +265,7 @@ const TravelHome: React.FC<Props> = ({
       */
       groups.set(key, current
         ? { ...current, count: current.count + 1 }
-        : { country: countryDisplayName(country), city, count: 1, id: `saved-${key}` });
+        : { country: countryDisplayName(country), city: cityDisplayName(city), count: 1, id: `saved-${key}` });
     });
     return Array.from(groups.values());
   }, [savedTravelInspirations]);
