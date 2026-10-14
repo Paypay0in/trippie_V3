@@ -323,6 +323,7 @@ import {
   isFixedItem,
 } from "./services/itineraryFixedEvents";
 import { CATEGORY_RULES, placeCategory } from "./services/placeCategory";
+import { visitsByPlace } from "./services/visitedPlaces";
 import ScreenshotItineraryIntake from "./components/ScreenshotItineraryIntake";
 import GlobalActionSheet, {
   GlobalActionContext,
@@ -6468,6 +6469,15 @@ const App: React.FC = () => {
     );
     return (
       <SavedTravelDestinationDetail
+        /*
+          「若某次旅行有去過。要記錄：去的時間，並標註『已訪』」. Derived from the
+          traveller's own journeys plus the trip open now, so a place visited on
+          this trip's earlier days counts too.
+        */
+        visits={visitsByPlace(
+          [...tripHistory, { name: currentTripName, itinerary }],
+          new Date().toISOString().slice(0, 10),
+        )}
         /*
           「這在釜山 我無法改」 — a record bound to the wrong place is missing
           nothing, so every repair built around 「what is incomplete」 skipped it.

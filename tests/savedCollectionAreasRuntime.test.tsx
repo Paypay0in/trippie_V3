@@ -385,3 +385,28 @@ describe('a card carrying nine notes by one person', () => {
     expect(screen.queryByTestId('notes-author-a')).toBeNull();
   });
 });
+
+/**
+ * 「收藏的筆記中，若某次旅行有去過。要記錄：去的時間，並標註『已訪』」.
+ */
+describe('去過的地方', () => {
+  it('標上已訪與去的那一天', () => {
+    mount(
+      [saved({ id: 'a', placeName: 'らぁ麺や 嶋', placeId: 'ChIJx', ...HAEUNDAE })],
+      {
+        visits: new Map([['place:ChIJx', { date: '2026-03-22', tripName: '東京 2026 春' }]]),
+      },
+    );
+
+    expect(screen.getByTestId('visited-a').textContent).toContain('2026/03/22');
+  });
+
+  /* A place still ahead on the plan has not been visited. */
+  it('沒去過的不標', () => {
+    mount([saved({ id: 'a', placeName: 'らぁ麺や 嶋', placeId: 'ChIJx', ...HAEUNDAE })], {
+      visits: new Map(),
+    });
+
+    expect(screen.queryByTestId('visited-a')).toBeNull();
+  });
+});
