@@ -33,9 +33,23 @@
 const NO_TRANSIT = [
   {
     match: /日本|japan|^jp$/i,
-    /** Where the traveller should actually look, named rather than implied. */
-    advice: '日本的大眾運輸 Google 路線服務查不到。Google 地圖 App 本身查得到，或用「乘換案內」這類日本在地 App。',
-    short: 'Google 地圖 App 或日本在地轉乘 App 查得到。',
+    /*
+      The reason, not just the refusal.
+
+      「日本的鐵路法規若不能顯示 我希望 app 是要告訴用戶原因 不要只寫查不到」 —
+      「查不到」 reads as 「there is no train」, which is the opposite of the truth
+      in the densest rail network on earth. What is actually true, and what was
+      measured rather than assumed: Google's routing service returns nothing
+      for Japan while answering normally for every neighbouring country on the
+      same key, and the consumer Google Maps app has the timetables.
+
+      Said as a limit of the data we can reach, not as a legal claim. The
+      Korean notice above does name a legal restriction, because that one is
+      documented; this one is not, and inventing a reason is worse than naming
+      the boundary.
+    */
+    advice: '這不是沒有車 —— 東京的電車密度是世界最高之一。是 Google 開放給 App 使用的路線服務沒有日本的電車班次，而 Google 地圖 App 本身有。用下面的連結，或日本在地的「乘換案內」這類 App。',
+    short: '不是沒有車，是這個路線服務拿不到日本的班次。',
   },
 ];
 

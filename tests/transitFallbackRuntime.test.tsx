@@ -45,6 +45,30 @@ describe('a Japanese transit leg', () => {
     expect(link.getAttribute('href')).toContain('35.772,140.3929');
   });
 
+  /*
+    「日本的鐵路法規若不能顯示 我希望 app 是要告訴用戶原因 不要只寫查不到」 —
+    「查不到」 reads as 「there is no train」, in the densest rail network on earth.
+  */
+  it('says why, not just that it failed', async () => {
+    render(<TransportLeg origin={NARITA} destination={ASAKUSA} destinationCountry="日本" />);
+    askForTransit();
+
+    await screen.findByTestId('transit-unsupported-hint');
+
+    expect(screen.getByTestId('transport-leg').textContent).toContain('不是沒有車');
+    expect(screen.getByTestId('transport-leg').textContent).not.toContain('查不到班次');
+  });
+
+  it('names the country from the trip rather than hardcoding one', async () => {
+    render(<TransportLeg origin={NARITA} destination={ASAKUSA} destinationCountry="Japan" />);
+    askForTransit();
+
+    await screen.findByTestId('transit-unsupported-hint');
+
+    // 「Japan」 on the record, 「日本」 on the screen.
+    expect(screen.getByTestId('transport-leg').textContent).toContain('日本電車班次');
+  });
+
   it('is a link, not a sentence telling somebody to go and look', async () => {
     render(<TransportLeg origin={NARITA} destination={ASAKUSA} destinationCountry="日本" />);
     askForTransit();

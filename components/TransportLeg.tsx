@@ -5,6 +5,7 @@ import { naverRouteUrl } from '../services/naverMapLinks';
 import { fetchRouteLeg, RouteLeg, TravelMode, TRAVEL_MODE_LABELS } from '../services/routesService';
 import { isSameSpot, noRouteDetail, noRouteSummary } from '../services/transportLegWording';
 import { defaultTravelMode, transitIsUnavailable, transitUnavailableHint, transitUnavailableReason } from '../services/transitCoverage';
+import { countryDisplayName } from '../services/countryIdentity';
 
 interface Props {
   origin: { latitude: number; longitude: number; title: string };
@@ -133,7 +134,9 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
     : isKorea(destinationCountry)
       ? `🚫 因法規限制，Google 地圖無法以「${TRAVEL_MODE_LABELS[mode]}」查詢`
       : mode === 'TRANSIT' && transitIsUnavailable(destinationCountry)
-        ? '這個國家的大眾運輸查不到班次'
+        // Named from the country, not hardcoded: the coverage table is general
+        // and a second entry would otherwise be announced as Japan.
+        ? `${countryDisplayName(destinationCountry)}電車班次不在這個路線服務的範圍內`
         : noRouteSummary(TRAVEL_MODE_LABELS[mode], sameSpot);
   // Nothing to open while the answer is still being fetched or the request
   // failed outright; a refused mode still opens, because the sheet is where the

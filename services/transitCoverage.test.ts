@@ -46,7 +46,16 @@ describe('what the traveller is told', () => {
   /* Pressing the button again cannot help, so the thing that does is named. */
   it('names where the answer actually is', () => {
     expect(transitUnavailableReason('日本')).toContain('Google 地圖 App');
-    expect(transitUnavailableHint('日本')).toContain('App');
+  });
+
+  /*
+    「不要只寫查不到」 — 「查不到」 reads as 「there is no train」, in the densest rail
+    network on earth. The link directly above this line already says where to
+    go, so the line itself is spent on why.
+  */
+  it('says why rather than repeating where', () => {
+    expect(transitUnavailableHint('日本')).toContain('不是沒有車');
+    expect(transitUnavailableReason('日本')).toContain('不是沒有車');
   });
 
   it('says nothing where transit works', () => {
