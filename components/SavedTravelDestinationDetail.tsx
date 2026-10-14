@@ -10,6 +10,7 @@ import { countryDisplayName } from '../services/countryIdentity';
 import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import SavedPlaceCard from './SavedPlaceCard';
+import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 
 type Props = {
   country: string;
@@ -92,6 +93,48 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
   const [openPlaceId, setOpenPlaceId] = useState<string | null>(null);
   /** The place whose notes are being rewritten, and the working copy. */
   const [editing, setEditing] = useState<{ id: string; drafts: SavedExperienceNote[] } | null>(null);
+
+  /*
+    What Google already knows about a place nobody wrote anything about.
+
+    「像這樣的旅行筆記 能請AI整理一些小重點嗎，至少寫是什麼餐廳」 — and 「什麼餐廳」
+    is a fact Google holds about that exact place id: its category, its rating,
+    its price band. The planner has shown this line for months; this screen,
+    reading the same records, showed the name and the city and nothing else.
+
+    Not generated. A plausible sentence about a restaurant nobody has checked
+    reads exactly like a checked one, which is the reason `placeBasics` was
+    written to return only fields Google answered with.
+
+    Only for places with no points of their own: a row that already carries
+    what somebody wrote does not need a category line above it.
+  */
+  const [basicsById, setBasicsById] = useState<Record<string, string>>({});
+  const basicsKey = items
+    .filter(item => item.notes.length === 0 && item.placeId)
+    .map(item => `${item.id}:${item.placeId}`)
+    .join('|');
+
+  useEffect(() => {
+    if (!basicsKey) return;
+    let cancelled = false;
+    const wanted = basicsKey.split('|').map(entry => {
+      const separator = entry.lastIndexOf(':');
+      return { id: entry.slice(0, separator), placeId: entry.slice(separator + 1) };
+    });
+
+    void Promise.all(wanted.map(async ({ id, placeId }) => {
+      const basics = await fetchPlaceBasics(placeId).catch(() => null);
+      const line = summarizePlaceBasics(basics) || basics?.summary || '';
+      return line ? [id, line] as const : null;
+    })).then(found => {
+      if (cancelled) return;
+      const resolved = found.filter((entry): entry is readonly [string, string] => entry !== null);
+      if (resolved.length > 0) setBasicsById(current => ({ ...current, ...Object.fromEntries(resolved) }));
+    });
+
+    return () => { cancelled = true; };
+  }, [basicsKey]);
 
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   const [image, setImage] = useState<DestinationImage | null>(null);
@@ -177,6 +220,11 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             <button type="button" data-testid={`edit-notes-${item.id}`} onClick={() => { setEditing({ id: item.id, drafts: item.notes.map(note => ({ ...note })) }); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯收藏內容<span className="mt-0.5 block text-[10px] font-medium text-slate-400">調整這個地點已收藏的旅行經驗</span></button>
             <button type="button" onClick={() => { setRemoveTarget(item); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">移除這個地點<span className="mt-0.5 block text-[10px] font-medium text-rose-400">從我的旅行筆記移除</span></button>
           </div>}
+          {item.notes.length === 0 && basicsById[item.id] && (
+            <p data-testid={`basics-${item.id}`} className="mt-1.5 text-[11px] font-bold text-slate-500">
+              {basicsById[item.id]}
+            </p>
+          )}
           <div className="mt-2 space-y-1.5">
             {item.notes.map(note => {
               const sourcePost = note.sourcePostId ? communityPosts.find(post => post.id === note.sourcePostId) : undefined;

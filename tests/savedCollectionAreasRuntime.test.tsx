@@ -196,3 +196,63 @@ describe('editing what was saved about a place', () => {
     expect(onUpdateNotes).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 「像這樣的旅行筆記 能請AI整理一些小重點嗎，至少寫是什麼餐廳」.
+ *
+ * 「什麼餐廳」 is a fact Google holds about that exact place id. Posted at the
+ * live route, 大海鮑魚粥 comes back 「韓國餐廳, 4.4 (257), PRICE_LEVEL_MODERATE」.
+ *
+ * Not generated: a plausible sentence about a restaurant nobody has checked
+ * reads exactly like a checked one, which is why `placeBasics` returns only
+ * fields Google answered with.
+ */
+describe('a saved place nobody wrote anything about', () => {
+  const BASICS = {
+    basics: {
+      kind: '韓國餐廳', rating: 4.4, ratingCount: 257,
+      priceLevel: 'PRICE_LEVEL_MODERATE', businessStatus: 'OPERATIONAL',
+    },
+  };
+
+  it('says what kind of place it is', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => BASICS })) as never);
+    mount([saved({ id: 'a', placeName: '大海鮑魚粥', placeId: 'p1', notes: [], ...HAEUNDAE })]);
+
+    const line = await screen.findByTestId('basics-a');
+
+    expect(line.textContent).toContain('韓國餐廳');
+    expect(line.textContent).toContain('4.4');
+    vi.unstubAllGlobals();
+  });
+
+  /* A row that already carries what somebody wrote does not need a category. */
+  it('says nothing extra where there are already notes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => BASICS })) as never);
+    mount([saved({
+      id: 'a', placeName: '大海鮑魚粥', placeId: 'p1', ...HAEUNDAE,
+      notes: [{ id: 'n', sourceNoteId: 'n', sourceSliceId: 's', sourcePostId: 'p', sourceCreatorId: 'c', type: 'other', text: '鮑魚粥好吃' }],
+    })]);
+
+    await screen.findByText('鮑魚粥好吃');
+
+    expect(screen.queryByTestId('basics-a')).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  /*
+    Nothing to look up without an id, and nothing to invent either. Asserted
+    on the route rather than on fetch itself — this screen also fetches its
+    hero image and its thumbnails, so 「fetch was never called」 would be a
+    claim about the wrong thing.
+  */
+  it('asks nothing of the place service without a map identity', () => {
+    const fetchSpy = vi.fn(async (url: string) => ({ url, ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchSpy as never);
+    mount([saved({ id: 'a', placeName: 'Working holiday', notes: [] })]);
+
+    const calls = fetchSpy.mock.calls.map(call => String(call[0]));
+    expect(calls.some(url => url.includes('/api/places/basics'))).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
