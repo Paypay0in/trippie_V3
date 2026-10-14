@@ -75,6 +75,25 @@ const fold = (
     latitude: first.latitude ?? second.latitude,
     longitude: first.longitude ?? second.longitude,
     placePhotoUrl: first.placePhotoUrl || second.placePhotoUrl,
+    /*
+      Fields added to the record after this merge was written, and therefore
+      silently dropped by it: `...first` carries whatever the first record
+      happens to hold, and anything the second one knew was lost.
+
+      「有出現 但又消失了 沒有穩定存在」 — this merge runs whenever the two devices'
+      lists fold together, so a place could show its 🏷️ tag and then lose it on
+      the next fold, depending only on which copy was read first. `district`
+      names the area heading and `placeResolvedAt` decides whether the backfill
+      offers the record again; both were being dropped the same way.
+    */
+    district: first.district || second.district,
+    placeResolvedAt: first.placeResolvedAt || second.placeResolvedAt,
+    /*
+      「other」 means 「asked, and Google had no category」. It is truthy and it is
+      not a tag, so a real answer on either copy wins over it.
+    */
+    category: realCategory(first.category) || realCategory(second.category)
+      || first.category || second.category,
     notes,
     sourceNoteIds: Array.from(new Set([...first.sourceNoteIds, ...second.sourceNoteIds])),
   };
@@ -86,6 +105,10 @@ const fold = (
  * Order follows first appearance, so a list does not reshuffle itself every
  * time the other phone syncs.
  */
+/** 「other」 is stored to settle the backfill's loop; it is not a tag. */
+const realCategory = (category?: SavedTravelInspiration['category']) =>
+  (category && category !== 'other' ? category : undefined);
+
 export const mergeTripInspirations = (
   ...lists: SavedTravelInspiration[][]
 ): SavedTravelInspiration[] => {

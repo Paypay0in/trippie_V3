@@ -102,3 +102,43 @@ describe('已經重複的清單', () => {
     expect(findDuplicateInspirations([saved({ id: '1' }), saved({ id: '2', placeName: '甘川洞' })])).toEqual([]);
   });
 });
+
+/**
+ * 「有出現 但又消失了 沒有穩定存在」.
+ *
+ * This merge spreads the first record and then lifts a fixed list of fields off
+ * the second. Every field added to the record since it was written — the 🏷️
+ * tag, the ward, the lookup stamp — was being dropped, so whatever the second
+ * copy knew was lost the moment the two devices' lists folded together.
+ */
+describe('合併時不能把後來才加的欄位丟掉', () => {
+  const pair = (first: Partial<SavedTravelInspiration>, second: Partial<SavedTravelInspiration>) =>
+    mergeTripInspirations(
+      [saved({ id: 'a', placeId: 'ChIJx', ...first })],
+      [saved({ id: 'b', placeId: 'ChIJx', ...second })],
+    )[0];
+
+  it('保留另一份知道的標籤、行政區與查詢時間', () => {
+    const merged = pair({}, {
+      category: 'food',
+      district: 'Haeundae',
+      placeResolvedAt: '2026-10-14T10:00:00.000Z',
+    });
+
+    expect(merged.category).toBe('food');
+    expect(merged.district).toBe('Haeundae');
+    expect(merged.placeResolvedAt).toBe('2026-10-14T10:00:00.000Z');
+  });
+
+  /* 「other」 is 「asked, and there was no answer」 — a real tag beats it. */
+  it('真的分類贏過 other，不論哪一份先讀到', () => {
+    expect(pair({ category: 'other' }, { category: 'food' }).category).toBe('food');
+    expect(pair({ category: 'food' }, { category: 'other' }).category).toBe('food');
+  });
+
+  /* And 「other」 still survives when it is all either copy has, so the backfill
+     does not start offering the place again. */
+  it('兩份都只有 other 時仍然保留 other', () => {
+    expect(pair({ category: 'other' }, { category: 'other' }).category).toBe('other');
+  });
+});
