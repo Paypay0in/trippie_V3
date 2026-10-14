@@ -283,10 +283,18 @@ describe('buildTripPlanningSelection', () => {
     expect(merged[0].inspirationIds).toEqual(['insp-b', 'insp-b2']);
   });
 
+  /*
+    A whitelist, deliberately. Everything that crosses into planning is listed
+    here by hand so a field added to the group cannot ride along unnoticed —
+    the community post payload is on the other side of this line.
+
+    `district` was added on purpose: the ward is what names an area, and
+    「成功載入 shibuya 那就要變成是 shibuya 區吧？」 is the planner asking for it.
+  */
   it('carries only the planning contract, never the community post payload', () => {
     const [selected] = buildTripPlanningSelection(groups, [HAEUNDAE_GROUP_ID]);
     expect(Object.keys(selected).sort()).toEqual([
-      'address', 'city', 'coordinates', 'country', 'experienceNotes', 'groupId', 'inspirationIds', 'missingPlaceIdentity', 'placeId', 'placeName',
+      'address', 'city', 'coordinates', 'country', 'district', 'experienceNotes', 'groupId', 'inspirationIds', 'missingPlaceIdentity', 'placeId', 'placeName',
     ]);
   });
 

@@ -57,6 +57,8 @@ export interface TripInspirationPlaceGroup {
   placeName: string;
   country: string;
   city: string;
+  /** The ward, for naming the area this place sits in. See `districtFromComponents`. */
+  district?: string;
   coordinates?: PlaceCoordinates;
   formattedAddress?: string;
   placePhotoUrl?: string;
@@ -77,6 +79,7 @@ export interface TripPlanningInspirationSelection {
   placeName: string;
   country?: string;
   city?: string;
+  district?: string;
   coordinates?: PlaceCoordinates;
   /** Already-resolved formatted address, so the planner never re-looks-it-up. */
   address?: string;
@@ -326,6 +329,8 @@ export const groupInspirationsByPlace = (
         placeName: (item.resolvedPlaceName || item.placeName).trim(),
         country: item.country.trim(),
         city: item.city.trim(),
+        // The ward, for naming the area this place sits in.
+        district: item.district?.trim() || undefined,
         coordinates,
         formattedAddress: item.formattedAddress,
         placePhotoUrl: item.placePhotoUrl,
@@ -436,6 +441,7 @@ export const buildTripPlanningSelection = (
     placeName: group.placeName,
     country: group.country || undefined,
     city: group.city || undefined,
+    district: group.district || undefined,
     coordinates: group.coordinates,
     address: group.formattedAddress,
     experienceNotes: group.experienceNotes.map(note => ({ ...note })),

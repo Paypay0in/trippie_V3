@@ -8,7 +8,7 @@
  * have existed, and only the country was ever read out of them.
  */
 import { describe, expect, it } from 'vitest';
-import { cityFromComponents } from './addressComponents';
+import { cityFromComponents, districtFromComponents } from './addressComponents';
 
 const component = (longText: string, ...types: string[]) => ({ longText, types });
 
@@ -108,5 +108,46 @@ describe('city level, not ward level', () => {
       component('南韓', 'country'),
       component('Busan', 'administrative_area_level_1'),
     ])).toBe('Busan');
+  });
+});
+
+/**
+ * 「成功載入 shibuya 那就要變成是 shibuya 區吧？」
+ *
+ * The city had resolved and the area heading still read 「らぁ麺や 嶋 一帶」,
+ * because that heading is guessed out of the address string — and Google
+ * writes Japanese wards two ways: 「Taito City」 matches the English rule,
+ * 「…Honmachi, Shibuya, Tokyo」 matches nothing at all.
+ */
+describe('the ward, for naming an area', () => {
+  it('reads a Tokyo ward from the locality', () => {
+    expect(districtFromComponents([
+      component('Tokyo', 'administrative_area_level_1'),
+      component('Shibuya', 'locality'),
+    ])).toBe('Shibuya');
+  });
+
+  it('reads a ward below a city elsewhere', () => {
+    expect(districtFromComponents([
+      component('Hokkaido', 'administrative_area_level_1'),
+      component('Sapporo', 'locality'),
+      component('Chuo Ward', 'sublocality_level_1', 'sublocality'),
+    ])).toBe('Chuo Ward');
+  });
+
+  /* The two answer different questions and must not collapse into one. */
+  it('is not the same answer as the city', () => {
+    const tokyo = [
+      component('Tokyo', 'administrative_area_level_1'),
+      component('Taito City', 'locality'),
+    ];
+
+    expect(cityFromComponents(tokyo)).toBe('Tokyo');
+    expect(districtFromComponents(tokyo)).toBe('Taito City');
+  });
+
+  it('says nothing when there is no ward', () => {
+    expect(districtFromComponents([component('Busan', 'administrative_area_level_1')])).toBeUndefined();
+    expect(districtFromComponents(undefined)).toBeUndefined();
   });
 });

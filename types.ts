@@ -667,6 +667,15 @@ export interface SavedTravelInspiration {
   savedByUserId: string;
   country: string;
   city: string;
+  /**
+   * The ward, for naming the area this place sits in.
+   *
+   * 「成功載入 shibuya 那就要變成是 shibuya 區吧？」 — separate from `city` because
+   * they answer different questions: a note is filed under the city somebody
+   * says they went to（日本・東京）, and an area inside that city is named by
+   * its ward（Shibuya）.
+   */
+  district?: string;
   placeName: string;
   placeId?: string;
   resolvedPlaceName?: string;

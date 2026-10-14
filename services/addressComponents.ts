@@ -35,6 +35,29 @@ const TOKYO = /^(tokyo|東京都?)$/i;
 const componentOf = (components: AddressComponent[] | undefined, type: string): string | undefined =>
   components?.find(component => component.types?.includes(type))?.longText;
 
+/**
+ * The ward or district, which is what an *area heading* wants.
+ *
+ * 「成功載入 shibuya 那就要變成是 shibuya 區吧？」 — it had, and the heading still
+ * read 「らぁ麺や 嶋 一帶」, because that heading is guessed out of the address
+ * string and Google writes Japanese wards two ways: 「Taito City」 matches the
+ * English rule, 「…Honmachi, Shibuya, Tokyo」 matches nothing at all.
+ *
+ * Read from the components instead, where it is a labelled field rather than
+ * something to pattern-match out of prose. In Tokyo the ward is the locality;
+ * everywhere else the ward sits one level below it, in `sublocality_level_1`.
+ *
+ * Separate from `cityFromComponents` on purpose: a note is filed under the
+ * city somebody says they went to, and an area inside that city is named by
+ * its ward. 「日本・東京」 for the note, 「Shibuya」 for the heading.
+ */
+export const districtFromComponents = (components?: AddressComponent[]): string | undefined => {
+  const region = componentOf(components, 'administrative_area_level_1');
+  if (region && TOKYO.test(region.trim())) return componentOf(components, 'locality');
+  return componentOf(components, 'sublocality_level_1')
+    || componentOf(components, 'sublocality');
+};
+
 export const cityFromComponents = (components?: AddressComponent[]): string | undefined => {
   const locality = componentOf(components, 'locality');
   const region = componentOf(components, 'administrative_area_level_1');

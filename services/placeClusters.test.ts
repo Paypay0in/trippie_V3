@@ -282,3 +282,41 @@ describe('the trip s country decides how an address is read', () => {
     expect(districtOf('台北市大安區忠孝東路')).toBe('大安區');
   });
 });
+
+/**
+ * 「成功載入 shibuya 那就要變成是 shibuya 區吧？」
+ *
+ * The heading is guessed out of the address, and Google writes Japanese wards
+ * two ways — only one of them matchable. A place that has been looked up
+ * already knows its ward, so the heading asks it before falling back to a
+ * member's name.
+ */
+describe('a heading for a group whose address says no district', () => {
+  const place = (id: string, placeName: string, over: Record<string, unknown> = {}) =>
+    ({ id, placeName, ...over });
+
+  it('uses the ward the lookup established', () => {
+    const label = labelForCluster([
+      place('a', 'らぁ麺や 嶋', {
+        formattedAddress: '3-chōme-41-11 Honmachi, Shibuya, Tokyo 151-0071日本',
+        district: 'Shibuya',
+      }),
+    ], '日本');
+
+    expect(label).toBe('Shibuya');
+  });
+
+  /** The address still wins when it names one — it is the more specific text. */
+  it('prefers a district readable from the address', () => {
+    const label = labelForCluster([
+      place('a', 'X', { formattedAddress: '110042東京都台東区寿4丁目', district: 'Shibuya' }),
+    ], '日本');
+
+    expect(label).toBe('台東区');
+  });
+
+  /** And the member's name remains the last resort. */
+  it('falls back to a name when neither is known', () => {
+    expect(labelForCluster([place('a', '朋友家')], '日本')).toBe('朋友家 一帶');
+  });
+});

@@ -13,7 +13,7 @@ import { stripPriceClaims } from "./services/priceClaims";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { createModelLadder, LADDER_PASSES, PASS_PAUSE_MS } from "./services/modelLadder";
 import { isExpandableMapsLink } from "./services/mapsLinkInput";
-import { cityFromComponents } from "./services/addressComponents";
+import { cityFromComponents, districtFromComponents } from "./services/addressComponents";
 import { chooseMerchantPlace, merchantSearchQuery, placeLanguageFor } from "./services/merchantPlaceQuery";
 import { registerPlaceCommerceRoute } from "./services/placeCommerceLookup";
 import {
@@ -1179,6 +1179,9 @@ async function startServer() {
           resort for a place in no town at all.
         */
         city: cityFromComponents(data.addressComponents),
+        // The ward, which is what an area heading is named by. See
+        // `districtFromComponents`.
+        district: districtFromComponents(data.addressComponents),
         // Contact details, for a stay the traveller may need to phone from the
         // street. Absent for places Google has none for, which is why the UI
         // renders each button only when its value arrived.
@@ -1326,6 +1329,7 @@ async function startServer() {
               // The town, so a saved place knows more than which country it is
               // in. See `cityFromComponents`.
               city: cityFromComponents(selected.addressComponents),
+              district: districtFromComponents(selected.addressComponents),
               /*
                 The ISO code, which was always being fetched and thrown away.
 

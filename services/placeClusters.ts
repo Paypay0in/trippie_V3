@@ -20,6 +20,15 @@ export interface ClusterablePlace {
   latitude?: number;
   longitude?: number;
   formattedAddress?: string;
+  /**
+   * The ward, as Google labelled it rather than as the address spells it.
+   *
+   * 「成功載入 shibuya 那就要變成是 shibuya 區吧？」 — Google writes Japanese wards
+   * two ways, 「Taito City」 and a bare 「Shibuya」 inside the address line, and
+   * only the first can be pattern-matched out of prose. A saved place that has
+   * been looked up already knows the answer; this is that answer.
+   */
+  district?: string;
 }
 
 export interface PlaceCluster<T extends ClusterablePlace = ClusterablePlace> {
@@ -200,6 +209,19 @@ export const labelForCluster = (places: ClusterablePlace[], country?: string): s
 
   const best = Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0];
   if (best) return best[0];
+
+  /*
+    The ward a lookup already established, before falling back to a member's
+    name. Read off the records rather than out of the address, because Google
+    writes the same ward two ways and only one of them is matchable.
+  */
+  const stated = new Map<string, number>();
+  places.forEach(place => {
+    const district = (place.district || '').trim();
+    if (district) stated.set(district, (stated.get(district) || 0) + 1);
+  });
+  const statedBest = Array.from(stated.entries()).sort((left, right) => right[1] - left[1])[0];
+  if (statedBest) return statedBest[0];
 
   /*
     Nothing recognisable, so the group is named after what anchors it — and

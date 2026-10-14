@@ -2889,6 +2889,8 @@ const App: React.FC = () => {
     resolved: {
       placeId: string; placeName: string; address?: string;
       latitude?: number; longitude?: number; city?: string; country?: string;
+      /** The ward, which names the area this place sits in. */
+      district?: string;
     },
     options?: { silent?: boolean },
   ) => {
@@ -2914,6 +2916,7 @@ const App: React.FC = () => {
                 that returns no city leaves the existing value alone.
               */
               city: resolved.city || inspiration.city,
+              district: resolved.district || inspiration.district,
               /*
                 The spelling this trip already uses, when both mean the same
                 country. 「那這個問題點也可以限制在用戶成立旅冊」 — the backfill wrote

@@ -128,6 +128,8 @@ interface Props {
       latitude?: number; longitude?: number;
       /** Where it is, which is what the area grouping and the note cards read. */
       city?: string; country?: string;
+      /** The ward, which is what an area heading is named by. */
+      district?: string;
     },
     /** Set while backfilling, so twenty corrections do not raise twenty toasts. */
     options?: { silent?: boolean },
@@ -371,6 +373,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
           latitude: found.latitude,
           longitude: found.longitude,
           city: found.city,
+          district: found.district,
           country: found.country,
         }, { silent: true });
         filled += 1;
@@ -633,6 +636,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       latitude: group.coordinates?.latitude,
       longitude: group.coordinates?.longitude,
       formattedAddress: group.formattedAddress,
+      // The ward a lookup already established, for the heading.
+      district: group.district,
     })), undefined, trip.destinationCountry || trip.travelCountry),
     [groups, trip.destinationCountry, trip.travelCountry],
   );
