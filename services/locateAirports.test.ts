@@ -41,6 +41,47 @@ describe('uploading a ticket into a trip already open', () => {
     expect(anchor.arrivalAirportLongitude).toBeCloseTo(140.3929, 4);
   });
 
+  /*
+    「航班有帶入 但你沒帶入機場」 — the ticket says 「Taipei（TPE）」 and the card
+    said 抵達機場 · Taipei, a city, on a card whose subject is the airport.
+  */
+  it('names the airport, not the city the ticket printed', () => {
+    const [anchor] = applyFlightToDraft([draft()], parsed, 'OUTBOUND');
+
+    expect(anchor.departureAirport).toBe('Taiwan Taoyuan International Airport');
+    expect(anchor.arrivalAirport).toBe('Narita International Airport');
+    expect(anchor.departureAirportCity).toBe('Taipei');
+    expect(anchor.departureAirportCountry).toBe('Taiwan');
+  });
+
+  /*
+    The directory is English-only, so a ticket that already names the airport
+    in the traveller's language keeps its own wording. Only a city is replaced.
+  */
+  it('keeps a ticket that already names the airport', () => {
+    const [anchor] = applyFlightToDraft(
+      [draft()],
+      { ...parsed, departureAirport: '桃園國際機場' },
+      'OUTBOUND',
+    );
+
+    expect(anchor.departureAirport).toBe('桃園國際機場');
+    expect(anchor.departureAirportLatitude).toBeCloseTo(25.0777, 4);
+    expect(anchor.departureAirportCity).toBe('Taipei');
+  });
+
+  /** A code nobody curated keeps the only name there is: the ticket's. */
+  it('keeps the ticket name for an airport the directory does not hold', () => {
+    const [anchor] = applyFlightToDraft(
+      [draft()],
+      { ...parsed, departureAirport: '某個小機場', departureAirportIata: 'ZZZ' },
+      'OUTBOUND',
+    );
+
+    expect(anchor.departureAirport).toBe('某個小機場');
+    expect(anchor.departureAirportLatitude).toBeUndefined();
+  });
+
   /** The same join the trip-creating path already made. */
   it('agrees with the path that creates a trip from the ticket', () => {
     const [created] = flightAnchorsFromParsed([{ ...parsed, direction: 'OUTBOUND' }], () => 'x');

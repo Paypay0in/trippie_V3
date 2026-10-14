@@ -200,11 +200,20 @@ describe('landing', () => {
     expect(itemsFromFlightAnchor(anchor()).find(item => item.title === '航班抵達')).toBeUndefined();
   });
 
-  it('falls back to the IATA code when the airport has no name', () => {
+  /** A code in the curated directory names itself — 「你沒帶入機場」. */
+  it('names the airport the code stands for', () => {
     const items = itemsFromFlightAnchor(anchor({
       arrivalTime: '20:15', arrivalAirport: undefined, arrivalAirportIata: 'PUS',
     }));
-    expect(items.find(item => item.title === '航班抵達')?.location).toBe('PUS');
+    expect(items.find(item => item.title === '航班抵達')?.location)
+      .toBe('Gimhae International Airport');
+  });
+
+  it('falls back to the IATA code for an airport the directory does not hold', () => {
+    const items = itemsFromFlightAnchor(anchor({
+      arrivalTime: '20:15', arrivalAirport: undefined, arrivalAirportIata: 'ZZZ',
+    }));
+    expect(items.find(item => item.title === '航班抵達')?.location).toBe('ZZZ');
   });
 
   it('keeps a stable id, so re-deriving updates rather than duplicates', () => {

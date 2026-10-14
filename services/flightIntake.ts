@@ -13,6 +13,7 @@
 
 import { FlightAnchor } from '../types';
 import { findAirportByIata } from './airportDirectory';
+import { applyAirport } from './flightAnchorSetup';
 
 export const FLIGHT_MODEL = 'gemini-3-flash-preview';
 
@@ -352,42 +353,62 @@ export const flightPrompt = (tripStartDate?: string, tripEndDate?: string) => `
     `;
 
 /**
- * Puts the anchor's airports on the map, from the curated directory.
+ * Replaces the airports a ticket named with the directory's own records.
  *
- * 「這個機票有明確的起降機場 行程表應該要做到自動帶入地點」 was answered for the
- * path that *creates* a trip from a ticket — and the path that uploads a
- * ticket into the 航班資訊 card already on screen was left behind, so a trip
- * built that way still read 「其中一個地點還沒連結地圖，無法計算交通時間」 under
- * every flight. The same two ends, joined in one more place.
+ * 「航班有帶入 但你沒帶入機場」. The ticket prints 「Taipei（TPE）到 Tokyo（NRT）」
+ * and the model reports exactly that, so the itinerary said 抵達機場 · Taipei —
+ * a city, for a card whose entire subject is which airport. The directory has
+ * held 「TPE · Taiwan Taoyuan International Airport」 with its city, country and
+ * coordinates all along.
  *
- * Only a side that names an IATA code is touched. A traveller who picked an
- * airport by hand has coordinates that did not come from a code, and nothing
- * here knows better than they do.
+ * Deliberately `applyAirport`, the same write a traveller picking from the
+ * autocomplete performs. A screenshot and a hand-pick should not produce two
+ * different kinds of anchor, and every previous bug in this area has been one
+ * path doing less than the other.
  *
- * A code the directory does not hold *clears* the coordinates rather than
- * leaving them: a changed flight leaves the previous airport's position
- * sitting in the anchor, and a confidently wrong location is worse than a
- * missing one — it does not look missing, so nobody checks it.
+ * Only a side naming an IATA code is touched. A code the directory does not
+ * hold keeps the name off the ticket — it is the only name there is — but
+ * loses its coordinates, because a changed flight otherwise leaves the
+ * previous airport's position behind, and a wrong location does not look
+ * missing, so nobody checks it.
  */
 export const locateAirports = (anchor: FlightAnchor): FlightAnchor => {
-  const next = { ...anchor };
+  let next = anchor;
 
-  if (next.departureAirportIata) {
-    const from = findAirportByIata(next.departureAirportIata);
-    if (from?.latitude !== undefined && from.longitude !== undefined) {
-      next.departureAirportLatitude = from.latitude;
-      next.departureAirportLongitude = from.longitude;
-    } else {
+  for (const side of ['departure', 'arrival'] as const) {
+    const code = side === 'departure' ? next.departureAirportIata : next.arrivalAirportIata;
+    if (!code) continue;
+
+    const known = findAirportByIata(code);
+    if (known) {
+      const printed = (side === 'departure' ? next.departureAirport : next.arrivalAirport)?.trim();
+      next = applyAirport(next, side, known);
+      /*
+        The ticket's own wording wins when it already names an airport.
+
+        The directory is English-only — an MVP limitation noted where it is
+        declared — so a confirmation printing 「桃園國際機場」 would be rewritten
+        into 「Taiwan Taoyuan International Airport」, which is a worse label for
+        the person reading it. What the ticket gives that is *not* a name is a
+        city: 「Taipei（TPE）到 Tokyo（NRT）」 is what produced 抵達機場 · Taipei.
+
+        So the directory supplies the name only where the ticket supplied a
+        city or nothing at all. Identity — code, city, country, coordinates —
+        always comes from the directory, because that is what it is for.
+      */
+      const printedIsACity = !printed || printed.toLowerCase() === known.city.toLowerCase();
+      if (!printedIsACity) {
+        next = side === 'departure'
+          ? { ...next, departureAirport: printed }
+          : { ...next, arrivalAirport: printed };
+      }
+      continue;
+    }
+
+    next = { ...next };
+    if (side === 'departure') {
       delete next.departureAirportLatitude;
       delete next.departureAirportLongitude;
-    }
-  }
-
-  if (next.arrivalAirportIata) {
-    const to = findAirportByIata(next.arrivalAirportIata);
-    if (to?.latitude !== undefined && to.longitude !== undefined) {
-      next.arrivalAirportLatitude = to.latitude;
-      next.arrivalAirportLongitude = to.longitude;
     } else {
       delete next.arrivalAirportLatitude;
       delete next.arrivalAirportLongitude;
