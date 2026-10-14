@@ -129,6 +129,8 @@ interface Props {
    * `strandedSaves` — without it, that panel stays silent rather than guessing.
    */
   knownCountries?: string[];
+  /** Puts saved places back to never having been looked up. See the handler. */
+  onUnbindInspirationPlaces?: (inspirationIds: string[]) => void;
   onResolveInspirationPlace?: (
     inspirationIds: string[],
     resolved: {
@@ -206,7 +208,7 @@ const formatDayHeading = (date?: string): string => {
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
-const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace, onPickCountry, knownCountries }) => {
+const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace, onPickCountry, knownCountries, onUnbindInspirationPlaces }) => {
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1127,6 +1129,26 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
               </li>
             ))}
           </ul>
+          {/*
+            One tap instead of five hand corrections. 「唉 要全刪了」 — the names
+            and the notes are in fields the lookup never touched, so this undoes
+            the binding without losing anything and without guessing a country.
+          */}
+          {onUnbindInspirationPlaces && (
+            <>
+              <button
+                type="button"
+                data-testid="unbind-stranded"
+                onClick={() => onUnbindInspirationPlaces(stranded.map(save => save.id))}
+                className="mt-2 min-h-9 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
+              >
+                把這 {stranded.length} 個退回未對應
+              </button>
+              <p className="mt-1 text-[10px] leading-4 text-amber-700">
+                只清掉地圖對應，店名和你寫的筆記都留著。之後再按「補齊」重新查一次。
+              </p>
+            </>
+          )}
         </div>
       )}
 

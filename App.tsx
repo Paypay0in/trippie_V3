@@ -2935,6 +2935,45 @@ const App: React.FC = () => {
   };
 
   /**
+   * Put a saved place back to never having been looked up.
+   *
+   * 「唉 要全刪了」. The backfill's broken country guard bound Korean saves to
+   * American and Canadian businesses, and the offer on the table was to repoint
+   * five records by hand or throw the collection away. Neither is necessary:
+   * the lookup writes `resolvedPlaceName` and leaves `placeName` alone, so
+   * every record still carries the name its owner typed and the notes they
+   * wrote. Only the map binding is wrong.
+   *
+   * So this clears exactly what the lookup wrote and nothing else. It is not a
+   * repair and does not guess a country — it restores 「不知道在哪」, which is
+   * where these records were before I broke them, and from there the fixed
+   * backfill can ask again with a guard that actually applies.
+   */
+  const handleUnbindInspirationPlaces = (inspirationIds: string[]) => {
+    const wanted = new Set(inspirationIds);
+    if (wanted.size === 0) return;
+    setSavedTravelInspirations((current) =>
+      current.map((inspiration) =>
+        wanted.has(inspiration.id)
+          ? {
+              ...inspiration,
+              placeId: undefined,
+              resolvedPlaceName: undefined,
+              formattedAddress: undefined,
+              latitude: undefined,
+              longitude: undefined,
+              city: undefined,
+              district: undefined,
+              country: undefined,
+              // Cleared too, or the backfill would skip the very records that
+              // need asking again.
+              placeResolvedAt: undefined,
+            }
+          : inspiration));
+    showToast(`已把 ${wanted.size} 個地點退回未對應，筆記都還在`);
+  };
+
+  /**
    * The refund rule every screen should be reading.
    *
    * 「怎麼都沒跳出可退稅的提示」 — the form asked `taxRule`, which only the country
@@ -7488,6 +7527,7 @@ const App: React.FC = () => {
           onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
           onRemoveInspirations={handleRemoveInspirations}
           onResolveInspirationPlace={handleResolveInspirationPlace}
+          onUnbindInspirationPlaces={handleUnbindInspirationPlaces}
           /*
             Offered only when nothing knows the country: not the destination,
             not the trip's name, and not the ticket. 「沒有的話 app 要問用戶是哪個

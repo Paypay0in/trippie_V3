@@ -246,3 +246,64 @@ describe('a trip with no country', () => {
     expect(screen.queryByTestId('country-missing')).toBeNull();
   });
 });
+
+/**
+ * 「唉 要全刪了」.
+ *
+ * The alternative to repointing five damaged records by hand was throwing the
+ * collection away. It is not a real choice: the lookup writes
+ * `resolvedPlaceName` and never touches `placeName` or the notes, so undoing
+ * the binding costs nothing.
+ */
+describe('putting a stranded save back to unresolved', () => {
+  const mountWithTrips = (inspirations: SavedTravelInspiration[]) => {
+    const onUnbindInspirationPlaces = vi.fn();
+    render(
+      <TripInspirationPlanner
+        inspirations={inspirations}
+        communityPosts={[]}
+        trip={{ destination: '釜山', destinationCountry: '韓國' } as never}
+        knownCountries={['韓國']}
+        selectedGroupIds={[]}
+        onSelectionChange={vi.fn()}
+        existingItinerary={[]}
+        onExploreCommunity={vi.fn()}
+        onAcceptProposal={vi.fn()}
+        onApplyAdjustment={vi.fn()}
+        onProposalAccepted={vi.fn()}
+        onUnbindInspirationPlaces={onUnbindInspirationPlaces}
+      />,
+    );
+    return { onUnbindInspirationPlaces };
+  };
+
+  /** The measured damage, as it sits in his collection. */
+  const damaged = saved({
+    id: 'broken',
+    placeName: 'Working holiday',
+    resolvedPlaceName: 'Global Work & Travel Canada',
+    country: '加拿大',
+    city: 'Vancouver',
+    formattedAddress: '333 Seymour St Level 8, Vancouver, BC V6B 5A6加拿大',
+    placeResolvedAt: '2026-10-14T09:00:00.000Z',
+  });
+
+  it('lists it and offers the undo for exactly those ids', () => {
+    const { onUnbindInspirationPlaces } = mountWithTrips([
+      damaged,
+      saved({ id: 'fine', placeName: 'Photowave', country: '韓國', city: '釜山' }),
+    ]);
+
+    expect(screen.getByTestId('stranded-saves').textContent).toContain('加拿大');
+
+    fireEvent.click(screen.getByTestId('unbind-stranded'));
+    expect(onUnbindInspirationPlaces).toHaveBeenCalledWith(['broken']);
+  });
+
+  /* Nothing to undo is nothing to show. */
+  it('is absent when every save is in a country he has a trip to', () => {
+    mountWithTrips([saved({ country: '韓國', city: '釜山' })]);
+
+    expect(screen.queryByTestId('stranded-saves')).toBeNull();
+  });
+});
