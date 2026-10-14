@@ -2,6 +2,7 @@ import { ItineraryItem, SavedExperienceNote, SavedTravelInspiration } from '../t
 import { dedupeNoteTexts } from './itineraryImageSlices';
 import { FixedScheduleEntry, fixedAnchorSchedule } from './itineraryDayFloor';
 import { localToday } from './localDate';
+import { cityDisplayName } from './cityNames';
 
 /**
  * Bridges the existing SavedTravelInspiration store into active Trip itinerary
@@ -183,6 +184,18 @@ const compareCity = (city?: string, destination?: string): TextComparison => {
   const cityText = normalizeText(city);
   const destinationText = normalizeText(destination);
   if (!cityText || !destinationText) return 'unknown';
+  /*
+    Compared through the display name, not as raw text.
+
+    Google answers 「Tokyo」 and 「부산시」 under zh-TW, so a save written from a
+    lookup and a trip a traveller named by hand hold the same city in two
+    scripts. On a text comparison they are a mismatch, and a mismatch removes
+    the place from the planner entirely — the save does not appear at all,
+    which is a far worse outcome than a wrong heading.
+  */
+  const cityName = normalizeText(cityDisplayName(city));
+  const destinationName = normalizeText(cityDisplayName(destination));
+  if (cityName && destinationName && cityName === destinationName) return 'match';
   return cityText.includes(destinationText) || destinationText.includes(cityText) ? 'match' : 'mismatch';
 };
 
