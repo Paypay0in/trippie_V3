@@ -49,7 +49,7 @@ describe('what to look up', () => {
       // a save that still needs correcting. See `cityLooksLikeDistrict`.
       // Stamped, because a record that has never been resolved is offered
       // whatever its city looks like. See `resolvedSinceTheSplit`.
-      saved({ id: 'b', placeName: 'HARRY', formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z' }),
+      saved({ id: 'b', placeName: 'HARRY', formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight' }),
     ]);
 
     expect(gaps.map(gap => gap.placeName)).toEqual(['嶋']);
@@ -73,7 +73,7 @@ describe('what to look up', () => {
 
   it('says nothing when every save already knows', () => {
     expect(placesNeedingBackfill([
-      saved({ formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z' }),
+      saved({ formattedAddress: '…', city: 'Tokyo', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight' }),
     ])).toHaveLength(0);
   });
 });
@@ -218,6 +218,7 @@ describe('records that predate the city and ward split', () => {
         placeName: '味贊王鹽烤肉', country: '韓國', city: 'Busan',
         district: 'Haeundae', formattedAddress: '釜山…',
         placeResolvedAt: '2026-10-14T10:00:00.000Z',
+        category: 'sight',
       }),
     ])).toHaveLength(0);
   });
@@ -227,7 +228,7 @@ describe('records that predate the city and ward split', () => {
     expect(placesNeedingBackfill([
       saved({
         placeName: '海雲台海水浴場', country: '韓國', city: 'Busan',
-        formattedAddress: '釜山…', placeResolvedAt: '2026-10-14T10:00:00.000Z',
+        formattedAddress: '釜山…', placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight',
       }),
     ])).toHaveLength(0);
   });
@@ -289,5 +290,38 @@ describe('what the lookup is asked for', () => {
     const planner = readFileSync(resolve(__dirname, '../components/TripInspirationPlanner.tsx'), 'utf8');
 
     expect(planner).toContain("[gap.placeName, gap.near].filter(Boolean).join(' ')");
+  });
+});
+
+/**
+ * 「沒有補標籤」 and 「都可以」.
+ *
+ * The 🏷️ tag arrives with `primaryType`, which only a lookup fetches — so
+ * records resolved before tags existed carry none, and nothing was going to
+ * offer them again: they already know where they are and already carry the
+ * stamp. Rather than a second button, the one repair the traveller already
+ * knows about picks them up.
+ */
+describe('records settled before the tag existed', () => {
+  const settled = {
+    formattedAddress: '東京都渋谷区…',
+    city: 'Tokyo',
+    district: 'Shibuya',
+    placeResolvedAt: '2026-10-14T10:00:00.000Z',
+  };
+
+  it('are offered again, because nothing else would reach them', () => {
+    expect(placesNeedingBackfill([saved({ ...settled })]).map(gap => gap.id))
+      .toEqual(['らぁ麺や 嶋']);
+  });
+
+  /*
+    Terminating by construction: the resolve writes 「other」 when Google says
+    nothing, so a place with no category of its own is settled by one pass
+    rather than offered forever.
+  */
+  it('are left alone once they carry a tag, even 「other」', () => {
+    expect(placesNeedingBackfill([saved({ ...settled, category: 'other' })])).toEqual([]);
+    expect(placesNeedingBackfill([saved({ ...settled, category: 'food' })])).toEqual([]);
   });
 });

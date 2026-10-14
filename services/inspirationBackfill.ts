@@ -87,6 +87,22 @@ export const cityLooksLikeDistrict = (
   return /日本|japan|^jp$/i.test((place.country || '').trim()) && JAPANESE_WARD_SUFFIX.test(city);
 };
 
+/**
+ * Whether this record has been asked what kind of place it is.
+ *
+ * 「沒有補標籤」 — the tag arrives with `primaryType`, which only a lookup can
+ * fetch, so records resolved before tags existed carry none and nothing was
+ * ever going to offer them again: they already know where they are and they
+ * already carry the stamp.
+ *
+ * Terminating by construction. The resolve writes 「other」 when Google says
+ * nothing, so one pass settles every record and no place is offered twice for
+ * the same missing answer. A record with no `category` field at all has simply
+ * never been through a lookup that could produce one.
+ */
+const knowsWhatItIs = (place: { category?: string }): boolean =>
+  Boolean(place.category);
+
 export const knowsWhereItIs = (
   place: { formattedAddress?: string; city?: string; country?: string; district?: string },
 ): boolean => {
@@ -123,7 +139,7 @@ const resolvedSinceTheSplit = (place: { placeResolvedAt?: string }): boolean =>
 export const placesNeedingBackfill = (inspirations: SavedTravelInspiration[]): PlaceGap[] => {
   const gaps = new Map<string, PlaceGap>();
   inspirations.forEach(inspiration => {
-    if (knowsWhereItIs(inspiration) && resolvedSinceTheSplit(inspiration)) return;
+    if (knowsWhereItIs(inspiration) && resolvedSinceTheSplit(inspiration) && knowsWhatItIs(inspiration)) return;
     const placeName = (inspiration.placeName || '').trim();
     if (!placeName) return;
     /*

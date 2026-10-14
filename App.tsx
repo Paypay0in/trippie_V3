@@ -2941,14 +2941,21 @@ const App: React.FC = () => {
                 been. Neither spelling is wrong; the trip has already chosen.
               */
               /*
-                The 🏷️ tag, written from the lookup this save was already
-                making. 「每個收藏給個標籤🏷️景點、餐廳、等等」 — kept when the lookup
-                says nothing, so a record tagged from its screenshot is not
-                blanked by a resolve that came back without a type.
+                The 🏷️ tag, written from the lookup this save was already making.
+
+                Always written, even as 「other」. 「都可以」 — the backfill now
+                offers any record carrying no tag, and a place Google has no
+                category for would otherwise be offered again every time
+                forever. Writing 「other」 is the record saying 「asked, and the
+                answer was nothing」, which ends the loop. It is never printed.
+
+                A real answer beats a blank, and a blank leaves whatever the
+                screenshot already said: a save tagged 餐廳 by its own slice is
+                not emptied by a resolve that came back without a type.
               */
-              category: resolved.primaryType
+              category: placeCategory({ primaryType: resolved.primaryType }) !== 'other'
                 ? placeCategory({ primaryType: resolved.primaryType })
-                : inspiration.category,
+                : inspiration.category || 'other',
               country: preferredCountryName(inspiration.country, resolved.country),
             }
           : inspiration));

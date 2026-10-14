@@ -71,7 +71,7 @@ describe('the backfill offer', () => {
     // whatever its city looks like. See `resolvedSinceTheSplit`.
     mount([saved({
       formattedAddress: '東京都渋谷区…', city: 'Tokyo', district: 'Shibuya',
-      placeResolvedAt: '2026-10-14T10:00:00.000Z',
+      placeResolvedAt: '2026-10-14T10:00:00.000Z', category: 'sight',
     })]);
 
     expect(screen.queryByTestId('place-backfill')).toBeNull();
