@@ -2,6 +2,8 @@ import { ExperienceNoteType, SavedTravelInspiration } from '../types';
 
 export const SAVED_TRAVEL_INSPIRATIONS_STORAGE_KEY = 'trippie_saved_travel_inspirations_v1';
 
+const CATEGORIES = ['food', 'cafe', 'stay', 'sight', 'shop', 'transport', 'other'];
+
 const normalize = (value: unknown): SavedTravelInspiration | null => {
   if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
@@ -16,7 +18,26 @@ const normalize = (value: unknown): SavedTravelInspiration | null => {
     (Array.isArray(source.sourceNoteIds) ? source.sourceNoteIds : notes.map(note => note.sourceNoteId))
       .filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
   ));
-  return { id: source.id as string, savedByUserId: source.savedByUserId as string, country: source.country as string, city: source.city as string, placeName: source.placeName as string, placeId: typeof source.placeId === 'string' ? source.placeId : undefined, resolvedPlaceName: typeof source.resolvedPlaceName === 'string' ? source.resolvedPlaceName : undefined, formattedAddress: typeof source.formattedAddress === 'string' ? source.formattedAddress : undefined, latitude: typeof source.latitude === 'number' ? source.latitude : undefined, longitude: typeof source.longitude === 'number' ? source.longitude : undefined, placePhotoUrl: typeof source.placePhotoUrl === 'string' ? source.placePhotoUrl : undefined, sourcePostId: source.sourcePostId as string, sourceSliceId: source.sourceSliceId as string, sourceCreatorId: source.sourceCreatorId as string, sourceNoteIds, savedAt: source.savedAt as string, notes };
+  return { id: source.id as string, savedByUserId: source.savedByUserId as string, country: source.country as string, city: source.city as string, placeName: source.placeName as string, placeId: typeof source.placeId === 'string' ? source.placeId : undefined, resolvedPlaceName: typeof source.resolvedPlaceName === 'string' ? source.resolvedPlaceName : undefined, formattedAddress: typeof source.formattedAddress === 'string' ? source.formattedAddress : undefined, latitude: typeof source.latitude === 'number' ? source.latitude : undefined, longitude: typeof source.longitude === 'number' ? source.longitude : undefined, placePhotoUrl: typeof source.placePhotoUrl === 'string' ? source.placePhotoUrl : undefined, sourcePostId: source.sourcePostId as string, sourceSliceId: source.sourceSliceId as string, sourceCreatorId: source.sourceCreatorId as string, sourceNoteIds, savedAt: source.savedAt as string, notes,
+    /*
+      Fields added to the record after this whitelist was written.
+
+      「標籤出現又消失」. This rebuilds every saved place field by field out of
+      localStorage, and anything it does not name is dropped — so the 🏷️ tag,
+      the ward and the lookup stamp were erased on every single page load,
+      signed in or not. 補齊 would write them, the screen would show them, and
+      the next reload would take them away again.
+
+      It is also why an area heading kept reverting to the place name（`district`
+      gone）and why 補齊 never finished counting down（`placeResolvedAt` gone, so
+      every record looked unasked again）.
+
+      Validated like the rest rather than trusted: a hand-edited store should
+      not be able to put an arbitrary string into a typed field.
+    */
+    category: CATEGORIES.includes(source.category as string) ? source.category as SavedTravelInspiration['category'] : undefined,
+    district: typeof source.district === 'string' ? source.district : undefined,
+    placeResolvedAt: typeof source.placeResolvedAt === 'string' ? source.placeResolvedAt : undefined };
 };
 
 export const loadSavedTravelInspirations = (): SavedTravelInspiration[] => {
