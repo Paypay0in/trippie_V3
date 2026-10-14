@@ -348,7 +348,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       app already leans on is how the throttling starts.
     */
     for (const [index, gap] of placeGaps.entries()) {
-      const found = await resolvePlace(gap.placeName, gap.country || tripFallbackCountry).catch(() => null);
+      // The name plus where the save already believes it is. See `PlaceGap.near`.
+      const query = [gap.placeName, gap.near].filter(Boolean).join(' ');
+      const found = await resolvePlace(query, gap.country || tripFallbackCountry).catch(() => null);
       /*
         Refused when it lands in a different country than the save claims.
 

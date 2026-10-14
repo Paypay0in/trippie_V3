@@ -145,7 +145,8 @@ describe('which country a save is searched in', () => {
   it('is what the lookup is given, with the trip only as a fallback', () => {
     const planner = readFileSync(resolve(__dirname, '../components/TripInspirationPlanner.tsx'), 'utf8');
 
-    expect(planner).toContain('resolvePlace(gap.placeName, gap.country || tripFallbackCountry)');
+    // The query now carries the ward too; the country argument is unchanged.
+    expect(planner).toContain('resolvePlace(query, gap.country || tripFallbackCountry)');
   });
 });
 
@@ -235,5 +236,58 @@ describe('records that predate the city and ward split', () => {
     const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
     expect(app).toContain('placeResolvedAt: new Date().toISOString()');
+  });
+});
+
+/**
+ * 「這不是在海雲台嗎 要放在釜山吧？」
+ *
+ * Measured against the live route:
+ *
+ *   「Photowave」            → Place could not be resolved
+ *   「Photowave Haeundae」   → 포토웨이브, 부산시, Haeundae
+ *
+ * A shop name alone is often not enough, and the record has been carrying the
+ * answer all along.
+ */
+describe('what the lookup is asked for', () => {
+  it('adds the ward the save already knows', () => {
+    const [gap] = placesNeedingBackfill([
+      saved({ placeName: 'Photowave', country: '韓國', city: '韓國', district: 'Haeundae' }),
+    ]);
+
+    expect(gap.near).toBe('Haeundae');
+  });
+
+  /** The ward is narrower than the city, so it is preferred. */
+  it('prefers the ward over the city', () => {
+    const [gap] = placesNeedingBackfill([
+      saved({ placeName: 'x', country: '韓國', city: 'Busan', district: 'Haeundae' }),
+    ]);
+
+    expect(gap.near).toBe('Haeundae');
+  });
+
+  it('falls back to a real city', () => {
+    const [gap] = placesNeedingBackfill([
+      saved({ placeName: 'x', country: '韓國', city: 'Busan' }),
+    ]);
+
+    expect(gap.near).toBe('Busan');
+  });
+
+  /* A city equal to the country is the shape this repair exists to undo. */
+  it('does not use a city that is just the country again', () => {
+    const [gap] = placesNeedingBackfill([
+      saved({ placeName: 'x', country: '韓國', city: '韓國' }),
+    ]);
+
+    expect(gap.near).toBeUndefined();
+  });
+
+  it('is joined onto the query', () => {
+    const planner = readFileSync(resolve(__dirname, '../components/TripInspirationPlanner.tsx'), 'utf8');
+
+    expect(planner).toContain("[gap.placeName, gap.near].filter(Boolean).join(' ')");
   });
 });

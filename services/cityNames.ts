@@ -33,8 +33,23 @@ const DISPLAY_NAMES: Record<string, string> = {
   hakone: '箱根',
   kanazawa: '金澤',
 
+  /*
+    Korea, in both scripts.
+
+    Asked in zh-TW, the same route answered 「Busan」 for one place and 「부산시」
+    for another — so a table holding only the romanisation leaves half of them
+    reading in Korean. The suffix 시 is 「city」 and is stripped like the others.
+  */
   // Korea
   seoul: '首爾',
+  서울: '首爾',
+  서울특별시: '首爾',
+  부산: '釜山',
+  부산시: '釜山',
+  부산광역시: '釜山',
+  제주: '濟州',
+  인천: '仁川',
+  대구: '大邱',
   'busan metropolitan city': '釜山',
   busan: '釜山',
   jeju: '濟州',
@@ -65,6 +80,10 @@ export const cityDisplayName = (city?: string): string => {
     place rather than as an administrative label, and so 「Osaka」 and
     「Osaka City」 cannot become two different cities on the same screen.
   */
-  const bare = text.replace(/\s+(City|Ward|Prefecture|-shi|-ku)$/i, '').trim();
+  const bare = text
+    .replace(/\s+(City|Ward|Prefecture|-shi|-ku)$/i, '')
+    // 「부산시」 and 「부산」 are one city; 「서울특별시」 is Seoul with its status.
+    .replace(/(특별시|광역시|시)$/u, '')
+    .trim();
   return DISPLAY_NAMES[bare.toLowerCase()] || bare;
 };

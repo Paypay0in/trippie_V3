@@ -34,6 +34,20 @@ export interface PlaceGap {
    * is the fact; the trip on screen is a coincidence.
    */
   country?: string;
+  /**
+   * Where the save already believes it is, added to the search text.
+   *
+   * 「這不是在海雲台嗎 要放在釜山吧？」 — measured against the live route:
+   *
+   *   「Photowave」            → Place could not be resolved
+   *   「Photowave Haeundae」   → 포토웨이브, 부산시, Haeundae
+   *
+   * A shop name alone is often not enough, and the record has been carrying
+   * the answer the whole time. Its own district beats its city, which beats
+   * nothing — the narrower the hint, the fewer shops of that name it competes
+   * with.
+   */
+  near?: string;
 }
 
 /**
@@ -112,16 +126,28 @@ export const placesNeedingBackfill = (inspirations: SavedTravelInspiration[]): P
     if (knowsWhereItIs(inspiration) && resolvedSinceTheSplit(inspiration)) return;
     const placeName = (inspiration.placeName || '').trim();
     if (!placeName) return;
+    /*
+      A city equal to the country is not a place hint, it is the shape this
+      whole repair exists to undo.
+    */
+    const city = (inspiration.city || '').trim();
+    const country = (inspiration.country || '').trim();
+    const near = (inspiration.district || '').trim()
+      || (city && city.toLowerCase() !== country.toLowerCase() ? city : '')
+      || undefined;
+
     const existing = gaps.get(placeName);
     if (existing) {
       existing.inspirationIds.push(inspiration.id);
-      existing.country = existing.country || inspiration.country?.trim() || undefined;
+      existing.country = existing.country || country || undefined;
+      existing.near = existing.near || near;
     } else {
       gaps.set(placeName, {
         id: placeName,
         placeName,
         inspirationIds: [inspiration.id],
-        country: inspiration.country?.trim() || undefined,
+        country: country || undefined,
+        near,
       });
     }
   });

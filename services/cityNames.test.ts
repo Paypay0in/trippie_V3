@@ -41,3 +41,26 @@ describe('a city in the app s own language', () => {
     expect(cityDisplayName(undefined)).toBe('');
   });
 });
+
+/**
+ * 「這不是在海雲台嗎 要放在釜山吧？」 — and the lookup that fixes it answered
+ * 「부산시」 where an earlier one answered 「Busan」. Asked in zh-TW, both.
+ */
+describe('Korean city names', () => {
+  it('reads both scripts as the same city', () => {
+    expect(cityDisplayName('Busan')).toBe('釜山');
+    expect(cityDisplayName('부산')).toBe('釜山');
+    expect(cityDisplayName('부산시')).toBe('釜山');
+    expect(cityDisplayName('부산광역시')).toBe('釜山');
+  });
+
+  it('handles Seoul s administrative suffix', () => {
+    expect(cityDisplayName('서울특별시')).toBe('首爾');
+    expect(cityDisplayName('서울')).toBe('首爾');
+  });
+
+  /** A Korean city the table does not hold keeps its own name, minus 시. */
+  it('leaves an unknown Korean city as given', () => {
+    expect(cityDisplayName('안동시')).toBe('안동');
+  });
+});
