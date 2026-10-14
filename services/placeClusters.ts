@@ -68,15 +68,32 @@ const hasCoordinates = <T extends ClusterablePlace>(place: T): place is T & { la
   the name on the card should be the name on the map the traveller will open.
 */
 const DISTRICT_PATTERNS: RegExp[] = [
-  // Korean romanisation, suffix included: a label reading 「Suyeong」 is not a word.
-  /\b([A-Z][a-zA-Z]+-(?:gu|gun|eup))\b/,
+  // Korean and Japanese romanisation, suffix included: a label reading
+  // 「Suyeong」 or 「Taito」 is not a word in either language.
+  /\b([A-Z][a-zA-Z]+-(?:gu|gun|eup|ku|cho|machi|shi))\b/,
+  /*
+    「Taito City」, 「Shibuya City」 — how Google writes a Japanese ward when it
+    answers in English, which it does for half the addresses on one trip.
+  */
+  /\b([A-Z][a-zA-Z]+ City)\b/,
   /*
     District before city.
 
     「釜山廣域市海雲台區中洞」 carries three levels, and the one that decides a day
     is the middle one: the city is the whole trip, and the 洞 is one block of it.
+
+    区 and 區 are different characters — U+533A and U+5340 — and only the
+    traditional one was here. 「110042東京都台東区寿4丁目」 therefore matched
+    nothing at all, and the group fell back to naming itself after a member:
+    a sixty-character apartment address, used as a heading.
   */
-  /([一-鿿]{1,4}[區郡邑])/,
+  /*
+    The prefecture it sits in is not part of its name. Excluded from the
+    captured characters rather than trimmed afterwards: a four-character window
+    ending at 区 reaches back through 「東京都」 and comes out as 「京都渋谷区」,
+    and 「京都」 is a real city, so no suffix trim can tell the two apart.
+  */
+  /([^都道府県市區区郡邑町村\s\d]{1,4}[区區郡邑町村])/,
   /([가-힣]{1,4}[구군읍])/,
   /([一-鿿]{1,4}市)/,
 ];
@@ -124,7 +141,23 @@ export const labelForCluster = (places: ClusterablePlace[]): string => {
 
   const best = Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0];
   if (best) return best[0];
-  return places[0] ? `${places[0].placeName} 一帶` : '這一區';
+
+  /*
+    Nothing recognisable, so the group is named after what anchors it — and
+    that name has to be short enough to be a heading.
+
+    「我覺得這個分區好不合理喔」: a friend's home saved off a LINE screenshot has
+    its full postal address as its name, and the heading read
+    「110042東京都台東区寿4丁目 6-2 ハーモニーレジデンス浅草#002 503号室 一帶」.
+    The shortest name in the group is preferred over the first, because a real
+    shop name is almost always shorter than an address somebody pasted.
+  */
+  const named = places
+    .map(place => (place.placeName || '').trim())
+    .filter(Boolean)
+    .sort((left, right) => left.length - right.length)[0];
+  if (!named) return '這一區';
+  return `${named.length > 14 ? `${named.slice(0, 14)}…` : named} 一帶`;
 };
 
 /*

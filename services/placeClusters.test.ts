@@ -174,3 +174,64 @@ describe('two areas the addresses call the same thing', () => {
     expect(clusters.map(cluster => cluster.label)).toEqual(['Haeundae ①', 'Haeundae ②']);
   });
 });
+
+/**
+ * 「我覺得這個分區好不合理喔」.
+ *
+ * The headings read 「110042東京都台東区寿4丁目 6-2 ハーモニーレジデンス浅草#002
+ * 503号室 一帶」, 「Alchemy 一帶」 and 「らぁ麺や 嶋 一帶」 — three groups in one
+ * ward, each named after one of its own members.
+ *
+ * 区 and 區 are different characters, U+533A and U+5340, and only the
+ * traditional one was in the pattern list. Every Japanese address matched
+ * nothing, so every group fell through to naming itself after a member.
+ */
+describe('Japanese addresses', () => {
+  it('reads the ward written the Japanese way', () => {
+    expect(districtOf('110042東京都台東区寿4丁目 6-2')).toBe('台東区');
+  });
+
+  it('reads the ward Google writes in English', () => {
+    expect(districtOf('2-chōme-3-1 Asakusa, Taito City, Tokyo 111-0032日本')).toBe('Taito City');
+  });
+
+  it('reads a romanised ward', () => {
+    expect(districtOf('1-1 Jinnan, Shibuya-ku, Tokyo')).toBe('Shibuya-ku');
+  });
+
+  /** The ward decides the day; the prefecture is the whole trip. */
+  it('prefers the ward over the city', () => {
+    expect(districtOf('東京都渋谷区神南1-1')).toBe('渋谷区');
+  });
+
+  /** Korea still works, which is what this was written for. */
+  it('leaves Korean addresses alone', () => {
+    expect(districtOf('부산광역시 해운대구 중동')).toBe('해운대구');
+    expect(districtOf('Suyeong-gu, Busan')).toBe('Suyeong-gu');
+  });
+});
+
+describe('a group with no district anywhere', () => {
+  const place = (id: string, placeName: string) => ({ id, placeName });
+
+  /** A heading is a heading, not a postal address. */
+  it('does not use a sixty-character address as a heading', () => {
+    const label = labelForCluster([
+      place('a', '110042東京都台東区寿4丁目 6-2 ハーモニーレジデンス浅草#002 503号室'),
+      place('b', 'Alchemy'),
+    ]);
+
+    expect(label).toBe('Alchemy 一帶');
+  });
+
+  it('truncates when every name is long', () => {
+    const label = labelForCluster([place('a', '110042東京都台東区寿4丁目 6-2 ハーモニーレジデンス浅草')]);
+
+    expect(label.length).toBeLessThan(20);
+    expect(label.endsWith(' 一帶')).toBe(true);
+  });
+
+  it('still says something for a group of nameless places', () => {
+    expect(labelForCluster([])).toBe('這一區');
+  });
+});
