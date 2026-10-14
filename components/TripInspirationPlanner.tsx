@@ -34,6 +34,8 @@ import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsS
 import { localToday } from '../services/localDate';
 import { expandMapsShortLink, findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
 import { readMapsInput } from '../services/mapsLinkInput';
+import { placesNeedingBackfill } from '../services/inspirationBackfill';
+import { resolvePlace } from '../services/placeService';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
@@ -119,7 +121,14 @@ interface Props {
    */
   onResolveInspirationPlace?: (
     inspirationIds: string[],
-    resolved: { placeId: string; placeName: string; address?: string; latitude?: number; longitude?: number },
+    resolved: {
+      placeId: string; placeName: string; address?: string;
+      latitude?: number; longitude?: number;
+      /** Where it is, which is what the area grouping and the note cards read. */
+      city?: string; country?: string;
+    },
+    /** Set while backfilling, so twenty corrections do not raise twenty toasts. */
+    options?: { silent?: boolean },
   ) => void;
   /**
    * The trip's areas, computed from the plan and this list together.
@@ -291,6 +300,46 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     } finally {
       setAddBusy(false);
     }
+  };
+
+  /*
+    Saved places with no address or no real city. See `inspirationBackfill`.
+  */
+  const placeGaps = useMemo(() => placesNeedingBackfill(inspirations), [inspirations]);
+  const [backfilling, setBackfilling] = useState<{ done: number; total: number } | null>(null);
+  const [backfillDone, setBackfillDone] = useState('');
+
+  const runBackfill = async () => {
+    if (!onResolveInspirationPlace || placeGaps.length === 0) return;
+    const country = trip.destinationCountry || trip.travelCountry;
+    setBackfillDone('');
+    setBackfilling({ done: 0, total: placeGaps.length });
+    let filled = 0;
+    /*
+      One at a time. These are the traveller's own saves being corrected, not a
+      page waiting to render, and twenty parallel requests against a key this
+      app already leans on is how the throttling starts.
+    */
+    for (const [index, gap] of placeGaps.entries()) {
+      const found = await resolvePlace(gap.placeName, country).catch(() => null);
+      if (found?.placeId) {
+        onResolveInspirationPlace(gap.inspirationIds, {
+          placeId: found.placeId,
+          placeName: found.resolvedPlaceName || gap.placeName,
+          address: found.address,
+          latitude: found.latitude,
+          longitude: found.longitude,
+          city: found.city,
+          country: found.country,
+        }, { silent: true });
+        filled += 1;
+      }
+      setBackfilling({ done: index + 1, total: placeGaps.length });
+    }
+    setBackfilling(null);
+    setBackfillDone(filled === placeGaps.length
+      ? `${filled} 個都補上了。`
+      : `補上 ${filled} 個，${placeGaps.length - filled} 個查不到，可以點進去自己搜尋。`);
   };
 
   /** The place currently being searched for, and what came back. */
@@ -896,6 +945,44 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         removal is one tap and theirs to make: the name and the notes came off
         their own screenshot, and only the map binding was ever wrong.
       */}
+      {/*
+        Saved places that never recorded where they are.
+
+        「拉麵店為何還是顯示為一區」 — and 「日本・日本」, and a whole country of notes
+        under one card. One gap, three symptoms: these were saved before the
+        save path looked anything up, so they carry a name and nothing else.
+
+        A tap rather than a sweep on load. Twenty lookups the traveller did not
+        ask for, charged to their key, is not a thing to start on its own.
+      */}
+      {placeGaps.length > 0 && onResolveInspirationPlace && (
+        <div data-testid="place-backfill" className="mt-3 rounded-2xl border border-[#d9d5f5] bg-[#faf9ff] p-3">
+          <p className="flex items-start gap-1.5 text-xs font-black text-[#11183d]">
+            <MapPin size={13} className="mt-0.5 shrink-0 text-[#5b3df5]" />
+            有 {placeGaps.length} 個收藏還沒有地址和城市
+          </p>
+          <p className="mt-1 text-[10px] leading-4 text-slate-500">
+            所以它們分不出區域，也沒辦法照城市分組。按一下回頭查一次就會補上。
+          </p>
+          <button
+            type="button"
+            data-testid="run-place-backfill"
+            disabled={backfilling !== null}
+            onClick={() => void runBackfill()}
+            className="mt-2 min-h-9 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
+          >
+            {backfilling === null
+              ? `補齊這 ${placeGaps.length} 個地點`
+              : `補齊中… ${backfilling.done}/${backfilling.total}`}
+          </button>
+          {backfillDone && (
+            <p data-testid="place-backfill-done" className="mt-1.5 text-[10px] font-bold leading-4 text-slate-500">
+              {backfillDone}
+            </p>
+          )}
+        </div>
+      )}
+
       {misplaced.length > 0 && onRemoveInspirations && (
         <div data-testid="misplaced-notice" className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
           <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">

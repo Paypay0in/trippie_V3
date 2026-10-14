@@ -2885,7 +2885,11 @@ const App: React.FC = () => {
    */
   const handleResolveInspirationPlace = (
     inspirationIds: string[],
-    resolved: { placeId: string; placeName: string; address?: string; latitude?: number; longitude?: number },
+    resolved: {
+      placeId: string; placeName: string; address?: string;
+      latitude?: number; longitude?: number; city?: string; country?: string;
+    },
+    options?: { silent?: boolean },
   ) => {
     const wanted = new Set(inspirationIds);
     if (wanted.size === 0 || !resolved.placeId) return;
@@ -2899,9 +2903,21 @@ const App: React.FC = () => {
               formattedAddress: resolved.address,
               latitude: resolved.latitude,
               longitude: resolved.longitude,
+              /*
+                Where it is, which this never wrote before.
+
+                「筆記我希望以國家。城市 為單位」 and 「拉麵店為何還是顯示為一區」 are
+                the same gap: a saved place that knows its coordinates but not
+                its town cannot be grouped by town or named after one. Only
+                written when the lookup actually said something, so a resolve
+                that returns no city leaves the existing value alone.
+              */
+              city: resolved.city || inspiration.city,
+              country: resolved.country || inspiration.country,
             }
           : inspiration));
-    showToast(`已連結到「${resolved.placeName}」`);
+    // A backfill of twenty places would otherwise raise twenty toasts.
+    if (!options?.silent) showToast(`已連結到「${resolved.placeName}」`);
   };
 
   /**
