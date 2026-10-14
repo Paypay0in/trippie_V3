@@ -24,6 +24,7 @@
  */
 
 import { FlightAnchor, ItineraryItem } from '../types';
+import { locateAirports } from './flightIntake';
 
 /** Minutes before departure the traveller wants to be at the airport. */
 const DEFAULT_AIRPORT_BUFFER_MINUTES = 120;
@@ -64,7 +65,17 @@ const placeOf = (
   ...(typeof longitude === 'number' ? { longitude } : {}),
 });
 
-export const itemsFromFlightAnchor = (anchor: FlightAnchor): ItineraryItem[] => {
+export const itemsFromFlightAnchor = (rawAnchor: FlightAnchor): ItineraryItem[] => {
+  /*
+    Located here as well as on the way in, so a trip saved before the join
+    existed heals itself the next time it renders.
+
+    An anchor stored by an earlier build holds the IATA codes and no
+    coordinates, and the alternative to this line is telling the traveller to
+    delete and re-upload a ticket the app can already read. Nothing is written
+    back — the lookup is a pure read of a table that ships with the app.
+  */
+  const anchor = locateAirports(rawAnchor);
   if (!anchor.departureDate || !anchor.departureTime || !anchor.departureAirport) return [];
   const [arrivalId, departureId, landingId] = derivedItemIdsFor(anchor.id);
   return [

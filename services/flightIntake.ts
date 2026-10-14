@@ -352,6 +352,52 @@ export const flightPrompt = (tripStartDate?: string, tripEndDate?: string) => `
     `;
 
 /**
+ * Puts the anchor's airports on the map, from the curated directory.
+ *
+ * 「這個機票有明確的起降機場 行程表應該要做到自動帶入地點」 was answered for the
+ * path that *creates* a trip from a ticket — and the path that uploads a
+ * ticket into the 航班資訊 card already on screen was left behind, so a trip
+ * built that way still read 「其中一個地點還沒連結地圖，無法計算交通時間」 under
+ * every flight. The same two ends, joined in one more place.
+ *
+ * Only a side that names an IATA code is touched. A traveller who picked an
+ * airport by hand has coordinates that did not come from a code, and nothing
+ * here knows better than they do.
+ *
+ * A code the directory does not hold *clears* the coordinates rather than
+ * leaving them: a changed flight leaves the previous airport's position
+ * sitting in the anchor, and a confidently wrong location is worse than a
+ * missing one — it does not look missing, so nobody checks it.
+ */
+export const locateAirports = (anchor: FlightAnchor): FlightAnchor => {
+  const next = { ...anchor };
+
+  if (next.departureAirportIata) {
+    const from = findAirportByIata(next.departureAirportIata);
+    if (from?.latitude !== undefined && from.longitude !== undefined) {
+      next.departureAirportLatitude = from.latitude;
+      next.departureAirportLongitude = from.longitude;
+    } else {
+      delete next.departureAirportLatitude;
+      delete next.departureAirportLongitude;
+    }
+  }
+
+  if (next.arrivalAirportIata) {
+    const to = findAirportByIata(next.arrivalAirportIata);
+    if (to?.latitude !== undefined && to.longitude !== undefined) {
+      next.arrivalAirportLatitude = to.latitude;
+      next.arrivalAirportLongitude = to.longitude;
+    } else {
+      delete next.arrivalAirportLatitude;
+      delete next.arrivalAirportLongitude;
+    }
+  }
+
+  return next;
+};
+
+/**
  * Folds a parsed flight into the anchor draft the form is showing.
  *
  * Only fields the screenshot actually supplied are written, so a partial read
@@ -373,7 +419,7 @@ export const applyFlightToDraft = (
     if (flight.arrivalAirportIata) next.arrivalAirportIata = flight.arrivalAirportIata;
     if (flight.arrivalDate) next.arrivalDate = flight.arrivalDate;
     if (flight.arrivalTime) next.arrivalTime = flight.arrivalTime;
-    return next;
+    return locateAirports(next);
   });
 
 /**
@@ -414,32 +460,10 @@ export const flightAnchorsFromParsed = (
   if (flight.arrivalAirport) anchor.arrivalAirport = flight.arrivalAirport;
   if (flight.arrivalAirportIata) anchor.arrivalAirportIata = flight.arrivalAirportIata;
 
-  /*
-    Where those airports actually are.
-
-    「這個機票有明確的起降機場 行程表應該要做到自動帶入地點」 — the ticket prints
-    TPE and NRT, the directory has held both with coordinates since it was
-    written, and the anchor has had the fields all along. Nothing joined them,
-    so every flight card arrived unmapped and every leg touching one read
-    「其中一個地點還沒連結地圖，無法計算交通時間」.
-
-    From the curated table and nowhere else: an airport this app has not been
-    told about gets no coordinates rather than a guessed pair, which is the
-    same rule the destination lookup follows.
-  */
-  const from = flight.departureAirportIata ? findAirportByIata(flight.departureAirportIata) : undefined;
-  if (from?.latitude !== undefined && from.longitude !== undefined) {
-    anchor.departureAirportLatitude = from.latitude;
-    anchor.departureAirportLongitude = from.longitude;
-  }
-
-  const to = flight.arrivalAirportIata ? findAirportByIata(flight.arrivalAirportIata) : undefined;
-  if (to?.latitude !== undefined && to.longitude !== undefined) {
-    anchor.arrivalAirportLatitude = to.latitude;
-    anchor.arrivalAirportLongitude = to.longitude;
-  }
   if (flight.arrivalDate) anchor.arrivalDate = flight.arrivalDate;
   if (flight.arrivalTime) anchor.arrivalTime = flight.arrivalTime;
 
-  return [anchor];
+  // Where those airports actually are. See `locateAirports` — the same join,
+  // from the same curated table, as the upload into an existing trip.
+  return [locateAirports(anchor)];
 });
