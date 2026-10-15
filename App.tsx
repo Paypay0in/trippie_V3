@@ -7493,6 +7493,19 @@ const App: React.FC = () => {
           members={itineraryRoster}
           areas={tripAreas}
           savedPlaces={blockPlannerPlaces}
+          /*
+            The 🏷️ tag for an item on the plan, read off the saved place it
+            came from. 「早上10點吃拉麵嗎？」 — an itinerary item does not store
+            the tag and only this screen can see both lists.
+          */
+          categoryOf={(item) => {
+            const wanted = new Set(item.sourceInspirationIds || []);
+            const saved = savedTravelInspirations.find((inspiration) =>
+              (item.placeId && inspiration.placeId === item.placeId)
+              || wanted.has(inspiration.id)
+              || inspiration.sourceNoteIds.some((id) => wanted.has(id)));
+            return saved?.category;
+          }}
           onFillBlock={handleFillDayBlock}
           onFillBlockManually={handleFillDayBlockManually}
           items={itinerary}

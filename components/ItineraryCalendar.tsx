@@ -116,6 +116,13 @@ interface Props {
     /** 🏷️ 景點 / 餐廳 / … The block dropdown groups by it. */
     category?: PlaceCategory;
   }>;
+  /**
+   * The 🏷️ tag for an itinerary item, so 優化動線 can put meals at mealtimes.
+   *
+   * 「早上10點吃拉麵嗎？」 — an item does not store the tag; the saved place it
+   * came from does, and only the caller can see both.
+   */
+  categoryOf?: (item: ItineraryItem) => string | undefined;
   /** Writes a place into a block. The caller owns the item and its persistence. */
   onFillBlock?: (input: { date: string; time: string; durationMinutes: number; placeGroupId: string }) => void;
   /** A slot filled with a name the traveller typed, carrying no map location. */
@@ -177,7 +184,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, viewerUserId, members = [] }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, categoryOf, viewerUserId, members = [] }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -971,7 +978,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           <button
             type="button"
             data-testid="optimise-route"
-            onClick={() => setRoutePlan(optimiseTripRoute(items, { country: destinationCountry }))}
+            onClick={() => setRoutePlan(optimiseTripRoute(items, { country: destinationCountry, categoryOf }))}
             className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#eceaf5] bg-white px-3 py-2 text-xs font-bold text-[#5b3df5] shadow-sm"
           >
             <Sparkles size={14} />優化動線

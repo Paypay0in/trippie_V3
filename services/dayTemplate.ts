@@ -83,7 +83,7 @@ const isClock = (value?: string): value is string => /^([01]\d|2[0-3]):[0-5]\d$/
  * inside the window — a 14:00 block is the afternoon, even though lunch ran
  * until then.
  */
-const MEAL_WINDOWS: Array<{ label: string; from: string; to: string }> = [
+export const MEAL_WINDOWS: Array<{ label: string; from: string; to: string }> = [
   { label: '早餐', from: '06:00', to: '10:00' },
   { label: '午餐', from: '11:30', to: '14:00' },
   { label: '晚餐', from: '17:30', to: '20:30' },

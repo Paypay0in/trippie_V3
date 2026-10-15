@@ -22,6 +22,7 @@ import { ItineraryItem } from '../types';
 import { clusterSavedPlaces } from './placeClusters';
 import { stopsOnTheGround } from './dayMapImage';
 import { durationOf, minutesToTime, timeToMinutes } from './itineraryTimeline';
+import { MEAL_WINDOWS } from './dayTemplate';
 
 /**
  * Flights, anything derived from one, check-ins, and anything pinned.
@@ -205,11 +206,70 @@ const assignAreasToDays = (
 };
 
 /**
+ * Puts the day's meals at mealtimes.
+ *
+ * 「動線被優化了 但是行程合理性沒有驗證。早上10點吃拉麵嗎？」 — exactly. The route
+ * was laid out by distance and the clock was filled in behind it, so らぁ麺や 嶋
+ * opened the day at 10:00. Walking least is not the only thing a day has to be.
+ *
+ * And 「this is a restaurant」 is a fact the app now holds: it is the 🏷️ tag,
+ * built today out of Google's own `primaryType`. Computed, and then not used —
+ * which has been the shape of most of today.
+ *
+ * One swap per meal, never a reshuffle: a stop tagged 餐廳 that has landed
+ * outside every meal window trades places with whatever currently sits in the
+ * nearest one. The set of stops and the day they are on do not change, so the
+ * route stays the route — two of its stops simply change places on the clock.
+ */
+export const mealsAtMealtimes = (
+  items: ItineraryItem[],
+  categoryOf: (item: ItineraryItem) => string | undefined,
+): ItineraryItem[] => {
+  const windows = MEAL_WINDOWS.map(window => ({
+    from: timeToMinutes(window.from) ?? 0,
+    to: timeToMinutes(window.to) ?? 0,
+  }));
+  const inAWindow = (minutes: number) =>
+    windows.some(window => minutes >= window.from && minutes < window.to);
+
+  const times = items.map(item => timeToMinutes(item.time) ?? 0);
+  const order = [...items];
+
+  order.forEach((item, index) => {
+    if (categoryOf(item) !== 'food') return;
+    if (inAWindow(times[index])) return;
+
+    /*
+      The window this meal is nearest to, and whoever is standing in it. A
+      meal with nobody to trade with stays where it is rather than being
+      dropped into a gap that might belong to something fixed.
+    */
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+    order.forEach((other, otherIndex) => {
+      if (otherIndex === index || categoryOf(other) === 'food') return;
+      if (!inAWindow(times[otherIndex])) return;
+      const distance = Math.abs(times[otherIndex] - times[index]);
+      if (distance < bestDistance) { bestDistance = distance; bestIndex = otherIndex; }
+    });
+    if (bestIndex === -1) return;
+
+    const mealTime = times[bestIndex];
+    const otherTime = times[index];
+    times[bestIndex] = otherTime;
+    times[index] = mealTime;
+  });
+
+  return order.map((item, index) => ({ ...item, time: minutesToTime(times[index]) }));
+};
+
+/**
  * @param dayStart when the traveller leaves, as `HH:MM`.
+ * @param categoryOf the 🏷️ tag for an item, so meals land at mealtimes.
  */
 export const optimiseTripRoute = (
   items: ItineraryItem[],
-  options: { country?: string; dayStart?: string } = {},
+  options: { country?: string; dayStart?: string; categoryOf?: (item: ItineraryItem) => string | undefined } = {},
 ): RoutePlan => {
   const dates = Array.from(new Set(items.map(item => item.date).filter(Boolean))).sort();
   const ground = new Set(stopsOnTheGround(items).map(item => item.id));
@@ -276,7 +336,13 @@ export const optimiseTripRoute = (
       return next;
     });
 
-    return { date, items: timed, distanceKm: dayDistanceKm(timed) };
+    /*
+      And then the meals move to mealtimes. 「早上10點吃拉麵嗎？」 — the route is
+      kept exactly; only two stops swap places on the clock.
+    */
+    const eaten = options.categoryOf ? mealsAtMealtimes(timed, options.categoryOf) : timed;
+
+    return { date, items: eaten, distanceKm: dayDistanceKm(eaten) };
   });
 
   const beforeKm = dates.reduce((sum, date) => sum

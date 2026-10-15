@@ -145,3 +145,60 @@ describe('區比天數多的時候', () => {
     expect(dayOf('gotokuji')).toBe(dayOf('shinjuku'));
   });
 });
+
+/**
+ * 「動線被優化了 但是行程合理性沒有驗證。早上10點吃拉麵嗎？」
+ *
+ * His own day: らぁ麺や 嶋 opened it at 10:00 because the route was laid out by
+ * distance and the clock was filled in behind it. Walking least is not the only
+ * thing a day has to be.
+ */
+describe('餐廳要排在吃飯時間', () => {
+  const foodIds = new Set(['ramen']);
+  const categoryOf = (item: ItineraryItem) => (foodIds.has(item.id) ? 'food' : 'sight');
+
+  it('把 10 點的拉麵跟午餐時段的景點對調', () => {
+    const plan = optimiseTripRoute([
+      at('ramen', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
+      at('garden', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 120 }),
+      at('gotokuji', '2026-10-22', 35.6467, 139.6469, { durationMinutes: 60 }),
+    ], { country: '日本', dayStart: '10:00', categoryOf });
+
+    const ramen = plan.days[0].items.find(item => item.id === 'ramen');
+    const minutes = Number(ramen!.time.slice(0, 2)) * 60 + Number(ramen!.time.slice(3));
+    // 午餐 is 11:30–14:00 in this app's own template.
+    expect(minutes).toBeGreaterThanOrEqual(11 * 60 + 30);
+    expect(minutes).toBeLessThan(14 * 60);
+  });
+
+  /* The set of stops and the day they are on never change — only two clocks. */
+  it('只是對調時間，不會多也不會少一個行程', () => {
+    const day = [
+      at('ramen', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
+      at('garden', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 120 }),
+    ];
+    const plan = optimiseTripRoute(day, { country: '日本', dayStart: '10:00', categoryOf });
+
+    expect(plan.days[0].items.map(item => item.id).sort()).toEqual(['garden', 'ramen']);
+  });
+
+  /* Already eating at a sensible hour: leave it completely alone. */
+  it('本來就在吃飯時間的不動', () => {
+    const plan = optimiseTripRoute([
+      at('garden', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 90 }),
+      at('ramen', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
+    ], { country: '日本', dayStart: '10:30', categoryOf });
+
+    expect(plan.days[0].items.find(item => item.id === 'ramen')?.time).toBe('12:00');
+  });
+
+  /* No tag, no opinion: a day of untagged places is laid out as before. */
+  it('沒有標籤時行為跟以前一樣', () => {
+    const plan = optimiseTripRoute([
+      at('a', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
+      at('b', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 120 }),
+    ], { country: '日本', dayStart: '10:00' });
+
+    expect(plan.days[0].items[0].time).toBe('10:00');
+  });
+});
