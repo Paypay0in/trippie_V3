@@ -1,4 +1,5 @@
 import { additionsToTheirArea } from './additionsToTheirArea';
+import { outlierToNearerDay } from './outlierToNearerDay';
 import { separateOverlaps, timeTheUntimed } from './separateOverlaps';
 import { ItineraryItem } from '../types';
 import {
@@ -712,7 +713,13 @@ export const applyItineraryAdjustment = (
     overlap and the missing time were. See `additionsToTheirArea`.
   */
   const grouped = additionsToTheirArea(items, addedIds, country);
-  const timed = timeTheUntimed(grouped.items, addedIds);
+  /*
+    And then the stop that is far from its day whatever its ward says.
+    「動線還是蠻不合理 跨太多區了」 — 豪德寺 is the only place in Setagaya, so
+    「one area, one day」 cannot speak about it. See `outlierToNearerDay`.
+  */
+  const tightened = outlierToNearerDay(grouped.items, addedIds);
+  const timed = timeTheUntimed(tightened.items, addedIds);
   const separated = separateOverlaps(timed.items);
 
   return {
