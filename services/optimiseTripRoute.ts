@@ -24,6 +24,7 @@ import { stopsOnTheGround } from './dayMapImage';
 import { durationOf, minutesToTime, timeToMinutes } from './itineraryTimeline';
 import { MEAL_WINDOWS } from './dayTemplate';
 import { transitMinutesBetween } from './itineraryScheduling';
+import { separateOverlaps } from './separateOverlaps';
 import { earliestFreeStartByDate, fixedAnchorSchedule } from './itineraryDayFloor';
 
 /**
@@ -419,7 +420,24 @@ export const optimiseTripRoute = (
     */
     const eaten = options.categoryOf ? mealsAtMealtimes(timed, options.categoryOf) : timed;
 
-    return { date, items: eaten, distanceKm: dayDistanceKm(eaten) };
+    /*
+      And finally nothing shares a slot with what the day is built around.
+
+      「13:00 前往朋友家 / 13:00 東京都現代美術館」, both cards warning about the
+      other. The airport transfer is an anchor: this function steps over
+      anchors when it lays the clock, and then never checked whether what it
+      laid had landed on one. Two comments above, this file already promised
+      that `separateOverlaps` would settle it — and never called it. A promise
+      in a comment is not a behaviour.
+
+      Run over the anchors as well as the stops, since it is the anchors that
+      decide who gives way: a flight or a check-in never moves.
+    */
+    const settled = separateOverlaps([...anchored, ...eaten]);
+    const plannedIds = new Set(eaten.map(item => item.id));
+    const finalItems = settled.items.filter(item => plannedIds.has(item.id));
+
+    return { date, items: finalItems, distanceKm: dayDistanceKm(finalItems) };
   });
 
   /*

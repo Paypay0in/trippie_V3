@@ -348,3 +348,31 @@ describe('那天沒有餐廳的時候', () => {
     expect(plan.mealsMissing.some(entry => entry.label === '午餐')).toBe(false);
   });
 });
+
+/**
+ * 「13:00 前往朋友家 / 13:00 東京都現代美術館」, both cards warning about the other.
+ *
+ * The airport transfer is an anchor. This function steps over anchors when it
+ * lays the clock and then never checked whether what it laid had landed on
+ * one — while a comment in it already promised `separateOverlaps` would settle
+ * exactly that. A promise in a comment is not a behaviour.
+ */
+describe('排好的行程不會壓到固定項目', () => {
+  it('不會跟機場接送同一個時間', () => {
+    const transfer = {
+      id: 'flight-arrival-out', title: '前往 朋友家', location: '朋友家',
+      notes: '', type: 'TRANSPORT', date: '2026-10-20', time: '13:00',
+      durationMinutes: 60, latitude: 35.7040, longitude: 139.7930,
+      derivedFromFlightAnchorId: 'anchor-out',
+    } as ItineraryItem;
+
+    const plan = optimiseTripRoute(
+      [transfer, at('museum', '2026-10-20', 35.6797, 139.8003, { durationMinutes: 60 })],
+      { country: '日本', dayStart: '13:00' },
+    );
+
+    const museum = plan.days.flatMap(day => day.items).find(item => item.id === 'museum');
+    // The transfer runs 13:00–14:00 and never moves.
+    expect(museum!.time >= '14:00').toBe(true);
+  });
+});
