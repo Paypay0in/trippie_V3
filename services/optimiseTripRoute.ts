@@ -34,7 +34,8 @@ export const isAnchored = (item: ItineraryItem): boolean =>
   Boolean(item.derivedFromFlightAnchorId)
   || item.type === 'FLIGHT'
   || Boolean(item.isPinned)
-  || Boolean(item.accommodation);
+  // A check-in is the day's bookend rather than a stop on it.
+  || item.type === 'HOTEL';
 
 interface Point { latitude: number; longitude: number }
 
@@ -256,7 +257,7 @@ export const optimiseTripRoute = (
 
   const days: RoutePlanDay[] = dates.map(date => {
     const anchored = (anchoredByDate.get(date) || []).filter(item => ground.has(item.id));
-    const accommodation = anchored.find(item => item.accommodation && located(item));
+    const accommodation = anchored.find(item => item.type === 'HOTEL' && located(item));
     const ordered = orderByProximity(
       plannedByDate.get(date) || [],
       accommodation && located(accommodation) ? accommodation : undefined,

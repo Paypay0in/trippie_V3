@@ -44,7 +44,7 @@ describe('整趟重排動線', () => {
   it('釘住的、航班、入住都不會被重排', () => {
     const pinned = at('pinned', '2026-10-21', ...GOTOKUJI, { isPinned: true });
     const flight = at('flight', '2026-10-24', 35.7720, 140.3929, { type: 'FLIGHT' });
-    const stay = at('stay', '2026-10-21', ...SHINJUKU, { accommodation: true });
+    const stay = at('stay', '2026-10-21', ...SHINJUKU, { type: 'HOTEL' });
 
     [pinned, flight, stay].forEach(item => expect(isAnchored(item)).toBe(true));
 
