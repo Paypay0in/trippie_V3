@@ -5,7 +5,7 @@
  * already at 14:30, so applying it put two places in one slot.
  */
 import { describe, expect, it } from 'vitest';
-import { separateOverlaps, timeTheUntimed } from './separateOverlaps';
+import { notBeforeTheFloor, separateOverlaps, timeTheUntimed } from './separateOverlaps';
 import { applyItineraryAdjustment } from './itineraryAdjustment';
 import { ItineraryItem } from '../types';
 
@@ -178,5 +178,62 @@ describe('AI 加進來卻沒給時間的行程', () => {
     ], new Set(['added']));
 
     expect(timedCount).toBe(0);
+  });
+});
+
+/**
+ * 「到底航班起飛都還沒抵達為何會放逛美術館」 — asked twice, because the first fix
+ * reached one of the two paths that place things.
+ *
+ * His outbound is 10/20 06:35 → 11:00. The model answered 10:00 for a stop on
+ * that day and was taken at its word.
+ */
+describe('落地之前不能排 AI 加的行程', () => {
+  const landing = {
+    id: 'flight-landing-anchor-out', title: '航班抵達', location: 'Narita International Airport',
+    notes: '', type: 'FLIGHT', date: '2026-10-20', time: '11:00', durationMinutes: 0,
+    derivedFromFlightAnchorId: 'anchor-out',
+  } as ItineraryItem;
+
+  it('模型給 10:00 也會被推到開放時間', () => {
+    const { items, movedCount } = notBeforeTheFloor(
+      [landing, item('museum', '10:00', { date: '2026-10-20' })],
+      new Set(['museum']),
+    );
+
+    expect(items.find(entry => entry.id === 'museum')?.time >= '11:00').toBe(true);
+    expect(movedCount).toBe(1);
+  });
+
+  /*
+    An item already on the plan before the floor is the traveller's own, and
+    may well be right: they know what they booked.
+  */
+  it('不動不是這次新增的項目', () => {
+    const { movedCount } = notBeforeTheFloor(
+      [landing, item('mine', '09:00', { date: '2026-10-20' })],
+      new Set(['something-else']),
+    );
+
+    expect(movedCount).toBe(0);
+  });
+
+  it('沒有航班的那天不受影響', () => {
+    const { movedCount } = notBeforeTheFloor(
+      [item('a', '09:00', { date: '2026-10-22' })],
+      new Set(['a']),
+    );
+
+    expect(movedCount).toBe(0);
+  });
+
+  /* And an addition with no time at all starts from the floor, not from 10:00. */
+  it('沒有時間的新增也從開放時間開始，不是從 10:00', () => {
+    const { items } = timeTheUntimed(
+      [landing, item('museum', '', { date: '2026-10-20', durationMinutes: 60 })],
+      new Set(['museum']),
+    );
+
+    expect(items.find(entry => entry.id === 'museum')?.time >= '11:00').toBe(true);
   });
 });

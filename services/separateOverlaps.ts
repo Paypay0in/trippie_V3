@@ -19,6 +19,7 @@
  */
 import { ItineraryItem } from '../types';
 import { durationOf, isTimedItem, minutesToTime, timeToMinutes } from './itineraryTimeline';
+import { earliestFreeStartByDate, fixedAnchorSchedule } from './itineraryDayFloor';
 
 const isFixed = (item: ItineraryItem): boolean =>
   Boolean(item.derivedFromFlightAnchorId) || item.type === 'FLIGHT' || Boolean(item.isPinned);
@@ -52,10 +53,17 @@ export const timeTheUntimed = (
   });
 
   const fallback = timeToMinutes(dayStart) ?? 600;
+  /*
+    An empty day still cannot begin before the traveller is in the country.
+    See `notBeforeTheFloor`.
+  */
+  const floors = earliestFreeStartByDate(fixedAnchorSchedule(items));
   let timedCount = 0;
   const next = items.map(item => {
     if (!addedIds.has(item.id) || isTimedItem(item) || !item.date) return item;
-    const start = endOfDay.get(item.date) ?? fallback;
+    const floor = timeToMinutes(floors[item.date] || '');
+    const opens = floor !== undefined && floor > fallback ? floor : fallback;
+    const start = endOfDay.get(item.date) ?? opens;
     // Past midnight there is no honest time to give it; it keeps the bucket.
     if (start + durationOf(item) >= 24 * 60) return item;
     endOfDay.set(item.date, start + durationOf(item));
@@ -64,6 +72,48 @@ export const timeTheUntimed = (
   });
 
   return timedCount === 0 ? { items, timedCount: 0 } : { items: next, timedCount };
+};
+
+/**
+ * Nothing this adjustment added may happen before the day is open.
+ *
+ * 「到底航班起飛都還沒抵達為何會放逛美術館」 — asked twice, because the first fix
+ * reached one of the two paths that place things. 優化動線 now asks what bounds
+ * a day; the AI adjustment did not, so a model that answered 「10:00」 on a day
+ * whose flight lands at 11:00 was taken at its word, and an addition with no
+ * time at all was laid from the same constant.
+ *
+ * `earliestFreeStartByDate` has known the answer all evening — it is the floor
+ * the day template and the AI planner are both held to, and it accounts for the
+ * landing, the time out of the airport and check-in.
+ *
+ * Only this adjustment's own additions are moved. An item already on the plan
+ * before the floor is the traveller's own, and may well be right: they know
+ * what they booked.
+ */
+export const notBeforeTheFloor = (
+  items: ItineraryItem[],
+  addedIds: Set<string>,
+): { items: ItineraryItem[]; movedCount: number } => {
+  if (addedIds.size === 0) return { items, movedCount: 0 };
+  const floors = earliestFreeStartByDate(fixedAnchorSchedule(items));
+
+  let movedCount = 0;
+  const next = items.map(item => {
+    if (!addedIds.has(item.id) || !item.date) return item;
+    const floor = floors[item.date];
+    if (!floor) return item;
+    const start = timeToMinutes(item.time);
+    const floorMinutes = timeToMinutes(floor);
+    if (floorMinutes === undefined) return item;
+    // An addition with no time yet is left to `timeTheUntimed`, which starts
+    // from the floor for the same reason.
+    if (start === undefined || start >= floorMinutes) return item;
+    movedCount += 1;
+    return { ...item, time: floor };
+  });
+
+  return movedCount === 0 ? { items, movedCount: 0 } : { items: next, movedCount };
 };
 
 /**

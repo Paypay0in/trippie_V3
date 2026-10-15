@@ -1,6 +1,6 @@
 import { additionsToTheirArea } from './additionsToTheirArea';
 import { outlierToNearerDay } from './outlierToNearerDay';
-import { separateOverlaps, timeTheUntimed } from './separateOverlaps';
+import { notBeforeTheFloor, separateOverlaps, timeTheUntimed } from './separateOverlaps';
 import { ItineraryItem } from '../types';
 import {
   buildInspirationIndex,
@@ -719,7 +719,13 @@ export const applyItineraryAdjustment = (
     「one area, one day」 cannot speak about it. See `outlierToNearerDay`.
   */
   const tightened = outlierToNearerDay(grouped.items, addedIds);
-  const timed = timeTheUntimed(tightened.items, addedIds);
+  /*
+    Nothing added may land before the day is open. 「到底航班起飛都還沒抵達為何會
+    放逛美術館」 — the model answered 10:00 for a day whose flight lands at 11:00
+    and was taken at its word. See `notBeforeTheFloor`.
+  */
+  const grounded = notBeforeTheFloor(tightened.items, addedIds);
+  const timed = timeTheUntimed(grounded.items, addedIds);
   const separated = separateOverlaps(timed.items);
 
   return {
