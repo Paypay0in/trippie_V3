@@ -10,12 +10,25 @@ import TripPlanBriefScreen from '../components/TripPlanBriefScreen';
 
 afterEach(cleanup);
 
+/*
+  An empty plan, so a test that only cares about the brief does not have to
+  care about the preview. 「P1 — 生成直接建立並保存旅程」 — the brief now goes to
+  `onPreview`, and `onGenerate` is what accepting the preview calls.
+*/
+const EMPTY_PLAN = { days: [], warnings: [] } as never;
+
 const open = (props: Record<string, unknown> = {}) => {
   const onGenerate = vi.fn();
+  const onPreview = vi.fn().mockResolvedValue(EMPTY_PLAN);
   render(
-    <TripPlanBriefScreen onClose={vi.fn()} onGenerate={onGenerate} {...props} />,
+    <TripPlanBriefScreen
+      onClose={vi.fn()}
+      onPreview={onPreview}
+      onGenerate={onGenerate}
+      {...props}
+    />,
   );
-  return { onGenerate };
+  return { onGenerate, onPreview };
 };
 
 const fill = (destination = '韓國 釜山') => {
@@ -52,8 +65,8 @@ describe('filling it in', () => {
     expect(screen.getByTestId('brief-days').textContent).toBe('6 天');
   });
 
-  it('hands the whole brief over', () => {
-    const { onGenerate } = open();
+  it('hands the whole brief over to the planner', () => {
+    const { onPreview } = open();
     fill();
     fireEvent.click(screen.getByTestId('brief-transport-drive'));
     fireEvent.change(screen.getByTestId('brief-start-time'), { target: { value: '11:00' } });
@@ -61,7 +74,7 @@ describe('filling it in', () => {
     fireEvent.change(screen.getByTestId('brief-notes'), { target: { value: '想去汗蒸幕' } });
     fireEvent.click(screen.getByTestId('brief-generate'));
 
-    expect(onGenerate).toHaveBeenCalledWith(expect.objectContaining({
+    expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({
       destination: '韓國 釜山',
       startDate: '2026-10-02',
       endDate: '2026-10-07',
@@ -100,13 +113,13 @@ describe('when the dates are not settled', () => {
    * found when the day tabs are already wrong.
    */
   it('clears the dates rather than hiding them', () => {
-    const { onGenerate } = open();
+    const { onPreview } = open();
     fill();
     fireEvent.click(screen.getByTestId('brief-dates-unknown'));
     fireEvent.change(screen.getByTestId('brief-approx-days'), { target: { value: '4' } });
     fireEvent.click(screen.getByTestId('brief-generate'));
 
-    expect(onGenerate).toHaveBeenCalledWith(expect.objectContaining({
+    expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({
       startDate: undefined, endDate: undefined, approximateDays: 4,
     }));
   });
@@ -136,5 +149,88 @@ describe('the booking upload inside the form', () => {
   it('is disabled when there is nothing to hand off to', () => {
     open();
     expect(screen.getByTestId('brief-upload').hasAttribute('disabled')).toBe(true);
+  });
+});
+
+/**
+ * 「P0 — AI 生成沒有產生日程」 and 「P1 — 生成直接建立並保存旅程」.
+ *
+ * The button said 生成, created an empty trip, saved it, and planned nothing.
+ * Those are the same gap seen twice: planning and creating were one step with
+ * nobody in between.
+ */
+describe('先看計畫，再決定要不要建立', () => {
+  const PLAN = {
+    days: [{
+      date: '2026-10-02',
+      items: [
+        { id: 'p1', placeName: '甘川文化村', source: 'ai_suggestion', sourceInspirationIds: [], suggestedStartTime: '10:00' },
+        { id: 'p2', placeName: '海雲台', source: 'ai_suggestion', sourceInspirationIds: [], suggestedStartTime: '14:00' },
+      ],
+    }],
+    warnings: [],
+  } as never;
+
+  const start = () => {
+    const onGenerate = vi.fn();
+    const onPreview = vi.fn().mockResolvedValue(PLAN);
+    render(<TripPlanBriefScreen onClose={vi.fn()} onPreview={onPreview} onGenerate={onGenerate} />);
+    return { onGenerate, onPreview };
+  };
+
+  it('按生成只會排出計畫，不會建立旅程', async () => {
+    const { onGenerate } = start();
+    fill();
+
+    fireEvent.click(screen.getByTestId('brief-generate'));
+
+    expect(await screen.findByTestId('brief-preview')).toBeTruthy();
+    expect(screen.getByTestId('brief-preview').textContent).toContain('甘川文化村');
+    // The whole point: nothing exists yet.
+    expect(onGenerate).not.toHaveBeenCalled();
+  });
+
+  it('按下建立才把計畫交出去', async () => {
+    const { onGenerate } = start();
+    fill();
+    fireEvent.click(screen.getByTestId('brief-generate'));
+    await screen.findByTestId('brief-preview');
+
+    fireEvent.click(screen.getByTestId('brief-accept'));
+
+    expect(onGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ destination: '韓國 釜山' }),
+      PLAN,
+    );
+  });
+
+  it('取消就什麼都沒發生', async () => {
+    const { onGenerate } = start();
+    fill();
+    fireEvent.click(screen.getByTestId('brief-generate'));
+    await screen.findByTestId('brief-preview');
+
+    fireEvent.click(screen.getByText('取消'));
+
+    expect(screen.queryByTestId('brief-preview')).toBeNull();
+    expect(onGenerate).not.toHaveBeenCalled();
+  });
+
+  /* A planner that is down must not leave a half-made trip behind. */
+  it('AI 失敗時說清楚，而且沒有建立任何東西', async () => {
+    const onGenerate = vi.fn();
+    render(
+      <TripPlanBriefScreen
+        onClose={vi.fn()}
+        onPreview={vi.fn().mockRejectedValue(new Error('down'))}
+        onGenerate={onGenerate}
+      />,
+    );
+    fill();
+
+    fireEvent.click(screen.getByTestId('brief-generate'));
+
+    expect((await screen.findByTestId('brief-error')).textContent).toContain('沒有被建立');
+    expect(onGenerate).not.toHaveBeenCalled();
   });
 });

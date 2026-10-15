@@ -190,6 +190,8 @@ import FriendsPanel from "./components/FriendsPanel";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
 import { TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
+import { generateTripInspirationProposal } from "./services/itineraryPlanningService";
+import { buildTripPlanningInput } from "./services/tripInspirationSelection";
 import { BookingReadout, DerivedTrip, tripFromBookings } from "./services/tripFromBookings";
 import { viewerIdentityNotice } from "./services/viewerIdentityNotice";
 import { flightAnchorsFromParsed } from "./services/flightIntake";
@@ -3121,7 +3123,10 @@ const App: React.FC = () => {
    * not two people with names, and a traveller called 「旅伴 1」 would land in
    * the ledger's split and have to be explained to whoever is really there.
    */
-  const handleGenerateFromBrief = (brief: TripPlanBrief) => {
+  const handleGenerateFromBrief = (
+    brief: TripPlanBrief,
+    proposal?: import("./services/itineraryPlanningService").TripInspirationProposal,
+  ) => {
     setIsPlanBriefOpen(false);
     setTripSetupMode("create");
     const setup = briefToTripSetup(brief);
@@ -3142,6 +3147,13 @@ const App: React.FC = () => {
       */
       const driving = drivingPreparationFor(brief, setup.destination);
       if (driving) handleBatchAddShoppingItems([driving.item], "draft");
+
+      /*
+        And the plan the traveller just accepted, through the path that already
+        writes an accepted plan. 「P0 — AI 生成沒有產生日程」 — the trip was created
+        and the brief stored, and nothing ever turned it into days.
+      */
+      if (proposal) void handleAcceptAiProposal(proposal, "append");
     });
   };
 
@@ -6924,6 +6936,22 @@ const App: React.FC = () => {
     <TripPlanBriefScreen
       initialDestination={pendingTripDestination?.city || ""}
       onClose={() => setIsPlanBriefOpen(false)}
+      /*
+        「P0 — AI 生成沒有產生日程」. The brief was stored and nothing was planned;
+        the plan is built here, from the same service the planner panel uses,
+        and nothing is written until the traveller accepts it.
+      */
+      onPreview={(brief) => {
+        const setup = briefToTripSetup(brief);
+        return generateTripInspirationProposal(
+          buildTripPlanningInput(
+            { destination: setup.destination, startDate: setup.startDate, endDate: setup.endDate },
+            [],
+            travellerBriefText({ brief }),
+            [],
+          ),
+        );
+      }}
       onGenerate={handleGenerateFromBrief}
       onUploadBookings={() => { setIsPlanBriefOpen(false); setIsBookingImportOpen(true); }}
     />

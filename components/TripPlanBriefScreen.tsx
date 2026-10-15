@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TripInspirationProposal } from '../services/itineraryPlanningService';
 import {
   BedDouble, CalendarDays, Clock, ListOrdered, MapPin, Pencil, Plane, Sparkles, Users, X,
 } from 'lucide-react';
@@ -36,7 +37,16 @@ interface Props {
   /** Prefilled when the traveller already named a destination elsewhere. */
   initialDestination?: string;
   onClose: () => void;
-  onGenerate: (brief: TripPlanBrief) => void;
+  /**
+   * Plans the trip the brief describes, without creating anything.
+   *
+   * 「P0 — AI 生成沒有產生日程」 and 「P1 — 生成直接建立並保存旅程」 are the same
+   * gap seen twice: the button said 「生成」, created an empty trip, and saved
+   * it. Planning and creating are now two steps with the traveller in between.
+   */
+  onPreview: (brief: TripPlanBrief) => Promise<TripInspirationProposal>;
+  /** Creates the trip and writes the plan the traveller just accepted. */
+  onGenerate: (brief: TripPlanBrief, proposal: TripInspirationProposal) => void;
   /** Opens the flight/stay reader, which fills the dates and destination. */
   onUploadBookings?: () => void;
 }
@@ -63,7 +73,7 @@ const Section: React.FC<{
 );
 
 const TripPlanBriefScreen: React.FC<Props> = ({
-  initialDestination, onClose, onGenerate, onUploadBookings,
+  initialDestination, onClose, onPreview, onGenerate, onUploadBookings,
 }) => {
   const [brief, setBrief] = useState<TripPlanBrief>({
     ...DEFAULT_BRIEF,
@@ -76,6 +86,10 @@ const TripPlanBriefScreen: React.FC<Props> = ({
     finds until the day tabs are wrong.
   */
   const [datesUnknown, setDatesUnknown] = useState(false);
+  /** The plan on screen, before any of it exists. See the preview below. */
+  const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [planError, setPlanError] = useState('');
 
   const set = <K extends keyof TripPlanBrief>(key: K, value: TripPlanBrief[K]) =>
     setBrief(current => ({ ...current, [key]: value }));
@@ -340,12 +354,81 @@ const TripPlanBriefScreen: React.FC<Props> = ({
         <button
           type="button"
           data-testid="brief-generate"
-          disabled={!ready}
-          onClick={() => onGenerate(brief)}
+          disabled={!ready || planning}
+          onClick={() => {
+            setPlanning(true);
+            setPlanError('');
+            onPreview(brief)
+              .then(result => setProposal(result))
+              .catch(() => setPlanError('AI 行程規劃現在無法使用，你的旅程沒有被建立。稍後再試一次。'))
+              .finally(() => setPlanning(false));
+          }}
           className="mt-3 flex h-[var(--cta-h)] w-full items-center justify-center gap-2 rounded-control bg-violet-600 text-action font-bold text-white disabled:bg-slate-200 disabled:text-slate-400"
         >
-          <Sparkles size={17} />生成我的專屬行程 →
+          <Sparkles size={17} />{planning ? 'AI 正在排行程…' : '生成我的專屬行程 →'}
         </button>
+
+        {planError && (
+          <p data-testid="brief-error" className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+            {planError}
+          </p>
+        )}
+
+        {/*
+          The plan, before the trip exists.
+
+          「生成直接建立並保存旅程」 — somebody filling this form is asking to see
+          what the AI would do, and was given a saved trip whether they liked
+          the answer or not. Nothing is written until 「建立這趟旅程」.
+        */}
+        {proposal && (
+          <div data-testid="brief-preview" className="mt-3 rounded-2xl border border-[#e8e7f4] bg-white p-3">
+            <h3 className="text-sm font-black text-[#11183d]">
+              AI 排了 {proposal.days.reduce((total, day) => total + day.items.length, 0)} 個行程，共 {proposal.days.length} 天
+            </h3>
+            <p className="mt-0.5 text-[11px] text-slate-400">看過再決定要不要建立。取消的話什麼都不會留下。</p>
+
+            <ul className="mt-2 space-y-2">
+              {proposal.days.map(day => (
+                <li key={day.date}>
+                  <p className="text-[11px] font-black text-[#5b3df5]">{day.date.slice(5).replace('-', '/')}</p>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {day.items.map(item => (
+                      <li key={item.id} className="rounded-lg bg-[#faf9ff] px-2 py-1 text-xs leading-5 text-[#11183d]">
+                        <span className="font-mono text-[10px] text-slate-400">{item.suggestedStartTime || '—'}</span>
+                        {' '}{item.placeName}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+
+            {proposal.warnings.length > 0 && (
+              <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
+                {proposal.warnings.join('；')}
+              </p>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                data-testid="brief-accept"
+                onClick={() => onGenerate(brief, proposal)}
+                className="min-h-11 flex-1 rounded-control bg-violet-600 text-sm font-black text-white"
+              >
+                建立這趟旅程
+              </button>
+              <button
+                type="button"
+                onClick={() => setProposal(null)}
+                className="min-h-11 rounded-control border border-slate-200 px-4 text-sm font-bold text-slate-500"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
