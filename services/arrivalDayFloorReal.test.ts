@@ -60,9 +60,15 @@ describe('那一天真的被落地時間框住', () => {
     expect(items.find(item => item.id === 'museum')!.time >= '11:00').toBe(true);
   });
 
-  it('優化動線也是', () => {
+  /*
+    Not 「at or after the landing」 — that is the assertion that let 11:00 pass,
+    and 11:00 is the minute the wheels touch the ground. 成田 to 江東區 is 55 km,
+    so the museum cannot open before the journey has happened.
+  */
+  it('優化動線會把從機場過去的時間算進去', () => {
     const plan = optimiseTripRoute([...derived, museum], { country: '日本', dayStart: '10:00' });
     const placed = plan.days.flatMap(day => day.items).find(item => item.id === 'museum');
-    expect(placed!.time >= '11:00').toBe(true);
+
+    expect(placed!.time > '12:00').toBe(true);
   });
 });

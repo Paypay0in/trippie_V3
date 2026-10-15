@@ -23,6 +23,7 @@ import { clusterSavedPlaces } from './placeClusters';
 import { stopsOnTheGround } from './dayMapImage';
 import { durationOf, minutesToTime, timeToMinutes } from './itineraryTimeline';
 import { MEAL_WINDOWS } from './dayTemplate';
+import { transitMinutesBetween } from './itineraryScheduling';
 import { earliestFreeStartByDate, fixedAnchorSchedule } from './itineraryDayFloor';
 
 /**
@@ -337,16 +338,41 @@ export const optimiseTripRoute = (
     );
 
     /*
-      Laid out from the day's start, back to back. Each item's own length
-      already includes the travel to it — 「每格預設 2 小時，含移動時間」 — so a
-      gap here would be inventing one. Clashes with a flight are settled
-      afterwards by `separateOverlaps`, which is the one place that knows how.
+      Laid out from the day's start, with the journey between stops allowed for.
+
+      「你這到底怎規劃的」 — the museum was given 11:00, the minute the plane
+      touched down, and the app's own leg card underneath it said the drive
+      from 成田 takes 62 minutes. The floor says when the wheels are on the
+      ground; it does not say when somebody can be standing in Kōtō.
+
+      `transitMinutesBetween` has been answering that since the AI scheduler
+      was written — 15 minutes of overhead plus 3 per kilometre, door to door.
+      Used here for the same reason it was used there: it only has to be
+      defensible, and nothing defensible puts a museum at the moment of
+      landing.
+
+      The journey from the last fixed thing on the day counts too, which is
+      how the airport gets out of the way.
     */
     const floor = timeToMinutes(floors[date] || '');
     let cursor = floor !== undefined && floor > requestedStart ? floor : requestedStart;
+
+    const lastAnchorBefore = anchored
+      .filter(item => located(item) && (timeToMinutes(item.time) ?? -1) <= cursor)
+      .sort((left, right) => (timeToMinutes(left.time) ?? 0) - (timeToMinutes(right.time) ?? 0))
+      .pop();
+
+    let previous: Point | undefined = lastAnchorBefore && located(lastAnchorBefore)
+      ? { latitude: lastAnchorBefore.latitude, longitude: lastAnchorBefore.longitude }
+      : undefined;
+
     const timed = ordered.map(item => {
+      if (previous && located(item)) {
+        cursor += transitMinutesBetween(previous, { latitude: item.latitude, longitude: item.longitude });
+      }
       const next = { ...item, date, time: minutesToTime(cursor) };
       cursor += durationOf(item);
+      if (located(item)) previous = { latitude: item.latitude, longitude: item.longitude };
       return next;
     });
 

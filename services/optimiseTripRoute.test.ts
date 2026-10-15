@@ -81,8 +81,14 @@ describe('整趟重排動線', () => {
       at('b', '2026-10-21', ...ASAKUSA2, { durationMinutes: 60 }),
     ], { country: '日本', dayStart: '11:00' });
 
+    /*
+      11:00, 90 minutes, then the journey to the next stop — 「你這到底怎規劃
+      的」. Back to back was the bug: the app's own leg card said the drive took
+      62 minutes while the plan gave it none.
+    */
     const times = plan.days[0].items.map(item => item.time);
-    expect(times).toEqual(['11:00', '12:30']);
+    expect(times[0]).toBe('11:00');
+    expect(times[1] > '12:30').toBe(true);
   });
 
   /* A place with no coordinates cannot be routed, and says so. */
@@ -189,7 +195,9 @@ describe('餐廳要排在吃飯時間', () => {
       at('ramen', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
     ], { country: '日本', dayStart: '10:30', categoryOf });
 
-    expect(plan.days[0].items.find(item => item.id === 'ramen')?.time).toBe('12:00');
+    // 10:30 + 90 minutes + the journey, which is still inside 午餐.
+    const ramen = plan.days[0].items.find(item => item.id === 'ramen')!.time;
+    expect(ramen >= '11:30' && ramen < '14:00').toBe(true);
   });
 
   /* No tag, no opinion: a day of untagged places is laid out as before. */
