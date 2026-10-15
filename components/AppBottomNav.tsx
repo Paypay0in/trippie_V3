@@ -42,7 +42,19 @@ const AppBottomNav: React.FC<Props> = ({ active, onChange, onPlus }) => {
       <button onClick={() => onChange('community')} className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${active === 'community' ? 'text-violet-600' : 'text-slate-400'}`}><Compass size={20} />{t('nav.community')}</button>
       <button onClick={() => onChange('trips')} className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${active === 'trips' ? 'text-violet-600' : 'text-slate-400'}`}><Map size={20} />{t('nav.trips')}</button>
       <button onClick={onPlus} className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-lg shadow-violet-500/30" aria-label={t('nav.addAriaLabel')}><Plus size={28} /></button>
-      <button onClick={() => onChange('services')} className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${active === 'services' ? 'text-violet-600' : 'text-slate-400'}`}><BriefcaseBusiness size={20} />{t('nav.services')}</button>
+      {/*
+        服務 is not here, and that is the whole change.
+
+        「服務頁顯示『後續版本開放』」 — one of five buttons whose only behaviour was
+        to say 「later」. The cost of that is not a missing feature; it is
+        teaching somebody that one of five buttons does nothing, and that
+        lesson spreads to the other four. Four buttons that all work read as a
+        more finished app than five with a dead one.
+
+        The section itself is untouched — `AppSection` still has `services` and
+        the screen still renders — so putting the tab back when there is
+        something behind it is this line, not a rebuild.
+      */}
       <button onClick={() => onChange('profile')} className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${active === 'profile' ? 'text-violet-600' : 'text-slate-400'}`}><UserRound size={20} />{t('nav.profile')}</button>
     </nav>
   );

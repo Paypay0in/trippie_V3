@@ -296,7 +296,12 @@ describe('AI 行程調整模式 runtime', () => {
       said 「上方行程表」, which from the bottom of a fifty-place collection is a
       long way off screen. It names what it put there, and offers the way to it.
     */
-    expect(document.body.textContent).toContain('黑房咖啡（10/15）');
+    /*
+      Derived, not written down. This read 「黑房咖啡（10/15）」 and broke the
+      morning the date rolled over, because the fixture's dates are relative to
+      today and the assertion was not.
+    */
+    expect(document.body.textContent).toContain(`黑房咖啡（${TRIP_MID.slice(5).replace('-', '/')}）`);
     expect(screen.getByTestId('go-to-itinerary')).toBeTruthy();
     expect(persistedItinerary()).toHaveLength(3);
 
