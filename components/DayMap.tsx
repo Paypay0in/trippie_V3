@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapPinned } from 'lucide-react';
 import { ItineraryItem } from '../types';
-import { dayMapSrc, mappableStops } from '../services/dayMapImage';
+import { dayMapSrc, mappableStops, stopsOnTheGround } from '../services/dayMapImage';
 
 /**
  * The day, drawn.
@@ -23,7 +23,12 @@ interface Props {
 
 const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
   const [failed, setFailed] = useState(false);
-  const stops = mappableStops(items);
+  /*
+    「最後一天會跨國！」 — a day ending with 航班抵達 abroad drew one line across
+    the sea and squashed four real stops in Tokyo into a dot. A day's map is
+    about moving between places on the ground. See `stopsOnTheGround`.
+  */
+  const stops = mappableStops(stopsOnTheGround(items));
   const unmapped = items.length - stops.length;
 
   if (stops.length === 0) {

@@ -1,4 +1,5 @@
 import { ItineraryItem } from '../types';
+import { stopsOnTheGround } from './dayMapImage';
 import { TripAreas } from './tripAreas';
 import { distanceKm, PlaceCluster } from './placeClusters';
 
@@ -45,7 +46,12 @@ export const dayAreaSpread = (
     if (!seen.has(area.id)) seen.set(area.id, area);
   });
 
-  const located = items.filter(item =>
+  /*
+    「最後一天會跨國！」 — the return flight's landing is on the day, so 「最遠兩點」
+    was reading two thousand kilometres and saying nothing about the four real
+    stops in Tokyo. See `stopsOnTheGround`.
+  */
+  const located = stopsOnTheGround(items).filter(item =>
     Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
 
   let longestHopKm: number | undefined;

@@ -6,7 +6,7 @@
  * do is leak a key or let a caller aim our key at anything else.
  */
 import { describe, expect, it } from 'vitest';
-import { dayMapQuery, dayMapSrc, mappableStops, pinLabel } from './dayMapImage';
+import { dayMapQuery, dayMapSrc, mappableStops, pinLabel, stopsOnTheGround } from './dayMapImage';
 
 const stop = (id: string, latitude: number, longitude: number, number: number) =>
   ({ id, latitude, longitude, number });
@@ -109,5 +109,56 @@ describe('what the browser is given', () => {
     expect(src.startsWith('/api/maps/day?')).toBe(true);
     expect(src).not.toContain('googleapis');
     expect(src.toLowerCase()).not.toContain('key=');
+  });
+});
+
+/**
+ * 「最後一天會跨國！且也只能跨國。最後一天還有行程欸！」
+ *
+ * His last day: four real stops across Tokyo, then 抵達機場 and 航班起飛 at
+ * Narita, then 航班抵達 at Taoyuan. The map drew one line across the East China
+ * Sea and squashed the whole day into a dot at the Tokyo end, and the day's
+ * 「最遠兩點」 read two thousand kilometres.
+ */
+describe('一天裡不在地面上的那一點', () => {
+  const stop = (id: string, latitude: number, longitude: number) => ({ id, latitude, longitude });
+
+  /* His actual last day. */
+  const lastDay = [
+    stop('chavaty', 35.6659, 139.7105),
+    stop('tsutaya', 35.6489, 139.6998),
+    stop('nakameguro', 35.6387, 139.7026),
+    stop('sky', 35.6580, 139.7016),
+    stop('narita-arrive', 35.7720, 140.3929),
+    stop('narita-depart', 35.7720, 140.3929),
+    stop('taoyuan', 25.0797, 121.2342),
+  ];
+
+  it('把跨海的那一點排除在地面動線之外', () => {
+    const kept = stopsOnTheGround(lastDay).map(entry => entry.id);
+
+    expect(kept).not.toContain('taoyuan');
+    // Narita is 60 km out and genuinely part of the day's ground movement.
+    expect(kept).toContain('narita-depart');
+    expect(kept).toContain('chavaty');
+  });
+
+  /* A day that is all in one place is left exactly as it is. */
+  it('正常的一天一個都不排除', () => {
+    const asakusa = [
+      stop('a', 35.7148, 139.7967),
+      stop('b', 35.7119, 139.7936),
+      stop('c', 35.7040, 139.7930),
+    ];
+
+    expect(stopsOnTheGround(asakusa)).toHaveLength(3);
+  });
+
+  /*
+    Two points cannot tell which of them is the outlier, so neither is dropped:
+    a day of exactly 「here and the airport」 is a real shape.
+  */
+  it('只有兩個點時不判斷誰是離群的', () => {
+    expect(stopsOnTheGround([stop('a', 35.6, 139.7), stop('b', 25.0, 121.2)])).toHaveLength(2);
   });
 });

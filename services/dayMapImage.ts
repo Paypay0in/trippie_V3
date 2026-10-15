@@ -29,6 +29,68 @@ export interface NumberedStop extends MapStop {
   number: number;
 }
 
+/**
+ * How far from the rest of a day a point can be and still be part of it.
+ *
+ * 「最後一天會跨國！且也只能跨國」 — the last day ends with 航班抵達 at Taoyuan, so
+ * the day's picture was a single line across the East China Sea and its 「最遠
+ * 兩點」 was two thousand kilometres. The four real stops in Tokyo were a dot.
+ *
+ * A day's map is about moving between places on the ground. The far end of a
+ * flight is not that, and it is still in the list underneath where it belongs.
+ *
+ * Expressed as a distance rather than as 「a flight」 on purpose: the rule is
+ * 「this is not part of today's ground movement」, which is true of a landing
+ * abroad however the item happens to be typed. A hundred kilometres is past
+ * any day trip this app plans and short of every international leg.
+ */
+export const FAR_FROM_THE_DAY_KM = 100;
+
+const EARTH_RADIUS_KM = 6371;
+
+const kmBetween = (
+  left: { latitude: number; longitude: number },
+  right: { latitude: number; longitude: number },
+): number => {
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRad(right.latitude - left.latitude);
+  const dLon = toRad(right.longitude - left.longitude);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(left.latitude)) * Math.cos(toRad(right.latitude)) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(a)));
+};
+
+/**
+ * A day's located items, without the ones that are not on it in any useful
+ * sense. See `FAR_FROM_THE_DAY_KM`.
+ *
+ * Measured against the median rather than the mean, so one point on another
+ * continent cannot drag the centre out towards itself and take a real stop
+ * with it.
+ */
+export const stopsOnTheGround = <T extends { latitude?: number; longitude?: number }>(
+  items: T[],
+): T[] => {
+  const located = items.filter(item =>
+    typeof item.latitude === 'number' && typeof item.longitude === 'number');
+  if (located.length < 3) return items;
+
+  const median = (values: number[]) => {
+    const sorted = [...values].sort((left, right) => left - right);
+    return sorted[Math.floor(sorted.length / 2)];
+  };
+  const centre = {
+    latitude: median(located.map(item => item.latitude as number)),
+    longitude: median(located.map(item => item.longitude as number)),
+  };
+
+  return items.filter(item => {
+    if (typeof item.latitude !== 'number' || typeof item.longitude !== 'number') return true;
+    return kmBetween(centre, { latitude: item.latitude, longitude: item.longitude })
+      <= FAR_FROM_THE_DAY_KM;
+  });
+};
+
 export const mappableStops = <T extends { id: string; latitude?: number; longitude?: number }>(
   items: T[],
 ): Array<NumberedStop & { item: T }> =>
