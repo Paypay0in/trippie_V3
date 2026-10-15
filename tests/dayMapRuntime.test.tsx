@@ -204,3 +204,46 @@ describe('機場要不要畫在地圖上', () => {
     expect(screen.queryByTestId('toggle-airport-stops')).toBeNull();
   });
 });
+
+/**
+ * 「這是從收藏放上來的店 是不是要將收藏筆記也顯示在行程表上」.
+ *
+ * The notes were already being shown — Lonich simply has none saved, so its
+ * card read as a name over a blank. The collection screen answered that with
+ * `placeBasics` months ago and this screen never got it.
+ */
+describe('沒有筆記的行程卡', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const lonich = stop('lonich', '15:00', {
+    title: 'Lonich', location: 'Lonich', placeId: 'ChIJ_lonich',
+    latitude: 35.7040, longitude: 139.7930,
+  });
+
+  it('改用 Google 自己的那一行，而不是留白', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ basics: { kind: '酒吧', rating: 4.6, ratingCount: 180 } }),
+    })) as never);
+
+    render(<ItineraryCalendar items={[lonich]} startDate={DAY} endDate={DAY} />);
+
+    const line = await screen.findByTestId('item-basics-lonich');
+    expect(line.textContent).toContain('酒吧');
+    expect(line.textContent).toContain('4.6');
+  });
+
+  /* A place that already carries notes keeps them and is not asked about. */
+  it('有筆記的不會被這一行取代', () => {
+    vi.stubGlobal('fetch', vi.fn() as never);
+
+    render(<ItineraryCalendar
+      items={[{ ...lonich, savedTravelNotes: [{ id: 'n1', text: '酒類買手店' }] } as never]}
+      startDate={DAY}
+      endDate={DAY}
+    />);
+
+    expect(screen.queryByTestId('item-basics-lonich')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

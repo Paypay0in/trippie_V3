@@ -3,6 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
 import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
+import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
@@ -213,6 +214,38 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   const [mapMode, setMapMode] = useState(false);
   /** The proposal on screen, or null. Nothing is written until it is taken. */
   const [routePlan, setRoutePlan] = useState<RoutePlan | null>(null);
+
+  /*
+    Google's own line for the places on this plan that carry no notes. See the
+    card below, and `placeBasicsService` for why none of it is model-written.
+  */
+  const [basicsByItemId, setBasicsByItemId] = useState<Record<string, string>>({});
+  const noteFreePlaceKey = items
+    .filter(item => item.placeId && (!item.savedTravelNotes || item.savedTravelNotes.length === 0))
+    .map(item => `${item.id}:${item.placeId}`)
+    .join('|');
+
+  useEffect(() => {
+    if (!noteFreePlaceKey) return;
+    let cancelled = false;
+    const wanted = noteFreePlaceKey.split('|').map(entry => {
+      const separator = entry.lastIndexOf(':');
+      return { itemId: entry.slice(0, separator), placeId: entry.slice(separator + 1) };
+    });
+
+    void Promise.all(wanted.map(async ({ itemId, placeId }) => {
+      const basics = await fetchPlaceBasics(placeId);
+      const line = summarizePlaceBasics(basics) || basics?.summary || '';
+      return line ? [itemId, line] as const : null;
+    })).then(found => {
+      if (cancelled) return;
+      const resolved = found.filter((entry): entry is readonly [string, string] => entry !== null);
+      if (resolved.length === 0) return;
+      setBasicsByItemId(current => ({ ...current, ...Object.fromEntries(resolved) }));
+    });
+
+    return () => { cancelled = true; };
+  }, [noteFreePlaceKey]);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : defaultItineraryDate(dates);
 
   /**
@@ -781,6 +814,24 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   time, name and location, and capped so a heavily-noted place cannot
                   stretch the card.
                 */}
+                {/*
+                  What is known about a place nobody wrote anything about.
+
+                  「這是從收藏放上來的店 是不是要將收藏筆記也顯示在行程表上」 — the
+                  notes were already here, and Lonich simply has none, so its
+                  card read as a name over a blank. The collection screen solved
+                  that months ago with `placeBasics`; this screen never got it.
+                  Same gap, one screen either side of it.
+
+                  No extra request: `fetchPlaceBasics` is cached per place id,
+                  and these are places the collection has usually asked about
+                  already.
+                */}
+                {(!item.savedTravelNotes || item.savedTravelNotes.length === 0) && basicsByItemId[item.id] && (
+                  <p data-testid={`item-basics-${item.id}`} className="mt-1.5 text-[11px] font-bold text-slate-500">
+                    {basicsByItemId[item.id]}
+                  </p>
+                )}
                 {item.savedTravelNotes && item.savedTravelNotes.length > 0 && (() => {
                   const isExpanded = expandedNoteIds.includes(item.id);
                   const visible = isExpanded ? item.savedTravelNotes : item.savedTravelNotes.slice(0, VISIBLE_NOTE_COUNT);
