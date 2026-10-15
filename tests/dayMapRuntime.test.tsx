@@ -159,3 +159,48 @@ describe('which pin is which', () => {
     expect(scrollIntoView).toHaveBeenCalled();
   });
 });
+
+/**
+ * 「機場這張 我覺得有跟沒有一樣。要不多一個選項：是否包含機場？因為這樣根本無法判斷
+ * 市區其他景點的相對距離」.
+ *
+ * His last day: four stops across Tokyo, then 抵達機場 and 航班起飛 at Narita
+ * sixty kilometres out. The picture stayed zoomed to the whole Kantō plain and
+ * the four city stops were one blob.
+ */
+describe('機場要不要畫在地圖上', () => {
+  const lastDay: ItineraryItem[] = [
+    stop('chavaty', '12:00', { latitude: 35.6659, longitude: 139.7105, title: 'CHAVATY' }),
+    stop('tsutaya', '13:30', { latitude: 35.6489, longitude: 139.6998, title: '代官山 蔦屋書店' }),
+    stop('sky', '17:15', { latitude: 35.6580, longitude: 139.7016, title: '澀谷 SKY' }),
+    stop('to-airport', '19:15', {
+      latitude: 35.7720, longitude: 140.3929, title: '抵達機場',
+      derivedFromFlightAnchorId: 'anchor-1',
+    }),
+    stop('takeoff', '21:15', { latitude: 35.7720, longitude: 140.3929, title: '航班起飛', type: 'FLIGHT' }),
+  ];
+
+  it('預設不畫機場，而且說出來', () => {
+    render(<DayMap items={lastDay} />);
+
+    expect(screen.getByTestId('day-map-unmapped').textContent).toContain('機場（2 個）');
+    expect(screen.queryByText('抵達機場')).toBeNull();
+    expect(screen.getByText('CHAVATY')).toBeTruthy();
+  });
+
+  it('按一下就把機場加回來', () => {
+    render(<DayMap items={lastDay} />);
+
+    fireEvent.click(screen.getByTestId('toggle-airport-stops'));
+
+    expect(screen.getByText('抵達機場')).toBeTruthy();
+    expect(screen.getByTestId('toggle-airport-stops').textContent).toContain('不含機場');
+  });
+
+  /* A day with no airport has nothing to toggle. */
+  it('沒有機場的那天不出現這顆按鈕', () => {
+    render(<DayMap items={[lastDay[0], lastDay[1]]} />);
+
+    expect(screen.queryByTestId('toggle-airport-stops')).toBeNull();
+  });
+});

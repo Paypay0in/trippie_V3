@@ -28,8 +28,26 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
     the sea and squashed four real stops in Tokyo into a dot. A day's map is
     about moving between places on the ground. See `stopsOnTheGround`.
   */
-  const stops = mappableStops(stopsOnTheGround(items));
-  const unmapped = items.length - stops.length;
+  /*
+    「機場這張 我覺得有跟沒有一樣 … 因為這樣根本無法判斷市區其他景點的相對距離」.
+
+    Dropping the landing abroad was only half of it: 成田 is still sixty
+    kilometres out, so the picture stayed zoomed to the whole Kantō plain and
+    the four stops in Tokyo were one blob. A map of a day answers 「how far apart
+    are these」, and at that zoom it cannot answer anything.
+
+    Off by default, because the city is the part of the day being looked at.
+    The airport is one tap away and every stop stays in the list below either
+    way — this hides a pin, never an item.
+  */
+  const [withAirport, setWithAirport] = useState(false);
+  const isAirportStop = (item: ItineraryItem) =>
+    item.type === 'FLIGHT' || Boolean(item.derivedFromFlightAnchorId);
+  const airportCount = items.filter(isAirportStop).length;
+  const shown = withAirport ? items : items.filter(item => !isAirportStop(item));
+
+  const stops = mappableStops(stopsOnTheGround(shown));
+  const unmapped = shown.length - stops.length;
 
   if (stops.length === 0) {
     return (
@@ -98,10 +116,28 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
           </li>
         ))}
       </ul>
-      {unmapped > 0 && (
-        <p data-testid="day-map-unmapped" className="border-t border-slate-100 px-3 py-2 text-[10px] font-bold leading-4 text-slate-400">
-          還有 {unmapped} 個行程沒連結地圖，沒有畫在上面。
-        </p>
+      {(unmapped > 0 || airportCount > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-3 py-2">
+          <p data-testid="day-map-unmapped" className="text-[10px] font-bold leading-4 text-slate-400">
+            {unmapped > 0 && `還有 ${unmapped} 個行程沒連結地圖，沒有畫在上面。`}
+            {/*
+              Says what is hidden rather than hiding it quietly: a map showing
+              four pins for a six-stop day is a day the traveller counts twice.
+            */}
+            {airportCount > 0 && !withAirport && `機場（${airportCount} 個）沒有畫在上面，這樣才看得出市區的距離。`}
+          </p>
+          {airportCount > 0 && (
+            <button
+              type="button"
+              data-testid="toggle-airport-stops"
+              aria-pressed={withAirport}
+              onClick={() => setWithAirport(value => !value)}
+              className="shrink-0 rounded-lg border border-[#e6e3f3] px-2 py-1 text-[10px] font-black text-[#5b3df5]"
+            >
+              {withAirport ? '不含機場' : '含機場'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
