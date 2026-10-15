@@ -54,3 +54,46 @@ describe('社群動態的排版', () => {
     expect(screen.getByTestId('community-feed').className).toContain('columns-2');
   });
 });
+
+/**
+ * 「發現頁是啥」 — a wall of other travellers' posts, and the source every saved
+ * place in this app comes from. 「追蹤」 and 「下一個目的地」 sat beside it and
+ * showed the same list: the feed filtered on `status` alone and `tab` was in
+ * the dependency array without ever being read.
+ *
+ * Neither can be built yet either — 追蹤 needs the friendships table, which is
+ * migration 0025 and unrun.
+ */
+describe('只留做得到的那個分頁', () => {
+  it('不再顯示點了沒作用的分頁', () => {
+    render(
+      <CommunityHome
+        posts={[post('a')]}
+        activeSection="community"
+        onSectionChange={() => {}}
+        onPlus={() => {}}
+        onOpenPost={() => {}}
+        onCreatePost={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText('追蹤')).toBeNull();
+    expect(screen.queryByText('下一個目的地')).toBeNull();
+  });
+
+  /* The feed itself is untouched: this removed choices, not content. */
+  it('貼文照常顯示', () => {
+    render(
+      <CommunityHome
+        posts={[post('a')]}
+        activeSection="community"
+        onSectionChange={() => {}}
+        onPlus={() => {}}
+        onOpenPost={() => {}}
+        onCreatePost={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('community-feed')).toBeTruthy();
+  });
+});
