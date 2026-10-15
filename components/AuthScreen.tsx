@@ -40,7 +40,19 @@ const AuthScreen: React.FC<Props> = ({ onBack, onSuccess, unavailable }) => {
     if (typedPassword !== password) setPassword(typedPassword);
 
     const normalizedEmail = normalizeEmail(typedEmail);
-    if (!normalizedEmail) { setError('請輸入 Email'); return; }
+    /*
+      Every empty field, not just the first one.
+
+      「空白送出只提示 Email，沒有清楚指出密碼或其他必填欄位」 — a form that reports
+      one missing field at a time makes somebody submit three times to learn
+      three things it knew at the first press.
+    */
+    const missing = [
+      !normalizedEmail ? 'Email' : '',
+      !typedPassword ? '密碼' : '',
+      mode === 'signUp' && !displayName.trim() ? '顯示名稱' : '',
+    ].filter(Boolean);
+    if (missing.length > 0) { setError(`請輸入${missing.join('、')}`); return; }
     // Quoting what was actually received. "格式不正確" on an address that looks
     // perfect on screen is impossible to act on; seeing the string the form
     // really holds says immediately whether it is truncated, doubled, or fine.

@@ -61,3 +61,33 @@ describe('AuthScreen', () => {
     expect(signIn).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 「P2 — 登入／註冊錯誤提示不夠精準：空白送出只提示 Email，沒有清楚指出密碼或其他
+ * 必填欄位」.
+ *
+ * A form that reports one missing field at a time makes somebody submit three
+ * times to learn three things it knew at the first press.
+ */
+describe('空白送出時說清楚缺什麼', () => {
+  it('一次列出 Email 和密碼', async () => {
+    render(<AuthScreen onBack={() => {}} onSuccess={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '登入' }));
+
+    expect((await screen.findByText(/請輸入/)).textContent).toContain('Email');
+    expect((await screen.findByText(/請輸入/)).textContent).toContain('密碼');
+  });
+
+  /* Only what is actually missing. */
+  it('只缺密碼時不會再叫人輸入 Email', async () => {
+    render(<AuthScreen onBack={() => {}} onSuccess={() => {}} />);
+    fireEvent.change(document.querySelector('input[name="email"]') as HTMLInputElement, { target: { value: 'north@example.com' } });
+
+    fireEvent.click(screen.getByRole('button', { name: '登入' }));
+
+    const message = (await screen.findByText(/請輸入/)).textContent || '';
+    expect(message).toContain('密碼');
+    expect(message).not.toContain('Email');
+  });
+});

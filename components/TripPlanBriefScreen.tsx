@@ -240,7 +240,7 @@ const TripPlanBriefScreen: React.FC<Props> = ({
           icon={<Plane size={16} />}
           title="機票與住宿資訊"
           optional
-          hint="上傳機票與住宿可以讓行程更精準，若還沒訂可以先跳過"
+          hint="若還沒訂可以先跳過，這一頁照樣排得出行程。但旅程建立後的「AI 調整行程」會需要它們——知道幾點落地才知道第一天剩多少時間，知道住哪裡才排得出同一區的動線。"
         >
           <div className="flex gap-2.5">
             <button

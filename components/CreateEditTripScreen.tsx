@@ -237,7 +237,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
-            <p className="text-section font-semibold tracking-tight">Trip budget</p>
+            <p className="text-section font-semibold tracking-tight">旅程預算</p>
             {/*
               Currency is a three-letter code and takes a three-letter column;
               the amount takes the rest. Two equal halves gave a wide select
@@ -245,7 +245,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
             */}
             <div className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5">
               <label className="text-support font-medium text-ink-soft">
-                Currency
+                幣別
                 <select
                   value={currency}
                   onChange={event => setCurrency(event.target.value)}
@@ -255,14 +255,14 @@ const CreateEditTripScreen: React.FC<Props> = ({
                 </select>
               </label>
               <label className="text-support font-medium text-ink-soft">
-                Total budget
+                總預算
                 <input
                   type="number"
                   min="0"
                   step="1"
                   value={budget}
                   onChange={event => setBudget(event.target.value)}
-                  placeholder="Optional"
+                  placeholder="選填"
                   className="mt-1 h-[var(--control-h)] w-full rounded-field border border-hairline bg-white px-3 text-field font-medium text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
                 />
               </label>
@@ -271,7 +271,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
 
           <section>
             <label htmlFor="trip-destination" className="text-section font-semibold tracking-tight">
-              Where are you going?
+              要去哪裡？
             </label>
             <div className="relative mt-2">
               <Search
@@ -283,7 +283,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
                 type="text"
                 value={destination}
                 onChange={(event) => setDestination(event.target.value)}
-                placeholder="e.g. Tokyo, Japan"
+                placeholder="例如：日本 東京"
                 autoComplete="off"
                 className="h-[var(--control-h)] w-full rounded-field border border-hairline bg-white pl-10 pr-3 text-field font-medium text-ink outline-none transition placeholder:text-slate-300 focus:border-violet-400"
               />
@@ -291,7 +291,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
-            <p className="text-section font-semibold tracking-tight">When?</p>
+            <p className="text-section font-semibold tracking-tight">什麼時候？</p>
             {/*
               Two fields side by side rather than one bordered row holding two
               more bordered fields — the nested frames were most of why this
@@ -344,7 +344,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
-            <p className="text-section font-semibold tracking-tight">Travelers</p>
+            <p className="text-section font-semibold tracking-tight">旅伴</p>
             {/*
               The people, not a count of them.
 
@@ -389,7 +389,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
               disabled={dateRangeInvalid}
               className="flex h-[var(--cta-h)] w-full items-center justify-center rounded-control bg-violet-600 px-5 text-action font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {mode === 'create' ? 'Create Trip' : 'Save Changes'}
+              {mode === 'create' ? '建立旅程' : '儲存變更'}
             </button>
             {/*
               Secondary, and shaped like it. A second filled button beside the

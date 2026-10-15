@@ -94,9 +94,9 @@ describe('欄位與按鈕的尺寸', () => {
 });
 
 describe('主要與次要動作', () => {
-  it('Save Changes 是實心紫色的主要動作', () => {
+  it('儲存變更是實心紫色的主要動作', () => {
     renderScreen();
-    const save = screen.getByRole('button', { name: 'Save Changes' });
+    const save = screen.getByRole('button', { name: '儲存變更' });
     expect(save.className).toContain('bg-violet-600');
     expect(save.className).toContain('h-[var(--cta-h)]');
   });
@@ -109,7 +109,7 @@ describe('主要與次要動作', () => {
 
   it('日期不合法時主要動作會停用', () => {
     renderScreen({ initialStartDate: '2026-10-07', initialEndDate: '2026-10-02' });
-    expect((screen.getByRole('button', { name: 'Save Changes' }) as HTMLButtonElement).disabled)
+    expect((screen.getByRole('button', { name: '儲存變更' }) as HTMLButtonElement).disabled)
       .toBe(true);
   });
 });
@@ -148,8 +148,8 @@ describe('功能沒有被改版弄丟', () => {
     renderScreen({ onSubmit });
 
     fireEvent.change(screen.getByLabelText('開始日期'), { target: { value: '2026-10-03' } });
-    fireEvent.change(screen.getByPlaceholderText('Optional'), { target: { value: '50000' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.change(screen.getByPlaceholderText('選填'), { target: { value: '50000' } });
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       destination: '韓國',
@@ -165,7 +165,7 @@ describe('功能沒有被改版弄丟', () => {
     const onSubmit = vi.fn();
     renderScreen({ onSubmit });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ budget: undefined }));
   });
@@ -177,7 +177,7 @@ describe('功能沒有被改版弄丟', () => {
     fireEvent.change(screen.getByLabelText('結束日期'), { target: { value: '2026-09-01' } });
 
     expect(screen.getByText('結束日期不能早於開始日期。')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
