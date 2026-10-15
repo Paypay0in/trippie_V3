@@ -202,3 +202,47 @@ describe('餐廳要排在吃飯時間', () => {
     expect(plan.days[0].items[0].time).toBe('10:00');
   });
 });
+
+/**
+ * 「航班起飛還沒抵達就去美術館嗎？」
+ *
+ * His outbound is 2026/10/20 06:35 → 11:00, and the optimiser opened that day
+ * at 10:00 — in the air. It laid times from a constant and never asked what
+ * bounded the day, while `earliestFreeStartByDate` had been answering exactly
+ * that question all evening for the day template and the AI planner.
+ */
+describe('抵達之前的那一天', () => {
+  it('不會把行程排在落地之前', () => {
+    const arrivalDay = [
+      {
+        /*
+          The id is the role: `flightDerivedItems` builds `flight-landing-<id>`,
+          and `roleOf` reads it, because an id is the one part of these items
+          that is generated rather than typed.
+        */
+        id: 'flight-landing-anchor-out', title: '航班抵達', location: 'Narita International Airport',
+        notes: '', type: 'FLIGHT', date: '2026-10-20', time: '11:00',
+        durationMinutes: 0, latitude: 35.7720, longitude: 140.3929,
+        derivedFromFlightAnchorId: 'anchor-out',
+      } as ItineraryItem,
+      at('museum', '2026-10-20', 35.6797, 139.8003, { durationMinutes: 60 }),
+      at('cafe', '2026-10-20', 35.6659, 139.7105, { durationMinutes: 60 }),
+    ];
+
+    const plan = optimiseTripRoute(arrivalDay, { country: '日本', dayStart: '10:00' });
+
+    plan.days.flatMap(day => day.items).forEach(item => {
+      expect(item.time >= '11:00').toBe(true);
+    });
+  });
+
+  /* A day with no flight keeps the time the traveller asked for. */
+  it('沒有航班的那天照常從設定的時間開始', () => {
+    const plan = optimiseTripRoute([
+      at('a', '2026-10-22', 35.6852, 139.7101),
+      at('b', '2026-10-22', 35.6883, 139.6809),
+    ], { country: '日本', dayStart: '09:00' });
+
+    expect(plan.days[0].items[0].time).toBe('09:00');
+  });
+});

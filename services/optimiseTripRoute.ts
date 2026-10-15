@@ -23,6 +23,7 @@ import { clusterSavedPlaces } from './placeClusters';
 import { stopsOnTheGround } from './dayMapImage';
 import { durationOf, minutesToTime, timeToMinutes } from './itineraryTimeline';
 import { MEAL_WINDOWS } from './dayTemplate';
+import { earliestFreeStartByDate, fixedAnchorSchedule } from './itineraryDayFloor';
 
 /**
  * Flights, anything derived from one, check-ins, and anything pinned.
@@ -313,7 +314,19 @@ export const optimiseTripRoute = (
     plannedByDate.set(date, [...(plannedByDate.get(date) || []), ...area.items]);
   });
 
-  const startMinutes = timeToMinutes(options.dayStart || '10:00') ?? 600;
+  const requestedStart = timeToMinutes(options.dayStart || '10:00') ?? 600;
+  /*
+    A day cannot begin before the traveller is in the country.
+
+    「航班起飛還沒抵達就去美術館嗎？」 — the outbound lands at 11:00 and the
+    optimiser opened that day at 10:00, because it laid times from a constant
+    and never asked what the day was bounded by. The answer was already
+    written: `earliestFreeStartByDate` is the same floor the day template and
+    the AI planner are both bounded by, built tonight for 「我早上11點到東京 為何
+    佔掉所有時間？」. It knows about landing, the time out of the airport and
+    check-in; none of that is re-derived here.
+  */
+  const floors = earliestFreeStartByDate(fixedAnchorSchedule(items));
 
   const days: RoutePlanDay[] = dates.map(date => {
     const anchored = (anchoredByDate.get(date) || []).filter(item => ground.has(item.id));
@@ -329,7 +342,8 @@ export const optimiseTripRoute = (
       gap here would be inventing one. Clashes with a flight are settled
       afterwards by `separateOverlaps`, which is the one place that knows how.
     */
-    let cursor = startMinutes;
+    const floor = timeToMinutes(floors[date] || '');
+    let cursor = floor !== undefined && floor > requestedStart ? floor : requestedStart;
     const timed = ordered.map(item => {
       const next = { ...item, date, time: minutesToTime(cursor) };
       cursor += durationOf(item);
