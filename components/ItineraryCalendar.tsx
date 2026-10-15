@@ -1743,6 +1743,23 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               );
             })()}
 
+            {/*
+              「吃飯時間也要規劃餐廳 不是塞景點」 — moving a restaurant into an
+              empty window is arithmetic; conjuring one is not. Named rather
+              than filled, so a day without lunch does not pass in silence.
+            */}
+            {routePlan.mealsMissing.length > 0 && (
+              <p data-testid="meals-missing" className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
+                這幾餐還沒有安排餐廳：
+                {routePlan.mealsMissing
+                  .map(entry => `${entry.date.slice(5).replace('-', '/')} ${entry.label}`)
+                  .join('、')}
+                <span className="mt-0.5 block font-medium text-amber-600">
+                  從收藏勾幾間，或用「AI 幫我調整行程」補上。
+                </span>
+              </p>
+            )}
+
             {routePlan.unplaced.length > 0 && (
               <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
                 {routePlan.unplaced.length} 個行程沒有地圖位置，留在原本的日子沒有被動到：

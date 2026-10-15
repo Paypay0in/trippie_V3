@@ -76,6 +76,18 @@ export interface RoutePlan {
   /** Total ground distance before and after, for saying whether it helped. */
   beforeKm: number;
   afterKm: number;
+  /**
+   * Meal windows this trip reaches with nothing to eat in them.
+   *
+   * 「吃飯時間也要規劃餐廳 不是塞景點」. Moving a restaurant into an empty window is
+   * arithmetic; conjuring one is not, and a plan that quietly leaves a day
+   * without lunch has not said so. Named rather than filled — choosing where
+   * to eat is the part the traveller and the model are both better at.
+   *
+   * Only windows the day actually reaches: lunch on a day that lands at 14:00
+   * was never missed.
+   */
+  mealsMissing: Array<{ date: string; label: string }>;
 }
 
 /** How far a day walks, visiting its items in order. */
@@ -254,12 +266,37 @@ export const mealsAtMealtimes = (
       const distance = Math.abs(times[otherIndex] - times[index]);
       if (distance < bestDistance) { bestDistance = distance; bestIndex = otherIndex; }
     });
-    if (bestIndex === -1) return;
+    if (bestIndex !== -1) {
+      const mealTime = times[bestIndex];
+      const otherTime = times[index];
+      times[bestIndex] = otherTime;
+      times[index] = mealTime;
+      return;
+    }
 
-    const mealTime = times[bestIndex];
-    const otherTime = times[index];
-    times[bestIndex] = otherTime;
-    times[index] = mealTime;
+    /*
+      Nobody to trade with, and the window is standing empty.
+
+      「吃飯時間也要規劃餐廳 不是塞景點」 — the first version only traded, so a day
+      whose lunch hour had nothing in it left the restaurant at 15:00 and ate
+      nothing at noon. An empty window is the easiest case, not the hardest:
+      the meal simply moves into it.
+
+      Never earlier than the day already starts, so a window that has already
+      passed — lunch on a day that lands at 14:00 — is not used to reach back
+      into a time the traveller was not there.
+      `separateOverlaps` settles whatever the move runs into.
+    */
+    const dayOpens = Math.min(...times);
+    const free = windows
+      .filter(window => window.to > dayOpens)
+      .filter(window => !times.some((minutes, other) =>
+        other !== index && minutes >= window.from && minutes < window.to))
+      .sort((left, right) =>
+        Math.abs(left.from - times[index]) - Math.abs(right.from - times[index]))[0];
+    if (!free) return;
+
+    times[index] = Math.max(free.from, dayOpens);
   });
 
   return order.map((item, index) => ({ ...item, time: minutesToTime(times[index]) }));
@@ -385,9 +422,37 @@ export const optimiseTripRoute = (
     return { date, items: eaten, distanceKm: dayDistanceKm(eaten) };
   });
 
+  /*
+    Which meal windows end up with nothing to eat in them. See `mealsMissing`.
+  */
+  const mealsMissing: Array<{ date: string; label: string }> = [];
+  if (options.categoryOf) {
+    days.forEach(day => {
+      const minutes = day.items
+        .map(item => timeToMinutes(item.time))
+        .filter((value): value is number => value !== undefined);
+      if (minutes.length === 0) return;
+      const opens = Math.min(...minutes);
+      const closes = Math.max(...minutes);
+
+      MEAL_WINDOWS.forEach(window => {
+        const from = timeToMinutes(window.from) ?? 0;
+        const to = timeToMinutes(window.to) ?? 0;
+        // A window the day never reaches was not missed.
+        if (to <= opens || from > closes) return;
+        const fed = day.items.some(item => {
+          const start = timeToMinutes(item.time);
+          return start !== undefined && start >= from && start < to
+            && options.categoryOf?.(item) === 'food';
+        });
+        if (!fed) mealsMissing.push({ date: day.date, label: window.label });
+      });
+    });
+  }
+
   const beforeKm = dates.reduce((sum, date) => sum
     + dayDistanceKm(items.filter(item => item.date === date && !isAnchored(item) && ground.has(item.id))), 0);
   const afterKm = days.reduce((sum, day) => sum + day.distanceKm, 0);
 
-  return { days, unplaced, beforeKm, afterKm };
+  return { days, unplaced, beforeKm, afterKm, mealsMissing };
 };

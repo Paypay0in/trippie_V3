@@ -254,3 +254,97 @@ describe('抵達之前的那一天', () => {
     expect(plan.days[0].items[0].time).toBe('09:00');
   });
 });
+
+/**
+ * 「吃飯時間也要規劃餐廳 不是塞景點」.
+ *
+ * The first version only traded places, so a day whose lunch hour had nothing
+ * in it left the restaurant at 15:00 and ate nothing at noon. An empty window
+ * is the easiest case, not the hardest.
+ */
+describe('用餐時段空著的時候', () => {
+  const foodIds = new Set(['ramen']);
+  const categoryOf = (item: ItineraryItem) => (foodIds.has(item.id) ? 'food' : 'sight');
+
+  it('直接把餐廳移進空的用餐時段', () => {
+    const plan = optimiseTripRoute([
+      at('garden', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 180 }),
+      at('ramen', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
+    ], { country: '日本', dayStart: '10:00', categoryOf });
+
+    const ramen = plan.days[0].items.find(item => item.id === 'ramen')!.time;
+    expect(ramen >= '11:30' && ramen < '14:00').toBe(true);
+  });
+
+  /*
+    A window that has already passed is not used to reach back into a time the
+    traveller was not in the country.
+  */
+  it('那天還沒開始的時段不算數', () => {
+    const plan = optimiseTripRoute([
+      at('garden', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 120 }),
+      at('ramen', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
+    ], { country: '日本', dayStart: '15:00', categoryOf });
+
+    // 早餐 and 午餐 are both behind a day that opens at 15:00.
+    expect(plan.days[0].items.find(item => item.id === 'ramen')!.time >= '15:00').toBe(true);
+  });
+
+  /* Two meals, two windows: each finds its own rather than fighting over one. */
+  it('兩間餐廳分別落在午餐與晚餐', () => {
+    const twoMeals = new Set(['lunch', 'dinner']);
+    const plan = optimiseTripRoute([
+      at('sight', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 120 }),
+      at('lunch', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
+      at('dinner', '2026-10-22', 35.6860, 139.7020, { durationMinutes: 60 }),
+    ], {
+      country: '日本',
+      dayStart: '09:00',
+      categoryOf: (item) => (twoMeals.has(item.id) ? 'food' : 'sight'),
+    });
+
+    const times = plan.days[0].items
+      .filter(item => twoMeals.has(item.id))
+      .map(item => item.time)
+      .sort();
+    expect(times[0]).not.toBe(times[1]);
+  });
+});
+
+/**
+ * 「吃飯時間也要規劃餐廳」 — and when there is no restaurant to move, say so
+ * rather than leaving the day quietly without lunch.
+ */
+describe('那天沒有餐廳的時候', () => {
+  const allSights = () => 'sight';
+
+  it('講出哪幾餐沒安排', () => {
+    const plan = optimiseTripRoute([
+      at('a', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 120 }),
+      at('b', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 120 }),
+    ], { country: '日本', dayStart: '10:00', categoryOf: allSights });
+
+    expect(plan.mealsMissing.some(entry => entry.label === '午餐')).toBe(true);
+  });
+
+  /* A window the day never reaches was not missed. */
+  it('那天到不了的時段不算沒安排', () => {
+    const plan = optimiseTripRoute([
+      at('a', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 60 }),
+    ], { country: '日本', dayStart: '10:00', categoryOf: allSights });
+
+    expect(plan.mealsMissing.some(entry => entry.label === '晚餐')).toBe(false);
+  });
+
+  it('有餐廳的那一餐不會被列出來', () => {
+    const plan = optimiseTripRoute([
+      at('sight', '2026-10-22', 35.6852, 139.7101, { durationMinutes: 90 }),
+      at('lunch', '2026-10-22', 35.6883, 139.6809, { durationMinutes: 60 }),
+    ], {
+      country: '日本', dayStart: '10:00',
+      categoryOf: (item) => (item.id === 'lunch' ? 'food' : 'sight'),
+    });
+
+    expect(plan.mealsMissing.some(entry => entry.label === '午餐')).toBe(false);
+  });
+});
