@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
+import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
@@ -210,6 +211,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     this state did — rendered, styled, and wired to nothing at all.
   */
   const [mapMode, setMapMode] = useState(false);
+  /** The proposal on screen, or null. Nothing is written until it is taken. */
+  const [routePlan, setRoutePlan] = useState<RoutePlan | null>(null);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : defaultItineraryDate(dates);
 
   /**
@@ -907,7 +910,22 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6b4df6]">ITINERARY</p><h2 className="mt-1 text-xl font-black text-[#111A4A]">行程規劃</h2><p className="mt-1 text-xs text-slate-400">規劃每日行程，讓旅程更順暢、更有趣。</p></div>
-        <div className="flex shrink-0 items-center gap-2">{onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] px-3 py-2 text-xs font-black text-white shadow-[0_6px_14px_rgba(91,61,245,.16)]"><Plus size={14} />新增行程</button>}<button type="button" data-testid="toggle-map-mode" aria-pressed={mapMode} onClick={() => setMapMode(value => !value)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold shadow-sm ${mapMode ? 'bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-white' : 'border border-[#eceaf5] bg-white text-[#5b3df5]'}`}>{mapMode ? <List size={14} /> : <Map size={14} />}{mapMode ? '列表模式' : '地圖模式'}</button><button type="button" aria-label="更多選項" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={17} /></button></div>
+        <div className="flex shrink-0 items-center gap-2">{onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] px-3 py-2 text-xs font-black text-white shadow-[0_6px_14px_rgba(91,61,245,.16)]"><Plus size={14} />新增行程</button>}<button type="button" data-testid="toggle-map-mode" aria-pressed={mapMode} onClick={() => setMapMode(value => !value)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold shadow-sm ${mapMode ? 'bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-white' : 'border border-[#eceaf5] bg-white text-[#5b3df5]'}`}>{mapMode ? <List size={14} /> : <Map size={14} />}{mapMode ? '列表模式' : '地圖模式'}</button>{onUpdateItem && (
+          /*
+            「那 AI 要像一個規劃人員重新幫我想行程 動線才對」. Nothing is written
+            until the preview is confirmed — this rewrites days the traveller
+            arranged, and 「除非我按下固定的行程」 is the only promise it makes
+            about what it will not touch. See `optimiseTripRoute`.
+          */
+          <button
+            type="button"
+            data-testid="optimise-route"
+            onClick={() => setRoutePlan(optimiseTripRoute(items, { country: destinationCountry }))}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#eceaf5] bg-white px-3 py-2 text-xs font-bold text-[#5b3df5] shadow-sm"
+          >
+            <Sparkles size={14} />優化動線
+          </button>
+        )}<button type="button" aria-label="更多選項" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={17} /></button></div>
       </div>
       {dates.length > 0 && <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{dates.map((date, index) => {
         /*
@@ -1604,6 +1622,106 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           notes={items.find(item => item.id === stayDetail.itemId)?.notes}
           onClose={() => setStayDetail(null)}
         />
+      )}
+      {/*
+        The proposal, before anything is written.
+
+        「連我手排的都給建議才對 除非我按下固定的行程」 — so this moves days the
+        traveller arranged, and the only honest way to do that is to show the
+        whole thing first and let them say no. Every row says where it was and
+        where it would go; unchanged rows are not listed, because a diff that
+        lists everything is not a diff.
+      */}
+      {routePlan && (
+        <div
+          className={`fixed inset-0 ${OVERLAY.sheet} flex items-end justify-center bg-slate-950/40 p-3 sm:items-center sm:p-6`}
+          onClick={() => setRoutePlan(null)}
+        >
+          <div
+            data-testid="route-plan-preview"
+            className="max-h-[86vh] w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-4 shadow-2xl"
+            onClick={event => event.stopPropagation()}
+          >
+            <h2 className="text-lg font-black text-[#11183d]">優化動線</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              航班、住宿與你固定的行程不會被更動。確認之前不會寫入任何東西。
+            </p>
+            <p className="mt-2 text-xs font-black text-[#5b3df5]">
+              每天走的路：{routePlan.beforeKm.toFixed(1)} → {routePlan.afterKm.toFixed(1)} 公里
+              {routePlan.afterKm >= routePlan.beforeKm && (
+                <span className="ml-1 font-bold text-slate-400">（已經是好的安排，沒有更短的走法）</span>
+              )}
+            </p>
+
+            {(() => {
+              // A record, not a Map: `Map` in this file is lucide's icon.
+              const before: Record<string, ItineraryItem> = {};
+              items.forEach(entry => { before[entry.id] = entry; });
+              const changes = routePlan.days.flatMap(day => day.items
+                .filter(item => {
+                  const was = before[item.id];
+                  return was && (was.date !== item.date || was.time !== item.time);
+                })
+                .map(item => ({ item, was: before[item.id] })));
+
+              if (changes.length === 0) {
+                return <p className="mt-3 text-sm font-bold text-slate-500">這趟行程已經不需要調整。</p>;
+              }
+              return (
+                <ul className="mt-3 space-y-1.5">
+                  {changes.map(({ item, was }) => (
+                    <li key={item.id} className="rounded-xl bg-[#faf9ff] px-3 py-2 text-xs leading-5">
+                      <span className="font-black text-[#11183d]">{item.location || item.title}</span>
+                      <span className="mt-0.5 block text-slate-500">
+                        {was.date.slice(5).replace('-', '/')} {was.time || '未安排'}
+                        {' → '}
+                        <span className="font-black text-[#5b3df5]">
+                          {item.date.slice(5).replace('-', '/')} {item.time}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
+
+            {routePlan.unplaced.length > 0 && (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
+                {routePlan.unplaced.length} 個行程沒有地圖位置，留在原本的日子沒有被動到：
+                {routePlan.unplaced.map(entry => entry.item.location || entry.item.title).join('、')}
+              </p>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                data-testid="apply-route-plan"
+                onClick={() => {
+                  const before: Record<string, ItineraryItem> = {};
+                  items.forEach(entry => { before[entry.id] = entry; });
+                  routePlan.days.forEach(day => day.items.forEach(item => {
+                    const was = before[item.id];
+                    if (!was || !onUpdateItem) return;
+                    if (was.date !== item.date || was.time !== item.time) {
+                      onUpdateItem(item.id, { date: item.date, time: item.time });
+                    }
+                  }));
+                  setRoutePlan(null);
+                }}
+                className="min-h-11 flex-1 rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-sm font-black text-white"
+              >
+                套用這份動線
+              </button>
+              <button
+                type="button"
+                onClick={() => setRoutePlan(null)}
+                className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-500"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

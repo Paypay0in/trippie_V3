@@ -870,3 +870,29 @@ describe('the landing card', () => {
     expect(titles).toEqual(['抵達機場', '航班起飛', '航班抵達']);
   });
 });
+
+/**
+ * 「那 AI 要像一個規劃人員重新幫我想行程 動線才對」 and 「連我手排的都給建議才對 除非
+ * 我按下固定的行程」.
+ *
+ * The preview is the whole promise: this moves days the traveller arranged, so
+ * nothing may be written until they have seen it and said yes.
+ */
+describe('優化動線', () => {
+  it('先給預覽，按確認之前一筆都不寫', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    const before = JSON.stringify(persisted());
+    render(<App />);
+    await openPlanning(user);
+
+    await user.click(await screen.findByTestId('optimise-route'));
+
+    // Opening a proposal must not touch the stored plan.
+    expect(JSON.stringify(persisted())).toBe(before);
+
+    expect(screen.getByTestId('route-plan-preview')).toBeTruthy();
+    expect(document.body.textContent).toContain('確認之前不會寫入任何東西');
+    expect(document.body.textContent).toContain('航班、住宿與你固定的行程不會被更動');
+  });
+});
