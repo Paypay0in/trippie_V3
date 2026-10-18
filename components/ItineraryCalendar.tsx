@@ -1120,6 +1120,11 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           items={timedItems}
           areas={areas}
           destinationCountry={destinationCountry}
+          isFixed={isFixedItem}
+          /* Written through the same per-item path every other time change uses. */
+          onGroupByArea={onUpdateItem ? times => {
+            Object.entries(times).forEach(([itemId, time]) => onUpdateItem(itemId, { time }));
+          } : undefined}
         />
       )}
 
