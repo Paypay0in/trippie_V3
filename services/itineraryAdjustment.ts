@@ -1,6 +1,7 @@
 import { additionsToTheirArea } from './additionsToTheirArea';
 import { outlierToNearerDay } from './outlierToNearerDay';
 import { notBeforeTheFloor, separateOverlaps, timeTheUntimed } from './separateOverlaps';
+import { mealsAtMealtimesByDay } from './optimiseTripRoute';
 import { ItineraryItem } from '../types';
 import {
   buildInspirationIndex,
@@ -596,6 +597,15 @@ export const applyItineraryAdjustment = (
    * the additions are grouped onto their area's day. See `districtOf`.
    */
   country?: string,
+  /**
+   * The 🏷️ tag for an item, so a restaurant lands at a mealtime.
+   *
+   * 「早上有壽司很奇怪」 — 迴轉壽司 根室花丸 opened a day at 10:00. The rule that
+   * prevents it was written for 「早上10點吃拉麵嗎？」 and has been running inside
+   * 優化動線 ever since; this path never reached it. Omitted leaves the
+   * behaviour as it was.
+   */
+  categoryOf?: (item: ItineraryItem) => string | undefined,
 ): ItineraryAdjustmentApplyResult => {
   const allowed = ALLOWED_CHANGE_TYPES[proposal.mode];
   const byId = new Map(existing.map(item => [item.id, item]));
@@ -726,7 +736,16 @@ export const applyItineraryAdjustment = (
   */
   const grounded = notBeforeTheFloor(tightened.items, addedIds);
   const timed = timeTheUntimed(grounded.items, addedIds);
-  const separated = separateOverlaps(timed.items);
+  /*
+    And then the meals at mealtimes. 「早上有壽司很奇怪」 — the same rule 優化動線
+    has applied since 「早上10點吃拉麵嗎？」, which this exit never reached.
+    Fixed items are named so a swap can never move a flight or a pin.
+    See `mealsAtMealtimesByDay`.
+  */
+  const eaten = categoryOf
+    ? mealsAtMealtimesByDay(timed.items, categoryOf, isLockedItineraryItem)
+    : timed.items;
+  const separated = separateOverlaps(eaten);
 
   return {
     items: separated.items,

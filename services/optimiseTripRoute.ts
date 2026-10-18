@@ -21,7 +21,7 @@
 import { ItineraryItem } from '../types';
 import { clusterSavedPlaces } from './placeClusters';
 import { stopsOnTheGround } from './dayMapImage';
-import { durationOf, minutesToTime, timeToMinutes } from './itineraryTimeline';
+import { durationOf, isTimedItem, minutesToTime, timeToMinutes } from './itineraryTimeline';
 import { MEAL_WINDOWS } from './dayTemplate';
 import { transitMinutesBetween } from './itineraryScheduling';
 import { separateOverlaps } from './separateOverlaps';
@@ -247,6 +247,17 @@ const assignAreasToDays = (
 export const mealsAtMealtimes = (
   items: ItineraryItem[],
   categoryOf: (item: ItineraryItem) => string | undefined,
+  /**
+   * What must not be moved.
+   *
+   * The whole-trip planner hands this function only the stops it is already
+   * free to arrange, so it needs no guard. The AI adjustment hands it the day
+   * as it stands — flights, check-ins and anything the traveller pinned
+   * included — and a swap that moved one of those would break the thing the
+   * day is built around. Defaults to 「nothing is fixed」, which is the
+   * planner's case exactly.
+   */
+  isFixed: (item: ItineraryItem) => boolean = () => false,
 ): ItineraryItem[] => {
   const windows = MEAL_WINDOWS.map(window => ({
     from: timeToMinutes(window.from) ?? 0,
@@ -260,6 +271,7 @@ export const mealsAtMealtimes = (
 
   order.forEach((item, index) => {
     if (categoryOf(item) !== 'food') return;
+    if (isFixed(item)) return;
     if (inAWindow(times[index])) return;
 
     /*
@@ -271,6 +283,7 @@ export const mealsAtMealtimes = (
     let bestDistance = Infinity;
     order.forEach((other, otherIndex) => {
       if (otherIndex === index || categoryOf(other) === 'food') return;
+      if (isFixed(other)) return;
       if (!inAWindow(times[otherIndex])) return;
       const distance = Math.abs(times[otherIndex] - times[index]);
       if (distance < bestDistance) { bestDistance = distance; bestIndex = otherIndex; }
@@ -309,6 +322,40 @@ export const mealsAtMealtimes = (
   });
 
   return order.map((item, index) => ({ ...item, time: minutesToTime(times[index]) }));
+};
+
+/**
+ * The same rule, applied to each day of a whole itinerary on its own.
+ *
+ * 「早上有壽司很奇怪」 — 迴轉壽司 根室花丸 opened a day at 10:00, which is the same
+ * complaint as 「早上10點吃拉麵嗎？」 and the same cause: this rule lived inside
+ * 優化動線 and the AI adjustment never reached it. Two paths, one doing less.
+ *
+ * Per date, because the swap trades two clock times and trading them across
+ * days would move a stop to a day it was never on. Untimed items are left
+ * alone: 「尚未安排時間」 is a legitimate answer.
+ */
+export const mealsAtMealtimesByDay = (
+  items: ItineraryItem[],
+  categoryOf: (item: ItineraryItem) => string | undefined,
+  isFixed: (item: ItineraryItem) => boolean = () => false,
+): ItineraryItem[] => {
+  const byDate = new Map<string, ItineraryItem[]>();
+  items.forEach(item => {
+    if (!item.date || !isTimedItem(item)) return;
+    byDate.set(item.date, [...(byDate.get(item.date) || []), item]);
+  });
+
+  const moved = new Map<string, string>();
+  byDate.forEach(dayItems => {
+    if (dayItems.length < 2) return;
+    mealsAtMealtimes(dayItems, categoryOf, isFixed).forEach((item, index) => {
+      if (item.time !== dayItems[index].time) moved.set(item.id, item.time);
+    });
+  });
+
+  if (moved.size === 0) return items;
+  return items.map(item => (moved.has(item.id) ? { ...item, time: moved.get(item.id) as string } : item));
 };
 
 /**

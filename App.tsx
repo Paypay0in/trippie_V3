@@ -3047,6 +3047,24 @@ const App: React.FC = () => {
     Derived from the same groups the areas were built from, so the colour in a
     dropdown is the colour on the card it becomes.
   */
+  /*
+    The 🏷️ tag for an item on the plan, read off the saved place it came from.
+
+    「早上10點吃拉麵嗎？」 — an itinerary item does not store the tag, and only this
+    screen can see both lists. Shared rather than inlined on the one screen that
+    first needed it: 「早上有壽司很奇怪」 was the AI adjustment placing a restaurant
+    at 10:00, and it could not ask the question the calendar could already
+    answer.
+  */
+  const categoryOfItineraryItem = useCallback((item: ItineraryItem) => {
+    const wanted = new Set(item.sourceInspirationIds || []);
+    const saved = savedTravelInspirations.find((inspiration) =>
+      (item.placeId && inspiration.placeId === item.placeId)
+      || wanted.has(inspiration.id)
+      || inspiration.sourceNoteIds.some((id) => wanted.has(id)));
+    return saved?.category as string | undefined;
+  }, [savedTravelInspirations]);
+
   const blockPlannerPlaces = useMemo(() => {
     const groups = selectTripInspirationGroups(tripScopedInspirations, tripInspirationContext);
     const planned = selectPlannedInspirationGroupIds(groups, itinerary);
@@ -3606,6 +3624,8 @@ const App: React.FC = () => {
       tripInspirationContext.destinationCountry || travelCountry,
       flightAnchors,
     ),
+    // So a restaurant the AI moved lands at a mealtime. 「早上有壽司很奇怪」.
+    categoryOfItineraryItem,
   );
     const nextItinerary = result.items;
     const nextDrafts = drafts.map((draft) => draft.id === activeDraftId
@@ -7528,14 +7548,7 @@ const App: React.FC = () => {
             came from. 「早上10點吃拉麵嗎？」 — an itinerary item does not store
             the tag and only this screen can see both lists.
           */
-          categoryOf={(item) => {
-            const wanted = new Set(item.sourceInspirationIds || []);
-            const saved = savedTravelInspirations.find((inspiration) =>
-              (item.placeId && inspiration.placeId === item.placeId)
-              || wanted.has(inspiration.id)
-              || inspiration.sourceNoteIds.some((id) => wanted.has(id)));
-            return saved?.category;
-          }}
+          categoryOf={categoryOfItineraryItem}
           onFillBlock={handleFillDayBlock}
           onFillBlockManually={handleFillDayBlockManually}
           items={itinerary}

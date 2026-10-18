@@ -5,7 +5,7 @@
  * His own three days, with the coordinates measured off the live route.
  */
 import { describe, expect, it } from 'vitest';
-import { isAnchored, optimiseTripRoute, orderByProximity } from './optimiseTripRoute';
+import { isAnchored, mealsAtMealtimesByDay, optimiseTripRoute, orderByProximity } from './optimiseTripRoute';
 import { ItineraryItem } from '../types';
 
 const at = (id: string, date: string, latitude: number, longitude: number, over: Partial<ItineraryItem> = {}): ItineraryItem => ({
@@ -374,5 +374,62 @@ describe('排好的行程不會壓到固定項目', () => {
     const museum = plan.days.flatMap(day => day.items).find(item => item.id === 'museum');
     // The transfer runs 13:00–14:00 and never moves.
     expect(museum!.time >= '14:00').toBe(true);
+  });
+});
+
+/**
+ * 「早上有壽司很奇怪」.
+ *
+ * 迴轉壽司 根室花丸 KITTE丸之內店 opened his Day 4 at 10:00 — the same complaint
+ * as 「早上10點吃拉麵嗎？」, and the same cause: this rule lived inside 優化動線
+ * and the AI adjustment never reached it.
+ */
+describe('mealsAtMealtimesByDay', () => {
+  const day = (id: string, date: string, time: string, over: Partial<ItineraryItem> = {}): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY', date, time,
+    durationMinutes: 60, ...over,
+  } as ItineraryItem);
+
+  const tags: Record<string, string> = { sushi: 'food', temple: 'sight', museum: 'sight' };
+  const categoryOf = (item: ItineraryItem) => tags[item.id];
+
+  it('moves a 10:00 restaurant into a mealtime', () => {
+    const result = mealsAtMealtimesByDay([
+      day('sushi', '2026-10-23', '10:00'),
+      day('temple', '2026-10-23', '12:00'),
+    ], categoryOf);
+
+    const sushi = result.find(item => item.id === 'sushi') as ItineraryItem;
+    expect(sushi.time).toBe('12:00');
+  });
+
+  /* Each day on its own: a swap across days would move a stop off its date. */
+  it('never trades times between two days', () => {
+    const result = mealsAtMealtimesByDay([
+      day('sushi', '2026-10-23', '10:00'),
+      day('temple', '2026-10-24', '12:00'),
+    ], categoryOf);
+
+    expect(result.find(item => item.id === 'sushi')?.date).toBe('2026-10-23');
+    expect(result.find(item => item.id === 'temple')?.time).toBe('12:00');
+  });
+
+  /* A swap must never move the thing the day is built around. */
+  it('leaves a fixed item where it is', () => {
+    const result = mealsAtMealtimesByDay([
+      day('sushi', '2026-10-23', '10:00'),
+      day('museum', '2026-10-23', '12:00', { isPinned: true }),
+    ], categoryOf, item => item.isPinned === true);
+
+    expect(result.find(item => item.id === 'museum')?.time).toBe('12:00');
+    // With nobody to trade with, the meal takes an empty window of its own —
+    // dinner — rather than displacing the pin.
+    expect(result.find(item => item.id === 'sushi')?.time).toBe('17:30');
+  });
+
+  it('leaves a day that is already sensible untouched', () => {
+    const items = [day('sushi', '2026-10-23', '12:00'), day('temple', '2026-10-23', '15:00')];
+
+    expect(mealsAtMealtimesByDay(items, categoryOf)).toBe(items);
   });
 });
