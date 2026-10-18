@@ -364,3 +364,49 @@ describe('依區分類的下拉選單', () => {
     expect(screen.getAllByText('Working holiday').length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * 「選項也要有一個無」.
+ *
+ * Every empty row already says 無. Once a row was filled there was no way
+ * back to it from this panel — a slot could be given a place and never taken
+ * one away, so undoing a wrong pick meant leaving the screen entirely.
+ */
+describe('清空一格', () => {
+  const filled = () => document
+    .querySelector('select[data-testid^="filled-block-"]') as HTMLSelectElement;
+
+  it('offers 無 on a filled block', () => {
+    renderPlanner({ onClearBlock: vi.fn() });
+
+    expect(Array.from(filled().querySelectorAll('option')).map(option => option.textContent))
+      .toContain('無（清空這格）');
+  });
+
+  it('empties the block when 無 is chosen', async () => {
+    const onClearBlock = vi.fn();
+    renderPlanner({ onClearBlock });
+
+    await userEvent.setup().selectOptions(filled(), '__none__');
+
+    expect(onClearBlock).toHaveBeenCalledWith('it-nasari');
+  });
+
+  /* The same control swaps the place, so a wrong pick is one action to fix. */
+  it('swaps the place when another one is chosen', async () => {
+    const onClearBlock = vi.fn();
+    const { onFillBlock } = renderPlanner({ onClearBlock });
+
+    await userEvent.setup().selectOptions(filled(), 'g-diart');
+
+    expect(onClearBlock).toHaveBeenCalledWith('it-nasari');
+    expect(onFillBlock).toHaveBeenCalledWith(expect.anything(), 'g-diart');
+  });
+
+  /* A screen that cannot persist the removal must not appear to offer it. */
+  it('offers nothing when the caller cannot write the removal', () => {
+    renderPlanner();
+
+    expect(filled()).toBeNull();
+  });
+});

@@ -6,6 +6,7 @@ import { AREA_COLORS } from '../constants/areaColors';
 import { cleanManualTitle, MAX_TITLE } from '../services/manualBlockEntry';
 
 /** Sentinel for the 「type it yourself」 row; never a real place id. */
+const CLEAR_OPTION = '__none__';
 const MANUAL_OPTION = '__manual__';
 import { BLOCK_MINUTES, buildDayTemplate, DaySlot } from '../services/dayTemplate';
 import { shiftDayToStart } from '../services/shiftDayStart';
@@ -64,6 +65,18 @@ interface Props {
   /** Changes how long a placed item runs; everything after it moves with it. */
   onChangeDuration?: (itemId: string, minutes: number) => void;
   /**
+   * Empties a filled block.
+   *
+   * 「選項也要有一個無」 — every empty row already says 無, and once a row was
+   * filled there was no way back to it from this panel. The slot could be
+   * given a place and never taken one away, so a wrong pick had to be undone
+   * somewhere else entirely.
+   *
+   * Omit and the option is not offered: a screen that cannot persist the
+   * removal must not appear to do it.
+   */
+  onClearBlock?: (itemId: string) => void;
+  /**
    * Writes the day back after 幾點出門 moves it. See `shiftDayToStart`.
    *
    * Omit and the offer is not made: this rewrites the traveller's own plan, so
@@ -91,6 +104,7 @@ const DayBlockPlanner: React.FC<Props> = ({
   onFillBlock,
   onFillBlockManually,
   onChangeDuration,
+  onClearBlock,
   onShiftDay,
   country,
   isFixed,
@@ -354,9 +368,54 @@ const DayBlockPlanner: React.FC<Props> = ({
                     {area && (
                       <span className={`h-2 w-2 shrink-0 rounded-full ${AREA_COLORS[area.colorIndex % AREA_COLORS.length].dot}`} />
                     )}
-                    <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#11183d]">
-                      {occupant.location || occupant.title}
-                    </span>
+                    {/*
+                      「選項也要有一個無」.
+
+                      Every empty row already says 無, and once a row was filled
+                      there was no way back to it: the slot could be given a
+                      place and never taken one away, so undoing a wrong pick
+                      meant leaving this panel entirely.
+
+                      So a filled row keeps the same control an empty one has —
+                      the place is a dropdown, with 無 at the top of it and the
+                      whole collection below. One control answers both 「clear
+                      this」 and 「no, the other one」.
+
+                      Plain text where it cannot be changed: a flight is what
+                      the day is built around, and a planner panel must not be
+                      able to empty one.
+                    */}
+                    {onClearBlock && !fixed ? (
+                      <select
+                        data-testid={`filled-block-${slot.index}`}
+                        aria-label={`${slot.startTime} ${slot.label}・${occupant.location || occupant.title}`}
+                        value=""
+                        onChange={event => {
+                          const picked = event.target.value;
+                          if (!picked) return;
+                          onClearBlock(occupant.id);
+                          if (picked !== CLEAR_OPTION) onFillBlock(slot, picked);
+                        }}
+                        className="min-w-0 flex-1 truncate rounded-lg border border-transparent bg-transparent px-0 py-1 text-xs font-bold text-[#11183d]"
+                      >
+                        <option value="">{occupant.location || occupant.title}</option>
+                        <option value={CLEAR_OPTION}>無（清空這格）</option>
+                        {groupedOptionsFor(slot).map(group => (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.places.map(place => (
+                              <option key={place.id} value={place.id} disabled={place.alreadyPlanned}>
+                                {tagOf(place) ? `${place.placeName}（${tagOf(place)}）` : place.placeName}
+                                {place.alreadyPlanned ? '・已在行程中' : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#11183d]">
+                        {occupant.location || occupant.title}
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <>

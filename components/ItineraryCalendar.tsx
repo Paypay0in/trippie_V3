@@ -1051,6 +1051,12 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           }) : undefined}
           onChangeDuration={onChangeDuration ? (itemId, minutes) => { onChangeDuration(itemId, minutes); } : undefined}
           /*
+            「選項也要有一個無」 — the way back to an empty block. The same
+            deletion the card's own menu performs, so there is one answer to
+            「this is no longer on the plan」 rather than two.
+          */
+          onClearBlock={onDelete}
+          /*
             Written one item at a time through the path that already persists a
             time change — the same one the inline time field uses. 「橘色處調 紅色
             處是不是就要調」 moves the whole day, but it is not a new kind of
