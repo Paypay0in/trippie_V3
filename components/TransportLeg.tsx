@@ -3,9 +3,10 @@ import { Bus, Car, Footprints, ChevronRight, MapPinned, AlertTriangle, X } from 
 import { OVERLAY } from '../constants/layers';
 import { naverRouteUrl } from '../services/naverMapLinks';
 import { fetchRouteLeg, RouteLeg, TravelMode, TRAVEL_MODE_LABELS } from '../services/routesService';
-import { isSameSpot, noRouteDetail, noRouteSummary } from '../services/transportLegWording';
-import { defaultTravelMode, transitIsUnavailable, transitUnavailableHint, transitUnavailableReason } from '../services/transitCoverage';
+import { isSameSpot, noRouteDetail, noRouteSummary, roughTransitDetail, roughTransitSummary } from '../services/transportLegWording';
+import { transitMinutesBetween } from '../services/itineraryScheduling';
 import { countryDisplayName } from '../services/countryIdentity';
+import { defaultTravelMode, transitIsUnavailable, transitUnavailableHint, transitUnavailableReason } from '../services/transitCoverage';
 
 interface Props {
   origin: { latitude: number; longitude: number; title: string };
@@ -127,6 +128,17 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
     between a lookup that failed and a journey that does not exist.
   */
   const sameSpot = isSameSpot(origin, destination);
+  /*
+    A number for a journey no route service will answer. See `roughTransitSummary`.
+
+    Transit only, and never for two points at the same spot: the estimate is
+    built for 「how long does it take to cross a city by train」, and offering it
+    for a walk the app simply failed to look up would be dressing a failure as
+    an answer.
+  */
+  const roughMinutes = mode === 'TRANSIT' && !sameSpot && !loading && !error && !leg?.available
+    ? transitMinutesBetween(origin, destination)
+    : undefined;
   /** The one line on the plan, repeated at the top of the sheet. */
   const summaryLine = loading ? '計算交通中…'
     : error ? error
@@ -162,6 +174,20 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
         </span>
         {canOpen && <ChevronRight size={14} className="shrink-0 text-slate-300" />}
       </button>
+
+      {/*
+        A number where there was only a reason.
+
+        「如果不能顯示路線 但可不可以給大眾運輸大概的時間」. The line above explains
+        why no timetable came back, which is right and is still not something a
+        day can be planned around. This adds the estimate the planner has been
+        scheduling by all along — below the reason, never instead of it.
+      */}
+      {roughMinutes !== undefined && (
+        <p data-testid="transit-rough-estimate" className="mt-1.5 text-[10px] font-black leading-4 text-[#5b3df5]">
+          {roughTransitSummary(roughMinutes)}
+        </p>
+      )}
 
       {/* Pressing the button again will not help, so the next step is named. */}
       {leg && !leg.available && isKorea(destinationCountry) && (
@@ -319,6 +345,13 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
                   : mode === 'TRANSIT' && transitIsUnavailable(destinationCountry)
                     ? transitUnavailableReason(destinationCountry)
                     : noRouteDetail(TRAVEL_MODE_LABELS[mode], sameSpot)}
+              </p>
+            )}
+
+            {/* The estimate always follows the reason, never replaces it. */}
+            {roughMinutes !== undefined && (
+              <p data-testid="transit-rough-detail" className="mt-3 rounded-2xl bg-[#f6f5ff] px-3 py-2.5 text-xs leading-5 text-[#3c2fa8]">
+                {roughTransitDetail(roughMinutes)}
               </p>
             )}
 

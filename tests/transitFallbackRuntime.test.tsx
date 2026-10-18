@@ -90,3 +90,57 @@ describe('where transit does work', () => {
     expect(screen.queryByTestId('transit-unsupported-hint')).toBeNull();
   });
 });
+
+/**
+ * 「如果不能顯示路線 但可不可以給大眾運輸大概的時間」.
+ *
+ * The reason is right and is still not something a day can be planned around.
+ * Narita → 淺草 is 57 km of straight line, which the same arithmetic the
+ * planner schedules by turns into a number.
+ */
+describe('a rough time where no timetable exists', () => {
+  it('gives a number as well as the reason', async () => {
+    render(<TransportLeg origin={NARITA} destination={ASAKUSA} destinationCountry="日本" />);
+    askForTransit();
+
+    const estimate = await screen.findByTestId('transit-rough-estimate');
+
+    expect(estimate.textContent).toMatch(/粗估大約 \d+ 分鐘/);
+    // The reason it could not be looked up is still on screen, above it.
+    expect(screen.getByTestId('transport-leg').textContent).toContain('日本電車班次');
+  });
+
+  /* An estimate presented as a lookup is the one thing worse than no estimate. */
+  it('says it is an estimate, not a timetable', async () => {
+    render(<TransportLeg origin={NARITA} destination={ASAKUSA} destinationCountry="日本" />);
+    askForTransit();
+
+    const estimate = await screen.findByTestId('transit-rough-estimate');
+
+    expect(estimate.textContent).toContain('粗估');
+  });
+
+  /* Two cards at the same airport have nothing to estimate. */
+  it('offers nothing for two points at the same spot', async () => {
+    render(<TransportLeg origin={NARITA} destination={{ ...NARITA, title: '成田 2' }} destinationCountry="日本" />);
+    askForTransit();
+
+    await waitFor(() => expect(screen.getByTestId('transport-leg')).toBeTruthy());
+
+    expect(screen.queryByTestId('transit-rough-estimate')).toBeNull();
+  });
+
+  /* Where a real route came back, the estimate must not appear beside it. */
+  it('stays away when the route service answered', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ mode: 'TRANSIT', available: true, durationSeconds: 3600, steps: [] }),
+    })) as never);
+    render(<TransportLeg origin={NARITA} destination={ASAKUSA} destinationCountry="台灣" />);
+    askForTransit();
+
+    await waitFor(() => expect(screen.getByTestId('transport-leg').textContent).toContain('60 分'));
+
+    expect(screen.queryByTestId('transit-rough-estimate')).toBeNull();
+  });
+});

@@ -45,6 +45,29 @@ export const isSameSpot = (from: Point, to: Point): boolean =>
 export const noRouteSummary = (modeLabel: string, sameSpot: boolean): string =>
   sameSpot ? '就在同一個地點，不用移動' : `查不到這段的${modeLabel}路線`;
 
+/**
+ * A rough transit time, for a journey no route service will answer.
+ *
+ * 「如果不能顯示路線 但可不可以給大眾運輸大概的時間」. Japan's train times are not in
+ * the Routes API and Korea's are blocked by law, so on two of the three
+ * countries this app is used in the transit chip could only ever say 查不到 —
+ * and 查不到 is the one answer that cannot be planned around. A number with its
+ * uncertainty attached is worth more than a blank.
+ *
+ * The arithmetic is `transitMinutesBetween`, which has been sizing the gaps
+ * between stops for the planner all along: a fixed overhead for getting to and
+ * from the platform, plus a rate per kilometre of straight-line distance. It is
+ * the same estimate the app already schedules by — it was simply never shown.
+ *
+ * Always marked 估算. It does not know about a river, a transfer, or the last
+ * train, and a number presented as a route would be a lie about what was asked.
+ */
+export const roughTransitSummary = (minutes: number): string =>
+  `⏱ 粗估大約 ${minutes} 分鐘（含進出站）`;
+
+export const roughTransitDetail = (minutes: number): string =>
+  `這段直線距離換算下來大約 ${minutes} 分鐘，含進出站與等車的時間。這是估算、不是班次查詢——沒有算進轉乘、末班車或實際路線，排行程抓個大概可以，出門前請用 Google 地圖 App 或當地的轉乘 App 再確認。`;
+
 /** The fuller sentence inside the sheet, where there is room to say what to try. */
 export const noRouteDetail = (modeLabel: string, sameSpot: boolean): string =>
   sameSpot
