@@ -465,3 +465,30 @@ describe('a place whose records disagree about its tag', () => {
     expect(group.category).toBeUndefined();
   });
 });
+
+/**
+ * 「下拉式選單要有分類」. The grouping was there; the tags were not, because
+ * nothing he had saved had been through a lookup that could write one.
+ */
+describe('a tag read from the place name', () => {
+  it('tags a place no lookup has tagged', () => {
+    const [group] = groupInspirationsByPlace([
+      inspiration({ id: 'r1', placeName: '拉麵 改' }),
+    ]);
+    expect(group.category).toBe('food');
+  });
+
+  it('never overrules what a lookup actually said', () => {
+    const [group] = groupInspirationsByPlace([
+      inspiration({ id: 'r2', placeName: '咖啡書店', category: 'shop', categoryRules: 2 }),
+    ]);
+    expect(group.category).toBe('shop');
+  });
+
+  it('leaves a name that says nothing untagged', () => {
+    const [group] = groupInspirationsByPlace([
+      inspiration({ id: 'r3', placeName: '蕪木' }),
+    ]);
+    expect(group.category).toBeUndefined();
+  });
+});

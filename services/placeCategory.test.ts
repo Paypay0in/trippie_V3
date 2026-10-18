@@ -127,3 +127,29 @@ describe('temples and shrines', () => {
     expect(placeCategory({ primaryType: 'place_of_worship' })).toBe('sight');
   });
 });
+
+/**
+ * 「下拉式選單要有分類」 — sent over a dropdown of fifty saved places, all of them
+ * under 「其他」. These are his own place names, exactly as they appear there.
+ */
+describe('reading the name, when no lookup has answered', () => {
+  it('reads the kind of place out of its own name', () => {
+    expect(placeCategory({ name: '拉麵 改' })).toBe('food');
+    expect(placeCategory({ name: 'Parklet Bakery' })).toBe('cafe');
+    expect(placeCategory({ name: 'Arise Coffee Roasters' })).toBe('cafe');
+    expect(placeCategory({ name: '東京都現代美術館' })).toBe('sight');
+    expect(placeCategory({ name: '帝國飯店' })).toBe('stay');
+  });
+
+  /* A name is the weakest evidence there is, and never beats a real answer. */
+  it('is overruled by anything the lookup actually said', () => {
+    expect(placeCategory({ primaryType: 'book_store', name: '咖啡書店' })).toBe('shop');
+    expect(placeCategory({ kind: '百貨公司', name: '咖啡書店' })).toBe('shop');
+  });
+
+  /* Most names say nothing, and a guess from one would be worse than a blank. */
+  it('stays quiet for a name that says nothing', () => {
+    expect(placeCategory({ name: '蕪木' })).toBe('other');
+    expect(placeCategory({ name: 'Kyobashi ZION' })).toBe('other');
+  });
+});

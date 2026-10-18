@@ -3,6 +3,7 @@ import { dedupeNoteTexts } from './itineraryImageSlices';
 import { FixedScheduleEntry, fixedAnchorSchedule } from './itineraryDayFloor';
 import { localToday } from './localDate';
 import { cityDisplayName } from './cityNames';
+import { placeCategory } from './placeCategory';
 
 /**
  * Bridges the existing SavedTravelInspiration store into active Trip itinerary
@@ -411,6 +412,18 @@ export const groupInspirationsByPlace = (
     */
     experienceNotes: keepDistinctNotes(group.experienceNotes, group.placeName),
     missingPlaceIdentity: !group.placeId && !group.coordinates,
+    /*
+      A tag read from the name, for a place no lookup has tagged yet.
+
+      「下拉式選單要有分類」 — the dropdown has grouped by tag since the night it
+      was built, and it showed one heading, 「其他」, because not one saved record
+      carried a category. They were resolved before tags existed, and the only
+      way to tag them was to remember to run 補齊 again.
+
+      Read here rather than written into the records, so the real lookup still
+      overrules it and still gets asked. See `placeCategory`.
+    */
+    category: realCategory(group.category) || realCategory(placeCategory({ name: group.placeName })),
   }));
 };
 

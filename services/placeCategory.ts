@@ -120,9 +120,21 @@ const BY_SLICE: Record<ItinerarySlice['type'], PlaceCategory | undefined> = {
 /**
  * @param sliceType what the screenshot that produced this save called it, which
  *   is the traveller's own source and so outranks a lookup.
+ * @param name the place's own name, read last and only as a guess.
+ *
+ *   「下拉式選單要有分類」 — sent over a dropdown where fifty saved places sat
+ *   under 「其他」, among them 「拉麵 改」, 「Parklet Bakery」, 「Arise Coffee
+ *   Roasters」 and 「東京都現代美術館」. Every one of those says what it is in its
+ *   own name, and the grouping was waiting on a lookup none of them had been
+ *   through yet.
+ *
+ *   A name is weaker evidence than a type and is read only when nothing else
+ *   answered, so a real lookup always overrules it. It is never stored: writing
+ *   a guess into the record would stamp it 「asked」 and stop the backfill ever
+ *   correcting it.
  */
 export const placeCategory = (
-  input: { primaryType?: string; kind?: string; sliceType?: ItinerarySlice['type'] },
+  input: { primaryType?: string; kind?: string; sliceType?: ItinerarySlice['type']; name?: string },
 ): PlaceCategory => {
   const fromSlice = input.sliceType ? BY_SLICE[input.sliceType] : undefined;
   if (fromSlice) return fromSlice;
@@ -137,6 +149,12 @@ export const placeCategory = (
   const kind = (input.kind || '').trim();
   if (kind) {
     const matched = BY_TEXT.find(([pattern]) => pattern.test(kind));
+    if (matched) return matched[1];
+  }
+
+  const name = (input.name || '').trim();
+  if (name) {
+    const matched = BY_TEXT.find(([pattern]) => pattern.test(name));
     if (matched) return matched[1];
   }
   return 'other';
