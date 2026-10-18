@@ -6,6 +6,7 @@ import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
 import { betterOnAnotherDay, DayMoveSuggestion } from '../services/betterOnAnotherDay';
 import { betweenNeighbours, nearerRestaurants } from '../services/nearerRestaurants';
 import { fetchNearbyRestaurants, NearbyRestaurant } from '../services/nearbyRestaurantsService';
+import SuggestedPlaceCards from './SuggestedPlaceCards';
 import { fetchPlaceBasics, hoursForDate, outsideOpeningHours, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen, Clock3 } from 'lucide-react';
@@ -116,8 +117,19 @@ interface Props {
     areaLabel?: string;
     areaColorIndex?: number;
     alreadyPlanned?: boolean;
-    /** 🏷️ 景點 / 餐廳 / … The block dropdown groups by it. */
+    /** 🏷️ 景點 / 餐廳 / … The block picker groups by it. */
     category?: PlaceCategory;
+    district?: string;
+    latitude?: number;
+    longitude?: number;
+    /*
+      Why it was saved. 「不然只列餐廳名稱怎麼知道」 — App has been handing these
+      over since the picker needed them; this type had never been widened to
+      admit they were arriving, so every screen below read a narrower place
+      than the one it was given.
+    */
+    photoUrl?: string;
+    notes?: string[];
   }>;
   /**
    * The 🏷️ tag for an itinerary item, so 優化動線 can put meals at mealtimes.
@@ -2045,24 +2057,43 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     return (
                       <li key={entry.itemId}>
                         {`${entry.date.slice(5).replace('-', '/')} ${entry.placeName}`}
+                        {/*
+                          「我就希望像收藏卡片一樣 有帶入圖片 店名 一些旅行筆記讓
+                          用戶可以有想法 不然只列餐廳名稱怎麼知道」.
+
+                          Three names and three star ratings is not something
+                          anybody picks a restaurant from. The collection
+                          screen worked this out long ago. See
+                          `SuggestedPlaceCards`.
+                        */}
                         {swaps.length > 0 && (
-                          <span data-testid={`nearer-than-${entry.itemId}`} className="mt-0.5 block font-medium text-amber-600">
-                            {'收藏裡比較近的：'}
-                            {swaps.map(swap => `${swap.placeName}（少繞 ${swap.savesKm} 公里）`).join('、')}
+                          <span data-testid={`nearer-than-${entry.itemId}`} className="mt-1 block">
+                            <span className="font-medium text-amber-600">收藏裡比較近的</span>
+                            <SuggestedPlaceCards
+                              places={swaps.map(swap => {
+                                const saved = (savedPlaces || []).find(place => place.id === swap.id);
+                                return {
+                                  id: swap.id,
+                                  placeName: swap.placeName,
+                                  photoUrl: saved?.photoUrl,
+                                  notes: saved?.notes,
+                                  detourLabel: `少繞 ${swap.savesKm} 公里`,
+                                };
+                              })}
+                            />
                           </span>
                         )}
-                        {/*
-                          And three from Google, for a route no saved place
-                          suits. Places rather than a language model: 「what is
-                          near here」 is a lookup, and a model would answer with
-                          sentences about restaurants, some of which exist.
-                        */}
                         {nearbyByItem[entry.itemId]?.length > 0 && (
-                          <span data-testid={`nearby-for-${entry.itemId}`} className="mt-0.5 block font-medium text-amber-600">
-                            {'這一帶還有：'}
-                            {nearbyByItem[entry.itemId].slice(0, 3)
-                              .map(place => `${place.placeName}${place.rating ? `（★ ${place.rating}）` : ''}`)
-                              .join('、')}
+                          <span data-testid={`nearby-for-${entry.itemId}`} className="mt-1 block">
+                            <span className="font-medium text-amber-600">這一帶還有</span>
+                            <SuggestedPlaceCards
+                              places={nearbyByItem[entry.itemId].slice(0, 3).map(place => ({
+                                id: place.placeId,
+                                placeId: place.placeId,
+                                placeName: place.placeName,
+                                rating: place.rating,
+                              }))}
+                            />
                           </span>
                         )}
                       </li>
