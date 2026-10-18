@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Check, Route, Loader2 } from 'lucide-react';
+import { AlertTriangle, Check, Route, Loader2, Sparkles } from 'lucide-react';
 import { ItineraryItem } from '../types';
-import { groupDayByArea } from '../services/groupDayByArea';
 import { fetchRouteLeg } from '../services/routesService';
 import { CheckedLeg, checkDayTransport, DayTransportVerdict } from '../services/dayTransportCheck';
 import { durationOf } from '../services/itineraryTimeline';
@@ -26,16 +25,20 @@ interface Props {
   areas?: TripAreas;
   destinationCountry?: string;
   /**
-   * Applies 「把同一區的行程排在一起」 in one tap.
+   * Opens 優化動線 on this advice.
    *
-   * 「第一條建議要給一個一鍵」 — the check works out that the day crosses back into
-   * an area it has left, then asks for it to be fixed by dragging cards until
-   * the sentence stops appearing. The advice and the repair are the same
-   * arithmetic. Omitted and the button is not offered.
+   * 「第一條建議要給一個一鍵」, and then 「A」 — the tap runs the optimiser the
+   * header already has rather than a second arrangement of its own.
+   *
+   * I built that second one first: a single-day reorder that wrote
+   * immediately. It worked, and it was the wrong thing to offer. 優化動線 shows
+   * what it would do and writes nothing until it is confirmed — and a button
+   * that rearranges somebody's day the instant it is pressed should not be
+   * easier to reach than the one that asks.
+   *
+   * Omitted and the button is not offered.
    */
-  onGroupByArea?: (times: Record<string, string>) => void;
-  /** The day's fixed items, which keep their hour. */
-  isFixed?: (item: ItineraryItem) => boolean;
+  onOptimise?: () => void;
 }
 
 const timeToMinutes = (time?: string): number | undefined => {
@@ -47,7 +50,7 @@ const timeToMinutes = (time?: string): number | undefined => {
 const minutesLabel = (minutes: number): string =>
   (minutes >= 60 ? `${Math.floor(minutes / 60)} 小時 ${minutes % 60} 分`.replace(' 0 分', '') : `${minutes} 分`);
 
-const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCountry, onGroupByArea, isFixed }) => {
+const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCountry, onOptimise }) => {
   const [busy, setBusy] = useState(false);
   const [verdict, setVerdict] = useState<DayTransportVerdict | null>(null);
   const [error, setError] = useState('');
@@ -151,20 +154,16 @@ const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCou
                     repairs: a button under 「有 4 段查不到路線」 would promise to
                     fix something this cannot touch.
                   */}
-                  {finding.kind === 'backtrack' && onGroupByArea && (() => {
-                    const times = groupDayByArea(items, isFixed || (() => false));
-                    if (Object.keys(times).length === 0) return null;
-                    return (
-                      <button
-                        type="button"
-                        data-testid="group-day-by-area"
-                        onClick={() => onGroupByArea(times)}
-                        className="ml-1.5 inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-100 px-2 text-[10px] font-black text-amber-800"
-                      >
-                        <Route size={10} />一鍵排在一起
-                      </button>
-                    );
-                  })()}
+                  {finding.kind === 'backtrack' && onOptimise && (
+                    <button
+                      type="button"
+                      data-testid="group-day-by-area"
+                      onClick={onOptimise}
+                      className="ml-1.5 inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-100 px-2 text-[10px] font-black text-amber-800"
+                    >
+                      <Sparkles size={10} />優化動線
+                    </button>
+                  )}
                 </span>
               </p>
             ))

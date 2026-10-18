@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 import DayTransportCheck from '../components/DayTransportCheck';
+import { buildTripAreas } from '../services/tripAreas';
 
 const routeMinutes = vi.fn<[], number | null>(() => 20);
 /** Every departure time the component asked about. */
@@ -36,8 +37,8 @@ const stop = (id: string, time: string, durationMinutes = 60): ItineraryItem => 
 beforeEach(() => { routeMinutes.mockReturnValue(20); departures.length = 0; });
 afterEach(cleanup);
 
-const renderCheck = (items: ItineraryItem[]) =>
-  render(<DayTransportCheck date={DAY} items={items} />);
+const renderCheck = (items: ItineraryItem[], over: Record<string, unknown> = {}) =>
+  render(<DayTransportCheck date={DAY} items={items} {...over} />);
 
 describe('the one-tap check', () => {
   it('says nothing to check when the day has no journey in it', () => {
@@ -98,5 +99,51 @@ describe('the one-tap check', () => {
     await user.click(screen.getByTestId('run-transport-check'));
 
     expect((await screen.findByTestId('transport-finding-unknown_leg')).textContent).toContain('1 段');
+  });
+});
+
+/**
+ * 「第一條建議要給一個一鍵」, then 「A」: the tap opens 優化動線, the optimiser the
+ * header already has.
+ *
+ * I built a single-day reorder for this first. It worked and it was the wrong
+ * thing to offer — it wrote the moment it was pressed, while 優化動線 shows
+ * what it would do and writes nothing until it is confirmed.
+ */
+describe('the one tap under the advice', () => {
+  /* 海雲台 → 西面 → back to 海雲台: the backtrack this finding is about. */
+  const thereAndBack = [
+    { ...stop('海雲台', '10:00'), latitude: 35.1631, longitude: 129.1635, address: 'Haeundae-gu, Busan' },
+    { ...stop('西面', '13:00'), latitude: 35.1577, longitude: 129.0594, address: 'Busanjin-gu, Busan' },
+    { ...stop('海雲台市場', '16:00'), latitude: 35.1633, longitude: 129.1638, address: 'Haeundae-gu, Busan' },
+  ] as ItineraryItem[];
+
+  // The finding is about areas, so it needs the real ones.
+  const areas = buildTripAreas({ itinerary: thereAndBack });
+
+  const findBacktrack = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByTestId('run-transport-check'));
+    return screen.findByTestId('transport-finding-backtrack');
+  };
+
+  it('opens the optimiser rather than rearranging the day itself', async () => {
+    const onOptimise = vi.fn();
+    const user = userEvent.setup();
+    renderCheck(thereAndBack, { areas, onOptimise });
+
+    await findBacktrack(user);
+    await user.click(screen.getByTestId('group-day-by-area'));
+
+    expect(onOptimise).toHaveBeenCalledTimes(1);
+  });
+
+  /* A screen that cannot open it must not appear to offer it. */
+  it('offers nothing without a handler', async () => {
+    const user = userEvent.setup();
+    renderCheck(thereAndBack, { areas });
+
+    await findBacktrack(user);
+
+    expect(screen.queryByTestId('group-day-by-area')).toBeNull();
   });
 });

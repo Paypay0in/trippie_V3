@@ -1120,11 +1120,12 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           items={timedItems}
           areas={areas}
           destinationCountry={destinationCountry}
-          isFixed={isFixedItem}
-          /* Written through the same per-item path every other time change uses. */
-          onGroupByArea={onUpdateItem ? times => {
-            Object.entries(times).forEach(([itemId, time]) => onUpdateItem(itemId, { time }));
-          } : undefined}
+          /*
+            The same optimiser the header offers, opened from the advice that
+            asks for it. 「點擊優化行程」 — one arrangement of a day, shown before
+            it is written, rather than a second one that writes immediately.
+          */
+          onOptimise={() => setRoutePlan(optimiseTripRoute(items, { country: destinationCountry, categoryOf }))}
         />
       )}
 
