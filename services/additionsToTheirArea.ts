@@ -53,12 +53,30 @@ export const additionsToTheirArea = (
     if (settled.length === 0) return;
 
     /*
-      The day this area already owns: the one holding most of it. A tie goes to
-      the earlier date, so the answer does not depend on object order.
+      A pin decides the day outright.
+
+      「這個行程是固定的 … 那 AI 在規劃行程的時候就要把這區附近的行程規劃在這天」,
+      and then 「目前是將這區的行程附近的都放在第五天」 — the pin sat alone on its
+      day and lost the count below three to one.
+
+      A majority reads where things happen to be; a pin reads a decision the
+      traveller made, and one of those outranks the other however many stops
+      are on the other side. Earliest pin wins when a day somehow holds two,
+      so the answer never depends on object order.
+    */
+    const pinnedHome = settled
+      .filter(item => item.isPinned === true)
+      .map(item => item.date)
+      .sort()[0];
+
+    /*
+      Otherwise the day this area already owns: the one holding most of it. A
+      tie goes to the earlier date, so the answer does not depend on object
+      order.
     */
     const counts = new Map<string, number>();
     settled.forEach(item => counts.set(item.date, (counts.get(item.date) || 0) + 1));
-    const home = Array.from(counts.entries())
+    const home = pinnedHome || Array.from(counts.entries())
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0][0];
 
     members

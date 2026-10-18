@@ -130,3 +130,50 @@ describe('套用 AI 調整之後：同區同天，而且每一筆都有時間', 
     expect(added?.time).toBeTruthy();
   });
 });
+
+/**
+ * 「這個行程是固定的 … 那 AI 在規劃行程的時候就要把這區附近的行程規劃在這天」,
+ * then 「目前是將這區的行程附近的都放在第五天」.
+ *
+ * His 淺草 pin sat alone on Day 4 while three 淺草 stops sat on Day 5, so the
+ * majority count sent every addition to Day 5 — away from the one stop he had
+ * actually decided about.
+ */
+describe('固定的那天贏過多數決', () => {
+  const asakusa = (id: string, date: string, over: Partial<ItineraryItem> = {}): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY', date, time: '10:00',
+    latitude: 35.7148, longitude: 139.7967, address: '2-chōme Kaminarimon, Taito City, Tokyo',
+    ...over,
+  } as ItineraryItem);
+
+  const trip = [
+    asakusa('alchemy', '2026-10-23', { isPinned: true }),
+    asakusa('settled-a', '2026-10-24'),
+    asakusa('settled-b', '2026-10-24'),
+    asakusa('settled-c', '2026-10-24'),
+    asakusa('added', '2026-10-21'),
+  ];
+
+  it('sends the addition to the pinned day, not the crowded one', () => {
+    const result = additionsToTheirArea(trip, new Set(['added']), '日本');
+
+    expect(result.items.find(item => item.id === 'added')?.date).toBe('2026-10-23');
+  });
+
+  it('still follows the majority when nothing is pinned', () => {
+    const unpinned = trip.map(item =>
+      item.id === 'alchemy' ? { ...item, isPinned: undefined } : item);
+
+    const result = additionsToTheirArea(unpinned, new Set(['added']), '日本');
+
+    expect(result.items.find(item => item.id === 'added')?.date).toBe('2026-10-24');
+  });
+
+  /* Never moves what it was not asked to move. */
+  it('leaves the settled stops where they are', () => {
+    const result = additionsToTheirArea(trip, new Set(['added']), '日本');
+
+    expect(result.items.find(item => item.id === 'settled-a')?.date).toBe('2026-10-24');
+    expect(result.items.find(item => item.id === 'alchemy')?.date).toBe('2026-10-23');
+  });
+});
