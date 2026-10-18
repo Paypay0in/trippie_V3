@@ -11,6 +11,7 @@ import { fetchPlaceBasics, hoursForDate, outsideOpeningHours, PlaceBasics, summa
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen, Clock3 } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
+import { fetchAirportPhoto } from '../services/airportPhoto';
 import { fetchPlaceCommerce, hasDisplayableCommerce } from '../services/placeCommerceService';
 import { itemsForDay, orderItemsForDay, hasTimeOrderConflict } from '../services/itineraryOrdering';
 import {
@@ -604,6 +605,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   };
 
   const [photos, setPhotos] = useState<Record<string, PlacePhoto | null>>({});
+  /** Airport photos, by airport name. See the effect below. */
+  const [airportPhotos, setAirportPhotos] = useState<Record<string, PlacePhoto | null>>({});
   // Item ids whose saved travel notes the user chose to see in full.
   const [expandedNoteIds, setExpandedNoteIds] = useState<string[]>([]);
   /** The itinerary item whose place card is open, if any. */
@@ -622,6 +625,36 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       fetchPlacePhoto(placeId).then(photo => { setPhotos(current => current[placeId] === undefined ? { ...current, [placeId]: photo } : current); });
     });
   }, [dayCards.map(item => `${item.id}:${item.placeId || ''}`).join('|')]);
+
+  /*
+    The flight cards, which have an airport and no place id.
+
+    「這為啥都沒圖」 — this lookup has been keyed on `placeId` for months, and an
+    item written from a boarding pass has never had one. 航班起飛 and 抵達機場
+    carry the airport's full name, which is enough. See `fetchAirportPhoto`,
+    and note it is airports only: resolving a typed name would put a photo of
+    somebody else's café on the card and not say so.
+
+    Keyed by name rather than by item, because 出發 and 抵達 at the same airport
+    are one picture.
+  */
+  const airportNames = dayCards
+    .filter(item => !item.placeId && item.derivedFromFlightAnchorId)
+    .map(item => (item.location || '').trim())
+    .filter(Boolean);
+  const wantedAirports = Array.from(new Set(airportNames)).join('|');
+
+  useEffect(() => {
+    if (!wantedAirports) return;
+    let cancelled = false;
+    wantedAirports.split('|').forEach(name => {
+      if (airportPhotos[name] !== undefined) return;
+      void fetchAirportPhoto(name).then(photo => {
+        if (!cancelled) setAirportPhotos(current => (current[name] === undefined ? { ...current, [name]: photo } : current));
+      });
+    });
+    return () => { cancelled = true; };
+  }, [wantedAirports]);
 
   // Ticket / booking lookup, keyed by itinerary item so each card can render as
   // soon as its own answer lands. Entirely optional: a null result, a failed
@@ -875,8 +908,25 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 
                 <div className="flex items-start gap-3">
                   <div className="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-[#f3f0ff] text-[#6b4df6]">
-                    {item.placeId && photos[item.placeId]?.imageUrl ? <img src={photos[item.placeId].imageUrl} alt="" className="h-full w-full object-cover" /> : item.placeId && photos[item.placeId] === undefined ? <ImageIcon size={22} className="animate-pulse opacity-50" /> : getIcon(item.type)}
-                    {item.placeId && photos[item.placeId]?.attribution?.uri && <a href={photos[item.placeId]?.attribution?.uri} target="_blank" rel="noreferrer" aria-label="查看照片來源" className="absolute bottom-1 right-1 rounded bg-black/55 p-0.5 text-white"><Info size={10} /></a>}
+                    {(() => {
+                      /* The place's own photo, or the airport's. See `fetchAirportPhoto`. */
+                      const photo = item.placeId
+                        ? photos[item.placeId]
+                        : item.derivedFromFlightAnchorId
+                          ? airportPhotos[(item.location || '').trim()]
+                          : null;
+                      const asked = Boolean(item.placeId)
+                        || Boolean(item.derivedFromFlightAnchorId && (item.location || '').trim());
+                      if (photo?.imageUrl) {
+                        return <>
+                          <img src={photo.imageUrl} alt="" className="h-full w-full object-cover" />
+                          {photo.attribution?.uri && <a href={photo.attribution.uri} target="_blank" rel="noreferrer" aria-label="查看照片來源" className="absolute bottom-1 right-1 rounded bg-black/55 p-0.5 text-white"><Info size={10} /></a>}
+                        </>;
+                      }
+                      // Still looking: the icon would say 「there is none」.
+                      if (asked && photo === undefined) return <ImageIcon size={22} className="animate-pulse opacity-50" />;
+                      return getIcon(item.type);
+                    })()}
                   </div>
                   <div className="min-w-0 flex-1">
                     {/*
