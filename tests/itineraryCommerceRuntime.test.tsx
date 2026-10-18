@@ -350,3 +350,49 @@ describe('commerce price lookup runtime', () => {
     expect(timeline().getAllByText('SPA LAND Centum City').length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * 「像這個景點，若需要買票，就要在行程上提醒用戶」.
+ *
+ * The 門票 / 預約 block has carried `admissionRequired` for a while, at the
+ * bottom of a card, worded as an offer: 「查看最新票價」. That is somewhere to
+ * look something up, not a reminder that something has to be done before
+ * leaving.
+ */
+describe('需要買票的提醒', () => {
+  it('says so in the section, and flags it where the day is scanned', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    expect(screen.getByTestId('admission-required-it-spaland').textContent).toContain('需要門票');
+    expect(screen.getByTestId('needs-ticket-it-spaland').textContent).toContain('需購票');
+  });
+
+  /* The free beach is not reminded about anything. */
+  it('says nothing for a place that needs no ticket', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    expect(screen.queryByTestId('admission-required-it-beach')).toBeNull();
+    expect(screen.queryByTestId('needs-ticket-it-beach')).toBeNull();
+  });
+
+  /*
+    「needs a ticket」 and 「we have no verified price」 are two facts. A place
+    with a price still has to say it needs one.
+  */
+  it('reminds even when a verified price is already shown', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    const section = commerceSection();
+    expect(within(section).getByText('￦26,000')).toBeTruthy();
+    expect(screen.getByTestId('admission-required-it-spaland')).toBeTruthy();
+  });
+});

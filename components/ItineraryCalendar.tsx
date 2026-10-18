@@ -699,6 +699,23 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         {item.isPinned && <span data-testid={`pinned-label-${item.id}`}>已固定</span>}
                       </button>
                     )}
+                    {/*
+                      「像這個景點，若需要買票，就要在行程上提醒用戶」.
+
+                      The 門票 / 預約 block has carried this fact for a while, at
+                      the bottom of an expanded card and worded as an offer —
+                      「查看最新票價」. That is a place to look something up, not a
+                      reminder that something has to be done before leaving.
+                      Said here, where a day is scanned.
+                    */}
+                    {commerce[item.id]?.admissionRequired === true && (
+                      <span
+                        data-testid={`needs-ticket-${item.id}`}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#f0edff] px-2 py-0.5 text-[9px] font-black text-[#5b3df5]"
+                      >
+                        <Ticket size={9} />需購票
+                      </span>
+                    )}
                     <span className="shrink-0 rounded-full border border-[#eeeefa] bg-[#fafaff] px-2 py-0.5 text-[9px] font-bold text-slate-400">{item.type}</span>
                     {(onEdit || onDelete) && <div className="relative">
                       <button type="button" onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} aria-label={`${item.title} 更多選項`} aria-expanded={menuItemId === item.id} className="rounded-lg p-2 text-slate-300 transition hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={16} /></button>
@@ -877,6 +894,24 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   return (
                     <div className="mt-2 rounded-xl border border-[#eceaf5] bg-white px-2.5 py-2">
                       <div className="flex items-center gap-1 text-[10px] font-black text-slate-500"><Ticket size={11} className="text-[#6b4df6]" />門票 / 預約</div>
+
+                      {/*
+                        「若需要買票，就要在行程上提醒用戶」.
+
+                        Kept apart from the price slot below on purpose. 「this
+                        needs a ticket」 and 「we have no verified price」 are two
+                        different facts, and the section only ever stated the
+                        second — 「查看最新票價」 is somewhere to look something up,
+                        not a thing to do before leaving.
+                      */}
+                      {info.admissionRequired === true && (
+                        <div
+                          data-testid={`admission-required-${item.id}`}
+                          className="mt-1 text-[11px] font-black leading-4 text-[#5b3df5]"
+                        >
+                          需要門票，出發前先訂票或查價
+                        </div>
+                      )}
 
                       <div className="mt-1.5">
                         {info.officialPrice ? (
