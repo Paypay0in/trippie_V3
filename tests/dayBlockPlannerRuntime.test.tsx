@@ -655,7 +655,46 @@ describe('最後一天要出發去機場', () => {
 
     const warning = screen.getByTestId('day-closes-for-airport');
     expect(warning.textContent).toContain('15:30');
-    expect(warning.textContent).toContain('出發去機場');
+    expect(warning.textContent).toContain('機場');
+  });
+
+  /*
+    「我的飛機是晚上九點」 — the line read 「19:15 要出發去機場」, and 19:15 is the
+    抵達機場 card: departure less the check-in buffer. Setting off then misses
+    the flight by the length of the ride.
+  */
+  it('separates when to be there from when to leave', () => {
+    const day = [
+      item('it-last', 'Nakameguro', '16:46', {
+        latitude: 35.6447, longitude: 139.6988, address: 'Meguro City, Tokyo',
+      }),
+      item('flight-arrival-f1', '抵達機場', '19:15', {
+        latitude: 35.7720, longitude: 140.3929, address: 'Narita International Airport',
+        type: 'TRANSPORT', derivedFromFlightAnchorId: 'f1',
+      }),
+    ];
+    renderPlanner({
+      items: day,
+      areas: buildTripAreas({ itinerary: day }),
+      isFixed: (entry: ItineraryItem) => Boolean(entry.derivedFromFlightAnchorId),
+      fixedSchedule: [
+        { date: DAY, time: '19:15', label: '抵達機場', role: 'to_airport', durationMinutes: 0 },
+        { date: DAY, time: '21:00', label: '航班起飛', role: 'departure', durationMinutes: 0 },
+      ] as FixedScheduleEntry[],
+    });
+
+    const warning = screen.getByTestId('day-closes-for-airport').textContent || '';
+    // 中目黒 to 成田 is a long way: setting off has to be well before 19:15.
+    expect(warning).toContain('19:15 前要到');
+    expect(warning).toMatch(/\d{2}:\d{2} 就要出發去機場/);
+    expect(warning).not.toContain('19:15 就要出發');
+  });
+
+  /* With no located stop to leave from, only the fact that can be stated. */
+  it('states only the arrival time when the journey is unknown', () => {
+    renderPlanner({ fixedSchedule: goingHome });
+
+    expect(screen.getByTestId('day-closes-for-airport').textContent).toContain('15:30 前要到機場');
   });
 
   /* Said in red, which is what he asked for and what the rest of this panel is not. */

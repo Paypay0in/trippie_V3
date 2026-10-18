@@ -11,6 +11,8 @@ const MANUAL_OPTION = '__manual__';
 import { BLOCK_MINUTES, buildDayTemplate, DaySlot } from '../services/dayTemplate';
 import { shiftDayToStart } from '../services/shiftDayStart';
 import { FixedScheduleEntry, latestFreeStartByDate } from '../services/itineraryDayFloor';
+import { transitMinutesBetween } from '../services/itineraryScheduling';
+import { minutesToTime, timeToMinutes } from '../services/itineraryTimeline';
 import { dayAreaSpread, daySpansTooManyAreas } from '../services/dayAreaSpread';
 import { TripAreas } from '../services/tripAreas';
 
@@ -234,10 +236,46 @@ const DayBlockPlanner: React.FC<Props> = ({
     an evening that simply has no rows looks like an evening nobody has
     planned yet, which is the opposite of what it is.
   */
-  const leaveForAirportAt = useMemo(
+  const beAtAirportBy = useMemo(
     () => latestFreeStartByDate(fixedSchedule)[date],
     [fixedSchedule, date],
   );
+
+  /**
+   * When to actually leave, which is not when to be there.
+   *
+   * 「我的飛機是晚上九點」 — and the line said 「19:15 要出發去機場」. 19:15 is the
+   * 抵達機場 card: departure less the check-in buffer. It is when you must
+   * already be standing in the terminal, and setting off then means missing
+   * the flight by the length of the ride — from 中目黒 to 成田, most of two
+   * hours.
+   *
+   * `transitMinutesBetween` is the same estimate everything else on this
+   * screen is scheduled by. Undefined when either end has no coordinates, and
+   * then only the arrival time is stated — which is true on its own.
+   */
+  const leaveForAirportAt = useMemo(() => {
+    const beThere = beAtAirportBy ? timeToMinutes(beAtAirportBy) : undefined;
+    if (beThere === undefined) return undefined;
+    const airport = items.find(item => item.id.startsWith('flight-arrival-')
+      && typeof item.latitude === 'number' && typeof item.longitude === 'number');
+    if (!airport) return undefined;
+
+    const lastStop = [...items]
+      .filter(item => !isFixed?.(item)
+        && typeof item.latitude === 'number' && typeof item.longitude === 'number'
+        && (timeToMinutes(item.time) ?? -1) < beThere)
+      .sort((left, right) => (timeToMinutes(left.time) ?? 0) - (timeToMinutes(right.time) ?? 0))
+      .pop();
+    if (!lastStop) return undefined;
+
+    const journey = transitMinutesBetween(
+      { latitude: lastStop.latitude as number, longitude: lastStop.longitude as number },
+      { latitude: airport.latitude as number, longitude: airport.longitude as number },
+    );
+    const setOff = beThere - journey;
+    return setOff > 0 ? { at: minutesToTime(setOff), journey } : undefined;
+  }, [beAtAirportBy, items, isFixed]);
 
   const itemById = useMemo(() => new Map(items.map(item => [item.id, item])), [items]);
 
@@ -760,13 +798,17 @@ const DayBlockPlanner: React.FC<Props> = ({
       )}
 
       {/* Said after the blocks, because it is what ends them. */}
-      {leaveForAirportAt && (
+      {beAtAirportBy && (
         <p
           data-testid="day-closes-for-airport"
           className="mt-2 flex items-start gap-1.5 rounded-xl bg-rose-50 px-2.5 py-2 text-[11px] font-black leading-5 text-rose-700"
         >
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-          <span>{leaveForAirportAt} 要出發去機場，之後不要再排行程</span>
+          <span>
+            {leaveForAirportAt
+              ? `${leaveForAirportAt.at} 就要出發去機場（約 ${leaveForAirportAt.journey} 分），${beAtAirportBy} 前要到，之後不要再排行程`
+              : `${beAtAirportBy} 前要到機場，之後不要再排行程`}
+          </span>
         </p>
       )}
 
