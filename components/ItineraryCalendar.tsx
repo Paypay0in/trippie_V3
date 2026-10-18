@@ -221,6 +221,22 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   const [mapMode, setMapMode] = useState(false);
   /** The proposal on screen, or null. Nothing is written until it is taken. */
   const [routePlan, setRoutePlan] = useState<RoutePlan | null>(null);
+  /** Which day the open plan was asked about, or the whole trip. */
+  const [routeScope, setRouteScope] = useState<string | 'trip'>('trip');
+
+  /*
+    「優化動線的建議應該可以限縮當日？」
+
+    Scoping is the input, not a mode: handed only one day's stops, the planner
+    has one date to assign areas to and reorders inside it. Nothing in
+    `optimiseTripRoute` needs to know, and the apply writes only what the plan
+    contains — so a day-scoped plan cannot touch another day even by accident.
+  */
+  const planRoute = (scope: string | 'trip') => {
+    const scoped = scope === 'trip' ? items : items.filter(item => item.date === scope);
+    setRouteScope(scope);
+    setRoutePlan(optimiseTripRoute(scoped, { country: destinationCountry, categoryOf }));
+  };
 
   /*
     Google's own line for the places on this plan that carry no notes. See the
@@ -1077,7 +1093,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           <button
             type="button"
             data-testid="optimise-route"
-            onClick={() => setRoutePlan(optimiseTripRoute(items, { country: destinationCountry, categoryOf }))}
+            onClick={() => planRoute('trip')}
             className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#eceaf5] bg-white px-3 py-2 text-xs font-bold text-[#5b3df5] shadow-sm"
           >
             <Sparkles size={14} />優化動線
@@ -1125,7 +1141,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             asks for it. 「點擊優化行程」 — one arrangement of a day, shown before
             it is written, rather than a second one that writes immediately.
           */
-          onOptimise={() => setRoutePlan(optimiseTripRoute(items, { country: destinationCountry, categoryOf }))}
+          /* The advice is about one day, so the plan it opens is too. */
+          onOptimise={() => planRoute(activeDate || 'trip')}
         />
       )}
 
@@ -1840,7 +1857,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             className="max-h-[86vh] w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-4 shadow-2xl"
             onClick={event => event.stopPropagation()}
           >
-            <h2 className="text-lg font-black text-[#11183d]">優化動線</h2>
+            <h2 className="text-lg font-black text-[#11183d]">
+              優化動線
+              {routeScope !== 'trip' && (
+                <span data-testid="route-scope" className="ml-2 rounded-lg bg-[#f0edff] px-2 py-0.5 text-[11px] font-black text-[#5b3df5]">
+                  只動 {routeScope.slice(5).replace('-', '/')}
+                </span>
+              )}
+            </h2>
             <p className="mt-1 text-xs leading-5 text-slate-500">
               航班、住宿與你固定的行程不會被更動。確認之前不會寫入任何東西。
             </p>
@@ -1923,6 +1947,23 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 {routePlan.unplaced.length} 個行程沒有地圖位置，留在原本的日子沒有被動到：
                 {routePlan.unplaced.map(entry => entry.item.location || entry.item.title).join('、')}
               </p>
+            )}
+
+            {/*
+              The other scope, from inside the answer. Asking 「what about just
+              today?」 should not mean closing this and finding another button.
+            */}
+            {activeDate && (
+              <button
+                type="button"
+                data-testid="toggle-route-scope"
+                onClick={() => planRoute(routeScope === 'trip' ? activeDate : 'trip')}
+                className="mt-3 text-[11px] font-black text-[#5b3df5] underline"
+              >
+                {routeScope === 'trip'
+                  ? `改成只看 ${activeDate.slice(5).replace('-', '/')}`
+                  : '改成看整趟'}
+              </button>
             )}
 
             <div className="mt-3 flex gap-2">

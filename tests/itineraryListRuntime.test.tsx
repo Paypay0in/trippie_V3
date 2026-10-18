@@ -896,3 +896,62 @@ describe('優化動線', () => {
     expect(document.body.textContent).toContain('航班、住宿與你固定的行程不會被更動');
   });
 });
+
+/**
+ * 「優化動線的建議應該可以限縮當日？」
+ *
+ * Scoping is the input rather than a mode: handed one day's stops, the planner
+ * has one date to work with. The apply writes only what the plan contains, so
+ * a day-scoped plan cannot reach another day even by accident.
+ */
+describe('優化動線的範圍', () => {
+  it('opens on the whole trip, and says nothing about a scope', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    await user.click(await screen.findByTestId('optimise-route'));
+
+    expect(screen.queryByTestId('route-scope')).toBeNull();
+  });
+
+  it('can be narrowed to the day on screen, from inside the answer', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    await user.click(await screen.findByTestId('optimise-route'));
+    await user.click(screen.getByTestId('toggle-route-scope'));
+
+    expect(screen.getByTestId('route-scope').textContent).toContain('只動');
+  });
+
+  it('goes back to the whole trip', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+
+    await user.click(await screen.findByTestId('optimise-route'));
+    await user.click(screen.getByTestId('toggle-route-scope'));
+    await user.click(screen.getByTestId('toggle-route-scope'));
+
+    expect(screen.queryByTestId('route-scope')).toBeNull();
+  });
+
+  /* Narrowing is still a proposal: nothing is written until it is accepted. */
+  it('writes nothing when narrowed', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+    const before = JSON.stringify(persisted());
+
+    await user.click(await screen.findByTestId('optimise-route'));
+    await user.click(screen.getByTestId('toggle-route-scope'));
+
+    expect(JSON.stringify(persisted())).toBe(before);
+  });
+});
