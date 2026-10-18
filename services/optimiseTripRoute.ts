@@ -156,11 +156,29 @@ const assignAreasToDays = (
   areas: Array<{ id: string; items: ItineraryItem[] }>,
   dates: string[],
   anchoredByDate: Map<string, ItineraryItem[]>,
+  /**
+   * Days a pin has already claimed, by area.
+   *
+   * 「那 AI 在規劃行程的時候就要把這區附近的行程規劃在這天」. A pinned stop is the
+   * traveller saying where a day is, which is a stronger claim than the
+   * majority count below — that one reads where the model happened to put
+   * things, and this one reads a decision.
+   */
+  pinnedDateByArea: Map<string, string> = new Map(),
 ): Map<string, string> => {
   const chosen = new Map<string, string>();
   const taken = new Set<string>();
 
-  const byCurrentDay = [...areas].sort((left, right) => right.items.length - left.items.length);
+  // Claimed first, so nothing else can take the day out from under a pin.
+  pinnedDateByArea.forEach((date, areaId) => {
+    if (taken.has(date)) return;
+    chosen.set(areaId, date);
+    taken.add(date);
+  });
+
+  const byCurrentDay = [...areas]
+    .filter(area => !chosen.has(area.id))
+    .sort((left, right) => right.items.length - left.items.length);
 
   byCurrentDay.forEach(area => {
     const counts = new Map<string, number>();
@@ -380,8 +398,25 @@ export const optimiseTripRoute = (
     .filter(item => !isAnchored(item) && !located(item))
     .map(item => ({ item, reason: '沒有地圖位置，無法排進動線' }));
 
+  /*
+    Pinned stops are clustered with the movable ones, and never scheduled.
+
+    「這個行程是固定的 … 那 AI 在規劃行程的時候就要把這區附近的行程規劃在這天」 —
+    a pin was only ever a refusal: 「do not move this」. It is more than that.
+    A stop the traveller has nailed to a day is a statement about where that
+    day is, and everything near it belongs there too.
+
+    It could not say so before, because `movable` excludes anchored items —
+    so a pinned restaurant was not in any cluster, and its area had no pull on
+    any day. Clustered here for its location only; it is stripped out again
+    below so nothing re-times it.
+  */
+  const pinned = items.filter(item =>
+    item.isPinned === true && located(item) && item.date && ground.has(item.id));
+  const pinnedIds = new Set(pinned.map(item => item.id));
+
   const { clusters } = clusterSavedPlaces(
-    movable.map(item => ({
+    [...movable, ...pinned].map(item => ({
       id: item.id,
       placeName: item.location || item.title || '',
       latitude: item.latitude,
@@ -395,10 +430,22 @@ export const optimiseTripRoute = (
   const byId = new Map(items.map(item => [item.id, item]));
   const areas = clusters.map(cluster => ({
     id: cluster.id,
-    items: cluster.places.map(place => byId.get(place.id)).filter(Boolean) as ItineraryItem[],
+    // Pinned stops gave the cluster its shape and take no part in the plan.
+    items: cluster.places
+      .filter(place => !pinnedIds.has(place.id))
+      .map(place => byId.get(place.id))
+      .filter(Boolean) as ItineraryItem[],
   }));
 
-  const areaDay = assignAreasToDays(areas, dates, anchoredByDate);
+  /** The day a pin has already claimed for its area. See `pinned` above. */
+  const pinnedDateByArea = new Map<string, string>();
+  clusters.forEach(cluster => {
+    const held = cluster.places.find(place => pinnedIds.has(place.id));
+    const date = held ? byId.get(held.id)?.date : undefined;
+    if (date && !pinnedDateByArea.has(cluster.id)) pinnedDateByArea.set(cluster.id, date);
+  });
+
+  const areaDay = assignAreasToDays(areas, dates, anchoredByDate, pinnedDateByArea);
 
   const plannedByDate = new Map<string, ItineraryItem[]>();
   dates.forEach(date => plannedByDate.set(date, []));

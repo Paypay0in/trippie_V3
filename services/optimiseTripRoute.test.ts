@@ -433,3 +433,70 @@ describe('mealsAtMealtimesByDay', () => {
     expect(mealsAtMealtimesByDay(items, categoryOf)).toBe(items);
   });
 });
+
+/**
+ * 「這個行程是固定的 … 那 AI 在規劃行程的時候就要把這區附近的行程規劃在這天」.
+ *
+ * A pin was only ever a refusal — 「do not move this」. It is also a statement
+ * about where a day is, and nothing read it that way: `movable` excludes
+ * anchored items, so a pinned restaurant was in no cluster and its area had
+ * no pull on any day.
+ */
+describe('固定的行程把它那一區拉過來', () => {
+  const at = (id: string, date: string, time: string, latitude: number, longitude: number, over: Partial<ItineraryItem> = {}): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY', date, time,
+    durationMinutes: 60, latitude, longitude, ...over,
+  } as ItineraryItem);
+
+  /* 淺草 on 10/23, where Alchemy is pinned; 渋谷 stops scattered elsewhere. */
+  const ASAKUSA = [35.7148, 139.7967] as const;
+  const SHIBUYA = [35.6595, 139.7005] as const;
+
+  const trip = [
+    at('alchemy', '2026-10-23', '12:00', ASAKUSA[0], ASAKUSA[1], { isPinned: true }),
+    at('senso', '2026-10-22', '10:00', 35.7147, 139.7966),
+    at('harry', '2026-10-22', '14:00', 35.7140, 139.7970),
+    at('shibuya-a', '2026-10-23', '10:00', SHIBUYA[0], SHIBUYA[1]),
+    at('shibuya-b', '2026-10-23', '15:00', 35.6590, 139.7010),
+  ];
+
+  const dayOf = (plan: ReturnType<typeof optimiseTripRoute>, id: string) =>
+    plan.days.find(day => day.items.some(item => item.id === id))?.date;
+
+  it('puts the pinned stop’s neighbours on the pinned stop’s day', () => {
+    const plan = optimiseTripRoute(trip, { country: '日本' });
+
+    expect(dayOf(plan, 'senso')).toBe('2026-10-23');
+    expect(dayOf(plan, 'harry')).toBe('2026-10-23');
+  });
+
+  it('moves the other area off that day', () => {
+    const plan = optimiseTripRoute(trip, { country: '日本' });
+
+    expect(dayOf(plan, 'shibuya-a')).not.toBe('2026-10-23');
+  });
+
+  /*
+    A proposal only ever contains what it is proposing to move. Anchors —
+    flights, check-ins, pins — are left out of it entirely, which is how the
+    pin keeps its own date and hour: there is nothing to apply to it.
+  */
+  it('proposes nothing for the pin itself', () => {
+    const plan = optimiseTripRoute(trip, { country: '日本' });
+
+    expect(plan.days.flatMap(day => day.items).some(item => item.id === 'alchemy')).toBe(false);
+    expect(plan.unplaced.some(entry => entry.item.id === 'alchemy')).toBe(false);
+  });
+
+  it('loses none of the stops it is free to move', () => {
+    const plan = optimiseTripRoute(trip, { country: '日本' });
+    const seen = new Set([
+      ...plan.days.flatMap(day => day.items.map(item => item.id)),
+      ...plan.unplaced.map(entry => entry.item.id),
+    ]);
+
+    trip
+      .filter(item => item.isPinned !== true)
+      .forEach(item => expect(seen.has(item.id)).toBe(true));
+  });
+});
