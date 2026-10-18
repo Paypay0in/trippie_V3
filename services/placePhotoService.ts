@@ -6,6 +6,9 @@ export type PlacePhoto = {
 const cache = new Map<string, PlacePhoto | null>();
 const pending = new Map<string, Promise<PlacePhoto | null>>();
 
+/** For tests: the cache lives for the page, which is longer than one case. */
+export const clearPlacePhotoCache = () => { cache.clear(); pending.clear(); };
+
 export const fetchPlacePhoto = (placeId: string): Promise<PlacePhoto | null> => {
   const cached = cache.get(placeId);
   if (cached !== undefined) return Promise.resolve(cached);

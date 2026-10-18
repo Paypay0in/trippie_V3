@@ -3,7 +3,6 @@ import { OVERLAY } from '../constants/layers';
 import { Ellipsis, MapPin, Plus } from 'lucide-react';
 import { CommunityPost, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
-import { resolveSavedPlaceImage, SavedPlaceImageResult } from '../services/savedPlaceImageService';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { keepDistinctNotes } from '../services/distinctNotes';
 import { AREA_COLORS } from '../constants/areaColors';
@@ -13,6 +12,7 @@ import { PlaceVisit, visitLabel, visitOf } from '../services/visitedPlaces';
 import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import SavedPlaceCard from './SavedPlaceCard';
+import PlaceThumbnail from './PlaceThumbnail';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { dayMapSrc } from '../services/dayMapImage';
 import { findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
@@ -63,20 +63,6 @@ type Props = {
   visits?: Map<string, PlaceVisit>;
 };
 
-const PlaceThumbnail: React.FC<{ saved: SavedTravelInspiration; sourcePost?: CommunityPost }> = ({ saved, sourcePost }) => {
-  const [imageResult, setImageResult] = useState<SavedPlaceImageResult | null>(sourcePost?.coverImage ? { imageUrl: sourcePost.coverImage, source: 'source_post', query: saved.placeName } : null);
-  const [loading, setLoading] = useState(!sourcePost?.coverImage);
-  useEffect(() => {
-    let active = true;
-    if (sourcePost?.coverImage) return () => { active = false; };
-    setLoading(true);
-    resolveSavedPlaceImage(saved, sourcePost).then(result => { if (active) { setImageResult(result); setLoading(false); } });
-    return () => { active = false; };
-  }, [saved, sourcePost]);
-  const fallback = 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=500&q=80';
-  const imageUrl = imageResult?.imageUrl || fallback;
-  return <div className="shrink-0"><div className="relative h-[112px] w-[112px]">{loading ? <div className="h-full w-full animate-pulse rounded-[14px] bg-slate-100" aria-label="圖片載入中" /> : <img src={imageUrl} alt={saved.placeName} className="h-full w-full rounded-[14px] object-cover" />}</div></div>;
-};
 
 /**
  * How many notes a card shows before folding the rest away.

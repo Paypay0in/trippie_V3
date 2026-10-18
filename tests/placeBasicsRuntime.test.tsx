@@ -13,6 +13,8 @@ import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import TripInspirationPlanner from '../components/TripInspirationPlanner';
 import { clearPlaceBasicsCache } from '../services/placeBasicsService';
+import { clearSavedPlaceImageCache } from '../services/savedPlaceImageService';
+import { clearPlacePhotoCache } from '../services/placePhotoService';
 
 const BASICS = {
   kind: '咖啡廳',
@@ -26,6 +28,8 @@ const BASICS = {
 
 beforeEach(() => {
   clearPlaceBasicsCache();
+  clearSavedPlaceImageCache();
+  clearPlacePhotoCache();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ basics: BASICS }) }));
 });
 
@@ -94,17 +98,24 @@ describe('a saved place with nothing written about it', () => {
 
   it('looks nothing up for a place that never resolved', async () => {
     // Without an id, any lookup is a guess about which branch this is.
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    //
+    // Scoped to the basics endpoint rather than to fetch itself: 「要有圖」 put
+    // a thumbnail on this row, and its own fallback chain does ask for a
+    // picture by name. That is a different claim — a photo stands for the
+    // place, an opening-hours line claims to be about this exact branch.
+    const fetchMock = vi.fn(async (..._args: unknown[]) => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchMock as never);
     renderPlanner([inspiration({ placeId: undefined, latitude: undefined, longitude: undefined })]);
 
     await waitFor(() => expect(screen.getByText('다고소님')).toBeTruthy());
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect((fetchMock.mock.calls as unknown[][]).some(call => String(call[0]).includes('/api/places/basics'))).toBe(false);
   });
 
   it('leaves a place that has its own points alone', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    // Scoped to the basics endpoint: the thumbnail 「要有圖」 added does ask for
+    // a picture, which is a different claim from an opening-hours line.
+    const fetchMock = vi.fn(async (..._args: unknown[]) => ({ ok: true, json: async () => ({}) }));
+    vi.stubGlobal('fetch', fetchMock as never);
     renderPlanner([inspiration({
       notes: [{
         id: 'n1', sourceNoteId: 'sn-1', sourceSliceId: 'screenshot:a', sourcePostId: 'screenshot:a',
@@ -113,7 +124,7 @@ describe('a saved place with nothing written about it', () => {
     })]);
 
     await waitFor(() => expect(screen.getByText('BIFF廣場附近好吃的餐廳')).toBeTruthy());
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect((fetchMock.mock.calls as unknown[][]).some(call => String(call[0]).includes('/api/places/basics'))).toBe(false);
   });
 
   it('stays blank rather than guessing when Google knows nothing', async () => {
@@ -122,5 +133,35 @@ describe('a saved place with nothing written about it', () => {
 
     await waitFor(() => expect(screen.getByText('다고소님')).toBeTruthy());
     expect(screen.queryByTestId('basics-line-dago')).toBeNull();
+  });
+});
+
+/**
+ * 「要有圖」.
+ *
+ * The 規劃 shortlist drew twenty-six restaurants as a name, a tag and a line
+ * of note. A photo is how a place is recognised, and the collection screen has
+ * resolved one through the same four fallbacks for months.
+ */
+describe('a picture on the shortlist', () => {
+  it('shows the photo stored with the place', async () => {
+    renderPlanner([inspiration({ placePhotoUrl: 'https://example.com/dago.jpg' })]);
+
+    const photo = await screen.findByAltText('다고소님');
+    expect((photo as HTMLImageElement).src).toBe('https://example.com/dago.jpg');
+  });
+
+  /* Most saves never stored one; the place id is how the gap gets filled. */
+  it('asks Google for one when the record has none', async () => {
+    const fetchMock = vi.fn(async (..._args: unknown[]) => ({
+      ok: true,
+      json: async () => ({ photo: { imageUrl: 'https://maps.example/photo.jpg' } }),
+    }));
+    vi.stubGlobal('fetch', fetchMock as never);
+
+    renderPlanner();
+
+    await waitFor(() => expect((fetchMock.mock.calls as unknown[][])
+      .some(call => String(call[0]).includes('/api/places/photo'))).toBe(true));
   });
 });

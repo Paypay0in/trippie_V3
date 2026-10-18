@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SavedPlaceCard from './SavedPlaceCard';
+import PlaceThumbnail from './PlaceThumbnail';
 import { Compass, MapPin, Sparkles, Check, AlertTriangle, ArrowRight, Clock3, RotateCcw, CalendarDays, CheckCircle2, Wand2, MoveRight, Trash2, Plus, PencilLine } from 'lucide-react';
 import { CommunityPost, ExperienceNoteType, ItineraryItem, SavedTravelInspiration } from '../types';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
@@ -1306,7 +1307,31 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   className="min-w-0 flex-1 py-3 pr-1 text-left"
                 >
                   {/* Only the identifying row is muted; the notes below stay readable. */}
-                  <span className={`block min-w-0 ${isPlanned ? 'opacity-55' : ''}`}>
+                  <span className={`flex min-w-0 gap-2.5 ${isPlanned ? 'opacity-55' : ''}`}>
+                  {/*
+                    「要有圖」.
+
+                    Twenty-six restaurants as names, a tag and a line of note.
+                    A photo is how a place is recognised — the collection
+                    screen has known that for months and this list, which is
+                    where a trip is actually chosen from, showed none.
+
+                    The same four fallbacks, not a fifth copy of them. See
+                    `PlaceThumbnail`.
+                  */}
+                  <PlaceThumbnail
+                    size={56}
+                    className="rounded-xl"
+                    saved={{
+                      id: group.id,
+                      placeName: group.placeName,
+                      country: group.country,
+                      city: group.city,
+                      ...(group.placeId ? { placeId: group.placeId } : {}),
+                      ...(group.placePhotoUrl ? { placePhotoUrl: group.placePhotoUrl } : {}),
+                    } as SavedTravelInspiration}
+                  />
+                  <span className="block min-w-0 flex-1">
                     <span className="flex items-start justify-between gap-2">
                       <span className="block min-w-0 flex-1 truncate text-sm font-black text-[#11183d]">{group.placeName}</span>
                       {/*
@@ -1341,6 +1366,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                     {!isPlanned && group.missingPlaceIdentity && (
                       <span className="mt-1.5 flex items-start gap-1.5 text-[11px] font-bold text-amber-600"><AlertTriangle size={12} className="mt-0.5 shrink-0" />地圖上還沒找到這個地點</span>
                     )}
+                  </span>
                   </span>
                 </button>
                 {onRemoveInspirations && (

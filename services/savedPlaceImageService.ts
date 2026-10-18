@@ -12,6 +12,9 @@ const fallbackImage = 'https://images.unsplash.com/photo-1500534623283-312aade48
 const resultCache = new Map<string, SavedPlaceImageResult>();
 const pending = new Map<string, Promise<SavedPlaceImageResult>>();
 
+/** For tests: the cache lives for the page, which is longer than one case. */
+export const clearSavedPlaceImageCache = () => { resultCache.clear(); pending.clear(); };
+
 export const resolveSavedPlaceImage = (saved: SavedTravelInspiration, sourcePost?: CommunityPost): Promise<SavedPlaceImageResult> => {
   const query = `${saved.placeName} ${saved.city} ${saved.country}`.replace(/\s+/g, ' ').trim();
   const key = saved.placeId || `${saved.country}|${saved.city}|${saved.placeName}`;
