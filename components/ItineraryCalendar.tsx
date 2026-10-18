@@ -1907,14 +1907,34 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             className="max-h-[86vh] w-full max-w-2xl overflow-y-auto rounded-[28px] bg-white p-4 shadow-2xl"
             onClick={event => event.stopPropagation()}
           >
-            <h2 className="text-lg font-black text-[#11183d]">
-              優化動線
+            {/*
+              The scope, and the way to change it, in one place.
+
+              「這個按鈕移到這邊」 — the toggle was above the apply buttons, a
+              screen away from the chip that says what the scope currently is.
+              Reading 「只動 10/22」 and wanting the other answer meant scrolling
+              past the whole plan to find out it was possible.
+            */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h2 className="text-lg font-black text-[#11183d]">優化動線</h2>
               {routeScope !== 'trip' && (
-                <span data-testid="route-scope" className="ml-2 rounded-lg bg-[#f0edff] px-2 py-0.5 text-[11px] font-black text-[#5b3df5]">
+                <span data-testid="route-scope" className="rounded-lg bg-[#f0edff] px-2 py-0.5 text-[11px] font-black text-[#5b3df5]">
                   只動 {routeScope.slice(5).replace('-', '/')}
                 </span>
               )}
-            </h2>
+              {activeDate && (
+                <button
+                  type="button"
+                  data-testid="toggle-route-scope"
+                  onClick={() => planRoute(routeScope === 'trip' ? activeDate : 'trip')}
+                  className="min-h-7 shrink-0 rounded-lg border border-[#ded7fb] px-2 text-[11px] font-black text-[#5b3df5]"
+                >
+                  {routeScope === 'trip'
+                    ? `改成只看 ${activeDate.slice(5).replace('-', '/')}`
+                    : '改成看整趟'}
+                </button>
+              )}
+            </div>
             <p className="mt-1 text-xs leading-5 text-slate-500">
               航班、住宿與你固定的行程不會被更動。確認之前不會寫入任何東西。
             </p>
@@ -2060,23 +2080,6 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 {routePlan.unplaced.length} 個行程沒有地圖位置，留在原本的日子沒有被動到：
                 {routePlan.unplaced.map(entry => entry.item.location || entry.item.title).join('、')}
               </p>
-            )}
-
-            {/*
-              The other scope, from inside the answer. Asking 「what about just
-              today?」 should not mean closing this and finding another button.
-            */}
-            {activeDate && (
-              <button
-                type="button"
-                data-testid="toggle-route-scope"
-                onClick={() => planRoute(routeScope === 'trip' ? activeDate : 'trip')}
-                className="mt-3 text-[11px] font-black text-[#5b3df5] underline"
-              >
-                {routeScope === 'trip'
-                  ? `改成只看 ${activeDate.slice(5).replace('-', '/')}`
-                  : '改成看整趟'}
-              </button>
             )}
 
             <div className="mt-3 flex gap-2">
