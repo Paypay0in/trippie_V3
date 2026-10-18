@@ -302,7 +302,21 @@ export const buildDayTemplate = ({
     const until = next ? Math.min(next.from, cursor + wanted) : cursor + wanted;
     const free = until - cursor;
 
-    if (next && free < MIN_FREE_MINUTES) {
+    /*
+      A sliver before the day's first stop is not free time.
+
+      The grid opens at 10:00 so that an item at 08:00 still has a block to sit
+      in, and a day whose first stop is at 17:00 still has a morning to plan
+      into. But a day whose first stop is at 10:30 got a 30-minute 10:00–10:30
+      row — an artefact of where the grid opens, offering to fill half an hour
+      nobody has, and 幾點出門 right above it already says the day starts 10:30.
+
+      Only before the first slot, and only when it is shorter than a whole
+      block: a real gap in the middle of a day is a real gap.
+    */
+    const slimOpening = slots.length === 0 && next && free < blockMinutes;
+
+    if (next && (free < MIN_FREE_MINUTES || slimOpening)) {
       cursor = next.from;
       continue;
     }

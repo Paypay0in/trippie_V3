@@ -38,6 +38,29 @@ const located = <T extends { latitude?: number; longitude?: number }>(place: T):
   typeof place.latitude === 'number' && typeof place.longitude === 'number';
 
 /**
+ * How far out of the way a suggestion may be and still be a suggestion.
+ *
+ * His empty 10:00 block offered 東京聖瑪利亞主教座堂・繞 10 公里, 東京日生劇場・繞
+ * 10.2 公里 and 淺草 ROCKZA劇場・繞 14.8 公里 — for a morning in 世田谷. Nothing
+ * was near, so it offered what was far and said so, which is a list that
+ * costs a read and gives nothing back.
+ *
+ * An empty row saying only 「＋ 選一個地點」 is the honest answer when the
+ * collection has nothing nearby.
+ */
+export const WORTH_SUGGESTING_KM = 3;
+
+/**
+ * How close two detours have to be before what the block is for decides.
+ *
+ * Preference used to sort ahead of distance outright, so a 劇場 fourteen
+ * kilometres away outranked a café three hundred metres away. 「A restaurant
+ * two hundred metres further is still a better lunch than a shop next door」
+ * is true; it stops being true somewhere, and a kilometre is where.
+ */
+const SAME_DISTANCE_KM = 1;
+
+/**
  * What a meal block wants, and what an afternoon wants.
  *
  * Leading rather than filtering, the same rule the picker uses: a café can be
@@ -88,17 +111,25 @@ export const suggestionsForSlot = (
         detourKm: Math.round(detourKm * 10) / 10,
       };
     })
+    // 「Near here」 or nothing. See `WORTH_SUGGESTING_KM`.
+    .filter(place => place.detourKm <= WORTH_SUGGESTING_KM)
     .sort((left, right) => {
       /*
-        What the block is for comes first, then how far out of the way it is.
+        Roughly how far, then what the block is for, then exactly how far.
+
         A restaurant two hundred metres further is still a better lunch than a
-        shop next door.
+        shop next door — within a kilometre they are the same walk and the
+        block decides. Past that the walk decides, which is what stopped a
+        theatre fourteen kilometres away leading the list.
       */
+      const band = (value: number) => Math.floor(value / SAME_DISTANCE_KM);
       const leftRank = preferred.indexOf(left.category || '');
       const rightRank = preferred.indexOf(right.category || '');
       const leftPlace = leftRank === -1 ? preferred.length : leftRank;
       const rightPlace = rightRank === -1 ? preferred.length : rightRank;
-      return leftPlace - rightPlace || left.detourKm - right.detourKm;
+      return band(left.detourKm) - band(right.detourKm)
+        || leftPlace - rightPlace
+        || left.detourKm - right.detourKm;
     })
     .slice(0, limit);
 };

@@ -320,3 +320,56 @@ describe('一天只有一次午餐', () => {
     });
   });
 });
+
+/**
+ * A sliver before the day's first stop is not free time.
+ *
+ * The grid opens at 10:00 so an item at 08:00 still has a block, and a day
+ * whose first stop is at 17:00 still has a morning. A day whose first stop is
+ * at 10:30 got a 30-minute 10:00–10:30 row offering to fill half an hour
+ * nobody has — while 幾點出門 right above it said the day starts at 10:30.
+ */
+describe('the opening of a day', () => {
+  const stop = (id: string, time: string, minutes: number) =>
+    ({ id, time, durationMinutes: minutes });
+
+  it('does not offer the half hour before the first stop', () => {
+    const { slots } = buildDayTemplate({
+      date: '2026-10-22',
+      occupants: [stop('gotokuji', '10:30', 150)],
+    });
+
+    expect(slots[0].startTime).toBe('10:30');
+  });
+
+  /* 「這個表 不是刪掉行程就會消失 要固定存在」: a late day still has a morning. */
+  it('keeps a whole morning before a day that starts in the evening', () => {
+    const { slots } = buildDayTemplate({
+      date: '2026-10-22',
+      occupants: [stop('dinner', '17:00', 120)],
+    });
+
+    expect(slots[0].startTime).toBe('10:00');
+    expect(slots.some(slot => slot.occupantId === 'dinner')).toBe(true);
+  });
+
+  /* A real gap in the middle of a day is a real gap. */
+  it('still offers a short gap between two stops', () => {
+    const { slots } = buildDayTemplate({
+      date: '2026-10-22',
+      occupants: [stop('lunch', '10:00', 120), stop('dinner', '12:45', 120)],
+    });
+
+    expect(slots.some(slot => !slot.occupantId && slot.startTime === '12:00')).toBe(true);
+  });
+
+  /* An item before the grid opens still has a block to sit in. */
+  it('opens early when something is there early', () => {
+    const { slots } = buildDayTemplate({
+      date: '2026-10-22',
+      occupants: [stop('early', '08:00', 60)],
+    });
+
+    expect(slots[0].startTime).toBe('08:00');
+  });
+});

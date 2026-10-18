@@ -5,7 +5,7 @@
  * somebody to compare against a gap they can already see.
  */
 import { describe, expect, it } from 'vitest';
-import { suggestionsForSlot } from './suggestionsForSlot';
+import { suggestionsForSlot, WORTH_SUGGESTING_KM } from './suggestionsForSlot';
 import { ItineraryItem } from '../types';
 
 const stop = (id: string, latitude: number, longitude: number): ItineraryItem => ({
@@ -57,17 +57,53 @@ describe('suggestionsForSlot', () => {
   });
 
   /*
-    Within what the block is for, the shorter detour wins. 新宿 is still
-    offered when it is one of only two restaurants saved — it is simply last
-    of them, and the kilometres beside it say why.
-  */
-  it('puts the long detour behind the short one', () => {
-    const ids = suggestionsForSlot('meal', before, after, saved).map(entry => entry.id);
+    A detour that long is not a suggestion.
 
-    expect(ids.indexOf('near-food')).toBeLessThan(ids.indexOf('far-food'));
-    const far = suggestionsForSlot('meal', before, after, saved)
-      .find(entry => entry.id === 'far-food');
-    expect(far?.detourKm).toBeGreaterThan(5);
+    His empty 10:00 block offered three theatres at 10, 10.2 and 14.8 km for a
+    morning in 世田谷 — nothing was near, so it offered what was far and said
+    so. An empty row saying only 「＋ 選一個地點」 is the honest answer.
+  */
+  it('leaves out a place too far out of the way to be worth it', () => {
+    const offered = suggestionsForSlot('meal', before, after, saved);
+    const ids = offered.map(entry => entry.id);
+
+    expect(ids).toContain('near-food');
+    expect(ids).not.toContain('far-food');
+    offered.forEach(entry => expect(entry.detourKm).toBeLessThanOrEqual(WORTH_SUGGESTING_KM));
+  });
+
+  /*
+    Distance before preference, past a kilometre.
+
+    This is what put three theatres above a café three hundred metres away:
+    preference sorted outright, so a 景點 anywhere beat a 餐廳 next door on an
+    afternoon block.
+  */
+  it('does not let what the block is for outrank a much shorter walk', () => {
+    const ids = suggestionsForSlot('activity', before, after, [
+      { id: 'near-food', placeName: 'Ramen Kai', category: 'food', latitude: 35.7070, longitude: 139.7978 },
+      { id: 'mid-sight', placeName: '劇場', category: 'sight', latitude: 35.7250, longitude: 139.8100 },
+    ]).map(entry => entry.id);
+
+    expect(ids[0]).toBe('near-food');
+  });
+
+  /* Inside a kilometre they are the same walk, and the block decides. */
+  it('still leads with what the block is for when the walk is the same', () => {
+    const ids = suggestionsForSlot('activity', before, after, [
+      { id: 'near-food', placeName: 'Ramen Kai', category: 'food', latitude: 35.7070, longitude: 139.7978 },
+      { id: 'near-sight', placeName: '小劇場', category: 'sight', latitude: 35.7072, longitude: 139.7980 },
+    ]).map(entry => entry.id);
+
+    expect(ids[0]).toBe('near-sight');
+  });
+
+  it('offers nothing rather than something far away', () => {
+    const offered = suggestionsForSlot('meal', before, after, [
+      { id: 'far-food', placeName: '新宿', category: 'food', latitude: 35.69, longitude: 139.70 },
+    ]);
+
+    expect(offered).toEqual([]);
   });
 
   /* One neighbour is still a corner to be near. */
