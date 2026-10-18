@@ -11,6 +11,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
 import { clusterSavedPlaces } from "./services/placeClusters";
+import { fetchTransitousLeg, transitousEnabled } from "./services/transitousRouting";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { createModelLadder, LADDER_PASSES, PASS_PAUSE_MS } from "./services/modelLadder";
 import { isExpandableMapsLink } from "./services/mapsLinkInput";
@@ -994,6 +995,35 @@ async function startServer() {
       // An empty body is the provider saying "this mode does not exist here",
       // which is a fact the traveller needs, not an error to retry.
       if (!route || !Number.isFinite(durationSeconds)) {
+        /*
+          A second opinion, for the transit Google does not carry.
+
+          「但能不能查大眾運輸的時間」 — and this empty body is exactly where that
+          question lands: measured, the Routes API answers nothing at all for
+          Japanese transit. Transitous does. Asked only here, only for transit,
+          and only after Google has declined: it is community-run with no SLA,
+          so it is the fallback and never the first call. See
+          `transitousRouting`.
+        */
+        if (requested === "TRANSIT" && transitousEnabled()) {
+          const fallback = await fetchTransitousLeg(
+            { latitude: originLatitude, longitude: originLongitude },
+            { latitude: destinationLatitude, longitude: destinationLongitude },
+            future,
+          );
+          if (fallback) {
+            res.json({
+              mode: requested,
+              available: true,
+              durationSeconds: fallback.durationSeconds,
+              steps: fallback.steps,
+              // Named, because the card has to be able to say where this came
+              // from — it is a different service with different coverage.
+              source: "transitous",
+            });
+            return;
+          }
+        }
         res.json({ mode: requested, available: false });
         return;
       }

@@ -189,6 +189,19 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
         </p>
       )}
 
+      {/*
+        Which service answered, when it was not Google.
+
+        An open community feed and Google's own data are not the same promise,
+        and the traveller deciding whether to run for a train should know which
+        one they are holding. See `transitousRouting`.
+      */}
+      {leg?.available && leg.source === 'transitous' && (
+        <p data-testid="transit-open-source" className="mt-1 text-[10px] font-bold leading-4 text-slate-400">
+          班次來自開放資料（Transitous），非 Google 路線服務，出發前請再確認。
+        </p>
+      )}
+
       {/* Pressing the button again will not help, so the next step is named. */}
       {leg && !leg.available && isKorea(destinationCountry) && (
         <div className="mt-1.5 text-[10px] font-bold leading-4 text-slate-400">

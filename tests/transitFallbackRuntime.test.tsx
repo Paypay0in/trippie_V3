@@ -144,3 +144,40 @@ describe('a rough time where no timetable exists', () => {
     expect(screen.queryByTestId('transit-rough-estimate')).toBeNull();
   });
 });
+
+/**
+ * When the open fallback did answer, the card says whose timetable it is.
+ */
+describe('a transit time from the open fallback', () => {
+  it('names the source, and shows no estimate beside a real answer', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        mode: 'TRANSIT', available: true, durationSeconds: 2040, source: 'transitous',
+        steps: [{ travelMode: 'TRANSIT', durationSeconds: 540, lineName: 'JC' }],
+      }),
+    })) as never);
+    render(<TransportLeg origin={NARITA} destination={ASAKUSA} destinationCountry="日本" />);
+    askForTransit();
+
+    const note = await screen.findByTestId('transit-open-source');
+
+    expect(note.textContent).toContain('Transitous');
+    expect(screen.queryByTestId('transit-rough-estimate')).toBeNull();
+    expect(screen.getByTestId('transport-leg').textContent).toContain('34 分');
+  });
+
+  /* Google's own answers carry no such note. */
+  it('says nothing about a source when Google answered', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ mode: 'TRANSIT', available: true, durationSeconds: 1800, steps: [] }),
+    })) as never);
+    render(<TransportLeg origin={NARITA} destination={ASAKUSA} destinationCountry="台灣" />);
+    askForTransit();
+
+    await waitFor(() => expect(screen.getByTestId('transport-leg').textContent).toContain('30 分'));
+
+    expect(screen.queryByTestId('transit-open-source')).toBeNull();
+  });
+});

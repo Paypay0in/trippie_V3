@@ -42,6 +42,16 @@ export interface RouteLeg {
    */
   encodedPolyline?: string;
   steps?: RouteLegStep[];
+  /**
+   * Which service answered.
+   *
+   * Absent means Google. 「transitous」 is the open fallback asked only where
+   * Google carries no transit at all — see `transitousRouting`. The card says
+   * so, because a timetable from a community feed and one from Google are not
+   * the same promise, and a traveller deciding whether to run for a train
+   * should know which they are holding.
+   */
+  source?: 'transitous';
 }
 
 /**
@@ -79,6 +89,9 @@ export async function fetchRouteLeg(
     distanceMeters: body.distanceMeters,
     encodedPolyline: body.encodedPolyline,
     steps: body.steps,
+    // Carried through. A rebuilder that lists fields one by one is where this
+    // codebase has lost a value half a dozen times.
+    source: body.source === 'transitous' ? 'transitous' : undefined,
   };
 }
 
