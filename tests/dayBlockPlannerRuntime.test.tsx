@@ -15,6 +15,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import DayBlockPlanner from '../components/DayBlockPlanner';
 import { buildTripAreas } from '../services/tripAreas';
 import { ItineraryItem } from '../types';
+import type { FixedScheduleEntry } from '../services/itineraryDayFloor';
 
 afterEach(cleanup);
 
@@ -564,5 +565,53 @@ describe('上下箭頭', () => {
     renderTwo();
 
     expect(document.querySelector('[data-testid^="move-down-"]')).toBeNull();
+  });
+});
+
+/**
+ * 「最後一天有飛行行程那這個一定要開始進行交通的時間要被以紅色標注提醒用戶不能排行程
+ * 了！要出發去機場」.
+ *
+ * The blocks have stopped at that hour since this table was built. Stopping is
+ * silent: an evening with no rows looks like an evening nobody has planned
+ * yet, which is the opposite of what it is.
+ */
+describe('最後一天要出發去機場', () => {
+  const goingHome: FixedScheduleEntry[] = [
+    { date: DAY, time: '15:30', label: '前往機場', role: 'to_airport', durationMinutes: 0 },
+    { date: DAY, time: '18:30', label: '航班起飛', role: 'departure', durationMinutes: 0 },
+  ];
+
+  it('says when the day stops being a day', () => {
+    renderPlanner({ fixedSchedule: goingHome });
+
+    const warning = screen.getByTestId('day-closes-for-airport');
+    expect(warning.textContent).toContain('15:30');
+    expect(warning.textContent).toContain('出發去機場');
+  });
+
+  /* Said in red, which is what he asked for and what the rest of this panel is not. */
+  it('is red', () => {
+    renderPlanner({ fixedSchedule: goingHome });
+
+    expect(screen.getByTestId('day-closes-for-airport').className).toContain('rose');
+  });
+
+  /* An ordinary day has no such hour and must not be warned about one. */
+  it('says nothing on a day with no flight out', () => {
+    renderPlanner();
+
+    expect(screen.queryByTestId('day-closes-for-airport')).toBeNull();
+  });
+
+  /* Arriving is not leaving: a landing closes nothing. */
+  it('says nothing on the day they arrive', () => {
+    renderPlanner({
+      fixedSchedule: [
+        { date: DAY, time: '11:00', label: '航班抵達', role: 'landing', durationMinutes: 0 },
+      ] as FixedScheduleEntry[],
+    });
+
+    expect(screen.queryByTestId('day-closes-for-airport')).toBeNull();
   });
 });

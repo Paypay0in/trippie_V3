@@ -10,7 +10,7 @@ const CLEAR_OPTION = '__none__';
 const MANUAL_OPTION = '__manual__';
 import { BLOCK_MINUTES, buildDayTemplate, DaySlot } from '../services/dayTemplate';
 import { shiftDayToStart } from '../services/shiftDayStart';
-import { FixedScheduleEntry } from '../services/itineraryDayFloor';
+import { FixedScheduleEntry, latestFreeStartByDate } from '../services/itineraryDayFloor';
 import { dayAreaSpread, daySpansTooManyAreas } from '../services/dayAreaSpread';
 import { TripAreas } from '../services/tripAreas';
 
@@ -212,6 +212,22 @@ const DayBlockPlanner: React.FC<Props> = ({
   const { slots, ranOutOfDay } = useMemo(
     () => buildDayTemplate({ date, dayStart: chosenStart || undefined, fixedSchedule, occupants }),
     [date, chosenStart, fixedSchedule, occupants],
+  );
+
+  /*
+    When the day stops being a day.
+
+    「最後一天有飛行行程那這個一定要開始進行交通的時間要被以紅色標注提醒用戶不能排行程
+    了！要出發去機場」.
+
+    `latestFreeStartByDate` has bounded this table since it was built — the
+    blocks already stop at the hour he has to leave. But stopping is silent:
+    an evening that simply has no rows looks like an evening nobody has
+    planned yet, which is the opposite of what it is.
+  */
+  const leaveForAirportAt = useMemo(
+    () => latestFreeStartByDate(fixedSchedule)[date],
+    [fixedSchedule, date],
   );
 
   const itemById = useMemo(() => new Map(items.map(item => [item.id, item])), [items]);
@@ -683,6 +699,17 @@ const DayBlockPlanner: React.FC<Props> = ({
         <p data-testid="day-ran-out" className="mt-2 flex items-start gap-1.5 text-[11px] font-bold leading-5 text-amber-700">
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
           延長之後，後面的時段排不進今天了。
+        </p>
+      )}
+
+      {/* Said after the blocks, because it is what ends them. */}
+      {leaveForAirportAt && (
+        <p
+          data-testid="day-closes-for-airport"
+          className="mt-2 flex items-start gap-1.5 rounded-xl bg-rose-50 px-2.5 py-2 text-[11px] font-black leading-5 text-rose-700"
+        >
+          <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+          <span>{leaveForAirportAt} 要出發去機場，之後不要再排行程</span>
         </p>
       )}
 
