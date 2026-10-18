@@ -55,6 +55,8 @@ interface PlaceOption {
   /** The photo it was saved with, and the notes kept about it. */
   photoUrl?: string;
   notes?: string[];
+  /** Google's id, so a save with no stored photo can still show one. */
+  placeId?: string;
 }
 
 interface Props {

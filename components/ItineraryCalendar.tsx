@@ -130,6 +130,7 @@ interface Props {
     */
     photoUrl?: string;
     notes?: string[];
+    placeId?: string;
   }>;
   /**
    * The 🏷️ tag for an itinerary item, so 優化動線 can put meals at mealtimes.

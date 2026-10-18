@@ -46,7 +46,15 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
   const airportCount = items.filter(isAirportStop).length;
   const shown = withAirport ? items : items.filter(item => !isAirportStop(item));
 
-  const stops = mappableStops(stopsOnTheGround(shown));
+  /*
+    「住宿點在地圖上可以是放一個小房子嗎」 — a hotel is where the day starts and
+    ends rather than the third thing you do, and a numbered pin says 「go here,
+    third」 about the building you woke up in. See `lodging`.
+  */
+  const stops = mappableStops(stopsOnTheGround(shown))
+    .map(stop => (stop.item.type === 'HOTEL' || stop.item.fixedEventKind === 'accommodation'
+      ? { ...stop, lodging: true }
+      : stop));
   const unmapped = shown.length - stops.length;
 
   if (stops.length === 0) {
@@ -69,7 +77,14 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
       ) : (
         <img
           data-testid="day-map-image"
-          src={dayMapSrc({ stops, encodedPaths, width: 640, height: 400 })}
+          /* Static Maps fetches a custom icon itself, so it needs an absolute URL. */
+          src={dayMapSrc({
+            stops,
+            encodedPaths,
+            width: 640,
+            height: 400,
+            origin: typeof window === 'undefined' ? undefined : window.location.origin,
+          })}
           alt={`這一天 ${stops.length} 個地點的地圖`}
           className="block h-auto w-full"
           loading="lazy"

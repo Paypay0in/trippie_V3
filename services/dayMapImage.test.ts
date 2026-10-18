@@ -204,3 +204,51 @@ describe('a map with no route through it', () => {
     query.getAll('markers').forEach(marker => expect(marker).not.toContain('label:'));
   });
 });
+
+/**
+ * 「住宿點在地圖上可以是放一個小房子嗎」.
+ *
+ * A hotel is where a day starts and ends, not the third thing you do — a
+ * numbered pin says 「go here, third」 about the building you woke up in.
+ */
+describe('the place you sleep', () => {
+  const stop = (id: string, number: number, over: Record<string, unknown> = {}) => ({
+    id, number, latitude: 35.71, longitude: 139.79, ...over,
+  });
+
+  it('is a house, and carries no number', () => {
+    const query = dayMapQuery({
+      stops: [stop('a', 1), stop('hotel', 2, { lodging: true })],
+      width: 640, height: 400, origin: 'https://trippie-v3.onrender.com',
+    });
+    const markers = query.getAll('markers');
+
+    expect(markers.some(marker => marker.includes('icon:https://trippie-v3.onrender.com/icons/lodging-pin.png'))).toBe(true);
+    expect(markers.find(marker => marker.includes('icon:'))).not.toContain('label:');
+  });
+
+  /* Everything else keeps its numbered pin. */
+  it('leaves the ordinary stops alone', () => {
+    const markers = dayMapQuery({
+      stops: [stop('a', 1), stop('hotel', 2, { lodging: true })],
+      width: 640, height: 400, origin: 'https://example.com',
+    }).getAll('markers');
+
+    expect(markers.some(marker => marker.includes('label:1'))).toBe(true);
+  });
+
+  /*
+    Static Maps fetches the icon itself, so a relative path is not something
+    it can resolve. With no origin the stop keeps an ordinary pin rather than
+    asking for a URL that cannot work.
+  */
+  it('falls back to a pin when it has no absolute URL to offer', () => {
+    const markers = dayMapQuery({
+      stops: [stop('hotel', 1, { lodging: true })],
+      width: 640, height: 400,
+    }).getAll('markers');
+
+    expect(markers.some(marker => marker.includes('icon:'))).toBe(false);
+    expect(markers[0]).toContain('color:');
+  });
+});

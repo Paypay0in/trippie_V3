@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NotebookPen } from 'lucide-react';
-import { fetchPlacePhoto } from '../services/placePhotoService';
+import { usePlacePhotos } from './usePlacePhotos';
 
 /**
  * Suggested places, as cards rather than a sentence of names.
@@ -41,32 +41,11 @@ interface Props {
 const NOTE_PREVIEW = 2;
 
 const SuggestedPlaceCards: React.FC<Props> = ({ places, onPick }) => {
-  const [photos, setPhotos] = useState<Record<string, string>>({});
-
   /*
-    One lookup per place that did not bring a picture, and only for the few
-    being offered. `fetchPlacePhoto` caches on both sides, so reopening the
-    plan costs nothing.
+    One lookup per place that did not bring a picture, shared with the picker.
+    See `usePlacePhotos`.
   */
-  const wanted = places
-    .filter(place => !place.photoUrl && place.placeId)
-    .map(place => place.placeId as string)
-    .join('|');
-
-  useEffect(() => {
-    if (!wanted) return;
-    let cancelled = false;
-    void Promise.all(wanted.split('|').map(async placeId => {
-      const photo = await fetchPlacePhoto(placeId);
-      return photo ? [placeId, photo.imageUrl] as const : null;
-    })).then(found => {
-      if (cancelled) return;
-      const resolved = found.filter((entry): entry is readonly [string, string] => entry !== null);
-      if (resolved.length === 0) return;
-      setPhotos(current => ({ ...current, ...Object.fromEntries(resolved) }));
-    });
-    return () => { cancelled = true; };
-  }, [wanted]);
+  const photos = usePlacePhotos(places.filter(place => !place.photoUrl).map(place => place.placeId));
 
   if (places.length === 0) return null;
 

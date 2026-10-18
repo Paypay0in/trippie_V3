@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Check, NotebookPen, Search, X } from 'lucide-react';
 import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import SuggestedPlaceCards from './SuggestedPlaceCards';
+import { usePlacePhotos } from './usePlacePhotos';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import { PlaceCategory } from '../types';
 
@@ -23,6 +24,8 @@ import { PlaceCategory } from '../types';
 export interface PickablePlace {
   id: string;
   placeName: string;
+  /** Google's id, for the photo nearly every save is missing. 「這為啥都沒圖」. */
+  placeId?: string;
   category?: PlaceCategory;
   district?: string;
   areaLabel?: string;
@@ -59,6 +62,12 @@ const PlacePickerSheet: React.FC<Props> = ({
   title, places, onPick, onClose, onClear, onTypeYourOwn, nearby, onPickNearby,
 }) => {
   const [query, setQuery] = useState('');
+  /*
+    「這為啥都沒圖」 — most saves never stored a photo of their own. The
+    collection card has resolved one through Google for months; this screen
+    only ever read the stored field. See `usePlacePhotos`.
+  */
+  const photos = usePlacePhotos(places.filter(place => !place.photoUrl).map(place => place.placeId));
 
   const groups = useMemo(() => {
     const wanted = query.trim().toLocaleLowerCase();
@@ -178,9 +187,12 @@ const PlacePickerSheet: React.FC<Props> = ({
                         a gap: a row that is sometimes 64px tall and sometimes
                         not is a list that jumps while it is being read.
                       */}
-                      {place.photoUrl
-                        ? <img src={place.photoUrl} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
-                        : <div className="h-16 w-16 shrink-0 rounded-xl bg-slate-100" />}
+                      {(() => {
+                        const imageUrl = place.photoUrl || (place.placeId ? photos[place.placeId] : undefined);
+                        return imageUrl
+                          ? <img src={imageUrl} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+                          : <div className="h-16 w-16 shrink-0 rounded-xl bg-slate-100" />;
+                      })()}
 
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">

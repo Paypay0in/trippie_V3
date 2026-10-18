@@ -27,6 +27,14 @@ export interface MapStop {
 export interface NumberedStop extends MapStop {
   /** 1-based position in the day, including stops that cannot be mapped. */
   number: number;
+  /**
+   * Where you sleep, drawn as a house rather than as a numbered stop.
+   *
+   * 「住宿點在地圖上可以是放一個小房子嗎」 — and it is the right question: a hotel
+   * is not the third thing you do, it is where the day starts and ends. A
+   * numbered pin says 「go here, third」 about the building you woke up in.
+   */
+  lodging?: boolean;
 }
 
 /**
@@ -110,6 +118,16 @@ export const mappableStops = <T extends { id: string; latitude?: number; longitu
 const PIN = '0x5b3df5';
 
 /**
+ * The house, for where you sleep.
+ *
+ * Static Maps has no 「house」 of its own, so this is a tiny SVG served from
+ * our own origin — the API fetches `icon` over the public internet, which is
+ * why it has to be an absolute URL and why it is ours rather than a hotlink to
+ * somebody else's sprite sheet.
+ */
+export const LODGING_ICON_PATH = '/icons/lodging-pin.png';
+
+/**
  * Static Maps labels are a single character — one of A–Z or 0–9.
  *
  * So stops past the ninth cannot carry their number, and are drawn as a plain
@@ -138,6 +156,15 @@ export interface DayMapRequest {
    * saved. Defaults to true, which is every existing caller.
    */
   connect?: boolean;
+  /**
+   * This app's public origin, for the one marker that is an image.
+   *
+   * Static Maps fetches a custom `icon` itself, over the internet, so a
+   * relative path is not something it can resolve. Absent, a lodging stop
+   * falls back to an ordinary pin rather than requesting a URL that cannot
+   * work.
+   */
+  origin?: string;
 }
 
 /**
@@ -146,7 +173,9 @@ export interface DayMapRequest {
  * No centre and no zoom: with markers and paths present, Static Maps frames
  * them itself, and anything we computed would be a worse version of that.
  */
-export const dayMapQuery = ({ stops, encodedPaths = [], width, height, connect = true }: DayMapRequest): URLSearchParams => {
+export const dayMapQuery = ({
+  stops, encodedPaths = [], width, height, connect = true, origin,
+}: DayMapRequest): URLSearchParams => {
   const query = new URLSearchParams();
   query.set('size', `${Math.round(width)}x${Math.round(height)}`);
   // Retina. The map is read on a phone, where the unscaled version is mush.
@@ -154,6 +183,11 @@ export const dayMapQuery = ({ stops, encodedPaths = [], width, height, connect =
   query.set('language', 'zh-TW');
 
   for (const stop of stops) {
+    if (stop.lodging && origin) {
+      // A house, and no number: see `lodging`.
+      query.append('markers', `icon:${origin}${LODGING_ICON_PATH}|${stop.latitude},${stop.longitude}`);
+      continue;
+    }
     const label = pinLabel(stop.number);
     query.append(
       'markers',

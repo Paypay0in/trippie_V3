@@ -3097,6 +3097,8 @@ const App: React.FC = () => {
         */
         photoUrl: group.placePhotoUrl,
         notes: group.experienceNotes.map((note) => note.text),
+        // Most saves stored no photo; this is how one is found. 「這為啥都沒圖」.
+        placeId: group.placeId,
       };
     });
   }, [tripScopedInspirations, tripInspirationContext, itinerary, tripAreas]);
