@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, Clock3, Plus } from 'lucide-react';
 import PlacePickerSheet from './PlacePickerSheet';
 import { suggestionsForSlot } from '../services/suggestionsForSlot';
-import { fetchNearbyRestaurants, NearbyRestaurant } from '../services/nearbyRestaurantsService';
+import { fetchNearbyRestaurants, LookingFor, NearbyRestaurant } from '../services/nearbyRestaurantsService';
 import { ItineraryItem, PlaceCategory } from '../types';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import { AREA_COLORS } from '../constants/areaColors';
@@ -471,8 +471,20 @@ const DayBlockPlanner: React.FC<Props> = ({
     const anchorStop = [before, after].find(item =>
       item && typeof item.latitude === 'number' && typeof item.longitude === 'number');
     // Nothing on the day to be near: 「places somewhere in this city」 is noise.
+    /*
+      What to ask for, decided by the slot.
+
+      「若不是在編輯吃東西的時段時 推薦就不要是食物」 — a 15:30 下午行程 block was
+      offered three Korean restaurants, because this only ever asked for
+      restaurants. The saved-place half of the same sheet already led an
+      activity with sights. See `LOOKING_FOR`.
+    */
     return anchorStop
-      ? { latitude: anchorStop.latitude as number, longitude: anchorStop.longitude as number }
+      ? {
+        latitude: anchorStop.latitude as number,
+        longitude: anchorStop.longitude as number,
+        looking: (slot.kind === 'meal' ? 'food' : 'activity') as LookingFor,
+      }
       : undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickingAt]);
@@ -481,7 +493,7 @@ const DayBlockPlanner: React.FC<Props> = ({
   useEffect(() => {
     if (!nearbyAnchor) { setNearbyPlaces(current => (current.length === 0 ? current : [])); return; }
     let cancelled = false;
-    void fetchNearbyRestaurants(nearbyAnchor.latitude, nearbyAnchor.longitude)
+    void fetchNearbyRestaurants(nearbyAnchor.latitude, nearbyAnchor.longitude, nearbyAnchor.looking)
       .then(found => { if (!cancelled) setNearbyPlaces(found); });
     return () => { cancelled = true; };
   }, [nearbyAnchor]);

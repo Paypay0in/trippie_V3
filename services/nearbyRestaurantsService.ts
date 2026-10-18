@@ -16,27 +16,36 @@ export interface NearbyRestaurant {
   kind?: string;
 }
 
+/** 「若不是在編輯吃東西的時段時 推薦就不要是食物」. See `LOOKING_FOR`. */
+export type LookingFor = 'food' | 'activity';
+
 const cache = new Map<string, Promise<NearbyRestaurant[]>>();
 
-/** Four decimal places is about ten metres — the same corner, not the same point. */
-const keyOf = (latitude: number, longitude: number) =>
-  `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+/**
+ * Four decimal places is about ten metres — the same corner, not the same point.
+ *
+ * The corner and what was asked for: the same spot answers 「restaurants」 and
+ * 「things to do」 differently, and a key without it serves one as the other.
+ */
+const keyOf = (latitude: number, longitude: number, looking: LookingFor) =>
+  `${looking}:${latitude.toFixed(4)},${longitude.toFixed(4)}`;
 
 export const clearNearbyRestaurantsCache = () => cache.clear();
 
 export const fetchNearbyRestaurants = (
   latitude: number,
   longitude: number,
+  looking: LookingFor = 'food',
 ): Promise<NearbyRestaurant[]> => {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return Promise.resolve([]);
-  const key = keyOf(latitude, longitude);
+  const key = keyOf(latitude, longitude, looking);
   const existing = cache.get(key);
   if (existing) return existing;
 
   const request = fetch('/api/places/nearby-restaurants', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ latitude, longitude }),
+    body: JSON.stringify({ latitude, longitude, looking }),
   })
     .then(async response => (response.ok
       ? ((await response.json()) as { restaurants?: NearbyRestaurant[] }).restaurants || []

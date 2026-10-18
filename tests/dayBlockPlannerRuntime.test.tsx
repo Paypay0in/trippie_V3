@@ -843,3 +843,37 @@ describe('最後一天要出發去機場', () => {
     expect(screen.queryByTestId('day-closes-for-airport')).toBeNull();
   });
 });
+
+/**
+ * 「若不是在編輯吃東西的時段時 推薦就不要是食物」.
+ *
+ * The 15:30 下午行程 block opened on three Korean restaurants. The saved-place
+ * half of the same sheet already led an activity with sights; Google's half
+ * asked for restaurants whatever the slot was. Two paths, one doing less.
+ */
+describe('推薦要跟著時段', () => {
+  const located = [
+    item('it-morning', 'Nasari Sigdang', '10:00', { latitude: 35.1535, longitude: 129.1190 }),
+    item('it-evening', 'Cheongsapo', '18:00', { latitude: 35.1600, longitude: 129.1900 }),
+  ];
+
+  const askedFor = async (label: string) => {
+    nearbyFound.mockClear();
+    const user = userEvent.setup();
+    renderPlanner({ items: located, onClearBlock: vi.fn() });
+
+    const block = [...document.querySelectorAll('[data-testid^="fill-block-"]')]
+      .find(node => (node.getAttribute('aria-label') || '').includes(label)) as HTMLElement;
+    await user.click(block);
+
+    return nearbyFound.mock.calls[0] as unknown as unknown[];
+  };
+
+  it('asks for things to do in an afternoon block', async () => {
+    expect((await askedFor('下午行程'))?.[2]).toBe('activity');
+  });
+
+  it('asks for food in a meal block', async () => {
+    expect((await askedFor('午餐'))?.[2]).toBe('food');
+  });
+});

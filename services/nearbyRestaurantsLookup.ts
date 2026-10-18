@@ -39,6 +39,33 @@ export interface NearbyRestaurant {
  */
 export const ENOUGH_RATINGS = 50;
 
+/**
+ * What to look for, decided by the slot being filled.
+ *
+ * 「若不是在編輯吃東西的時段時 推薦就不要是食物」 — the 15:30 下午行程 block was
+ * offered three Korean restaurants, because this route only ever asked for
+ * restaurants. An afternoon is not a meal, and 「the most popular restaurant
+ * near here」 is the wrong answer to a question nobody asked.
+ *
+ * The saved-place suggestions already worked this way (`suggestionsForSlot`
+ * leads a meal with food and an activity with sights). Google's half did not —
+ * the same two-paths-one-does-less shape as the rest of today.
+ *
+ * Google's own place types, so nothing is invented: a 類型 that does not exist
+ * returns an error and the offer silently disappears.
+ */
+export const LOOKING_FOR: Record<'food' | 'activity', string[]> = {
+  food: ['restaurant'],
+  activity: [
+    'tourist_attraction',
+    'museum',
+    'art_gallery',
+    'park',
+    'shopping_mall',
+    'department_store',
+  ],
+};
+
 interface PlacesResponse {
   places?: Array<{
     id?: string;
@@ -96,6 +123,9 @@ export const registerNearbyRestaurantsRoute = (
       return;
     }
 
+    // Anything that is not 「活動」 asks for food, which is where this started.
+    const looking = req.body?.looking === 'activity' ? 'activity' : 'food';
+
     const apiKey = deps.googleApiKey?.() ?? process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) { res.json({ restaurants: [] }); return; }
 
@@ -111,7 +141,7 @@ export const registerNearbyRestaurantsRoute = (
           'X-Goog-FieldMask': 'places.id,places.displayName,places.primaryTypeDisplayName,places.location,places.rating,places.userRatingCount',
         },
         body: JSON.stringify({
-          includedPrimaryTypes: ['restaurant'],
+          includedPrimaryTypes: LOOKING_FOR[looking],
           maxResultCount: 15,
           // Popularity, not distance: ranked by distance the first page is
           // whatever happens to be on that street corner.
