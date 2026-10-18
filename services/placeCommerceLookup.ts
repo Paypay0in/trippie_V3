@@ -8,6 +8,7 @@ import {
   findCuratedCommerce,
 } from './placeCommerceCatalogue';
 import { DeclaredBookingLink, validateBookingLinks } from './bookingUrlValidation';
+import { affiliateConfig, withAffiliate } from './affiliateLinks';
 
 /**
  * Server-side venue-commerce lookup boundary.
@@ -146,9 +147,31 @@ const searchLinksFor = (placeName: string): DeclaredBookingLink[] => {
   ];
 };
 
+
+/**
+ * Tracking on the way out, after validation and never before it.
+ *
+ * A link is checked as the operator published it: adding a parameter first
+ * would mean reachability was judged on a URL nobody had confirmed. See
+ * `affiliateLinks`, and note the whole thing is inert until configured.
+ */
+const withAffiliates = <T extends { provider: string; url: string }>(
+  options: T[],
+  deps: { env?: Record<string, string | undefined> },
+): T[] => {
+  const config = affiliateConfig(deps.env);
+  if (Object.keys(config.byProvider).length === 0) return options;
+  return options.map(option => {
+    const url = withAffiliate(option.provider, option.url, config);
+    // Marked where it is applied, so the card never has to guess which links
+    // earn anything. Disclosure attaches to the link being shown.
+    return url === option.url ? option : { ...option, url, affiliate: true };
+  });
+};
+
 export const resolvePlaceCommerce = async (
   input: { placeId?: string; placeName: string; details?: PlaceDetailsForCommerce },
-  deps: { fetch?: Fetcher; now?: Date; catalogue?: CuratedCommerceEntry[]; skipNetwork?: boolean; linkFetch?: LinkFetcher } = {},
+  deps: { fetch?: Fetcher; now?: Date; catalogue?: CuratedCommerceEntry[]; skipNetwork?: boolean; linkFetch?: LinkFetcher; env?: Record<string, string | undefined> } = {},
 ): Promise<{ commerce: unknown; ttlMs: number }> => {
   const curated = findCuratedCommerce(input.placeId, input.placeName, deps.catalogue);
 
@@ -162,7 +185,10 @@ export const resolvePlaceCommerce = async (
     return {
       commerce: {
         ...built,
-        bookingOptions: await validateBookingLinks(built.bookingOptions as DeclaredBookingLink[], deps),
+        bookingOptions: withAffiliates(
+          await validateBookingLinks(built.bookingOptions as DeclaredBookingLink[], deps),
+          deps,
+        ),
       },
       ttlMs: 6 * 60 * 60_000,
     };
@@ -188,7 +214,7 @@ export const resolvePlaceCommerce = async (
     commerce: {
       admissionRequired: true,
       // This layer establishes only that a ticket is needed, never its price.
-      bookingOptions: await validateBookingLinks(declared, deps),
+      bookingOptions: withAffiliates(await validateBookingLinks(declared, deps), deps),
     },
     ttlMs: 6 * 60 * 60_000,
   };

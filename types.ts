@@ -609,6 +609,14 @@ export interface PlaceBookingOption {
   label: string;
   url: string;
   urlType: BookingUrlType;
+  /**
+   * True when this link carries our affiliate tracking.
+   *
+   * Set by the server where the parameter is applied, so the card never has to
+   * work out which links earn a commission — the disclosure obligation attaches
+   * to the link being shown, and it travels with it.
+   */
+  affiliate?: boolean;
   /** ISO date the URL was last checked, when it was checked at all. */
   verifiedAt?: string;
 }

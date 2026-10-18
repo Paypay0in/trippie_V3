@@ -73,6 +73,9 @@ export const normalizePlaceCommerce = (value: unknown): PlaceCommerceInfo | null
           label: (entry.label as string).trim(),
           url: (entry.url as string).trim(),
           urlType: entry.urlType as PlaceBookingOption['urlType'],
+          // Carried through. A rebuilder that lists fields one by one is where
+          // this codebase has lost a value half a dozen times.
+          ...(entry.affiliate === true ? { affiliate: true } : {}),
           ...(typeof entry.verifiedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.verifiedAt)
             ? { verifiedAt: entry.verifiedAt }
             : {}),

@@ -994,7 +994,22 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
 
                       {info.bookingOptions && info.bookingOptions.length > 0 && (
                         <>
-                          <div className="mt-2 text-[10px] font-black text-slate-400">購票 / 查價</div>
+                          <div className="mt-2 text-[10px] font-black text-slate-400">
+                            購票 / 查價
+                            {/*
+                              Disclosure, beside the links it is about.
+
+                              Required wherever a commission is earned, and the
+                              server marks the individual links rather than the
+                              card guessing. Absent entirely until somebody has
+                              signed up — see `affiliateLinks`.
+                            */}
+                            {info.bookingOptions.some(option => option.affiliate) && (
+                              <span data-testid="affiliate-disclosure" className="ml-1 font-bold text-slate-400">
+                                ・部分連結為合作連結，價格不變
+                              </span>
+                            )}
+                          </div>
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {info.bookingOptions.map(option => (
                               <a

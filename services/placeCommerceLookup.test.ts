@@ -283,3 +283,42 @@ describe('somewhere to buy, for a place nobody has curated', () => {
     expect(commerce.bookingOptions).toBeUndefined();
   });
 });
+
+/**
+ * 「可以有分潤計畫嗎」 — the mechanism, inert until configured.
+ */
+describe('affiliate tracking on the booking links', () => {
+  const ticketed = { types: ['art_museum', 'museum'], websiteUri: 'https://www.mot-art-museum.jp/' };
+  const resolve = (env?: Record<string, string | undefined>) => resolvePlaceCommerce(
+    { placeId: 'ChIJ-mot', placeName: '東京都現代美術館', details: ticketed },
+    { catalogue: [], skipNetwork: true, env },
+  ) as Promise<{ commerce: { bookingOptions: Array<{ provider: string; url: string; affiliate?: boolean }> } }>;
+
+  it('changes nothing while nobody has signed up', async () => {
+    const { commerce } = await resolve({});
+    const klook = commerce.bookingOptions.find(option => option.provider === 'klook');
+
+    expect(klook?.url).not.toContain('aid=');
+    expect(klook?.affiliate).toBeUndefined();
+  });
+
+  it('tags the configured providers and says so', async () => {
+    const { commerce } = await resolve({ AFFILIATE_ENABLED: 'true', AFFILIATE_KLOOK: 'aid=123456' });
+    const klook = commerce.bookingOptions.find(option => option.provider === 'klook');
+    const kkday = commerce.bookingOptions.find(option => option.provider === 'kkday');
+
+    expect(klook?.url).toContain('aid=123456');
+    expect(klook?.affiliate).toBe(true);
+    // Not configured, so untouched and not disclosed as something it is not.
+    expect(kkday?.affiliate).toBeUndefined();
+  });
+
+  /* The operator's own site is never ours to earn from. */
+  it('leaves the official link alone', async () => {
+    const { commerce } = await resolve({ AFFILIATE_ENABLED: 'true', AFFILIATE_KLOOK: 'aid=1' });
+    const official = commerce.bookingOptions.find(option => option.provider === 'official');
+
+    expect(official?.url).toBe('https://www.mot-art-museum.jp/');
+    expect(official?.affiliate).toBeUndefined();
+  });
+});
