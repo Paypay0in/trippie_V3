@@ -955,3 +955,33 @@ describe('優化動線的範圍', () => {
     expect(JSON.stringify(persisted())).toBe(before);
   });
 });
+
+/**
+ * 「也能讓 AI 讀取其他日的行程 假設某個行程移去另一天更順 也可以建議」.
+ *
+ * Suggested, never applied — which day somebody wants to do something on is
+ * not only a distance question, and this screen is already a proposal.
+ */
+describe('換一天會更順', () => {
+  it('writes nothing for a cross-day suggestion', async () => {
+    const { default: App } = await import('../App');
+    const user = userEvent.setup();
+    render(<App />);
+    await openPlanning(user);
+    const before = JSON.stringify(persisted());
+
+    await user.click(await screen.findByTestId('optimise-route'));
+
+    expect(JSON.stringify(persisted())).toBe(before);
+  });
+
+  /*
+    The suggestion is a sentence and the apply is a write, and they must stay
+    that way round: applying writes only what the plan itself contains.
+
+    Proved against the handler rather than this fixture — a runtime assertion
+    that only runs when a suggestion happens to appear is a test that passes
+    because nothing happened. `betterOnAnotherDay.test.ts` holds the rule
+    itself; this holds that opening the preview writes nothing at all.
+  */
+});

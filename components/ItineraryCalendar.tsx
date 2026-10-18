@@ -3,6 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
 import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
+import { betterOnAnotherDay, DayMoveSuggestion } from '../services/betterOnAnotherDay';
 import { fetchPlaceBasics, hoursForDate, outsideOpeningHours, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen, Clock3 } from 'lucide-react';
@@ -223,6 +224,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   const [routePlan, setRoutePlan] = useState<RoutePlan | null>(null);
   /** Which day the open plan was asked about, or the whole trip. */
   const [routeScope, setRouteScope] = useState<string | 'trip'>('trip');
+  const [dayMoves, setDayMoves] = useState<DayMoveSuggestion[]>([]);
 
   /*
     「優化動線的建議應該可以限縮當日？」
@@ -236,6 +238,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     const scoped = scope === 'trip' ? items : items.filter(item => item.date === scope);
     setRouteScope(scope);
     setRoutePlan(optimiseTripRoute(scoped, { country: destinationCountry, categoryOf }));
+    /*
+      「假設某個行程移去另一天更順 也可以建議」.
+
+      Always read across the whole trip, even when the plan is scoped to one
+      day — the question is precisely about the days this plan is not touching.
+      Suggested, never applied: see `betterOnAnotherDay`.
+    */
+    setDayMoves(betterOnAnotherDay(items));
   };
 
   /*
@@ -1922,6 +1932,32 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   從收藏勾幾間，或用「AI 幫我調整行程」補上。
                 </span>
               </p>
+            )}
+
+            {/*
+              「假設某個行程移去另一天更順 也可以建議」.
+
+              Read across the whole trip even when the plan is scoped to a day,
+              because the question is about the days this plan is not touching.
+              Said rather than done: which day somebody wants to do something
+              on is not only a distance question, and this screen is already a
+              proposal.
+            */}
+            {dayMoves.length > 0 && (
+              <div data-testid="better-on-another-day" className="mt-3 rounded-xl bg-[#f0edff] px-3 py-2 text-[11px] leading-5 text-[#3c2fa8]">
+                換一天會更順：
+                <ul className="mt-1 space-y-0.5">
+                  {dayMoves.slice(0, 3).map(move => (
+                    <li key={move.itemId}>
+                      <span className="font-black">{move.placeName}</span>
+                      {` ${move.fromDate.slice(5).replace('-', '/')} → ${move.toDate.slice(5).replace('-', '/')}，少走約 ${move.savesKm} 公里`}
+                    </li>
+                  ))}
+                </ul>
+                <span className="mt-0.5 block font-medium text-[#5b3df5]">
+                  這幾筆不會被這次套用改到，要的話自己拖過去。
+                </span>
+              </div>
             )}
 
             {/*
