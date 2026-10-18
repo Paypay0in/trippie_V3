@@ -235,10 +235,11 @@ describe('records that predate the city and ward split', () => {
     ])).toHaveLength(0);
   });
 
+  /* Moved out of App.tsx into `applyResolvedPlace`, where it is now tested. */
   it('is stamped wherever resolved data is written', () => {
-    const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    const writer = readFileSync(resolve(__dirname, './applyResolvedPlace.ts'), 'utf8');
 
-    expect(app).toContain('placeResolvedAt: new Date().toISOString()');
+    expect(writer).toContain('placeResolvedAt: new Date().toISOString()');
   });
 });
 

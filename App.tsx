@@ -334,6 +334,7 @@ import CreateCommunityPostScreen from "./components/CreateCommunityPostScreen";
 import CommunityPostDetail from "./components/CommunityPostDetail";
 import { fetchPlacePhoto } from "./services/placePhotoService";
 import SavedTravelDestinationDetail from "./components/SavedTravelDestinationDetail";
+import { applyResolvedPlace, ResolvedPlaceFields } from "./services/applyResolvedPlace";
 import AccountScreen from "./components/AccountScreen";
 import CreatorCenterScreen from "./components/CreatorCenterScreen";
 import AuthScreen from "./components/AuthScreen";
@@ -2898,72 +2899,23 @@ const App: React.FC = () => {
    * screenshot said, and replacing it with Google's spelling would make their
    * own list unrecognisable. Only the identity and the geography are written.
    */
+  /**
+   * Points a saved place at a map location.
+   *
+   * 「這邊我做過了 已經重新定位過了 結果沒有儲存」 — the fields it writes are in
+   * `applyResolvedPlace`, which is where the rule 「a resolve states what it
+   * found and never what it did not」 lives and is tested.
+   */
   const handleResolveInspirationPlace = (
     inspirationIds: string[],
-    resolved: {
-      placeId: string; placeName: string; address?: string;
-      latitude?: number; longitude?: number; city?: string; country?: string;
-      /** The ward, which names the area this place sits in. */
-      district?: string;
-      /** Google's category enum, folded into the 🏷️ tag. See `placeCategory`. */
-      primaryType?: string;
-    },
+    resolved: ResolvedPlaceFields,
     options?: { silent?: boolean },
   ) => {
     const wanted = new Set(inspirationIds);
     if (wanted.size === 0 || !resolved.placeId) return;
     setSavedTravelInspirations((current) =>
       current.map((inspiration) =>
-        wanted.has(inspiration.id)
-          ? {
-              ...inspiration,
-              placeId: resolved.placeId,
-              resolvedPlaceName: resolved.placeName,
-              formattedAddress: resolved.address,
-              latitude: resolved.latitude,
-              longitude: resolved.longitude,
-              /*
-                Where it is, which this never wrote before.
-
-                「筆記我希望以國家。城市 為單位」 and 「拉麵店為何還是顯示為一區」 are
-                the same gap: a saved place that knows its coordinates but not
-                its town cannot be grouped by town or named after one. Only
-                written when the lookup actually said something, so a resolve
-                that returns no city leaves the existing value alone.
-              */
-              city: resolved.city || inspiration.city,
-              district: resolved.district || inspiration.district,
-              // Stamped even when no ward came back, so a place that has none
-              // is corrected once rather than offered forever.
-              placeResolvedAt: new Date().toISOString(),
-              /*
-                The spelling this trip already uses, when both mean the same
-                country. 「那這個問題點也可以限制在用戶成立旅冊」 — the backfill wrote
-                Google's 「Japan」 beside records that had always said 「日本」, and
-                the home screen showed them as two different places to have
-                been. Neither spelling is wrong; the trip has already chosen.
-              */
-              /*
-                The 🏷️ tag, written from the lookup this save was already making.
-
-                Always written, even as 「other」. 「都可以」 — the backfill now
-                offers any record carrying no tag, and a place Google has no
-                category for would otherwise be offered again every time
-                forever. Writing 「other」 is the record saying 「asked, and the
-                answer was nothing」, which ends the loop. It is never printed.
-
-                A real answer beats a blank, and a blank leaves whatever the
-                screenshot already said: a save tagged 餐廳 by its own slice is
-                not emptied by a resolve that came back without a type.
-              */
-              category: placeCategory({ primaryType: resolved.primaryType }) !== 'other'
-                ? placeCategory({ primaryType: resolved.primaryType })
-                : inspiration.category || 'other',
-              // Which rules read it, so a better reading can reach it later.
-              categoryRules: CATEGORY_RULES,
-              country: preferredCountryName(inspiration.country, resolved.country),
-            }
-          : inspiration));
+        wanted.has(inspiration.id) ? applyResolvedPlace(inspiration, resolved) : inspiration));
     // A backfill of twenty places would otherwise raise twenty toasts.
     if (!options?.silent) showToast(`已連結到「${resolved.placeName}」`);
   };
@@ -6558,17 +6510,13 @@ const App: React.FC = () => {
           The same writer the planner's lookup uses, stamped like any other
           resolve so the backfill stops offering it afterwards.
         */
+        /*
+          Handed straight over, not copied field by field. The list above used
+          to omit `primaryType`, so re-pointing a place wrote every fact about
+          it except the one that decides its 🏷️ tag.
+        */
         onRebindPlace={(inspirationId, resolved) =>
-          handleResolveInspirationPlace([inspirationId], {
-            placeId: resolved.placeId,
-            placeName: resolved.placeName,
-            address: resolved.address,
-            latitude: resolved.latitude,
-            longitude: resolved.longitude,
-            city: resolved.city,
-            district: resolved.district,
-            country: resolved.country,
-          })}
+          handleResolveInspirationPlace([inspirationId], resolved)}
         onUpdateNotes={(inspirationId, notes) =>
           setSavedTravelInspirations((current) =>
             current.map((inspiration) =>

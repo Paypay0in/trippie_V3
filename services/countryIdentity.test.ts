@@ -90,10 +90,11 @@ describe('the home screen groups on it', () => {
     expect(home).not.toContain('${country.toLocaleLowerCase()}::');
   });
 
+  /* Moved out of App.tsx into `applyResolvedPlace`, where it is now tested. */
   it('is wired into what a backfill writes back', () => {
-    const app = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
+    const writer = readFileSync(resolve(__dirname, './applyResolvedPlace.ts'), 'utf8');
 
-    expect(app).toContain('preferredCountryName(inspiration.country, resolved.country)');
+    expect(writer).toContain('preferredCountryName(inspiration.country, resolved.country)');
   });
 });
 
