@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, Clock3, Plus } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Clock3, Plus, Trash2 } from 'lucide-react';
 import PlacePickerSheet from './PlacePickerSheet';
 import { suggestionsForSlot } from '../services/suggestionsForSlot';
 import { fetchNearbyRestaurants, LookingFor, NearbyRestaurant } from '../services/nearbyRestaurantsService';
@@ -184,6 +184,22 @@ const DayBlockPlanner: React.FC<Props> = ({
   */
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyRestaurant[]>([]);
   const [typed, setTyped] = useState('');
+
+  /*
+    The row pulled aside, and where a drag started.
+
+    「若想要刪除行程可以格子往右推 就出現「刪除」選項嗎」 — removing a stop meant
+    opening the sheet and finding 清空這格 at the bottom of fifty places, which
+    is a long way round for 「not this one」.
+
+    Only one row at a time: two rows half open is two half-finished gestures,
+    and the second is the one that gets pressed by accident.
+  */
+  const [swipedId, setSwipedId] = useState<string | null>(null);
+  const dragFrom = React.useRef<{ id: string; x: number } | null>(null);
+
+  /** Far enough to be a swipe rather than a tap that wandered. */
+  const SWIPE_OPENS_AT = 48;
 
   const cancelTyping = () => { setTypingAt(null); setTyped(''); };
 
@@ -667,9 +683,47 @@ const DayBlockPlanner: React.FC<Props> = ({
 
             return (
               <React.Fragment key={slot.id}>
+              {/*
+                Swipe right to delete, over a 刪除 that is already there.
+
+                A gesture with nothing under it is a gesture nobody discovers,
+                so the button is a real button in the row's own flow and the
+                card slides off it. Fixed rows do not move: a flight is what
+                the day is built around and this panel must not be able to
+                remove one.
+              */}
+              <div className="relative overflow-hidden rounded-xl">
+                {occupant && onClearBlock && !fixed && (
+                  <button
+                    type="button"
+                    data-testid={`swipe-delete-${slot.index}`}
+                    aria-label={`刪除 ${occupant.location || occupant.title}`}
+                    onClick={() => { setSwipedId(null); onClearBlock(occupant.id); }}
+                    className={`absolute inset-y-0 left-0 flex w-[88px] items-center justify-center rounded-l-xl bg-rose-500 text-xs font-black text-white ${
+                      swipedId === occupant.id ? '' : 'pointer-events-none opacity-0'
+                    }`}
+                  >
+                    <Trash2 size={13} className="mr-1" />刪除
+                  </button>
+                )}
               <div
                 data-testid={`day-block-${slot.index}`}
-                className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2"
+                onTouchStart={event => {
+                  if (!occupant || !onClearBlock || fixed) return;
+                  dragFrom.current = { id: occupant.id, x: event.touches[0].clientX };
+                }}
+                onTouchEnd={event => {
+                  const from = dragFrom.current;
+                  dragFrom.current = null;
+                  if (!from) return;
+                  const moved = (event.changedTouches[0]?.clientX ?? from.x) - from.x;
+                  // Right opens it; anything else puts it back.
+                  setSwipedId(moved >= SWIPE_OPENS_AT ? from.id : null);
+                }}
+                style={occupant && swipedId === occupant.id
+                  ? { transform: 'translateX(88px)' }
+                  : undefined}
+                className="relative flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2 transition-transform"
               >
                 <span className="flex w-[86px] shrink-0 items-center gap-1">
                   {/*
@@ -896,6 +950,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                 ) : occupant && fixed ? (
                   <span className="shrink-0 rounded-lg bg-slate-100 px-1.5 py-1 text-[10px] font-bold text-slate-500">固定</span>
                 ) : null}
+              </div>
               </div>
               {askAboutTheMeal && (
                 <p

@@ -11,7 +11,7 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import DayBlockPlanner from '../components/DayBlockPlanner';
 import { buildTripAreas } from '../services/tripAreas';
 import { ItineraryItem } from '../types';
@@ -1015,5 +1015,73 @@ describe('更多搜尋', () => {
     await user.click(screen.getByTestId('search-more-places'));
 
     expect(await screen.findByText(/找不到「不存在的店」/)).toBeTruthy();
+  });
+});
+
+/**
+ * 「若想要刪除行程可以格子往右推 就出現「刪除」選項嗎」.
+ *
+ * Removing a stop meant opening the sheet and finding 清空這格 under fifty
+ * saved places, which is a long way round for 「not this one」.
+ */
+describe('往右推刪除', () => {
+  const swipe = (node: HTMLElement, by: number) => {
+    fireEvent.touchStart(node, { touches: [{ clientX: 10 }] });
+    fireEvent.touchEnd(node, { changedTouches: [{ clientX: 10 + by }] });
+  };
+
+  it('shows 刪除 when the row is pushed right', () => {
+    const onClearBlock = vi.fn();
+    renderPlanner({ onClearBlock });
+
+    const remove = screen.getByTestId('swipe-delete-0');
+    expect(remove.className).toContain('opacity-0');
+
+    swipe(screen.getByTestId('day-block-0'), 80);
+
+    expect(screen.getByTestId('swipe-delete-0').className).not.toContain('opacity-0');
+  });
+
+  it('removes the stop when it is pressed', () => {
+    const onClearBlock = vi.fn();
+    renderPlanner({ onClearBlock });
+
+    swipe(screen.getByTestId('day-block-0'), 80);
+    fireEvent.click(screen.getByTestId('swipe-delete-0'));
+
+    expect(onClearBlock).toHaveBeenCalledWith('it-nasari');
+  });
+
+  /* A tap that wandered a few pixels is a tap. */
+  it('stays shut for a small movement', () => {
+    renderPlanner({ onClearBlock: vi.fn() });
+
+    swipe(screen.getByTestId('day-block-0'), 12);
+
+    expect(screen.getByTestId('swipe-delete-0').className).toContain('opacity-0');
+  });
+
+  it('closes again when pushed back', () => {
+    renderPlanner({ onClearBlock: vi.fn() });
+    const row = screen.getByTestId('day-block-0');
+
+    swipe(row, 80);
+    swipe(row, -80);
+
+    expect(screen.getByTestId('swipe-delete-0').className).toContain('opacity-0');
+  });
+
+  /* A flight is what the day is built around; this panel may not remove one. */
+  it('is not offered on a fixed row', () => {
+    renderPlanner({ onClearBlock: vi.fn(), isFixed: () => true });
+
+    expect(screen.queryByTestId('swipe-delete-0')).toBeNull();
+  });
+
+  /* A screen that cannot persist the removal must not appear to offer it. */
+  it('is not offered when the caller cannot write it', () => {
+    renderPlanner();
+
+    expect(screen.queryByTestId('swipe-delete-0')).toBeNull();
   });
 });
