@@ -81,3 +81,23 @@ export const defaultItineraryDate = (dates: string[], now: Date = new Date()): s
   if (dates.includes(today)) return today;
   return today < dates[0] ? dates[0] : dates[dates.length - 1];
 };
+
+/**
+ * 「週一」 for a plain `YYYY-MM-DD`.
+ *
+ * 「這邊要有星期幾」. A trip is read as 10/20, 10/21, 10/22 — and which of those
+ * is a Monday decides whether half the museums on it are open at all. The card
+ * now says 「這天公休」 where it knows; the tabs above it could not say which day
+ * was even at risk.
+ *
+ * Parsed as a local date, like everything else here: `new Date('2026-10-26')`
+ * is UTC and comes out a day early west of Greenwich.
+ */
+const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+
+export const weekdayOf = (isoDate?: string): string | undefined => {
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return undefined;
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? undefined : WEEKDAYS[date.getDay()];
+};

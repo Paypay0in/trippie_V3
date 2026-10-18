@@ -1,11 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  addLocalDays,
-  enumerateLocalDates,
-  fromLocalIsoDate,
-  localToday,
-  toLocalIsoDate,
-} from './localDate';
+import { addLocalDays, enumerateLocalDates, fromLocalIsoDate, localToday, toLocalIsoDate, weekdayOf } from './localDate';
 
 /**
  * These run under the Founder's own timezone, UTC+8, because that is where the
@@ -108,5 +102,30 @@ describe('refusals', () => {
 
   it('treats a single-day trip as one day', () => {
     expect(enumerateLocalDates('2026-10-02', '2026-10-02')).toEqual(['2026-10-02']);
+  });
+});
+
+/**
+ * 「這邊要有星期幾」.
+ *
+ * 2026-10-26 is a Monday — the day 東京都現代美術館 is shut, which is why this
+ * exists at all.
+ */
+describe('weekdayOf', () => {
+  it('names the day', () => {
+    expect(weekdayOf('2026-10-26')).toBe('週一');
+    expect(weekdayOf('2026-10-20')).toBe('週二');
+    expect(weekdayOf('2026-10-25')).toBe('週日');
+  });
+
+  /* `new Date('2026-10-26')` is UTC and lands on the Sunday west of Greenwich. */
+  it('does not slip a day on a western timezone', () => {
+    expect(weekdayOf('2026-10-26')).not.toBe('週日');
+  });
+
+  it('says nothing for something that is not a date', () => {
+    expect(weekdayOf(undefined)).toBeUndefined();
+    expect(weekdayOf('26/10/2026')).toBeUndefined();
+    expect(weekdayOf('')).toBeUndefined();
   });
 });

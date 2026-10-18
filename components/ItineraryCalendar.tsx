@@ -34,7 +34,7 @@ import {
   isFixedItem,
 } from '../services/itineraryFixedEvents';
 import { estimateRoute } from '../services/routesService';
-import { defaultItineraryDate, enumerateLocalDates, localToday } from '../services/localDate';
+import { defaultItineraryDate, enumerateLocalDates, localToday, weekdayOf } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
 import { stayDepartedFrom, stayIsLocated } from '../services/dayOrigin';
 import { isStayItem, stayRoleOf } from '../services/stayConflicts';
@@ -1096,7 +1096,11 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           and its spending are read back from.
         */
         const isPast = date < today;
-        return <button type="button" key={date} ref={node => { dayTabRefs.current[date] = node; }} onClick={() => setSelectedDate(date)} aria-label={`Day ${index + 1}`} data-testid={`day-tab-${date}`} data-past={isPast ? 'true' : undefined} data-drop-day={date} className={`relative min-w-[84px] rounded-[18px] border px-3.5 py-3 text-left transition ${overDate === date ? 'border-[#6b4df6] bg-[#ece7ff] ring-2 ring-[#b9adff]' : dragItemId && date !== activeDate ? 'border-dashed border-[#b9adff] bg-white' : activeDate === date ? 'border-[#b9adff] bg-[#f4f1ff] text-[#4f35d7] shadow-[0_8px_18px_rgba(91,61,245,.12)]' : isPast ? 'border-[#eef1f5] bg-[#f6f7f9] text-slate-400 opacity-60' : 'border-[#edf0f6] bg-white text-slate-500 shadow-[0_3px_10px_rgba(17,26,74,.03)]'}`}><span className={`mb-2 block h-1.5 w-1.5 rounded-full ${activeDate === date ? 'bg-[#6b4df6]' : isPast ? 'bg-slate-300' : 'bg-slate-200'}`} /><span className="block text-[11px] font-black">Day {index + 1}</span><span className="mt-1 block text-xs font-bold">{date.slice(5).replace('-', '/')}</span>{(() => {
+        return <button type="button" key={date} ref={node => { dayTabRefs.current[date] = node; }} onClick={() => setSelectedDate(date)} aria-label={`Day ${index + 1}`} data-testid={`day-tab-${date}`} data-past={isPast ? 'true' : undefined} data-drop-day={date} className={`relative min-w-[84px] rounded-[18px] border px-3.5 py-3 text-left transition ${overDate === date ? 'border-[#6b4df6] bg-[#ece7ff] ring-2 ring-[#b9adff]' : dragItemId && date !== activeDate ? 'border-dashed border-[#b9adff] bg-white' : activeDate === date ? 'border-[#b9adff] bg-[#f4f1ff] text-[#4f35d7] shadow-[0_8px_18px_rgba(91,61,245,.12)]' : isPast ? 'border-[#eef1f5] bg-[#f6f7f9] text-slate-400 opacity-60' : 'border-[#edf0f6] bg-white text-slate-500 shadow-[0_3px_10px_rgba(17,26,74,.03)]'}`}><span className={`mb-2 block h-1.5 w-1.5 rounded-full ${activeDate === date ? 'bg-[#6b4df6]' : isPast ? 'bg-slate-300' : 'bg-slate-200'}`} /><span className="block text-[11px] font-black">Day {index + 1}</span><span className="mt-1 block text-xs font-bold">{date.slice(5).replace('-', '/')}</span>{/*
+      「這邊要有星期幾」 — and which day is a Monday decides whether half the
+      museums on it are open. The cards below say 「這天公休」; the tabs could
+      not say which day was even at risk. See `weekdayOf`.
+    */}<span className="mt-0.5 block text-[10px] font-bold opacity-70">{weekdayOf(date)}</span>{(() => {
       // A suggestion sitting on another day is invisible from here otherwise.
       const count = (pendingSuggestions || []).filter(suggestion => (suggestion.date ? suggestion.date === date : date === dates[0])).length;
       return count > 0 ? <span data-testid={`suggestion-badge-${date}`} className="absolute right-2 top-2 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white">{count}</span> : null;
