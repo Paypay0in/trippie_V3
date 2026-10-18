@@ -226,3 +226,60 @@ describe('POST /api/places/commerce — real HTTP round trip', () => {
     spy.mockRestore();
   });
 });
+
+/**
+ * 「目前點入官方網站查看票價的時候沒有直接到可以訂票的頁面 … 也並列一些 kkday 等
+ * 可以訂票的網站」.
+ *
+ * A ticketed place nobody has curated used to offer the operator's homepage
+ * and nothing else.
+ */
+describe('somewhere to buy, for a place nobody has curated', () => {
+  // The types Google actually returns for it — 'art_museum' alone is not a
+  // shape this app ever receives, and a fixture that invents one proves nothing.
+  const ticketed = { types: ['art_museum', 'museum', 'point_of_interest', 'establishment'], websiteUri: 'https://www.mot-art-museum.jp/' };
+
+  const resolve = () => resolvePlaceCommerce(
+    { placeId: 'ChIJ-mot', placeName: '東京都現代美術館', details: ticketed },
+    { catalogue: [], skipNetwork: true },
+  );
+
+  it('offers Klook and KKday beside the official site', async () => {
+    const { commerce } = await resolve() as { commerce: { bookingOptions: Array<{ provider: string; urlType: string; url: string }> } };
+    const providers = commerce.bookingOptions.map(option => option.provider);
+
+    expect(providers).toContain('official');
+    expect(providers).toContain('klook');
+    expect(providers).toContain('kkday');
+  });
+
+  /*
+    Searches, and labelled as such. That is the whole licence for generating
+    them: a search page for a name cannot be wrong the way a product page can.
+  */
+  it('never claims a provider link is a product page', async () => {
+    const { commerce } = await resolve() as { commerce: { bookingOptions: Array<{ provider: string; urlType: string; url: string }> } };
+
+    commerce.bookingOptions
+      .filter(option => option.provider !== 'official')
+      .forEach(option => expect(option.urlType).toBe('search'));
+  });
+
+  it('puts the place name in the query, encoded', async () => {
+    const { commerce } = await resolve() as { commerce: { bookingOptions: Array<{ provider: string; url: string }> } };
+    const klook = commerce.bookingOptions.find(option => option.provider === 'klook');
+
+    expect(klook?.url).toContain(encodeURIComponent('東京都現代美術館'));
+    expect(klook?.url.startsWith('https://www.klook.com/')).toBe(true);
+  });
+
+  /* A free place is offered nothing: there is no ticket to search for. */
+  it('offers nothing for a place that needs no ticket', async () => {
+    const { commerce } = await resolvePlaceCommerce(
+      { placeName: '海雲台海水浴場', details: { types: ['beach'] } },
+      { catalogue: [], skipNetwork: true },
+    ) as { commerce: { bookingOptions?: unknown[] } };
+
+    expect(commerce.bookingOptions).toBeUndefined();
+  });
+});

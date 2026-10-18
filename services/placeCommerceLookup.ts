@@ -109,6 +109,43 @@ export interface PlaceDetailsForCommerce {
  * The whole decision for one place, with no Express or Google coupling, so it can
  * be driven directly in a test.
  */
+
+/**
+ * Where to search for tickets to a place nobody has curated.
+ *
+ * 「也並列一些 kkday 等可以訂票的網站」.
+ *
+ * An earlier version of this did exist and was deleted, for a reason recorded
+ * in `placeCommerceCatalogue`: probing klook.com and kkday.com returned 403
+ * for a correct path and for an invented one alike, so a real search URL could
+ * not be told from a fabricated one.
+ *
+ * Re-measured, 2026-10-18, with a browser User-Agent:
+ *
+ *   klook.com/zh-TW/search/?query=…      403   ← the real search path
+ *   klook.com/zh-TW/nonsense-xyz123/     404   ← an invented one
+ *   kkday.com/zh-tw/product/productlist  403
+ *   kkday.com/this-path-does-not-exist   403
+ *
+ * So Klook's router does distinguish them and the old blanket claim was only
+ * true of KKday. KKday's pattern is here on different evidence: a human
+ * confirmed `product/ls?keyword=` when the SPA LAND entry was written, and
+ * that entry is still in the catalogue carrying it.
+ *
+ * These are searches and are labelled as such — `urlType: 'search'`, which the
+ * card renders as 「搜尋」 rather than 「查看價格」. That distinction is the whole
+ * licence for generating them: a search page for a name cannot be wrong in the
+ * way a product page can, because it promises only to look.
+ */
+const searchLinksFor = (placeName: string): DeclaredBookingLink[] => {
+  const query = encodeURIComponent(placeName.trim());
+  if (!query) return [];
+  return [
+    { provider: 'klook', label: 'Klook', url: `https://www.klook.com/zh-TW/search/?query=${query}`, urlType: 'search' },
+    { provider: 'kkday', label: 'KKday', url: `https://www.kkday.com/zh-tw/product/ls?keyword=${query}`, urlType: 'search' },
+  ];
+};
+
 export const resolvePlaceCommerce = async (
   input: { placeId?: string; placeName: string; details?: PlaceDetailsForCommerce },
   deps: { fetch?: Fetcher; now?: Date; catalogue?: CuratedCommerceEntry[]; skipNetwork?: boolean; linkFetch?: LinkFetcher } = {},
@@ -138,9 +175,14 @@ export const resolvePlaceCommerce = async (
   // The venue's own site as Google records it — declared by the operator, not
   // inferred from the place name. No provider links: this layer has none to
   // declare, and it will not invent any.
-  const declared: DeclaredBookingLink[] = typeof input.details?.websiteUri === 'string'
-    ? [{ provider: 'official', label: '官方網站', url: input.details.websiteUri, urlType: 'direct' }]
-    : [];
+  const declared: DeclaredBookingLink[] = [
+    ...(typeof input.details?.websiteUri === 'string'
+      ? [{ provider: 'official', label: '官方網站', url: input.details.websiteUri, urlType: 'direct' as const }]
+      : []),
+    // Somewhere to buy, for the places nobody has curated — which is nearly
+    // all of them. See `searchLinksFor`.
+    ...searchLinksFor(input.placeName),
+  ];
 
   return {
     commerce: {

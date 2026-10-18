@@ -167,15 +167,18 @@ export const classifyPlaceTypes = (types: readonly string[] | undefined): PlaceA
 
 /*
  * There is deliberately no function here that builds a provider URL from a place
- * name.
+ * name — and `placeCommerceLookup` now has one, on evidence this comment used
+ * to say did not exist.
  *
- * An earlier version generated Klook and KKday search links by interpolating the
- * name into a URL pattern. Those were guesses, and they could not be checked:
- * probing klook.com and kkday.com from a server returns 403 for a correct path
- * and for a deliberately invented one alike, so there was no way to tell a real
- * search URL from a fabricated one. A button that looks authoritative and may go
- * nowhere is worse than no button, so provider links now come only from
- * `CuratedBookingLink` entries a human opened and confirmed.
+ * The claim was: probing klook.com and kkday.com returns 403 for a correct path
+ * and for a deliberately invented one alike, so a real search URL cannot be told
+ * from a fabricated one. Re-measured 2026-10-18 with a browser User-Agent, that
+ * is true of KKday and not of Klook — klook.com answers 404 for an invented path
+ * and 403 for its real search path, which does distinguish them.
+ *
+ * Search links live there rather than here because they are generated per
+ * request from a name. This file stays what it was: entries a human opened and
+ * confirmed, which is still the only way a *product* page or a price gets in.
  */
 
 /**
