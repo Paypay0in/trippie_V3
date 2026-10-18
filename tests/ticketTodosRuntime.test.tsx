@@ -88,3 +88,45 @@ describe('tickets on the to-do list', () => {
     expect(screen.getByTestId('todos').children[0].textContent).toContain('要先訂');
   });
 });
+
+/**
+ * 「這裡要能夠跳出購票連結 並且像代辦清單 要可以打勾的」.
+ *
+ * The list named the museums and stopped there, and there was no way to say
+ * one was already bought — so three paid-for tickets sat looking outstanding.
+ */
+describe('買票連結與打勾', () => {
+  const Links: React.FC<{ itinerary: ItineraryItem[] }> = ({ itinerary }) => {
+    const todos = useTicketTodos(itinerary);
+    return <ul data-testid="links">{todos.flatMap(todo =>
+      (todo.bookingOptions || []).map(option => (
+        <li key={option.url}>{option.label}・{option.urlType}・{option.url}</li>
+      )))}</ul>;
+  };
+
+  it('carries the places to buy it through to the panel', async () => {
+    commerceFor['ChIJ-sky'] = {
+      admissionRequired: true,
+      bookingOptions: [
+        { provider: 'official', label: '官方網站', url: 'https://www.shibuya-scramble-square.com/sky/', urlType: 'direct' },
+        { provider: 'klook', label: 'Klook', url: 'https://www.klook.com/zh-TW/search/?query=SHIBUYA%20SKY', urlType: 'search' },
+      ],
+    };
+
+    render(<Links itinerary={[item('g', '澀谷 SKY', 'ChIJ-sky', '2026-10-24')]} />);
+
+    await waitFor(() => expect(screen.getByTestId('links').children).toHaveLength(2));
+    expect(screen.getByTestId('links').textContent).toContain('官方網站・direct');
+    expect(screen.getByTestId('links').textContent).toContain('Klook・search');
+  });
+
+  /* A place nobody has curated still has to be listed; it just has no links. */
+  it('still lists one with nowhere known to buy it', async () => {
+    commerceFor['ChIJ-bare'] = { admissionRequired: true };
+
+    render(<Links itinerary={[item('h', '某個要門票的地方', 'ChIJ-bare', '2026-10-24')]} />);
+
+    await waitFor(() => expect(screen.getByTestId('links')).toBeTruthy());
+    expect(screen.getByTestId('links').textContent).toBe('');
+  });
+});

@@ -1,5 +1,6 @@
 import { entryPoints, worthListing } from '../services/entryPoints';
 import { useTicketTodos } from './useTicketTodos';
+import { loadBoughtTickets, toggleBoughtTicket } from '../services/ticketsBought';
 import { planningDestination } from '../services/planningDestination';
 import React, { useEffect, useState } from 'react';
 import { HelpRequest } from '../services/serviceMatching';
@@ -11,7 +12,7 @@ import ActivityPlanCards from './ActivityPlanCards';
 import { tripDays, tripDaysBrief } from '../services/tripFreeDays';
 import ServiceRequestSheet from './ServiceRequestSheet';
 import { ServiceRequest } from '../types';
-import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake, Ticket } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake, Ticket, Check } from 'lucide-react';
 import { openAppWithFallback, browserLaunchEnvironment } from '../services/appLaunch';
 import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
 import { fetchSuggestedPlaces } from '../services/preparationSuggestionService';
@@ -241,8 +242,21 @@ const TripPlanOverview: React.FC<Props> = ({
     `useTicketTodos`.
   */
   const ticketTodos = useTicketTodos(itinerary);
+  /* 「要可以打勾的」. The one fact here nothing in the plan implies. */
+  const [bought, setBought] = useState<string[]>(() => loadBoughtTickets());
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
   const pending = preTasks.filter(item => !('completed' in item ? item.completed : item.isPurchased));
+  /*
+    Tickets count as preparation, because they are.
+
+    「要可以打勾的」 — a row with a checkbox that the headline above it ignores
+    is a tick that changes nothing. 「還有 1 項」 was counting the shopping list
+    while three unbought tickets sat below it.
+  */
+  const totalTasks = preTasks.length + ticketTodos.length;
+  const doneTasks = completed.length + ticketTodos.filter(todo => bought.includes(todo.itemId)).length;
+  const openTasks = totalTasks - doneTasks;
+
   const preExpenses = expenses.filter(expense => expense.phase === 'pre');
   const total = preExpenses.reduce((sum, expense) => sum + expense.twdAmount, 0);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -582,42 +596,95 @@ const TripPlanOverview: React.FC<Props> = ({
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="mb-2 text-xs font-black uppercase tracking-[.18em] text-violet-600">旅程準備度</div>
-            {preTasks.length > 0 ? (
-              <><div className="text-2xl font-black text-[#11183d]">已完成 {completed.length} 項</div><p className="mt-1 text-sm text-slate-500">還有 {pending.length} 項明確待辦需要處理</p></>
+            {totalTasks > 0 ? (
+              <><div className="text-2xl font-black text-[#11183d]">已完成 {doneTasks} 項</div><p className="mt-1 text-sm text-slate-500">還有 {openTasks} 項明確待辦需要處理</p></>
             ) : (
               <><div className="text-xl font-black text-[#11183d]">尚未建立準備待辦</div><p className="mt-1 text-sm text-slate-500">加入真正需要處理的項目，進度才會開始累積。</p></>
             )}
           </div>
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><Plane size={27} /></div>
         </div>
-        {preTasks.length > 0 && <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600" style={{ width: `${(completed.length / preTasks.length) * 100}%` }} /></div>}
+        {totalTasks > 0 && <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600" style={{ width: `${(doneTasks / totalTasks) * 100}%` }} /></div>}
 
         {/*
           Tickets, beside the rest of what has to happen before leaving.
 
-          Listed rather than ticked off: buying a ticket happens on somebody
-          else's website, and a checkbox this app controls would be claiming
-          to know something it cannot see.
+          「這裡要能夠跳出購票連結 並且像代辦清單 要可以打勾的」.
+
+          It listed the museums and stopped there, so the panel named the work
+          and left the traveller to go and find the page — and there was no way
+          to say 「bought」, so three places that were already paid for sat there
+          looking outstanding.
+
+          I argued against the tick: buying happens on somebody else's site, so
+          the box states what the traveller says rather than what we saw. That
+          is what a to-do list is, and he is right that it is the useful one.
+          Where the mark lives is in `ticketsBought`.
         */}
         {ticketTodos.length > 0 && (
           <div data-testid="ticket-todos" className="mt-4 rounded-2xl bg-[#f6f5ff] p-3">
             <div className="flex items-center gap-1.5 text-xs font-black text-[#5b3df5]">
               <Ticket size={13} />行程裡要買票的地方
+              <span className="ml-auto text-[10px] font-bold text-slate-400">
+                {ticketTodos.filter(todo => bought.includes(todo.itemId)).length}/{ticketTodos.length}
+              </span>
             </div>
-            <ul className="mt-1.5 space-y-1">
-              {ticketTodos.map(todo => (
-                <li key={todo.itemId} className="flex items-start gap-1.5 text-[11px] leading-4 text-slate-600">
-                  <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-violet-300" />
-                  <span className="min-w-0 flex-1">
-                    {todo.date && <span className="text-slate-400">{todo.date.slice(5).replace('-', '/')} </span>}
-                    <span className="font-bold text-[#11183d]">{todo.placeName}</span>
-                    {todo.advanceBookingRequired && (
-                      <span className="ml-1 rounded bg-[#5b3df5] px-1 py-0.5 text-[9px] font-black text-white">需提前買</span>
-                    )}
-                  </span>
-                </li>
-              ))}
+            <ul className="mt-1.5 space-y-1.5">
+              {ticketTodos.map(todo => {
+                const done = bought.includes(todo.itemId);
+                return (
+                  <li key={todo.itemId} className="flex items-start gap-1.5 text-[11px] leading-4 text-slate-600">
+                    <button
+                      type="button"
+                      data-testid={`ticket-bought-${todo.itemId}`}
+                      aria-label={`${todo.placeName} 已買票`}
+                      aria-pressed={done}
+                      onClick={() => setBought(current => toggleBoughtTicket(current, todo.itemId))}
+                      className={`mt-[1px] flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        done ? 'border-[#5b3df5] bg-[#5b3df5] text-white' : 'border-slate-300 bg-white'
+                      }`}
+                    >
+                      {done && <Check size={11} strokeWidth={3} />}
+                    </button>
+                    <span className="min-w-0 flex-1">
+                      <span className={done ? 'text-slate-400 line-through' : ''}>
+                        {todo.date && <span className="text-slate-400">{todo.date.slice(5).replace('-', '/')} </span>}
+                        <span className={`font-bold ${done ? 'text-slate-400' : 'text-[#11183d]'}`}>{todo.placeName}</span>
+                      </span>
+                      {todo.advanceBookingRequired && !done && (
+                        <span className="ml-1 rounded bg-[#5b3df5] px-1 py-0.5 text-[9px] font-black text-white">需提前買</span>
+                      )}
+                      {/*
+                        The links, hidden once it is bought: a done row that
+                        still offers 前往購票 is inviting a second purchase.
+
+                        官方 first; the rest are searches and say so, which is
+                        the whole licence for generating them — a search page
+                        for a name cannot be wrong the way a product page can.
+                      */}
+                      {!done && (todo.bookingOptions || []).length > 0 && (
+                        <span data-testid={`ticket-links-${todo.itemId}`} className="mt-1 flex flex-wrap gap-1">
+                          {(todo.bookingOptions || []).map(option => (
+                            <a
+                              key={`${option.provider}-${option.url}`}
+                              href={option.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg border border-violet-200 bg-white px-1.5 py-0.5 text-[10px] font-black text-[#5b3df5]"
+                            >
+                              {option.label}
+                              {option.urlType === 'search' && <span className="font-bold text-slate-400">・搜尋</span>}
+                            </a>
+                          ))}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
+            {/* Said, not implied: this tick is on this phone. See `ticketsBought`. */}
+            <p className="mt-1.5 text-[10px] text-slate-400">打勾只記在這支手機上。</p>
           </div>
         )}
       </section>}

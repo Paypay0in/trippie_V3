@@ -240,3 +240,18 @@ $$;
 revoke all on function public.find_person_by_email(text) from public;
 grant execute on function public.find_person_by_email(text) to authenticated;
 
+
+-- ---------------------------------------------------------------------------
+-- 0029: whether the ticket for an itinerary stop has been bought.
+--
+-- 「並且像代辦清單 要可以打勾的」.
+--
+-- The list of places needing a ticket is derived from the plan and stays
+-- derived. 「I bought that one」 is the opposite — nothing in the plan implies
+-- it — so it is the one thing here that has to be stored.
+--
+-- Until this runs the tick lives in localStorage (`services/ticketsBought`)
+-- and does not travel between the two phones, which the panel says out loud.
+-- Nothing is wired into `tripSyncMapping` before the column exists.
+alter table public.itinerary_items
+  add column if not exists ticket_bought boolean not null default false;

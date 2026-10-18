@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ItineraryItem } from '../types';
+import { ItineraryItem, PlaceBookingOption } from '../types';
 import { fetchPlaceCommerce } from '../services/placeCommerceService';
 
 /**
@@ -24,6 +24,15 @@ export interface TicketTodo {
   date?: string;
   /** True where somebody checked that it cannot be bought at the door. */
   advanceBookingRequired?: boolean;
+  /**
+   * Where it can actually be bought.
+   *
+   * 「這裡要能夠跳出購票連結」 — a to-do that names the museum and stops there
+   * leaves the traveller to go and find the page themselves, which is the
+   * work. The itinerary card already resolves these: the official page where
+   * one is known, and Klook/KKday searches labelled 搜尋 beside it.
+   */
+  bookingOptions?: PlaceBookingOption[];
 }
 
 export const useTicketTodos = (itinerary: ItineraryItem[]): TicketTodo[] => {
@@ -51,6 +60,9 @@ export const useTicketTodos = (itinerary: ItineraryItem[]): TicketTodo[] => {
         placeName,
         date: date || undefined,
         ...(commerce.advanceBookingRequired === true ? { advanceBookingRequired: true } : {}),
+        ...((commerce.bookingOptions || []).length > 0
+          ? { bookingOptions: commerce.bookingOptions }
+          : {}),
       };
     })).then(found => {
       if (cancelled) return;
