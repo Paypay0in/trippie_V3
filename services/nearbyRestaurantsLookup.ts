@@ -18,6 +18,15 @@ export interface NearbyRestaurant {
   longitude: number;
   rating?: number;
   ratingCount?: number;
+  /**
+   * What kind of restaurant it is, in the app's language: 拉麵店, 壽司店,
+   * 日式炸豬排餐廳.
+   *
+   * 「告訴我是哪類餐廳」 — and Google answers it in the same request. 「結
+   * Yuwaeru 本店」 is a name; 「日式餐廳」 is what somebody actually needs to know
+   * before choosing it for dinner.
+   */
+  kind?: string;
 }
 
 /**
@@ -34,6 +43,7 @@ interface PlacesResponse {
   places?: Array<{
     id?: string;
     displayName?: { text?: string };
+    primaryTypeDisplayName?: { text?: string };
     location?: { latitude?: number; longitude?: number };
     rating?: number;
     userRatingCount?: number;
@@ -55,6 +65,9 @@ export const readNearbyRestaurants = (body: unknown): NearbyRestaurant[] =>
         placeName,
         latitude,
         longitude,
+        ...(place.primaryTypeDisplayName?.text?.trim()
+          ? { kind: place.primaryTypeDisplayName.text.trim() }
+          : {}),
         ...(typeof place.rating === 'number' ? { rating: place.rating } : {}),
         ...(typeof place.userRatingCount === 'number' ? { ratingCount: place.userRatingCount } : {}),
       }];
@@ -93,7 +106,9 @@ export const registerNearbyRestaurantsRoute = (
         headers: {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.rating,places.userRatingCount',
+          // `primaryTypeDisplayName` rides along on a request already being
+          // made: 「告訴我是哪類餐廳」 costs nothing extra.
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.primaryTypeDisplayName,places.location,places.rating,places.userRatingCount',
         },
         body: JSON.stringify({
           includedPrimaryTypes: ['restaurant'],

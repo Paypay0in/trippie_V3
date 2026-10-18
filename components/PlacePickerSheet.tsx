@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Check, NotebookPen, Search, X } from 'lucide-react';
 import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
+import SuggestedPlaceCards from './SuggestedPlaceCards';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import { PlaceCategory } from '../types';
 
@@ -41,7 +42,7 @@ interface Props {
    * last and labelled, because 「somewhere you saved」 and 「somewhere Google
    * knows about」 are not the same recommendation.
    */
-  nearby?: Array<{ placeId: string; placeName: string; rating?: number }>;
+  nearby?: Array<{ placeId: string; placeName: string; rating?: number; kind?: string }>;
   onPickNearby?: (placeName: string) => void;
   /** Ordered as the slot wants them; the sheet keeps that order inside a ward. */
   onPick: (placeId: string) => void;
@@ -133,23 +134,24 @@ const PlacePickerSheet: React.FC<Props> = ({
           {(nearby || []).length > 0 && onPickNearby && !query.trim() && (
             <section data-testid="picker-nearby" className="mt-3">
               <h3 className="text-[11px] font-black text-slate-400">這一帶的其他選擇</h3>
-              <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                {(nearby || []).slice(0, 3).map(place => (
-                  <li key={place.placeId}>
-                    <button
-                      type="button"
-                      data-testid={`pick-nearby-${place.placeId}`}
-                      onClick={() => onPickNearby(place.placeName)}
-                      className="rounded-xl border border-[#eceaf5] px-2.5 py-1.5 text-[11px] font-bold text-[#11183d]"
-                    >
-                      {place.placeName}
-                      {typeof place.rating === 'number' && (
-                        <span className="ml-1 text-[10px] font-black text-amber-600">★ {place.rating}</span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {/*
+                「我需要卡片的展示 有照片 並且告訴我是哪類餐廳」.
+
+                A name and a star is not something anybody picks dinner from —
+                「結 Yuwaeru 本店」 says nothing, 「日式餐廳」 does. The same card
+                the collection above uses, so the two halves of this sheet can
+                actually be compared. See `SuggestedPlaceCards`.
+              */}
+              <SuggestedPlaceCards
+                places={(nearby || []).slice(0, 3).map(place => ({
+                  id: place.placeId,
+                  placeId: place.placeId,
+                  placeName: place.placeName,
+                  rating: place.rating,
+                  kind: place.kind,
+                }))}
+                onPick={place => onPickNearby(place.placeName)}
+              />
               <p className="mt-1 text-[10px] text-slate-400">不是你收藏的地點，加入後再自己確認。</p>
             </section>
           )}

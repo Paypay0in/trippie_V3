@@ -38,6 +38,13 @@ describe('suggested places, as cards', () => {
     expect(screen.getByText('★ 4.3')).toBeTruthy();
   });
 
+  /* 「結 Yuwaeru 本店」 says nothing; 「日式餐廳」 is what somebody needs. */
+  it('says what kind of place it is', () => {
+    render(<SuggestedPlaceCards places={[{ id: 'k', placeName: '一蘭 淺草店', kind: '拉麵店' }]} />);
+
+    expect(screen.getByText('拉麵店')).toBeTruthy();
+  });
+
   /* A place with no picture of its own gets one fetched, once. */
   it('fetches a photo for a place that did not bring one', async () => {
     const fetchMock = vi.fn(async () => ({

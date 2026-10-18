@@ -12,6 +12,8 @@ export interface NearbyRestaurant {
   longitude: number;
   rating?: number;
   ratingCount?: number;
+  /** 拉麵店, 壽司店 — what kind of restaurant. */
+  kind?: string;
 }
 
 const cache = new Map<string, Promise<NearbyRestaurant[]>>();

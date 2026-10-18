@@ -26,6 +26,8 @@ export interface SuggestedPlace {
   photoUrl?: string;
   notes?: string[];
   rating?: number;
+  /** 拉麵店, 咖啡 — what kind of place it is. 「告訴我是哪類餐廳」. */
+  kind?: string;
   /** 「少繞 1.2 公里」, where it is known. */
   detourLabel?: string;
 }
@@ -97,8 +99,11 @@ const SuggestedPlaceCards: React.FC<Props> = ({ places, onPick }) => {
                     <span className="shrink-0 text-[10px] font-black text-amber-600">★ {place.rating}</span>
                   )}
                 </span>
-                {place.detourLabel && (
-                  <span className="mt-0.5 block text-[10px] font-bold text-[#5b3df5]">{place.detourLabel}</span>
+                {(place.kind || place.detourLabel) && (
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] font-bold">
+                    {place.kind && <span className="text-slate-500">{place.kind}</span>}
+                    {place.detourLabel && <span className="text-[#5b3df5]">{place.detourLabel}</span>}
+                  </span>
                 )}
                 {notes.length > 0 ? (
                   <span className="mt-0.5 block">

@@ -10,6 +10,7 @@ import { ENOUGH_RATINGS, readNearbyRestaurants } from './nearbyRestaurantsLookup
 
 const place = (over: Record<string, unknown>) => ({
   id: 'ChIJ-x', displayName: { text: '一蘭 淺草店' },
+  primaryTypeDisplayName: { text: '拉麵店' },
   location: { latitude: 35.7108, longitude: 139.7955 },
   rating: 4.3, userRatingCount: 5535,
   ...over,
@@ -22,6 +23,7 @@ describe('readNearbyRestaurants', () => {
     expect(first).toEqual({
       placeId: 'ChIJ-x', placeName: '一蘭 淺草店',
       latitude: 35.7108, longitude: 139.7955,
+      kind: '拉麵店',
       rating: 4.3, ratingCount: 5535,
     });
   });
@@ -64,5 +66,27 @@ describe('readNearbyRestaurants', () => {
     expect(readNearbyRestaurants({})).toEqual([]);
     expect(readNearbyRestaurants(null)).toEqual([]);
     expect(readNearbyRestaurants({ places: null })).toEqual([]);
+  });
+});
+
+/**
+ * 「告訴我是哪類餐廳」. Measured against the live response for the 淺草 midpoint:
+ * 一蘭 is 拉麵店, 淺草 炸牛 is 日式炸豬排餐廳, Sushiro is 壽司店.
+ */
+describe('what kind of restaurant it is', () => {
+  it('reads the localized type Google returns', () => {
+    expect(readNearbyRestaurants({
+      places: [place({ primaryTypeDisplayName: { text: '日式炸豬排餐廳' } })],
+    })[0].kind).toBe('日式炸豬排餐廳');
+  });
+
+  /* A place Google gave no type for keeps its name and claims nothing. */
+  it('says nothing when Google did not', () => {
+    expect(readNearbyRestaurants({
+      places: [place({ primaryTypeDisplayName: undefined })],
+    })[0].kind).toBeUndefined();
+    expect(readNearbyRestaurants({
+      places: [place({ primaryTypeDisplayName: { text: '   ' } })],
+    })[0].kind).toBeUndefined();
   });
 });
