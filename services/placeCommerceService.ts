@@ -101,12 +101,28 @@ export const normalizePlaceCommerce = (value: unknown): PlaceCommerceInfo | null
       }
     : undefined;
 
-  const notes = Array.isArray(source.notes)
+  /*
+  Read out of the practical lines a curated entry already carries.
+
+  「需事先預約」 is the example in the type's own comment and is exactly the fact
+  being looked for; it was sitting in a bullet list under the price, where a
+  reminder is not a reminder. Inferred only when the source did not answer
+  outright, and only from phrases that mean 「before you go」 — 預約 alone also
+  appears in 「可預約導覽」, which is an option, not a requirement.
+*/
+const needsBookingAhead = (note: string): boolean =>
+  /(事先|提前|事前|須|需|必須|要)[^。；]{0,4}(預約|訂票|購票|予約)|預售|指定日時|timed.?entry|advance (booking|purchase|reservation)/i
+    .test(note);
+
+const notes = Array.isArray(source.notes)
     ? source.notes.filter((note): note is string => typeof note === 'string' && Boolean(note.trim())).map(note => note.trim())
     : [];
 
   const info: PlaceCommerceInfo = {
     ...(typeof source.admissionRequired === 'boolean' ? { admissionRequired: source.admissionRequired } : {}),
+    ...(typeof source.advanceBookingRequired === 'boolean'
+      ? { advanceBookingRequired: source.advanceBookingRequired }
+      : notes.some(needsBookingAhead) ? { advanceBookingRequired: true } : {}),
     ...(officialPrice ? { officialPrice } : {}),
     ...(source.priceStale === true && !officialPrice ? { priceStale: true } : {}),
     ...(bookingOptions.length > 0 ? { bookingOptions } : {}),

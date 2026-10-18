@@ -171,3 +171,42 @@ describe('fetchPlaceCommerce — failure safety', () => {
     expect(body).toEqual({ placeId: 'ChIJ-spa', placeName: 'SPA LAND Centum City', city: '釜山', country: '韓國' });
   });
 });
+
+/**
+ * 「需提前買票」.
+ *
+ * Separate from 「needs a ticket」. Most ticketed places sell at the door; a
+ * few turn you away without one bought beforehand, and only those should send
+ * somebody to a website before they leave.
+ */
+describe('需提前買票', () => {
+  const info = (source: Record<string, unknown>) =>
+    normalizePlaceCommerce({ admissionRequired: true, ...source });
+
+  it('takes the source at its word', () => {
+    expect(info({ advanceBookingRequired: true })?.advanceBookingRequired).toBe(true);
+    // 「checked, and no」 is an answer; only an absent field claims nothing.
+    expect(info({ advanceBookingRequired: false })?.advanceBookingRequired).toBe(false);
+  });
+
+  /* The type's own comment names 需事先預約 as the example of a practical line. */
+  it('reads it out of the practical lines already carried', () => {
+    expect(info({ notes: ['需事先預約'] })?.advanceBookingRequired).toBe(true);
+    expect(info({ notes: ['建議預留 3 小時以上', '須提前訂票'] })?.advanceBookingRequired).toBe(true);
+    expect(info({ notes: ['timed-entry only'] })?.advanceBookingRequired).toBe(true);
+  });
+
+  /*
+    「可預約導覽」 is an option, not a requirement — the word 預約 alone cannot
+    carry this, or every place offering a guided tour becomes advance-only.
+  */
+  it('does not read an offer as a requirement', () => {
+    expect(info({ notes: ['可預約導覽'] })?.advanceBookingRequired).toBeUndefined();
+    expect(info({ notes: ['未滿 19 歲不可入場'] })?.advanceBookingRequired).toBeUndefined();
+  });
+
+  /* Nothing is claimed for an ordinary ticketed place. */
+  it('stays silent when nothing says so', () => {
+    expect(info({})?.advanceBookingRequired).toBeUndefined();
+  });
+});

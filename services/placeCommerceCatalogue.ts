@@ -51,6 +51,8 @@ export interface CuratedCommerceEntry {
   /** Normalized name keys, for a place with no resolved Google identity yet. */
   nameKeys?: string[];
   admissionRequired: boolean;
+  /** True only when a ticket must be bought before arriving. See the type. */
+  advanceBookingRequired?: boolean;
   /** Declares where the live price lives. Absent = this place shows no number. */
   priceSource?: CuratedPriceSource;
   officialUrl?: string;
@@ -193,6 +195,7 @@ export const buildCuratedCommerce = (
   const usablePrice = livePrice && isPriceFresh(livePrice.checkedAt, now) ? livePrice : undefined;
   return {
     admissionRequired: entry.admissionRequired,
+    ...(entry.advanceBookingRequired === true ? { advanceBookingRequired: true } : {}),
     ...(usablePrice ? { officialPrice: usablePrice } : {}),
     // Declared links only. Each is validated before it reaches the client.
     bookingOptions: [

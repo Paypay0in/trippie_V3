@@ -713,7 +713,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         data-testid={`needs-ticket-${item.id}`}
                         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#f0edff] px-2 py-0.5 text-[9px] font-black text-[#5b3df5]"
                       >
-                        <Ticket size={9} />需購票
+                        <Ticket size={9} />{commerce[item.id]?.advanceBookingRequired === true ? '需提前買票' : '需購票'}
                       </span>
                     )}
                     <span className="shrink-0 rounded-full border border-[#eeeefa] bg-[#fafaff] px-2 py-0.5 text-[9px] font-bold text-slate-400">{item.type}</span>
@@ -909,7 +909,9 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                           data-testid={`admission-required-${item.id}`}
                           className="mt-1 text-[11px] font-black leading-4 text-[#5b3df5]"
                         >
-                          需要門票，出發前先訂票或查價
+                          {info.advanceBookingRequired === true
+                            ? '需要提前買票，現場不一定買得到'
+                            : '需要門票，出發前先訂票或查價'}
                         </div>
                       )}
 

@@ -645,6 +645,18 @@ export interface PlaceCommerceInfo {
    * card shows 查看最新票價 rather than a stale figure.
    */
   priceStale?: boolean;
+  /**
+   * True when a ticket has to be bought before arriving.
+   *
+   * 「需提前買票」. Deliberately separate from `admissionRequired`: most ticketed
+   * places sell at the door, and a few — timed-entry exhibitions, 事前予約制
+   * venues — turn you away without one. Saying 「buy ahead」 of a museum that
+   * sells tickets at its own counter sends somebody to a website for nothing;
+   * staying quiet about one that does not costs them the visit.
+   *
+   * Undefined means 「not established」, and nothing is claimed.
+   */
+  advanceBookingRequired?: boolean;
   bookingOptions?: PlaceBookingOption[];
   /** Short practical lines, e.g. 需事先預約. */
   notes?: string[];
