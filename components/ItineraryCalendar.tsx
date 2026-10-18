@@ -3,7 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
 import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
-import { fetchPlaceBasics, hoursForDate, PlaceBasics, readsAsClosed, summarizePlaceBasics } from '../services/placeBasicsService';
+import { fetchPlaceBasics, hoursForDate, outsideOpeningHours, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen, Clock3 } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
@@ -877,16 +877,29 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 {(() => {
                   const hours = hoursForDate(basicsByItemId[item.id] || null, item.date);
                   if (!hours) return null;
-                  const shut = readsAsClosed(hours);
+                  /*
+                    「因此要提醒用戶」.
+
+                    Printing the hours puts the fact on the card and still
+                    leaves somebody comparing two clocks, on every card, for
+                    every day. The comparison is arithmetic. See
+                    `outsideOpeningHours`, which stays quiet about everything
+                    it cannot be sure of.
+                  */
+                  const problem = outsideOpeningHours(hours, item.time, item.durationMinutes);
+                  const warning = problem === 'closed-day' ? '這天公休，排了也進不去'
+                    : problem === 'before-opening' ? '排的時間比開門早'
+                    : problem === 'after-closing' ? '排的時間會超過打烊'
+                    : '';
                   return (
                     <p
                       data-testid={`item-hours-${item.id}`}
                       className={`mt-1 flex items-start gap-1 text-[11px] font-bold leading-4 ${
-                        shut ? 'text-rose-600' : 'text-slate-500'
+                        warning ? 'text-rose-600' : 'text-slate-500'
                       }`}
                     >
                       <Clock3 size={11} className="mt-0.5 shrink-0" />
-                      <span>{shut ? `這天公休・${hours}` : hours}</span>
+                      <span>{warning ? `${warning}・${hours}` : hours}</span>
                     </p>
                   );
                 })()}

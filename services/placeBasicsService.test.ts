@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hoursForDate, readsAsClosed } from './placeBasicsService';
+import { hoursForDate, outsideOpeningHours, readsAsClosed } from './placeBasicsService';
 
 /**
  * 「像這個開放時間也都要寫成行程表上」.
@@ -54,5 +54,58 @@ describe('readsAsClosed', () => {
   it('treats anything it cannot read as open', () => {
     expect(readsAsClosed('Tuesday: 10:00 – 18:00')).toBe(false);
     expect(readsAsClosed(undefined)).toBe(false);
+  });
+});
+
+/**
+ * 「因此要提醒用戶」.
+ *
+ * Printing the hours puts the fact on the card and still leaves the traveller
+ * comparing two clocks, on every card, for every day.
+ */
+describe('outsideOpeningHours', () => {
+  const tuesday = 'Tuesday: 10:00 – 18:00';
+
+  it('says nothing about a stop inside the window', () => {
+    expect(outsideOpeningHours(tuesday, '14:00', 120)).toBeUndefined();
+  });
+
+  it('catches a stop that starts too early', () => {
+    expect(outsideOpeningHours(tuesday, '09:00', 60)).toBe('before-opening');
+  });
+
+  it('catches a stop that starts after closing', () => {
+    expect(outsideOpeningHours(tuesday, '19:00', 60)).toBe('after-closing');
+  });
+
+  /* 17:00 for two hours is inside the door and outside by the end of it. */
+  it('catches a stop that would still be running at closing', () => {
+    expect(outsideOpeningHours(tuesday, '17:00', 120)).toBe('after-closing');
+  });
+
+  it('reports a closed day as its own thing', () => {
+    expect(outsideOpeningHours('Monday: Closed', '14:00', 60)).toBe('closed-day');
+  });
+
+  /*
+    Only what it is sure of. A split shift has four times and is not one
+    window; reading the first and last would report 15:00 as open at a
+    restaurant that shuts between lunch and dinner.
+  */
+  it('stays quiet on a line it cannot read confidently', () => {
+    expect(outsideOpeningHours('Tuesday: 11:30 – 14:00, 17:00 – 22:00', '15:00', 60)).toBeUndefined();
+    expect(outsideOpeningHours('Tuesday: Open 24 hours', '03:00', 60)).toBeUndefined();
+    expect(outsideOpeningHours(undefined, '03:00', 60)).toBeUndefined();
+    expect(outsideOpeningHours(tuesday, undefined, 60)).toBeUndefined();
+  });
+
+  /* A bar open until 02:00 is a real window this cannot compare; left alone. */
+  it('stays quiet on a window that runs past midnight', () => {
+    expect(outsideOpeningHours('Friday: 18:00 – 02:00', '23:00', 60)).toBeUndefined();
+  });
+
+  it('reads a 12-hour clock', () => {
+    expect(outsideOpeningHours('Tuesday: 10:00 AM – 6:00 PM', '19:00', 60)).toBe('after-closing');
+    expect(outsideOpeningHours('Tuesday: 10:00 AM – 6:00 PM', '14:00', 60)).toBeUndefined();
   });
 });
