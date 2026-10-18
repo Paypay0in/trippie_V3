@@ -544,3 +544,60 @@ describe('the reported distance is the distance walked', () => {
     expect(plan.afterKm).toBeLessThan(dayDistanceKm(asakusaDay));
   });
 });
+
+/**
+ * 「那就可以建議換餐廳」.
+ *
+ * The route rule and the mealtime rule pull against each other: swapping two
+ * stops onto each other's times changes the order they are walked in. On his
+ * 淺草 day that put half a kilometre back into a route just shortened.
+ */
+describe('a meal that would cost a detour', () => {
+  const stop = (id: string, time: string, latitude: number, longitude: number): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY', date: '2026-10-22', time,
+    durationMinutes: 90, latitude, longitude, address: 'Taito City, Tokyo',
+  } as ItineraryItem);
+
+  const asakusaDay = [
+    stop('senso', '10:00', 35.7147651, 139.7966553),
+    stop('ramen', '12:46', 35.70444, 139.7901561),
+    stop('leaves', '14:16', 35.7027051, 139.7978326),
+    stop('harry', '15:21', 35.7111133, 139.7976072),
+    stop('lonich', '17:07', 35.7012377, 139.7895126),
+  ];
+  const tags: Record<string, string> = {
+    senso: 'sight', ramen: 'food', leaves: 'cafe', harry: 'food', lonich: 'cafe',
+  };
+  const plan = () => optimiseTripRoute(asakusaDay, { country: '日本', categoryOf: item => tags[item.id] });
+
+  it('keeps the shorter route rather than the tidier clock', () => {
+    const route = plan();
+    const walked = [...route.days[0].items]
+      .sort((left, right) => (left.time || '').localeCompare(right.time || ''));
+
+    expect(dayDistanceKm(walked)).toBeCloseTo(route.days[0].distanceKm, 2);
+    // The route it worked out, not the half-kilometre-longer one.
+    expect(route.days[0].distanceKm).toBeLessThan(2.5);
+  });
+
+  /* Said rather than silently left at 15:00. The fix is a different place. */
+  it('names the restaurant it could not bring forward', () => {
+    expect(plan().mealsNeedingANearerPlace).toEqual([
+      { date: '2026-10-22', placeName: 'ramen' },
+    ]);
+  });
+
+  /* A day whose meals cost nothing to place has nothing to report. */
+  it('says nothing when the swap is free', () => {
+    const tidy = [
+      stop('a', '10:00', 35.7148, 139.7967),
+      stop('lunch', '15:00', 35.7147, 139.7966),
+    ];
+    const route = optimiseTripRoute(tidy, {
+      country: '日本',
+      categoryOf: item => (item.id === 'lunch' ? 'food' : 'sight'),
+    });
+
+    expect(route.mealsNeedingANearerPlace).toEqual([]);
+  });
+});

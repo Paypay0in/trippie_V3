@@ -97,6 +97,15 @@ export interface RoutePlan {
    * was never missed.
    */
   mealsMissing: Array<{ date: string; label: string }>;
+  /**
+   * Restaurants left outside their mealtime because moving them there would
+   * have made the day walk further.
+   *
+   * 「那就可以建議換餐廳」 — the two rules pull against each other, and the right
+   * answer is neither 「eat at 15:00」 nor 「cross the city for lunch」. It is a
+   * different restaurant, and choosing one is not arithmetic.
+   */
+  mealsNeedingANearerPlace: Array<{ date: string; placeName: string }>;
 }
 
 /** How far a day walks, visiting its items in order. */
@@ -261,6 +270,16 @@ const assignAreasToDays = (
  * outside every meal window trades places with whatever currently sits in the
  * nearest one. The set of stops and the day they are on do not change, so the
  * route stays the route — two of its stops simply change places on the clock.
+ *
+ * Except that it does not. 「那就可以建議換餐廳」 — swapping two stops onto each
+ * other's times changes the order they are walked in, and on his 淺草 day that
+ * added half a kilometre to a route that had just been shortened. The two
+ * rules were pulling against each other and only one of them was being
+ * measured.
+ *
+ * So a swap that lengthens the day is refused, and the window is reported as
+ * having no restaurant near it. That is the honest answer: the right fix is a
+ * different restaurant, and choosing one is not arithmetic.
  */
 export const mealsAtMealtimes = (
   items: ItineraryItem[],
@@ -276,6 +295,13 @@ export const mealsAtMealtimes = (
    * planner's case exactly.
    */
   isFixed: (item: ItineraryItem) => boolean = () => false,
+  /**
+   * Refuses a swap that makes the day walk further. See the note above.
+   *
+   * Off by default so the AI adjustment path, which has no route to protect,
+   * behaves exactly as it did.
+   */
+  keepTheRoute = false,
 ): ItineraryItem[] => {
   const windows = MEAL_WINDOWS.map(window => ({
     from: timeToMinutes(window.from) ?? 0,
@@ -286,6 +312,8 @@ export const mealsAtMealtimes = (
 
   const times = items.map(item => timeToMinutes(item.time) ?? 0);
   const order = [...items];
+  /** Meals left outside their window because moving them cost more than it saved. */
+  const refused: ItineraryItem[] = [];
 
   order.forEach((item, index) => {
     if (categoryOf(item) !== 'food') return;
@@ -309,6 +337,11 @@ export const mealsAtMealtimes = (
     if (bestIndex !== -1) {
       const mealTime = times[bestIndex];
       const otherTime = times[index];
+      if (keepTheRoute && walkedKm(order, times) < walkedKm(order, swapped(times, index, bestIndex))) {
+        // Further than before. Left where it is, and named instead.
+        refused.push(item);
+        return;
+      }
       times[bestIndex] = otherTime;
       times[index] = mealTime;
       return;
@@ -339,8 +372,24 @@ export const mealsAtMealtimes = (
     times[index] = Math.max(free.from, dayOpens);
   });
 
-  return order.map((item, index) => ({ ...item, time: minutesToTime(times[index]) }));
+  const placed = order.map((item, index) => ({ ...item, time: minutesToTime(times[index]) }));
+  return keepTheRoute ? Object.assign(placed, { refused }) : placed;
 };
+
+/** The same clock with two entries exchanged, without touching the original. */
+const swapped = (times: number[], left: number, right: number): number[] => {
+  const next = [...times];
+  next[left] = times[right];
+  next[right] = times[left];
+  return next;
+};
+
+/** How far a set of stops walks, visited in the order those times put them. */
+const walkedKm = (items: ItineraryItem[], times: number[]): number =>
+  dayDistanceKm(items
+    .map((item, index) => ({ item, at: times[index] }))
+    .sort((left, right) => left.at - right.at)
+    .map(entry => entry.item));
 
 /**
  * The same rule, applied to each day of a whole itinerary on its own.
@@ -357,6 +406,13 @@ export const mealsAtMealtimesByDay = (
   items: ItineraryItem[],
   categoryOf: (item: ItineraryItem) => string | undefined,
   isFixed: (item: ItineraryItem) => boolean = () => false,
+  /**
+   * Refuses a swap that makes the day walk further. See the note above.
+   *
+   * Off by default so the AI adjustment path, which has no route to protect,
+   * behaves exactly as it did.
+   */
+  keepTheRoute = false,
 ): ItineraryItem[] => {
   const byDate = new Map<string, ItineraryItem[]>();
   items.forEach(item => {
@@ -469,6 +525,9 @@ export const optimiseTripRoute = (
   */
   const floors = earliestFreeStartByDate(fixedAnchorSchedule(items));
 
+  /** Meals that could only reach their window by lengthening the day. */
+  const mealsNeedingANearerPlace: Array<{ date: string; placeName: string }> = [];
+
   const days: RoutePlanDay[] = dates.map(date => {
     const anchored = (anchoredByDate.get(date) || []).filter(item => ground.has(item.id));
     const accommodation = anchored.find(item => item.type === 'HOTEL' && located(item));
@@ -520,7 +579,17 @@ export const optimiseTripRoute = (
       And then the meals move to mealtimes. 「早上10點吃拉麵嗎？」 — the route is
       kept exactly; only two stops swap places on the clock.
     */
-    const eaten = options.categoryOf ? mealsAtMealtimes(timed, options.categoryOf) : timed;
+    /*
+      The route this function just worked out is protected here: a meal swap
+      that lengthens the day is refused and reported instead. 「那就可以建議換
+      餐廳」. See `mealsAtMealtimes`.
+    */
+    const eaten = options.categoryOf
+      ? mealsAtMealtimes(timed, options.categoryOf, () => false, true)
+      : timed;
+    ((eaten as { refused?: ItineraryItem[] }).refused || []).forEach(item => {
+      mealsNeedingANearerPlace.push({ date, placeName: item.location || item.title || '' });
+    });
 
     /*
       And finally nothing shares a slot with what the day is built around.
@@ -587,5 +656,5 @@ export const optimiseTripRoute = (
     + dayDistanceKm(items.filter(item => item.date === date && !isAnchored(item) && ground.has(item.id))), 0);
   const afterKm = days.reduce((sum, day) => sum + day.distanceKm, 0);
 
-  return { days, unplaced, beforeKm, afterKm, mealsMissing };
+  return { days, unplaced, beforeKm, afterKm, mealsMissing, mealsNeedingANearerPlace };
 };
