@@ -1,7 +1,7 @@
 import { ItineraryItem } from '../types';
 import { stopsOnTheGround } from './dayMapImage';
 import { TripAreas } from './tripAreas';
-import { distanceKm, PlaceCluster } from './placeClusters';
+import { distanceKm, districtOf, PlaceCluster } from './placeClusters';
 
 /**
  * Whether a day stays in one part of the city.
@@ -24,7 +24,31 @@ export interface DayAreaSpread {
   unplacedCount: number;
   /** The furthest two stops on the day, in km, where both are located. */
   longestHopKm?: number;
+  /**
+   * Where most of this day actually is.
+   *
+   * 「這邊可以提示說：今日行程大多都集中在」 — and the line was already naming an
+   * area, which on his Setagaya-plus-Shibuya day read 「今天在 Minato City」.
+   * `areas` are the trip's clusters, and a cluster is labelled by the majority
+   * ward across the whole trip. That is the right label for the cluster and
+   * the wrong answer to 「where is today」.
+   *
+   * So this is counted from this day's own stops, by the same `districtOf`
+   * that names everything else. Undefined when the day's stops do not agree
+   * enough to call it 「mostly」 anywhere — see `MOSTLY`.
+   */
+  mainArea?: string;
 }
+
+/**
+ * How much of a day has to be in one ward before it is 「mostly」 there.
+ *
+ * More than half, strictly. A test caught exactly half passing: a day of one
+ * stop in 渋谷 and one in 台東 was declared 「mostly 台東区」, chosen by sorting
+ * the tie alphabetically. A day split down the middle is split, and naming a
+ * winner there is picking a side rather than reporting one.
+ */
+const MOSTLY = 0.5;
 
 /**
  * What a day's stops add up to, geographically.
@@ -36,6 +60,8 @@ export interface DayAreaSpread {
 export const dayAreaSpread = (
   items: ItineraryItem[],
   areas: TripAreas,
+  /** The trip's country, so an address is read with its own conventions. */
+  country?: string,
 ): DayAreaSpread => {
   const seen = new Map<string, PlaceCluster>();
   let unplacedCount = 0;
@@ -65,10 +91,28 @@ export const dayAreaSpread = (
     }
   }
 
+  /*
+    Where most of today is, from today's own stops. See `mainArea`.
+  */
+  const wards = new Map<string, number>();
+  let counted = 0;
+  located.forEach(item => {
+    const ward = districtOf(item.address, country);
+    if (!ward) return;
+    counted += 1;
+    wards.set(ward, (wards.get(ward) || 0) + 1);
+  });
+  const leading = Array.from(wards.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0];
+  const mainArea = leading && counted > 0 && leading[1] / counted > MOSTLY
+    ? leading[0]
+    : undefined;
+
   return {
     areas: Array.from(seen.values()),
     unplacedCount,
     longestHopKm: longestHopKm === undefined ? undefined : Math.round(longestHopKm * 10) / 10,
+    mainArea,
   };
 };
 

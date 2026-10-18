@@ -1033,6 +1033,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           date={activeDate}
           items={timedItems}
           fixedSchedule={fixedAnchorSchedule(items)}
+          country={destinationCountry}
           places={savedPlaces}
           areas={areas}
           isFixed={isFixedItem}

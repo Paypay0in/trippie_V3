@@ -60,6 +60,8 @@ interface Props {
    * a screen that cannot persist it must not pretend to.
    */
   onShiftDay?: (items: ItineraryItem[]) => void;
+  /** The trip's country, so an address is read with its own conventions. */
+  country?: string;
   /** Items that are fixed and must never be offered a length control. */
   isFixed?: (item: ItineraryItem) => boolean;
 }
@@ -80,6 +82,7 @@ const DayBlockPlanner: React.FC<Props> = ({
   onFillBlockManually,
   onChangeDuration,
   onShiftDay,
+  country,
   isFixed,
 }) => {
   /*
@@ -154,7 +157,7 @@ const DayBlockPlanner: React.FC<Props> = ({
 
   const itemById = useMemo(() => new Map(items.map(item => [item.id, item])), [items]);
 
-  const spread = useMemo(() => (areas ? dayAreaSpread(items, areas) : undefined), [items, areas]);
+  const spread = useMemo(() => (areas ? dayAreaSpread(items, areas, country) : undefined), [items, areas, country]);
 
   /*
     Same area first.
@@ -275,9 +278,21 @@ const DayBlockPlanner: React.FC<Props> = ({
           }`}
         >
           {daySpansTooManyAreas(spread) && <AlertTriangle size={12} className="mt-0.5 shrink-0" />}
+          {/*
+            「這邊可以提示說：今日行程大多都集中在」.
+
+            Led by where the day actually is, counted from the day's own stops
+            — the old line named the trip cluster's label, which on a
+            Setagaya-plus-Shibuya day read 「今天在 Minato City」. See `mainArea`.
+
+            When the day does not mostly sit anywhere, it says how many areas
+            it crosses instead of picking one.
+          */}
           <span>
-            今天在 {spread.areas.map(area => area.label).join('、')}
-            {spread.areas.length > 1 && ` ${spread.areas.length} 個區`}
+            {spread.mainArea
+              ? `今日行程大多集中在 ${spread.mainArea}`
+              : `今天跨了 ${spread.areas.length} 個區`}
+            {spread.mainArea && spread.areas.length > 1 && `，另外跨到 ${spread.areas.length - 1} 區`}
             {spread.longestHopKm !== undefined && spread.longestHopKm >= 1 && `・最遠兩點約 ${spread.longestHopKm} 公里`}
           </span>
         </p>

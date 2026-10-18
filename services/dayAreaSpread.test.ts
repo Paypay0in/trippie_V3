@@ -80,3 +80,49 @@ describe('daySpansTooManyAreas', () => {
     expect(daySpansTooManyAreas(dayAreaSpread([...gwangalli, day3[0]], areas))).toBe(false);
   });
 });
+
+/**
+ * 「這邊可以提示說：今日行程大多都集中在」.
+ *
+ * His day held 豪德寺（世田谷）and three places in 澀谷, and the line read
+ * 「今天在 Minato City」 — the trip cluster's own label, chosen by the majority
+ * ward across the whole trip. Right for the cluster, wrong answer to 「where is
+ * today」.
+ */
+describe('今天大多在哪', () => {
+  const at = (id: string, address: string, latitude: number, longitude: number): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY',
+    date: '2026-10-22', time: '10:00', durationMinutes: 60, address, latitude, longitude,
+  } as ItineraryItem);
+
+  const noAreas = { clusters: [], areaOfItem: () => undefined, areaOfInspiration: () => undefined };
+
+  it('數今天自己的停留點，不是整趟的群組標籤', () => {
+    const spread = dayAreaSpread([
+      at('a', '東京都渋谷区道玄坂', 35.6580, 139.7016),
+      at('b', '東京都渋谷区神宮前', 35.6659, 139.7105),
+      at('c', '東京都渋谷区本町', 35.6883, 139.6809),
+      at('d', '東京都世田谷区豪徳寺', 35.6467, 139.6469),
+    ], noAreas, '日本');
+
+    expect(spread.mainArea).toContain('渋谷');
+  });
+
+  /* A day genuinely split in half is not 「mostly」 anywhere. */
+  it('真的一半一半就不說集中在哪', () => {
+    const spread = dayAreaSpread([
+      at('a', '東京都渋谷区道玄坂', 35.6580, 139.7016),
+      at('b', '東京都台東区浅草', 35.7148, 139.7967),
+    ], noAreas, '日本');
+
+    expect(spread.mainArea).toBeUndefined();
+  });
+
+  it('沒有地址時不猜', () => {
+    const spread = dayAreaSpread([
+      { id: 'x', title: 'x', location: 'x', notes: '', type: 'ACTIVITY', date: '2026-10-22', time: '10:00', latitude: 35.65, longitude: 139.70 } as ItineraryItem,
+    ], noAreas, '日本');
+
+    expect(spread.mainArea).toBeUndefined();
+  });
+});
