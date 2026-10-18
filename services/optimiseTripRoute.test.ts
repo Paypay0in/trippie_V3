@@ -5,7 +5,7 @@
  * His own three days, with the coordinates measured off the live route.
  */
 import { describe, expect, it } from 'vitest';
-import { isAnchored, mealsAtMealtimesByDay, optimiseTripRoute, orderByProximity } from './optimiseTripRoute';
+import { dayDistanceKm, isAnchored, mealsAtMealtimesByDay, optimiseTripRoute, orderByProximity } from './optimiseTripRoute';
 import { ItineraryItem } from '../types';
 
 const at = (id: string, date: string, latitude: number, longitude: number, over: Partial<ItineraryItem> = {}): ItineraryItem => ({
@@ -498,5 +498,49 @@ describe('固定的行程把它那一區拉過來', () => {
     trip
       .filter(item => item.isPinned !== true)
       .forEach(item => expect(seen.has(item.id)).toBe(true));
+  });
+});
+
+/**
+ * 「你看這個行程12345他會來回來 這就是要被優化的動線」.
+ *
+ * His 淺草 day, with the coordinates the live place service returns. The
+ * optimiser does fix it — 4.26 km of zigzag becomes a sweep — and while
+ * checking that, the number it reported turned out to be measured on the
+ * route order rather than the clock order, which `mealsAtMealtimes` had
+ * already changed.
+ */
+describe('the reported distance is the distance walked', () => {
+  const stop = (id: string, time: string, latitude: number, longitude: number): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY', date: '2026-10-22', time,
+    durationMinutes: 90, latitude, longitude, address: 'Taito City, Tokyo',
+  } as ItineraryItem);
+
+  const asakusaDay = [
+    stop('senso', '10:00', 35.7147651, 139.7966553),
+    stop('ramen', '12:46', 35.70444, 139.7901561),
+    stop('leaves', '14:16', 35.7027051, 139.7978326),
+    stop('harry', '15:21', 35.7111133, 139.7976072),
+    stop('lonich', '17:07', 35.7012377, 139.7895126),
+  ];
+
+  const tags: Record<string, string> = {
+    senso: 'sight', ramen: 'food', leaves: 'cafe', harry: 'food', lonich: 'cafe',
+  };
+
+  it('is the day actually walked, in clock order', () => {
+    const plan = optimiseTripRoute(asakusaDay, { country: '日本', categoryOf: item => tags[item.id] });
+    const day = plan.days[0];
+    const walked = [...day.items].sort((left, right) => (left.time || '').localeCompare(right.time || ''));
+
+    expect(day.distanceKm).toBeCloseTo(dayDistanceKm(walked), 2);
+  });
+
+  /* And it is still a real improvement, which is why a small error mattered. */
+  it('still beats the zigzag it replaces', () => {
+    const plan = optimiseTripRoute(asakusaDay, { country: '日本', categoryOf: item => tags[item.id] });
+
+    expect(dayDistanceKm(asakusaDay)).toBeGreaterThan(4);
+    expect(plan.afterKm).toBeLessThan(dayDistanceKm(asakusaDay));
   });
 });

@@ -539,7 +539,20 @@ export const optimiseTripRoute = (
     const plannedIds = new Set(eaten.map(item => item.id));
     const finalItems = settled.items.filter(item => plannedIds.has(item.id));
 
-    return { date, items: finalItems, distanceKm: dayDistanceKm(finalItems) };
+    /*
+      Measured in the order the day is actually walked.
+
+      `dayDistanceKm` reads the array, and this array is the route order —
+      which stopped being the clock order the moment `mealsAtMealtimes` swapped
+      two stops onto each other's times. Measured on his own 淺草 day: the
+      preview said 2.4 公里 for a day that walks 2.9.
+
+      Still a real improvement on the 4.3 it replaced, which is exactly why
+      this mattered: a number that is only slightly wrong is the kind nobody
+      checks.
+    */
+    const walked = [...finalItems].sort((left, right) => (left.time || '').localeCompare(right.time || ''));
+    return { date, items: finalItems, distanceKm: dayDistanceKm(walked) };
   });
 
   /*
