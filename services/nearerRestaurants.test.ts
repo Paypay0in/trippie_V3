@@ -5,7 +5,7 @@
  * the one 優化動線 names as costing a detour to reach at lunchtime.
  */
 import { describe, expect, it } from 'vitest';
-import { nearerRestaurants } from './nearerRestaurants';
+import { betweenNeighbours, nearerRestaurants } from './nearerRestaurants';
 import { ItineraryItem } from '../types';
 
 const stop = (id: string, time: string, latitude: number, longitude: number): ItineraryItem => ({
@@ -79,5 +79,30 @@ describe('nearerRestaurants', () => {
   /* One stop on a day has no neighbours, so it causes no detour. */
   it('has nothing to say about a day of one', () => {
     expect(nearerRestaurants([day[2]], 'ramen', saved)).toEqual([]);
+  });
+});
+
+/**
+ * 「這一帶」 is between the two stops it would sit between — not around the
+ * place being replaced, which is the one spot already known to be out of the
+ * way.
+ */
+describe('betweenNeighbours', () => {
+  it('is the midpoint of the stops either side', () => {
+    const point = betweenNeighbours(day, 'ramen');
+
+    expect(point?.latitude).toBeCloseTo((35.7111133 + 35.7027051) / 2, 5);
+    expect(point?.longitude).toBeCloseTo((139.7976072 + 139.7978326) / 2, 5);
+  });
+
+  /* At either end of a day there is only one neighbour to be near. */
+  it('falls back to the one neighbour it has', () => {
+    expect(betweenNeighbours(day, 'senso')?.latitude).toBeCloseTo(35.7111133, 5);
+    expect(betweenNeighbours(day, 'lonich')?.latitude).toBeCloseTo(35.7027051, 5);
+  });
+
+  it('has nothing to say about a day of one, or a stop that is not on it', () => {
+    expect(betweenNeighbours([day[2]], 'ramen')).toBeUndefined();
+    expect(betweenNeighbours(day, 'nope')).toBeUndefined();
   });
 });

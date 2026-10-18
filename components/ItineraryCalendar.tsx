@@ -4,7 +4,8 @@ import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
 import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
 import { betterOnAnotherDay, DayMoveSuggestion } from '../services/betterOnAnotherDay';
-import { nearerRestaurants } from '../services/nearerRestaurants';
+import { betweenNeighbours, nearerRestaurants } from '../services/nearerRestaurants';
+import { fetchNearbyRestaurants, NearbyRestaurant } from '../services/nearbyRestaurantsService';
 import { fetchPlaceBasics, hoursForDate, outsideOpeningHours, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen, Clock3 } from 'lucide-react';
@@ -226,6 +227,15 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
   /** Which day the open plan was asked about, or the whole trip. */
   const [routeScope, setRouteScope] = useState<string | 'trip'>('trip');
   const [dayMoves, setDayMoves] = useState<DayMoveSuggestion[]>([]);
+  /*
+    「或是 Ai 搜尋後推薦結果出現三個問用戶嗎」.
+
+    Asked only for the restaurants the plan has already flagged, and only once
+    the preview is open — nobody should pay a lookup for a warning they never
+    saw. Keyed by the item being replaced, never applied: three names and a
+    rating is an offer, and which one somebody wants is not a distance.
+  */
+  const [nearbyByItem, setNearbyByItem] = useState<Record<string, NearbyRestaurant[]>>({});
 
   /*
     「優化動線的建議應該可以限縮當日？」
@@ -248,6 +258,35 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     */
     setDayMoves(betterOnAnotherDay(items));
   };
+
+  /*
+    Three from Google for each restaurant the plan flagged. Fired off the open
+    plan rather than from the click, so it costs nothing on a trip with no
+    detours to report — which is most of them.
+  */
+  useEffect(() => {
+    if (!routePlan || routePlan.mealsNeedingANearerPlace.length === 0) return;
+    let cancelled = false;
+
+    void Promise.all(routePlan.mealsNeedingANearerPlace.map(async entry => {
+      const day = (routePlan.days.find(candidate => candidate.date === entry.date)?.items || [])
+        .slice()
+        .sort((left, right) => (left.time || '').localeCompare(right.time || ''));
+      const near = betweenNeighbours(day, entry.itemId);
+      if (!near) return null;
+      const found = await fetchNearbyRestaurants(near.latitude, near.longitude);
+      // Never offer something already on the plan: that is not a replacement.
+      const planned = new Set(items.map(item => item.placeId).filter(Boolean));
+      return [entry.itemId, found.filter(place => !planned.has(place.placeId))] as const;
+    })).then(results => {
+      if (cancelled) return;
+      const found = results.filter((entry): entry is readonly [string, NearbyRestaurant[]] => entry !== null);
+      if (found.length === 0) return;
+      setNearbyByItem(current => ({ ...current, ...Object.fromEntries(found) }));
+    });
+
+    return () => { cancelled = true; };
+  }, [routePlan, items]);
 
   /*
     Google's own line for the places on this plan that carry no notes. See the
@@ -1990,6 +2029,20 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                           <span data-testid={`nearer-than-${entry.itemId}`} className="mt-0.5 block font-medium text-amber-600">
                             {'收藏裡比較近的：'}
                             {swaps.map(swap => `${swap.placeName}（少繞 ${swap.savesKm} 公里）`).join('、')}
+                          </span>
+                        )}
+                        {/*
+                          And three from Google, for a route no saved place
+                          suits. Places rather than a language model: 「what is
+                          near here」 is a lookup, and a model would answer with
+                          sentences about restaurants, some of which exist.
+                        */}
+                        {nearbyByItem[entry.itemId]?.length > 0 && (
+                          <span data-testid={`nearby-for-${entry.itemId}`} className="mt-0.5 block font-medium text-amber-600">
+                            {'這一帶還有：'}
+                            {nearbyByItem[entry.itemId].slice(0, 3)
+                              .map(place => `${place.placeName}${place.rating ? `（★ ${place.rating}）` : ''}`)
+                              .join('、')}
                           </span>
                         )}
                       </li>

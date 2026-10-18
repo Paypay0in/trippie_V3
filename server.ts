@@ -12,6 +12,7 @@ import { markDepartureTiming, withRequiredPreparation } from "./services/planPre
 import { stripPriceClaims } from "./services/priceClaims";
 import { clusterSavedPlaces } from "./services/placeClusters";
 import { advanceBookingPlaces } from "./services/placeCommerceCatalogue";
+import { registerNearbyRestaurantsRoute } from "./services/nearbyRestaurantsLookup";
 import { fetchTransitousLeg, transitousEnabled } from "./services/transitousRouting";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { createModelLadder, LADDER_PASSES, PASS_PAUSE_MS } from "./services/modelLadder";
@@ -828,6 +829,8 @@ async function startServer() {
   // the parser silently sees an undefined body, which is exactly how this route
   // shipped 404-equivalent twice.
   registerPlaceCommerceRoute(app);
+  // 「Ai 搜尋後推薦結果出現三個問用戶嗎」. See `nearbyRestaurantsLookup`.
+  registerNearbyRestaurantsRoute(app);
 
   /**
    * One leg of a day: how you actually get from this place to the next one.

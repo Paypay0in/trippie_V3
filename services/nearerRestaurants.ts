@@ -96,3 +96,29 @@ export const nearerRestaurants = (
     .slice(0, limit)
     .map(swap => ({ ...swap, savesKm: Math.round(swap.savesKm * 10) / 10 }));
 };
+
+/**
+ * The point a replacement should be near.
+ *
+ * Halfway between the two stops it would sit between, which is where a
+ * restaurant costs the least detour. Asking Google 「near 拉麵 改」 would search
+ * around the place being replaced — the one spot already known to be out of
+ * the way.
+ */
+export const betweenNeighbours = (
+  day: ItineraryItem[],
+  replacing: string,
+): Point | undefined => {
+  const index = day.findIndex(item => item.id === replacing);
+  if (index === -1) return undefined;
+  const before = day.slice(0, index).reverse().find(located);
+  const after = day.slice(index + 1).find(located);
+  if (before && after) {
+    return {
+      latitude: (before.latitude + after.latitude) / 2,
+      longitude: (before.longitude + after.longitude) / 2,
+    };
+  }
+  const neighbour = before || after;
+  return neighbour ? { latitude: neighbour.latitude, longitude: neighbour.longitude } : undefined;
+};
