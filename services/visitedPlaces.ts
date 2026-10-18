@@ -26,15 +26,26 @@ export interface PlaceVisit {
 /**
  * The identity two records are matched on.
  *
- * A resolved Google id when there is one, otherwise the trimmed lowercased
- * name — the same rule `inspirationKey` uses, so a place matches itself across
- * the collection and the plan.
+ * Both the resolved Google id and the trimmed lowercased name, not one or the
+ * other.
+ *
+ * 「去過的要標記」 over a 釜山 collection with no 已訪 on it. The old rule took the
+ * id when there was one and the name otherwise — so a saved place that had
+ * been resolved and an itinerary item that never was produced two different
+ * keys for the same restaurant, and the visit was invisible.
+ *
+ * That is the common case rather than an edge: the collection has been through
+ * a backfill and old itineraries have not. Indexing under every identity a
+ * record has costs one extra map entry and makes the match work in both
+ * directions.
  */
-const keyOf = (place: { placeId?: string; placeName?: string; location?: string; title?: string }): string => {
+const keysOf = (place: { placeId?: string; placeName?: string; location?: string; title?: string }): string[] => {
+  const keys: string[] = [];
   const id = place.placeId?.trim();
-  if (id) return `place:${id}`;
+  if (id) keys.push(`place:${id}`);
   const name = (place.placeName || place.location || place.title || '').trim().toLocaleLowerCase();
-  return name ? `name:${name}` : '';
+  if (name) keys.push(`name:${name}`);
+  return keys;
 };
 
 /** A day that has already happened. Today still counts as happening. */
@@ -56,13 +67,13 @@ export const visitsByPlace = (
   trips.forEach(trip => {
     (trip.itinerary || []).forEach((item: ItineraryItem) => {
       if (!isPast(item.date, today)) return;
-      const key = keyOf(item);
-      if (!key) return;
-      const existing = visits.get(key);
-      // The most recent visit: 「上次去是什麼時候」 is the question being asked.
-      if (!existing || existing.date < item.date) {
-        visits.set(key, { date: item.date, tripName: trip.name });
-      }
+      keysOf(item).forEach(key => {
+        const existing = visits.get(key);
+        // The most recent visit: 「上次去是什麼時候」 is the question being asked.
+        if (!existing || existing.date < item.date) {
+          visits.set(key, { date: item.date, tripName: trip.name });
+        }
+      });
     });
   });
 
@@ -74,10 +85,22 @@ export const visitOf = (
   place: Pick<SavedTravelInspiration, 'placeId' | 'placeName'>,
   visits: Map<string, PlaceVisit>,
 ): PlaceVisit | undefined => {
-  const key = keyOf(place);
-  return key ? visits.get(key) : undefined;
+  // Either identity will do: whichever of the two records carries one.
+  for (const key of keysOf(place)) {
+    const visit = visits.get(key);
+    if (visit) return visit;
+  }
+  return undefined;
 };
 
-/** 「已訪 · 2026/03/22」. */
+/**
+ * 「已訪 · 2026」.
+ *
+ * 「去過的要標記🏷️ 並寫下旅行年份」 — the year, not the day. A collection is
+ * scanned rather than read, and 「did I go, and roughly when」 is the question
+ * being answered; 2026/03/22 makes somebody parse a date to learn 2026.
+ *
+ * The exact day is still on the visit for anywhere that wants it.
+ */
 export const visitLabel = (visit?: PlaceVisit): string =>
-  (visit ? `已訪 · ${visit.date.replace(/-/g, '/')}` : '');
+  (visit ? `已訪 · ${visit.date.slice(0, 4)}` : '');

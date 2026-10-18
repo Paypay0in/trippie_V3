@@ -74,7 +74,52 @@ describe('已訪的地點', () => {
     expect(visitLabel(undefined)).toBe('');
   });
 
-  it('標籤寫出去的時間', () => {
-    expect(visitLabel({ date: '2026-03-22' })).toBe('已訪 · 2026/03/22');
+  /* 「去過的要標記🏷️ 並寫下旅行年份」 — the year, not the day. */
+  it('標籤寫出旅行年份', () => {
+    expect(visitLabel({ date: '2026-03-22' })).toBe('已訪 · 2026');
+  });
+});
+
+/**
+ * 「去過的要標記」, sent over a 釜山 collection with no 已訪 anywhere on it.
+ *
+ * The old key took the Google id when there was one and the name otherwise, so
+ * a saved place that had been through the backfill and an itinerary item that
+ * never was produced two different keys for the same restaurant.
+ */
+describe('同一個地方的兩種身份', () => {
+  const trip = {
+    name: '釜山',
+    itinerary: [
+      { id: 'i1', date: '2026-03-22', title: '海雲台傳統市場', location: '海雲台傳統市場' },
+    ],
+  } as never;
+
+  it('matches a resolved save against an unresolved itinerary item', () => {
+    const visits = visitsByPlace([trip], '2026-10-18');
+
+    expect(visitOf(
+      { placeId: 'ChIJ-market', placeName: '海雲台傳統市場' } as never,
+      visits,
+    )?.date).toBe('2026-03-22');
+  });
+
+  it('matches the other way round too', () => {
+    const resolvedTrip = {
+      name: '釜山',
+      itinerary: [
+        { id: 'i1', date: '2026-03-22', placeId: 'ChIJ-market', title: '海雲台傳統市場', location: '海雲台傳統市場' },
+      ],
+    } as never;
+    const visits = visitsByPlace([resolvedTrip], '2026-10-18');
+
+    expect(visitOf({ placeName: '海雲台傳統市場' } as never, visits)?.date).toBe('2026-03-22');
+  });
+
+  /* A different place with no shared identity still matches nothing. */
+  it('does not match a place that was never on a trip', () => {
+    const visits = visitsByPlace([trip], '2026-10-18');
+
+    expect(visitOf({ placeName: 'DIART coffee' } as never, visits)).toBeUndefined();
   });
 });

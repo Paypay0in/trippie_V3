@@ -390,7 +390,8 @@ describe('a card carrying nine notes by one person', () => {
  * 「收藏的筆記中，若某次旅行有去過。要記錄：去的時間，並標註『已訪』」.
  */
 describe('去過的地方', () => {
-  it('標上已訪與去的那一天', () => {
+  /* 「去過的要標記🏷️ 並寫下旅行年份」 — the year is what gets scanned. */
+  it('標上已訪與旅行年份', () => {
     mount(
       [saved({ id: 'a', placeName: 'らぁ麺や 嶋', placeId: 'ChIJx', ...HAEUNDAE })],
       {
@@ -398,7 +399,7 @@ describe('去過的地方', () => {
       },
     );
 
-    expect(screen.getByTestId('visited-a').textContent).toContain('2026/03/22');
+    expect(screen.getByTestId('visited-a').textContent).toBe('已訪 · 2026');
   });
 
   /* A place still ahead on the plan has not been visited. */
