@@ -76,40 +76,81 @@ describe('the day as blocks', () => {
     expect(screen.queryByTestId('fill-block-0')).toBeNull();
   });
 
-  it('offers the saved places in an empty block', () => {
+  /*
+    「這個下拉式選單是不足夠的 應該要 pop up 一個視窗讓用戶滑看筆記跟圖片才會知道」 —
+    so the block opens a sheet, and the choosing happens there.
+  */
+  it('offers the saved places in an empty block', async () => {
+    const user = userEvent.setup();
     renderPlanner();
 
-    expect(screen.getByTestId('fill-block-1').textContent).toContain('Working holiday');
+    await user.click(screen.getByTestId('fill-block-1'));
+
+    expect(screen.getByTestId('pick-place-g-working')).toBeTruthy();
   });
 
-  it('puts the places in today’s area first', () => {
-    // The point of the dropdown is a day that stays in one place, so the places
+  it('puts the places in today’s area first', async () => {
+    // The point of the picker is a day that stays in one place, so the places
     // that would do that are the ones to reach first.
+    const user = userEvent.setup();
     renderPlanner();
 
-    const options = Array.from(screen.getByTestId('fill-block-1').querySelectorAll('option'))
-      .map(option => option.textContent || '');
-    expect(options[1]).toContain('Working holiday');
+    await user.click(screen.getByTestId('fill-block-1'));
+
+    const names = Array.from(document.querySelectorAll('[data-testid^="pick-place-"]'))
+      .map(node => node.getAttribute('data-testid'));
+    expect(names[0]).toBe('pick-place-g-working');
   });
 
-  it('greys out a place already on the plan', () => {
+  it('greys out a place already on the plan', async () => {
+    const user = userEvent.setup();
     renderPlanner();
 
-    const option = Array.from(screen.getByTestId('fill-block-1').querySelectorAll('option'))
-      .find(entry => (entry.textContent || '').includes('海雲台傳統市場'));
-    expect((option as HTMLOptionElement).disabled).toBe(true);
+    await user.click(screen.getByTestId('fill-block-1'));
+
+    expect((screen.getByTestId('pick-place-g-done') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('fills a block with the block’s own time and length', async () => {
     const user = userEvent.setup();
     const { onFillBlock } = renderPlanner();
 
-    await user.selectOptions(screen.getByTestId('fill-block-1'), 'g-working');
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
 
     expect(onFillBlock).toHaveBeenCalledWith(
       expect.objectContaining({ startTime: '12:00', durationMinutes: 120 }),
       'g-working',
     );
+  });
+
+  /* The reason a place was saved, which a name cannot carry. */
+  it('shows the notes and the photo kept with a place', async () => {
+    const user = userEvent.setup();
+    renderPlanner({
+      places: [{
+        ...places[0],
+        notes: ['靠窗位子最好', '週末人很多'],
+        photoUrl: 'https://example.com/working.jpg',
+      }],
+    });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+
+    expect(screen.getByText('靠窗位子最好')).toBeTruthy();
+    expect(document.querySelector('img[src="https://example.com/working.jpg"]')).toBeTruthy();
+  });
+
+  /* Fifty saved places is a list nobody reads to the end of. */
+  it('can be searched by name or by what the note says', async () => {
+    const user = userEvent.setup();
+    renderPlanner({ places: [{ ...places[0], notes: ['靠窗位子最好'] }, places[1]] });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.type(screen.getByTestId('place-picker-search'), '靠窗');
+
+    expect(screen.getByTestId('pick-place-g-working')).toBeTruthy();
+    expect(screen.queryByTestId('pick-place-g-diart')).toBeNull();
   });
 });
 
@@ -225,16 +266,31 @@ describe('typing a place into a slot', () => {
   const emptySlot = () => screen.getAllByTestId(/^fill-block-/)[0];
   const indexOf = (element: HTMLElement) =>
     element.getAttribute('data-testid')!.replace('fill-block-', '');
+  /** The way in is the picker now; 自己輸入 sits at the bottom of it. */
+  const openManual = async (user: ReturnType<typeof userEvent.setup>) => {
+    const index = indexOf(emptySlot());
+    await user.click(emptySlot());
+    await user.click(screen.getByTestId('place-picker-manual'));
+    return index;
+  };
 
-  it('offers 自己輸入 at the end of the saved places', () => {
+  it('offers 自己輸入 at the bottom of the picker', async () => {
+    const user = userEvent.setup();
     renderPlanner({ onFillBlockManually: vi.fn() });
-    expect(screen.getAllByText('✎ 自己輸入地點…').length).toBeGreaterThan(0);
+
+    await user.click(emptySlot());
+
+    expect(screen.getByTestId('place-picker-manual')).toBeTruthy();
   });
 
   /** Nothing to type into when the screen above has no way to save it. */
-  it('does not offer it when the caller cannot accept one', () => {
+  it('does not offer it when the caller cannot accept one', async () => {
+    const user = userEvent.setup();
     renderPlanner();
-    expect(screen.queryByText('✎ 自己輸入地點…')).toBeNull();
+
+    await user.click(emptySlot());
+
+    expect(screen.queryByTestId('place-picker-manual')).toBeNull();
   });
 
   it('hands the typed name back, trimmed', async () => {
@@ -242,9 +298,7 @@ describe('typing a place into a slot', () => {
     renderPlanner({ onFillBlockManually });
     const user = userEvent.setup();
 
-    const slot = emptySlot();
-    const index = indexOf(slot);
-    await user.selectOptions(slot, '__manual__');
+    const index = await openManual(user);
     await user.type(screen.getByTestId(`manual-block-input-${index}`), '  Cafe Onion  ');
     await user.click(screen.getByTestId(`manual-block-save-${index}`));
 
@@ -263,8 +317,7 @@ describe('typing a place into a slot', () => {
     renderPlanner({ onFillBlockManually });
     const user = userEvent.setup();
 
-    const index = indexOf(emptySlot());
-    await user.selectOptions(emptySlot(), '__manual__');
+    const index = await openManual(user);
     await user.type(screen.getByTestId(`manual-block-input-${index}`), '   ');
 
     const save = screen.getByTestId(`manual-block-save-${index}`);
@@ -277,19 +330,20 @@ describe('typing a place into a slot', () => {
     renderPlanner({ onFillBlockManually: vi.fn() });
     const user = userEvent.setup();
 
-    const index = indexOf(emptySlot());
-    await user.selectOptions(emptySlot(), '__manual__');
+    const index = await openManual(user);
     await user.click(screen.getByLabelText('取消輸入'));
 
     expect(screen.queryByTestId(`manual-block-input-${index}`)).toBeNull();
     expect(screen.getByTestId(`fill-block-${index}`)).toBeTruthy();
   });
 
-  /** The sentinel must never be mistaken for a place the traveller saved. */
-  it('never passes the sentinel to the saved-place handler', async () => {
+  /** Opening the typing field is not choosing a saved place. */
+  it('never calls the saved-place handler on the way to typing', async () => {
     const { onFillBlock } = renderPlanner({ onFillBlockManually: vi.fn() });
     const user = userEvent.setup();
-    await user.selectOptions(emptySlot(), '__manual__');
+
+    await openManual(user);
+
     expect(onFillBlock).not.toHaveBeenCalled();
   });
 });
@@ -315,52 +369,62 @@ describe('依區分類的下拉選單', () => {
     already has an item in it, so which block numbers are still empty depends
     on the fixture rather than on anything this test is about.
   */
-  const selectLabelled = (needle: string) => Array
-    .from(document.querySelectorAll('select[data-testid^="fill-block-"]'))
-    .find(node => (node.getAttribute('aria-label') || '').includes(needle)) as HTMLSelectElement;
+  const openLabelled = async (needle: string) => {
+    const trigger = Array
+      .from(document.querySelectorAll('[data-testid^="fill-block-"]'))
+      .find(node => (node.getAttribute('aria-label') || '').includes(needle)) as HTMLElement;
+    await userEvent.setup().click(trigger);
+  };
 
-  const groupsIn = (needle: string) => Array.from(
-    selectLabelled(needle).querySelectorAll('optgroup'),
-  ).map(group => group.label);
+  const groupsIn = async (needle: string) => {
+    await openLabelled(needle);
+    return Array.from(document.querySelectorAll('[data-testid="place-picker"] h3'))
+      .map(node => node.textContent || '');
+  };
 
-  const optionsUnder = (needle: string, ward: string) => Array
-    .from(selectLabelled(needle).querySelectorAll('optgroup'))
-    .filter(group => (group as HTMLOptGroupElement).label === ward)
-    .flatMap(group => Array.from(group.querySelectorAll('option')).map(option => option.textContent || ''));
+  const optionsUnder = async (needle: string, ward: string) => {
+    await openLabelled(needle);
+    const heading = Array.from(document.querySelectorAll('[data-testid="place-picker"] section'))
+      .find(node => (node.querySelector('h3')?.textContent || '') === ward);
+    return Array.from(heading?.querySelectorAll('[data-testid^="pick-place-"]') || [])
+      .map(node => node.textContent || '');
+  };
 
-  it('以區為標題，不是以標籤', () => {
+  it('以區為標題，不是以標籤', async () => {
     renderPlanner({ places: tagged });
 
-    expect(groupsIn('行程')).toContain('渋谷区');
-    expect(groupsIn('行程')).toContain('新宿区');
-    expect(groupsIn('行程')).not.toContain('餐廳');
+    const headings = await groupsIn('行程');
+    expect(headings).toContain('渋谷区');
+    expect(headings).toContain('新宿区');
+    expect(headings).not.toContain('餐廳');
   });
 
-  it('類別寫在名字後面的括號裡', () => {
+  it('類別標在名字旁邊', async () => {
     renderPlanner({ places: tagged });
 
-    expect(optionsUnder('行程', '渋谷区').join('|')).toContain('らぁ麺や 嶋（餐廳）');
-    expect(optionsUnder('行程', '新宿区').join('|')).toContain('新宿御苑（景點）');
+    expect((await optionsUnder('行程', '渋谷区')).join('|')).toContain('らぁ麺や 嶋');
+    expect((await optionsUnder('行程', '渋谷区')).join('|')).toContain('餐廳');
+    expect((await optionsUnder('行程', '新宿区')).join('|')).toContain('景點');
   });
 
   /*
     Leading, not filtering: a café can be lunch and a market can be an
     afternoon. A dropdown that hid them would answer a question nobody asked.
   */
-  it('午餐的格子讓同一區裡的餐廳排在前面，但沒有藏起別的', () => {
+  it('午餐的格子讓同一區裡的餐廳排在前面，但沒有藏起別的', async () => {
     renderPlanner({ places: tagged });
 
-    const inShibuya = optionsUnder('午餐', '渋谷区');
+    const inShibuya = await optionsUnder('午餐', '渋谷区');
 
     expect(inShibuya[0]).toContain('らぁ麺や 嶋');
     expect(inShibuya.join('|')).toContain('DIART coffee');
   });
 
   /* 「其他」 is the one heading that says nothing, so it goes last. */
-  it('不知道在哪一區的歸在「其他」，排在最後，不會消失', () => {
+  it('不知道在哪一區的歸在「其他」，排在最後，不會消失', async () => {
     renderPlanner({ places: tagged });
 
-    const labels = groupsIn('行程');
+    const labels = await groupsIn('行程');
     expect(labels[labels.length - 1]).toBe('其他');
     expect(screen.getAllByText('Working holiday').length).toBeGreaterThan(0);
   });
@@ -375,30 +439,36 @@ describe('依區分類的下拉選單', () => {
  */
 describe('清空一格', () => {
   const filled = () => document
-    .querySelector('select[data-testid^="filled-block-"]') as HTMLSelectElement;
+    .querySelector('[data-testid^="filled-block-"]') as HTMLElement;
 
-  it('offers 無 on a filled block', () => {
+  it('offers 清空這格 on a filled block', async () => {
+    const user = userEvent.setup();
     renderPlanner({ onClearBlock: vi.fn() });
 
-    expect(Array.from(filled().querySelectorAll('option')).map(option => option.textContent))
-      .toContain('無（清空這格）');
+    await user.click(filled());
+
+    expect(screen.getByTestId('place-picker-clear')).toBeTruthy();
   });
 
-  it('empties the block when 無 is chosen', async () => {
+  it('empties the block when 清空 is chosen', async () => {
     const onClearBlock = vi.fn();
+    const user = userEvent.setup();
     renderPlanner({ onClearBlock });
 
-    await userEvent.setup().selectOptions(filled(), '__none__');
+    await user.click(filled());
+    await user.click(screen.getByTestId('place-picker-clear'));
 
     expect(onClearBlock).toHaveBeenCalledWith('it-nasari');
   });
 
-  /* The same control swaps the place, so a wrong pick is one action to fix. */
+  /* The same sheet swaps the place, so a wrong pick is one action to fix. */
   it('swaps the place when another one is chosen', async () => {
     const onClearBlock = vi.fn();
+    const user = userEvent.setup();
     const { onFillBlock } = renderPlanner({ onClearBlock });
 
-    await userEvent.setup().selectOptions(filled(), 'g-diart');
+    await user.click(filled());
+    await user.click(screen.getByTestId('pick-place-g-diart'));
 
     expect(onClearBlock).toHaveBeenCalledWith('it-nasari');
     expect(onFillBlock).toHaveBeenCalledWith(expect.anything(), 'g-diart');

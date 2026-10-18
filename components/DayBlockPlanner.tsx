@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, Clock3, Plus } from 'lucide-react';
+import PlacePickerSheet from './PlacePickerSheet';
 import { ItineraryItem, PlaceCategory } from '../types';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import { AREA_COLORS } from '../constants/areaColors';
@@ -47,8 +48,11 @@ interface PlaceOption {
   district?: string;
   /** True when it is already somewhere on this trip's plan. */
   alreadyPlanned?: boolean;
-  /** 🏷️ 景點 / 餐廳 / … The dropdown groups by it. See `placeCategory`. */
+  /** 🏷️ 景點 / 餐廳 / … The picker groups by it. See `placeCategory`. */
   category?: PlaceCategory;
+  /** The photo it was saved with, and the notes kept about it. */
+  photoUrl?: string;
+  notes?: string[];
 }
 
 interface Props {
@@ -161,6 +165,14 @@ const DayBlockPlanner: React.FC<Props> = ({
     gets forgotten.
   */
   const [typingAt, setTypingAt] = useState<number | null>(null);
+  /*
+    「這個下拉式選單是不足夠的 應該要 pop up 一個視窗讓用戶滑看筆記跟圖片才會知道」.
+
+    The dropdown stays as the control that reports what is in a slot; choosing
+    now happens in a sheet, where the note and the photo are. A name is what a
+    place is called, not what it is.
+  */
+  const [pickingAt, setPickingAt] = useState<number | null>(null);
   const [typed, setTyped] = useState('');
 
   const cancelTyping = () => { setTypingAt(null); setTyped(''); };
@@ -617,31 +629,15 @@ const DayBlockPlanner: React.FC<Props> = ({
                       able to empty one.
                     */}
                     {onClearBlock && !fixed ? (
-                      <select
+                      <button
+                        type="button"
                         data-testid={`filled-block-${slot.index}`}
                         aria-label={`${slot.startTime} ${slot.label}・${occupant.location || occupant.title}`}
-                        value=""
-                        onChange={event => {
-                          const picked = event.target.value;
-                          if (!picked) return;
-                          onClearBlock(occupant.id);
-                          if (picked !== CLEAR_OPTION) onFillBlock(slot, picked);
-                        }}
-                        className="min-w-0 flex-1 truncate rounded-lg border border-transparent bg-transparent px-0 py-1 text-xs font-bold text-[#11183d]"
+                        onClick={() => setPickingAt(slot.index)}
+                        className="min-w-0 flex-1 truncate text-left text-xs font-bold text-[#11183d] underline decoration-violet-200 underline-offset-4"
                       >
-                        <option value="">{occupant.location || occupant.title}</option>
-                        <option value={CLEAR_OPTION}>無（清空這格）</option>
-                        {groupedOptionsFor(slot).map(group => (
-                          <optgroup key={group.label} label={group.label}>
-                            {group.places.map(place => (
-                              <option key={place.id} value={place.id} disabled={place.alreadyPlanned}>
-                                {tagOf(place) ? `${place.placeName}（${tagOf(place)}）` : place.placeName}
-                                {place.alreadyPlanned ? '・已在行程中' : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
+                        {occupant.location || occupant.title}
+                      </button>
                     ) : (
                       <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#11183d]">
                         {occupant.location || occupant.title}
@@ -703,35 +699,15 @@ const DayBlockPlanner: React.FC<Props> = ({
                       </button>
                     </span>
                   ) : (
-                  <select
+                  <button
+                    type="button"
                     data-testid={`fill-block-${slot.index}`}
                     aria-label={`${slot.startTime} ${slot.label}`}
-                    value=""
-                    onChange={event => {
-                      const picked = event.target.value;
-                      if (!picked) return;
-                      if (picked === MANUAL_OPTION) { setTypingAt(slot.index); setTyped(''); return; }
-                      onFillBlock(slot, picked);
-                    }}
-                    className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-violet-50/40 px-2 py-1.5 text-xs font-bold text-[#5b3df5]"
+                    onClick={() => setPickingAt(slot.index)}
+                    className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-violet-50/40 px-2 py-1.5 text-left text-xs font-bold text-[#5b3df5]"
                   >
-                    <option value="">＋ 選一個地點</option>
-                    {groupedOptionsFor(slot).map(group => (
-                      <optgroup key={group.label} label={group.label}>
-                        {group.places.map(place => (
-                          <option key={place.id} value={place.id} disabled={place.alreadyPlanned}>
-                            {tagOf(place) ? `${place.placeName}（${tagOf(place)}）` : place.placeName}
-                            {place.alreadyPlanned ? '・已在行程中' : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                    {/* Last, because the saved places are the common answer and
-                        this is the way out when none of them is. */}
-                    {onFillBlockManually && (
-                      <option value={MANUAL_OPTION}>✎ 自己輸入地點…</option>
-                    )}
-                  </select>
+                    ＋ 選一個地點
+                  </button>
                   )}
                   </>
                 )}
@@ -811,6 +787,37 @@ const DayBlockPlanner: React.FC<Props> = ({
           </span>
         </p>
       )}
+
+      {/*
+        Choosing happens here, where the note and the photo are. See
+        `PlacePickerSheet`.
+      */}
+      {pickingAt !== null && (() => {
+        const slot = slots.find(candidate => candidate.index === pickingAt);
+        if (!slot) return null;
+        const sitting = slot.occupantId ? itemById.get(slot.occupantId) : undefined;
+        return (
+          <PlacePickerSheet
+            title={`${slot.startTime}–${slot.endTime}・${slot.label}`}
+            places={groupedOptionsFor(slot).flatMap(group => group.places)}
+            onPick={placeId => {
+              setPickingAt(null);
+              if (sitting) {
+                onClearBlock?.(sitting.id);
+                if (sitting.id === placeId) return;
+              }
+              onFillBlock(slot, placeId);
+            }}
+            onClose={() => setPickingAt(null)}
+            onClear={sitting && onClearBlock
+              ? () => { setPickingAt(null); onClearBlock(sitting.id); }
+              : undefined}
+            onTypeYourOwn={onFillBlockManually
+              ? () => { setPickingAt(null); setTypingAt(slot.index); setTyped(''); }
+              : undefined}
+          />
+        );
+      })()}
 
       <p className="mt-2 text-[10px] leading-4 text-slate-400">
         每格預設 {minutesLabel(BLOCK_MINUTES)}，含移動時間。改了長度，後面的時段會自動順延或提前。

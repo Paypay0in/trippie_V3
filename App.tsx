@@ -3088,6 +3088,15 @@ const App: React.FC = () => {
         */
         latitude: group.coordinates?.latitude,
         longitude: group.coordinates?.longitude,
+        /*
+          Why this place was saved, for the picker.
+
+          「這個下拉式選單是不足夠的 應該要 pop up 一個視窗讓用戶滑看筆記跟圖片才會
+          知道」 — a dropdown offers names, and the reason somebody saved a place
+          is in the note they kept and the photo it came with.
+        */
+        photoUrl: group.placePhotoUrl,
+        notes: group.experienceNotes.map((note) => note.text),
       };
     });
   }, [tripScopedInspirations, tripInspirationContext, itinerary, tripAreas]);
