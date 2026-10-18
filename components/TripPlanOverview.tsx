@@ -1,5 +1,6 @@
 import { entryPoints, worthListing } from '../services/entryPoints';
 import { useTicketTodos } from './useTicketTodos';
+import { ERRAND_ID_PREFIX, ticketErrands } from '../services/ticketErrands';
 import { loadBoughtTickets, toggleBoughtTicket } from '../services/ticketsBought';
 import { planningDestination } from '../services/planningDestination';
 import React, { useEffect, useState } from 'react';
@@ -327,8 +328,26 @@ const TripPlanOverview: React.FC<Props> = ({
       )
       .map(task => task.id),
   );
-  const helpEligibleTasks = ownTasks.filter(task => helpEligibleIds.has(task.id));
-  const selectedHelpTasks = ownTasks.filter(task => selectedHelpTaskIds.includes(task.id));
+  /*
+    The bookings and tickets, as errands somebody else could run.
+
+    「這邊就是可以服務功能可以出現的地方～ 可以發包要求給別人」. See `ticketErrands`.
+  */
+  const ticketErrandTasks = ticketErrands(ticketTodos
+    .filter(todo => !bought.includes(todo.itemId))
+    .map(todo => ({
+      itemId: todo.itemId,
+      placeName: todo.placeName,
+      kind: todo.kind,
+      date: todo.date,
+      bookingUrl: todo.bookingOptions?.[0]?.url,
+    })));
+
+  const helpEligibleTasks = [
+    ...ownTasks.filter(task => helpEligibleIds.has(task.id)),
+    ...ticketErrandTasks,
+  ];
+  const selectedHelpTasks = helpEligibleTasks.filter(task => selectedHelpTaskIds.includes(task.id));
   const toggleHelpTask = (taskId: string) =>
     setSelectedHelpTaskIds(current =>
       current.includes(taskId) ? current.filter(id => id !== taskId) : [...current, taskId],
@@ -669,6 +688,26 @@ const TripPlanOverview: React.FC<Props> = ({
                         the whole licence for generating them — a search page
                         for a name cannot be wrong the way a product page can.
                       */}
+                      {/*
+                        「可以發包要求給別人」 — the same errand selection the
+                        shopping to-dos use, on the one kind of chore that is
+                        hardest to do from another country. See `ticketErrands`.
+                      */}
+                      {!done && onPublishServiceRequest && (
+                        <button
+                          type="button"
+                          data-testid={`ticket-help-${todo.itemId}`}
+                          onClick={() => toggleHelpTask(`${ERRAND_ID_PREFIX}${todo.itemId}`)}
+                          className={`mt-1 inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10px] font-black ${
+                            selectedHelpTaskIds.includes(`${ERRAND_ID_PREFIX}${todo.itemId}`)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-blue-50 text-blue-700'
+                          }`}
+                        >
+                          <Handshake size={11} />
+                          {selectedHelpTaskIds.includes(`${ERRAND_ID_PREFIX}${todo.itemId}`) ? '已加入協助任務' : '找人幫忙'}
+                        </button>
+                      )}
                       {!done && (todo.bookingOptions || []).length > 0 && (
                         <span data-testid={`ticket-links-${todo.itemId}`} className="mt-1 flex flex-wrap gap-1">
                           {(todo.bookingOptions || []).map(option => (
