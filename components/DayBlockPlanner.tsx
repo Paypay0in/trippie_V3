@@ -119,6 +119,14 @@ interface Props {
    * change that cannot quietly lose a slot.
    */
   onSwapBlocks?: (firstId: string, secondId: string) => void;
+  /**
+   * Moves a stop into an empty row, by giving it that row's start time.
+   *
+   * 「這樣點擊就是一直在交換行程」 — the arrows only traded, so a day with gaps in
+   * it could never use them to fill one. Moving into a blank is the common
+   * case, not the edge: most days have more rows than stops.
+   */
+  onShiftBlock?: (itemId: string, startTime: string) => void;
 }
 
 /** 「一個行程都預設抓 2 小時」, and the lengths worth offering around it. */
@@ -140,6 +148,7 @@ const DayBlockPlanner: React.FC<Props> = ({
   onUnpin,
   categoryOf,
   onSwapBlocks,
+  onShiftBlock,
   onShiftDay,
   country,
   isFixed,
@@ -306,17 +315,23 @@ const DayBlockPlanner: React.FC<Props> = ({
 
     A fixed row is a wall rather than a partner — the day is built around it.
   */
-  const neighbour = (slot: DaySlot, step: 1 | -1): ItineraryItem | undefined => {
-    for (let index = slot.index + step; index >= 0 && index < slots.length; index += step) {
-      const candidate = slots[index];
-      const item = candidate.occupantId ? itemById.get(candidate.occupantId) : undefined;
-      if (!item) continue;
-      return isFixed?.(item) ? undefined : item;
-    }
-    return undefined;
+  const neighbour = (slot: DaySlot, step: 1 | -1): DaySlot | undefined => {
+    const next = slots[slot.index + step];
+    if (!next) return undefined;
+    const sitting = next.occupantId ? itemById.get(next.occupantId) : undefined;
+    // A fixed row is a wall: the day is built around it and nothing trades with
+    // it. An empty one is somewhere to go.
+    return sitting && isFixed?.(sitting) ? undefined : next;
   };
   const swapUp = (slot: DaySlot) => neighbour(slot, -1);
   const swapDown = (slot: DaySlot) => neighbour(slot, 1);
+
+  /** Moves a stop one row, trading places if that row is taken. */
+  const moveTo = (item: ItineraryItem, target: DaySlot) => {
+    const sitting = target.occupantId ? itemById.get(target.occupantId) : undefined;
+    if (sitting) { onSwapBlocks?.(item.id, sitting.id); return; }
+    onShiftBlock?.(item.id, target.startTime);
+  };
 
   return (
     <section data-testid="day-block-planner" className="mb-4 rounded-[22px] border border-[#e8e7f4] bg-white p-3">
@@ -457,22 +472,26 @@ const DayBlockPlanner: React.FC<Props> = ({
               >
                 <span className="flex w-[86px] shrink-0 items-center gap-1">
                   {/*
-                    「這邊在左邊欄位直接可以有上下箭頭去移動排序」.
+                    「這邊在左邊欄位直接可以有上下箭頭去移動排序」, and then
+                    「這樣點擊就是一直在交換行程」.
 
-                    Only between two filled rows, and never involving a fixed
-                    one: swapping a flight with lunch is not a reorder, it is
-                    a broken day. An arrow with nothing to trade with is not
-                    rendered rather than rendered dead — a button that does
-                    nothing teaches people the row cannot move.
+                    The first version skipped empty rows to find something to
+                    trade with, so on a day of two stops five hours apart the
+                    arrows only ever swapped those two back and forth. 「Move
+                    down」 means the next row — and when that row is empty,
+                    moving into it is the whole point, not a no-op.
+
+                    A fixed row is still a wall: swapping a flight with lunch
+                    is not a reorder, it is a broken day.
                   */}
-                  {onSwapBlocks && occupant && !fixed && (swapUp(slot) || swapDown(slot)) ? (
+                  {(onSwapBlocks || onShiftBlock) && occupant && !fixed && (swapUp(slot) || swapDown(slot)) ? (
                     <span className="flex shrink-0 flex-col">
                       <button
                         type="button"
                         data-testid={`move-up-${slot.index}`}
                         aria-label={`${occupant.location || occupant.title} 往前移`}
                         disabled={!swapUp(slot)}
-                        onClick={() => { const other = swapUp(slot); if (other) onSwapBlocks(occupant.id, other.id); }}
+                        onClick={() => { const target = swapUp(slot); if (target) moveTo(occupant, target); }}
                         className="px-0.5 text-slate-300 disabled:opacity-30"
                       >
                         <ChevronUp size={12} />
@@ -482,7 +501,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                         data-testid={`move-down-${slot.index}`}
                         aria-label={`${occupant.location || occupant.title} 往後移`}
                         disabled={!swapDown(slot)}
-                        onClick={() => { const other = swapDown(slot); if (other) onSwapBlocks(occupant.id, other.id); }}
+                        onClick={() => { const target = swapDown(slot); if (target) moveTo(occupant, target); }}
                         className="px-0.5 text-slate-300 disabled:opacity-30"
                       >
                         <ChevronDown size={12} />

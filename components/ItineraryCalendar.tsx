@@ -1156,6 +1156,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             onUpdateItem(firstId, { time: second.time });
             onUpdateItem(secondId, { time: first.time });
           } : undefined}
+          /* Into an empty row: the stop simply takes that row's hour. */
+          onShiftBlock={onUpdateItem ? (itemId, startTime) => onUpdateItem(itemId, { time: startTime }) : undefined}
           /*
             Written one item at a time through the path that already persists a
             time change — the same one the inline time field uses. 「橘色處調 紅色

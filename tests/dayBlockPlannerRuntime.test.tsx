@@ -523,9 +523,9 @@ describe('上下箭頭', () => {
     ...over,
   });
 
-  it('swaps the two stops either way round', async () => {
+  it('swaps with the next row when something is already in it', async () => {
     const onSwapBlocks = vi.fn();
-    renderTwo({ onSwapBlocks });
+    renderTwo({ onSwapBlocks, onShiftBlock: vi.fn() });
 
     await userEvent.setup().click(screen.getByTestId('move-down-0'));
 
@@ -534,7 +534,7 @@ describe('上下箭頭', () => {
 
   it('moves the second one back up', async () => {
     const onSwapBlocks = vi.fn();
-    renderTwo({ onSwapBlocks });
+    renderTwo({ onSwapBlocks, onShiftBlock: vi.fn() });
 
     await userEvent.setup().click(screen.getByTestId('move-up-1'));
 
@@ -542,11 +542,44 @@ describe('上下箭頭', () => {
   });
 
   /*
+    「這樣點擊就是一直在交換行程」.
+
+    The first version skipped empty rows looking for something to trade with,
+    so a day of two stops hours apart could only ever swap those two back and
+    forth. 「Move down」 means the next row, and when that row is empty, moving
+    into it is the point.
+  */
+  it('moves into the next row when it is empty', async () => {
+    const spread = [
+      item('it-museum', '東京都現代美術館', '13:54', {
+        latitude: 35.6805, longitude: 139.8075, address: 'Koto City, Tokyo',
+      }),
+      item('it-hoppy', 'Hoppy Street', '19:00', {
+        latitude: 35.7142, longitude: 139.7967, address: 'Taito City, Tokyo',
+      }),
+    ];
+    const onShiftBlock = vi.fn();
+    const onSwapBlocks = vi.fn();
+    renderPlanner({
+      items: spread,
+      areas: buildTripAreas({ itinerary: spread }),
+      onShiftBlock,
+      onSwapBlocks,
+    });
+
+    // 13:54 lands in block 2 — blocks 0 and 1 are the empty morning before it.
+    await userEvent.setup().click(screen.getByTestId('move-down-2'));
+
+    expect(onShiftBlock).toHaveBeenCalledWith('it-museum', '15:54');
+    expect(onSwapBlocks).not.toHaveBeenCalled();
+  });
+
+  /*
     An arrow with nothing to trade with is not rendered. A dead button teaches
     people the row cannot move at all.
   */
   it('offers nothing when there is only one stop', () => {
-    renderPlanner();
+    renderPlanner({ onSwapBlocks: undefined, onShiftBlock: undefined });
 
     expect(document.querySelector('[data-testid^="move-up-"]')).toBeNull();
     expect(document.querySelector('[data-testid^="move-down-"]')).toBeNull();
@@ -555,7 +588,7 @@ describe('上下箭頭', () => {
   /* A flight is a wall, not a partner: swapping it with lunch breaks the day. */
   it('refuses to trade with a fixed row', () => {
     const onSwapBlocks = vi.fn();
-    renderTwo({ onSwapBlocks, isFixed: (entry: ItineraryItem) => entry.id === 'it-working' });
+    renderTwo({ onSwapBlocks, onShiftBlock: vi.fn(), isFixed: (entry: ItineraryItem) => entry.id === 'it-working' });
 
     expect(document.querySelector('[data-testid^="move-down-"]')).toBeNull();
   });
