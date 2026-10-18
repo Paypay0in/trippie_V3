@@ -162,3 +162,45 @@ describe('一天裡不在地面上的那一點', () => {
     expect(stopsOnTheGround([stop('a', 35.6, 139.7), stop('b', 25.0, 121.2)])).toHaveLength(2);
   });
 });
+
+/**
+ * 「收藏區可以每一區也都給一張靜態地圖嗎」.
+ *
+ * A day is walked in an order and the line is that order. A collection is not.
+ */
+describe('a map with no route through it', () => {
+  const pins = [
+    { id: 'a', number: 0, latitude: 35.7148, longitude: 139.7967 },
+    { id: 'b', number: 0, latitude: 35.7100, longitude: 139.7900 },
+  ];
+
+  it('draws the pins and no path', () => {
+    const query = dayMapQuery({ stops: pins, width: 640, height: 220, connect: false });
+
+    expect(query.getAll('markers')).toHaveLength(2);
+    expect(query.getAll('path')).toHaveLength(0);
+  });
+
+  /* Even a route the caller handed in: the collection never had an order. */
+  it('ignores encoded paths when it is not connecting', () => {
+    const query = dayMapQuery({
+      stops: pins, width: 640, height: 220, connect: false, encodedPaths: ['abcdef'],
+    });
+
+    expect(query.getAll('path')).toHaveLength(0);
+  });
+
+  /* A day still joins its stops — every existing caller passes nothing. */
+  it('still connects by default', () => {
+    const query = dayMapQuery({ stops: pins, width: 640, height: 220 });
+
+    expect(query.getAll('path')).toHaveLength(1);
+  });
+
+  /* 0 is not a pin number, so no 1..9 label is invented for a collection. */
+  it('labels nothing when the stops are unnumbered', () => {
+    const query = dayMapQuery({ stops: pins, width: 640, height: 220, connect: false });
+
+    query.getAll('markers').forEach(marker => expect(marker).not.toContain('label:'));
+  });
+});

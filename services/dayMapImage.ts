@@ -129,6 +129,15 @@ export interface DayMapRequest {
   encodedPaths?: string[];
   width: number;
   height: number;
+  /**
+   * Whether to draw a line through the pins.
+   *
+   * 「收藏區可以每一區也都給一張靜態地圖嗎」 — a day is walked in an order and the
+   * line is that order. A collection is not: joining 十三個收藏 with a line
+   * would draw a route nobody plans to take, in the order they happened to be
+   * saved. Defaults to true, which is every existing caller.
+   */
+  connect?: boolean;
 }
 
 /**
@@ -137,7 +146,7 @@ export interface DayMapRequest {
  * No centre and no zoom: with markers and paths present, Static Maps frames
  * them itself, and anything we computed would be a worse version of that.
  */
-export const dayMapQuery = ({ stops, encodedPaths = [], width, height }: DayMapRequest): URLSearchParams => {
+export const dayMapQuery = ({ stops, encodedPaths = [], width, height, connect = true }: DayMapRequest): URLSearchParams => {
   const query = new URLSearchParams();
   query.set('size', `${Math.round(width)}x${Math.round(height)}`);
   // Retina. The map is read on a phone, where the unscaled version is mush.
@@ -152,10 +161,10 @@ export const dayMapQuery = ({ stops, encodedPaths = [], width, height }: DayMapR
     );
   }
 
-  const paths = encodedPaths.filter(Boolean);
+  const paths = connect ? encodedPaths.filter(Boolean) : [];
   if (paths.length > 0) {
     for (const path of paths) query.append('path', `color:${PIN}c0|weight:4|enc:${path}`);
-  } else if (stops.length > 1) {
+  } else if (connect && stops.length > 1) {
     query.append(
       'path',
       `color:${PIN}c0|weight:4|${stops.map(stop => `${stop.latitude},${stop.longitude}`).join('|')}`,

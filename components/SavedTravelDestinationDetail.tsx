@@ -13,6 +13,7 @@ import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import SavedPlaceCard from './SavedPlaceCard';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
+import { dayMapSrc } from '../services/dayMapImage';
 import { findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
 
 type Props = {
@@ -271,10 +272,44 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
         const creator = creatorById.get(item.sourceCreatorId);
         return <React.Fragment key={item.id}>
           {headingChanged && (
-            <div data-testid={`saved-area-${area?.label || 'unplaced'}`} className="flex items-center gap-2 pt-1">
-              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${AREA_COLORS[(area?.colorIndex ?? 0) % AREA_COLORS.length].dot}`} />
-              <span className="text-xs font-black text-[#11183d]">{area?.label || '還沒定位的地點'}</span>
-              <span className="text-[11px] font-bold text-slate-400">{areaSize} 個</span>
+            <div data-testid={`saved-area-${area?.label || 'unplaced'}`} className="pt-1">
+              <div className="flex items-center gap-2">
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${AREA_COLORS[(area?.colorIndex ?? 0) % AREA_COLORS.length].dot}`} />
+                <span className="text-xs font-black text-[#11183d]">{area?.label || '還沒定位的地點'}</span>
+                <span className="text-[11px] font-bold text-slate-400">{areaSize} 個</span>
+              </div>
+              {/*
+                「收藏區可以每一區也都給一張靜態地圖嗎」.
+
+                An area is a claim about which places are near each other, and
+                the list below it is thirteen names that cannot be checked
+                against that claim. The map is the claim, drawn.
+
+                Numbered pins are deliberately not used: a collection has no
+                order to walk, and 1..9 beside these names would invent one.
+                Same endpoint as the day map, so the key stays on the server.
+              */}
+              {(() => {
+                const inArea = ordered.filter(entry => areaOf.get(entry.id)?.label === area?.label);
+                const pins = inArea
+                  .filter(entry => typeof entry.latitude === 'number' && typeof entry.longitude === 'number')
+                  .map(entry => ({
+                    id: entry.id,
+                    number: 0,
+                    latitude: entry.latitude as number,
+                    longitude: entry.longitude as number,
+                  }));
+                if (pins.length < 2) return null;
+                return (
+                  <img
+                    data-testid={`saved-area-map-${area?.label || 'unplaced'}`}
+                    src={dayMapSrc({ stops: pins, width: 640, height: 220, connect: false })}
+                    alt={`${area?.label || ''} 的收藏地點分布`}
+                    loading="lazy"
+                    className="mt-2 h-[110px] w-full rounded-2xl object-cover"
+                  />
+                );
+              })()}
             </div>
           )}
           <article className="relative flex gap-3 rounded-[20px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,.06)]">
