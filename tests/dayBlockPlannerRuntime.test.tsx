@@ -455,3 +455,45 @@ describe('取消固定', () => {
     expect(screen.getAllByText('固定').length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * 「在這個表上可以跟用戶再確認一次」.
+ *
+ * His 晚餐 rows held Leaves Coffee Roasters and Lonich. The automatic rules
+ * move a restaurant into a free meal window; what they cannot do is notice a
+ * window ended up with a café in it.
+ */
+describe('這一餐真的是這個嗎', () => {
+  const dinner = [
+    item('it-coffee', 'Leaves Coffee Roasters', '18:30', {
+      latitude: 35.7142, longitude: 139.7967, address: 'Sumida City, Tokyo',
+    }),
+  ];
+
+  const renderDinner = (tag?: string) => renderPlanner({
+    items: dinner,
+    areas: buildTripAreas({ itinerary: dinner }),
+    categoryOf: () => tag,
+  });
+
+  it('asks when a café is sitting in a meal slot', () => {
+    renderDinner('cafe');
+
+    const asked = document.querySelector('[data-testid^="meal-check-"]');
+    expect(asked?.textContent).toContain('Leaves Coffee Roasters');
+    expect(asked?.textContent).toContain('咖啡');
+  });
+
+  it('says nothing when the slot holds a restaurant', () => {
+    renderDinner('food');
+
+    expect(document.querySelector('[data-testid^="meal-check-"]')).toBeNull();
+  });
+
+  /* 「I cannot tell what this is」 is not a reason to query someone's dinner. */
+  it('says nothing when the tag is unknown', () => {
+    renderDinner(undefined);
+
+    expect(document.querySelector('[data-testid^="meal-check-"]')).toBeNull();
+  });
+});

@@ -96,6 +96,16 @@ interface Props {
    * the timeline below; the consequence shows up here.
    */
   onUnpin?: (itemId: string) => void;
+  /**
+   * The 🏷️ tag for something already on the plan, so a meal slot can check
+   * what is sitting in it.
+   *
+   * 「在這個表上可以跟用戶再確認一次」 — his 晚餐 rows held Leaves Coffee Roasters
+   * and Lonich. The automatic rules place a restaurant in a window when there
+   * is one spare; they cannot tell him a window ended up with a café in it.
+   * Omitted asks nothing.
+   */
+  categoryOf?: (item: ItineraryItem) => string | undefined;
 }
 
 /** 「一個行程都預設抓 2 小時」, and the lengths worth offering around it. */
@@ -115,6 +125,7 @@ const DayBlockPlanner: React.FC<Props> = ({
   onChangeDuration,
   onClearBlock,
   onUnpin,
+  categoryOf,
   onShiftDay,
   country,
   isFixed,
@@ -371,9 +382,27 @@ const DayBlockPlanner: React.FC<Props> = ({
             const area = occupant && areas ? areas.areaOfItem(occupant.id) : undefined;
             const fixed = occupant ? Boolean(isFixed?.(occupant)) : false;
 
+            /*
+              「在這個表上可以跟用戶再確認一次」.
+
+              His 晚餐 rows held Leaves Coffee Roasters and Lonich. The
+              automatic rules move a restaurant into a free meal window; what
+              they cannot do is notice that a window ended up with a café in
+              it and say so. Asked, never corrected — 咖啡當晚餐 is a real
+              evening, and the row's own dropdown is already the way to change
+              it if it was not meant.
+
+              Silent when the tag is unknown: 「I cannot tell what this is」 is
+              not a reason to query someone's dinner.
+            */
+            const tag = occupant && categoryOf ? categoryOf(occupant) : undefined;
+            const askAboutTheMeal = slot.kind === 'meal' && occupant && tag && tag !== 'food'
+              ? `這格是${slot.label}，但「${occupant.location || occupant.title}」是${CATEGORY_LABELS[tag as PlaceCategory] || tag}。確定嗎？`
+              : undefined;
+
             return (
+              <React.Fragment key={slot.id}>
               <div
-                key={slot.id}
                 data-testid={`day-block-${slot.index}`}
                 className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2"
               >
@@ -568,6 +597,15 @@ const DayBlockPlanner: React.FC<Props> = ({
                   <span className="shrink-0 rounded-lg bg-slate-100 px-1.5 py-1 text-[10px] font-bold text-slate-500">固定</span>
                 ) : null}
               </div>
+              {askAboutTheMeal && (
+                <p
+                  data-testid={`meal-check-${slot.index}`}
+                  className="ml-2.5 mt-0.5 text-[10px] font-bold leading-4 text-amber-600"
+                >
+                  {askAboutTheMeal}
+                </p>
+              )}
+              </React.Fragment>
             );
           })}
         </div>
