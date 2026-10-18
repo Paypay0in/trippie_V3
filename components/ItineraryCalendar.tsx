@@ -1553,7 +1553,21 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         */}
         {mapMode && dayItems.length > 0 && (
           <div className="mb-4">
-            <DayMap items={previewItemsTimed ?? previewItems.filter(isTimedItem)} />
+            {/*
+              「住宿點的圖釘呢」 — the stay is a span over nights, not a stop on
+              any one day, so a day with no 住宿 card drew no house. The one
+              the day starts from, which is also where it ends on every night
+              but a check-out. See `morningStay`.
+            */}
+            <DayMap
+              items={previewItemsTimed ?? previewItems.filter(isTimedItem)}
+              lodging={(() => {
+                const stay = morningStay || tonightsStay;
+                return stay && typeof stay.latitude === 'number' && typeof stay.longitude === 'number'
+                  ? { name: stay.name, latitude: stay.latitude, longitude: stay.longitude }
+                  : undefined;
+              })()}
+            />
           </div>
         )}
         {dayItems.length === 0 ? (

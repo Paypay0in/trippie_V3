@@ -291,13 +291,22 @@ const carryPlace = (
   stay: StaySpan,
   item: { placeId?: string; latitude?: number; longitude?: number },
 ): void => {
-  if (stay.placeId || !item.placeId) return;
-  stay.placeId = item.placeId;
-  if (typeof item.latitude === 'number' && Number.isFinite(item.latitude)
+  /*
+    Coordinates are coordinates.
+
+    This used to return early unless the item carried a `placeId`, so a stay
+    located by its address — geocoded, with real numbers on it — reached the
+    map with no position at all. 「住宿點的圖釘呢」: the house cannot be drawn
+    for a stay whose latitude was dropped on the way through.
+  */
+  if (typeof stay.latitude !== 'number'
+    && typeof item.latitude === 'number' && Number.isFinite(item.latitude)
     && typeof item.longitude === 'number' && Number.isFinite(item.longitude)) {
     stay.latitude = item.latitude;
     stay.longitude = item.longitude;
   }
+  if (stay.placeId || !item.placeId) return;
+  stay.placeId = item.placeId;
 };
 
 const CHECK_IN_PREFIX = '入住 ';

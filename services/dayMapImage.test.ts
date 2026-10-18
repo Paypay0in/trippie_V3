@@ -238,6 +238,35 @@ describe('the place you sleep', () => {
   });
 
   /*
+    「住宿點的圖釘呢」 — and the house is drawn, not walked. The connector is the
+    order the day is walked in; running it out to the hotel adds a leg nobody
+    planned and no route was fetched for.
+  */
+  it('is left out of the line through the stops', () => {
+    const query = dayMapQuery({
+      stops: [
+        stop('a', 1),
+        stop('b', 2, { latitude: 35.66, longitude: 139.70 }),
+        stop('hotel', 3, { lodging: true, latitude: 35.63, longitude: 139.88 }),
+      ],
+      width: 640, height: 400, origin: 'https://example.com',
+    });
+
+    expect(query.get('path')).not.toContain('139.88');
+    expect(query.get('path')).toContain('139.7');
+  });
+
+  /* One stop and a house is not a route; no line at all. */
+  it('draws no line for a day with one stop and a bed', () => {
+    const query = dayMapQuery({
+      stops: [stop('a', 1), stop('hotel', 2, { lodging: true, latitude: 35.63, longitude: 139.88 })],
+      width: 640, height: 400, origin: 'https://example.com',
+    });
+
+    expect(query.get('path')).toBeNull();
+  });
+
+  /*
     Static Maps fetches the icon itself, so a relative path is not something
     it can resolve. With no origin the stop keeps an ordinary pin rather than
     asking for a URL that cannot work.

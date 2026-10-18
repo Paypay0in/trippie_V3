@@ -196,12 +196,22 @@ export const dayMapQuery = ({
   }
 
   const paths = connect ? encodedPaths.filter(Boolean) : [];
+  /*
+    The lodging is drawn, not walked.
+
+    「住宿點的圖釘呢」 — the house marks where the day starts and ends, and it is
+    on the map so the stops can be read against it. Joining it into the
+    connector would add a leg nobody planned and that no route was fetched
+    for: the line is the order the day is walked in, and the house is not a
+    stop in that order.
+  */
+  const walked = stops.filter(stop => !stop.lodging);
   if (paths.length > 0) {
     for (const path of paths) query.append('path', `color:${PIN}c0|weight:4|enc:${path}`);
-  } else if (connect && stops.length > 1) {
+  } else if (connect && walked.length > 1) {
     query.append(
       'path',
-      `color:${PIN}c0|weight:4|${stops.map(stop => `${stop.latitude},${stop.longitude}`).join('|')}`,
+      `color:${PIN}c0|weight:4|${walked.map(stop => `${stop.latitude},${stop.longitude}`).join('|')}`,
     );
   }
 

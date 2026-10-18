@@ -247,3 +247,75 @@ describe('沒有筆記的行程卡', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 「住宿點的圖釘呢」.
+ *
+ * 朋友家 is a stay spanning several nights, not a stop on any one of them, so
+ * a day with no 住宿 card drew no house at all — and the hotel is the thing
+ * every other pin is read against.
+ */
+describe('the bed on the day map', () => {
+  /* The pair the stay intake reads: 入住 on one day, 退房 on another. */
+  const stay = (over: Partial<ItineraryItem> = {}): ItineraryItem[] => [
+    {
+      id: 'stay-in', title: '入住 朋友家', location: '朋友家', notes: '', type: 'HOTEL',
+      date: DAY, time: '15:00', fixedEventKind: 'accommodation',
+      latitude: 35.7100, longitude: 139.7950, ...over,
+    },
+    {
+      id: 'stay-out', title: '退房 朋友家', location: '朋友家', notes: '', type: 'HOTEL',
+      date: '2026-10-24', time: '10:00', fixedEventKind: 'accommodation',
+      latitude: 35.7100, longitude: 139.7950, ...over,
+    },
+  ] as ItineraryItem[];
+
+  it('draws the house from the stay, on a day with no 住宿 card', () => {
+    render(<ItineraryCalendar
+      items={[...stay(), stop('淺草寺', '10:30', { date: '2026-10-21' }), stop('晴空塔', '14:00', { date: '2026-10-21', longitude: 139.81 })]}
+      startDate="2026-10-21"
+      endDate="2026-10-24"
+    />);
+
+    fireEvent.click(screen.getByTestId('toggle-map-mode'));
+
+    const src = (screen.getByTestId('day-map-image') as HTMLImageElement).src;
+    expect(decodeURIComponent(src)).toContain('icons/lodging-pin.png');
+  });
+
+  /* Once, not twice: a day that carries its own 住宿 card already has a house. */
+  it('does not add a second one on the check-in day', () => {
+    render(<ItineraryCalendar items={[...stay(), stop('淺草寺', '18:00')]} startDate={DAY} endDate={DAY} />);
+
+    fireEvent.click(screen.getByTestId('toggle-map-mode'));
+
+    const src = decodeURIComponent((screen.getByTestId('day-map-image') as HTMLImageElement).src);
+    expect(src.split('lodging-pin.png').length - 1).toBe(1);
+  });
+
+  it('names it in the list under the map', () => {
+    render(<ItineraryCalendar
+      items={[...stay(), stop('淺草寺', '10:30', { date: '2026-10-21' })]}
+      startDate="2026-10-21"
+      endDate="2026-10-24"
+    />);
+
+    fireEvent.click(screen.getByTestId('toggle-map-mode'));
+
+    expect(screen.getByTestId('day-map-legend').textContent).toContain('朋友家');
+  });
+
+  /* A stay nobody resolved has no coordinates, and an invented pin is worse. */
+  it('draws nothing for a stay with no location', () => {
+    render(<ItineraryCalendar
+      items={[...stay({ latitude: undefined, longitude: undefined }), stop('淺草寺', '10:30', { date: '2026-10-21' })]}
+      startDate="2026-10-21"
+      endDate="2026-10-24"
+    />);
+
+    fireEvent.click(screen.getByTestId('toggle-map-mode'));
+
+    expect(decodeURIComponent((screen.getByTestId('day-map-image') as HTMLImageElement).src))
+      .not.toContain('lodging-pin.png');
+  });
+});

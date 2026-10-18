@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPinned } from 'lucide-react';
+import { Home, MapPinned } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { dayMapSrc, mappableStops, stopsOnTheGround } from '../services/dayMapImage';
 
@@ -19,9 +19,18 @@ interface Props {
   items: ItineraryItem[];
   /** Road geometry per consecutive pair, when it has been fetched. */
   encodedPaths?: string[];
+  /**
+   * Where this day is slept, when it is not an item on the day itself.
+   *
+   * 「住宿點的圖釘呢」 — 朋友家 is a stay spanning several nights, not a stop on
+   * any one of them, so a day with no HOTEL card drew no house at all. The
+   * hotel is the thing every other pin is read against: 「how far is this from
+   * where I am sleeping」 is most of what a day map is for.
+   */
+  lodging?: { name: string; latitude: number; longitude: number };
 }
 
-const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
+const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
   const [failed, setFailed] = useState(false);
   /*
     「最後一天會跨國！」 — a day ending with 航班抵達 abroad drew one line across
@@ -51,10 +60,24 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
     ends rather than the third thing you do, and a numbered pin says 「go here,
     third」 about the building you woke up in. See `lodging`.
   */
-  const stops = mappableStops(stopsOnTheGround(shown))
+  const fromItems = mappableStops(stopsOnTheGround(shown))
     .map(stop => (stop.item.type === 'HOTEL' || stop.item.fixedEventKind === 'accommodation'
       ? { ...stop, lodging: true }
       : stop));
+  /*
+    The stay, where the day does not carry a card for it. Added once: a day
+    that does have a 住宿 item already has its house.
+  */
+  const stops = lodging && !fromItems.some(stop => stop.lodging)
+    ? [...fromItems, {
+      id: 'stay',
+      latitude: lodging.latitude,
+      longitude: lodging.longitude,
+      number: 0,
+      lodging: true,
+      item: { id: 'stay', title: lodging.name, location: '', time: '' } as ItineraryItem,
+    }]
+    : fromItems;
   const unmapped = shown.length - stops.length;
 
   if (stops.length === 0) {
@@ -113,8 +136,11 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths }) => {
                 ?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
               className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
             >
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#5b3df5] text-[10px] font-black text-white">
-                {stop.number}
+              {/* A house rather than a number: it is not the nth thing done. */}
+              <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white ${
+                stop.lodging ? 'bg-[#8b5cf6]' : 'bg-[#5b3df5]'
+              }`}>
+                {stop.lodging ? <Home size={11} /> : stop.number}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-black text-[#11183d]">
