@@ -3767,6 +3767,19 @@ const App: React.FC = () => {
         : item,
     );
     commitItinerary(next);
+    /*
+      Say that it happened.
+
+      「這是ＡＩ排的行程」 — a day showed 「固定」 on a restaurant he had not
+      deliberately pinned, and a full trace found that the pin button is the
+      only thing in the app that can set it. So it was a tap: an 11px icon
+      with no label, in the cramped action row beside the ⋯ menu, writing a
+      state whose only consequence appears on another screen.
+      A pin that announces itself is one the next tap can undo.
+    */
+    const pinned = itinerary.find((item) => item.id === itemId);
+    const name = pinned?.location?.trim() || pinned?.title?.trim() || '這個行程';
+    showToast(nextPinned ? `已固定「${name}」，AI 重排不會動它` : `已取消固定「${name}」`);
   };
 
   /**

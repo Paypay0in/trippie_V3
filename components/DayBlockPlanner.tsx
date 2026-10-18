@@ -87,6 +87,15 @@ interface Props {
   country?: string;
   /** Items that are fixed and must never be offered a length control. */
   isFixed?: (item: ItineraryItem) => boolean;
+  /**
+   * Undoes the traveller's own pin, from where its effect is visible.
+   *
+   * 「這是ＡＩ排的行程」 — a 「固定」 chip on a restaurant he had not meant to pin.
+   * The chip was a dead label: it said the row could not be changed and gave
+   * no way to find out why or to change it back. The pin lives on a card in
+   * the timeline below; the consequence shows up here.
+   */
+  onUnpin?: (itemId: string) => void;
 }
 
 /** 「一個行程都預設抓 2 小時」, and the lengths worth offering around it. */
@@ -105,6 +114,7 @@ const DayBlockPlanner: React.FC<Props> = ({
   onFillBlockManually,
   onChangeDuration,
   onClearBlock,
+  onUnpin,
   onShiftDay,
   country,
   isFixed,
@@ -540,9 +550,23 @@ const DayBlockPlanner: React.FC<Props> = ({
                       ))}
                   </select>
                 )}
-                {occupant && fixed && (
+                {/*
+                  A pin is the traveller's own and can be taken back here; a
+                  flight is not and stays a plain label.
+                */}
+                {occupant && fixed && onUnpin && occupant.isPinned === true ? (
+                  <button
+                    type="button"
+                    data-testid={`unpin-block-${slot.index}`}
+                    aria-label={`取消固定 ${occupant.location || occupant.title}`}
+                    onClick={() => onUnpin(occupant.id)}
+                    className="shrink-0 rounded-lg bg-[#f0edff] px-1.5 py-1 text-[10px] font-bold text-[#5b3df5]"
+                  >
+                    已固定・取消
+                  </button>
+                ) : occupant && fixed ? (
                   <span className="shrink-0 rounded-lg bg-slate-100 px-1.5 py-1 text-[10px] font-bold text-slate-500">固定</span>
-                )}
+                ) : null}
               </div>
             );
           })}

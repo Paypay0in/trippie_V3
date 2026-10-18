@@ -1056,6 +1056,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             「this is no longer on the plan」 rather than two.
           */
           onClearBlock={onDelete}
+          /* The pin is undone from where its effect is visible. */
+          onUnpin={onTogglePin ? (itemId) => onTogglePin(itemId, false) : undefined}
           /*
             Written one item at a time through the path that already persists a
             time change — the same one the inline time field uses. 「橘色處調 紅色

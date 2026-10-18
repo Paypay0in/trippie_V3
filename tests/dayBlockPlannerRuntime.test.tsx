@@ -410,3 +410,48 @@ describe('清空一格', () => {
     expect(filled()).toBeNull();
   });
 });
+
+/**
+ * 「這是ＡＩ排的行程」.
+ *
+ * A 「固定」 chip appeared on a restaurant he had not meant to pin. A full
+ * trace found only one writer of `isPinned` in the whole app — the pin button
+ * on the timeline card — so it was a stray tap on an 11px unlabelled icon.
+ * The chip here was a dead label: it said the row could not be changed and
+ * offered no way to change it back.
+ */
+describe('取消固定', () => {
+  const pinned = [
+    { ...gwangalli[0], isPinned: true } as ItineraryItem,
+  ];
+
+  const renderPinned = (over: Record<string, unknown> = {}) => renderPlanner({
+    items: pinned,
+    areas: buildTripAreas({ itinerary: pinned }),
+    isFixed: (item: ItineraryItem) => item.isPinned === true,
+    ...over,
+  });
+
+  it('offers the way back from where the effect is visible', async () => {
+    const onUnpin = vi.fn();
+    renderPinned({ onUnpin });
+
+    await userEvent.setup().click(screen.getByTestId('unpin-block-0'));
+
+    expect(onUnpin).toHaveBeenCalledWith('it-nasari');
+  });
+
+  /* A flight is not the traveller's own and stays a plain label. */
+  it('stays a label for something that is not a pin', () => {
+    const flight = [{ ...gwangalli[0], type: 'FLIGHT' } as ItineraryItem];
+    renderPlanner({
+      items: flight,
+      areas: buildTripAreas({ itinerary: flight }),
+      isFixed: () => true,
+      onUnpin: vi.fn(),
+    });
+
+    expect(screen.queryByTestId('unpin-block-0')).toBeNull();
+    expect(screen.getAllByText('固定').length).toBeGreaterThan(0);
+  });
+});
