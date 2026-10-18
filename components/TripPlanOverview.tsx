@@ -1,4 +1,5 @@
 import { entryPoints, worthListing } from '../services/entryPoints';
+import { useTicketTodos } from './useTicketTodos';
 import { planningDestination } from '../services/planningDestination';
 import React, { useEffect, useState } from 'react';
 import { HelpRequest } from '../services/serviceMatching';
@@ -10,7 +11,7 @@ import ActivityPlanCards from './ActivityPlanCards';
 import { tripDays, tripDaysBrief } from '../services/tripFreeDays';
 import ServiceRequestSheet from './ServiceRequestSheet';
 import { ServiceRequest } from '../types';
-import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake, Ticket } from 'lucide-react';
 import { openAppWithFallback, browserLaunchEnvironment } from '../services/appLaunch';
 import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
 import { fetchSuggestedPlaces } from '../services/preparationSuggestionService';
@@ -232,6 +233,14 @@ const TripPlanOverview: React.FC<Props> = ({
   promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
+  /*
+    「行程表上若有需要訂門票的景點或活動 就要放在前面的待辦事項欄位」.
+
+    The itinerary card has said 需購票 for hours; this panel, whose whole job
+    is 「what still has to be done」, counted only the shopping list. See
+    `useTicketTodos`.
+  */
+  const ticketTodos = useTicketTodos(itinerary);
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
   const pending = preTasks.filter(item => !('completed' in item ? item.completed : item.isPurchased));
   const preExpenses = expenses.filter(expense => expense.phase === 'pre');
@@ -582,6 +591,35 @@ const TripPlanOverview: React.FC<Props> = ({
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><Plane size={27} /></div>
         </div>
         {preTasks.length > 0 && <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-600" style={{ width: `${(completed.length / preTasks.length) * 100}%` }} /></div>}
+
+        {/*
+          Tickets, beside the rest of what has to happen before leaving.
+
+          Listed rather than ticked off: buying a ticket happens on somebody
+          else's website, and a checkbox this app controls would be claiming
+          to know something it cannot see.
+        */}
+        {ticketTodos.length > 0 && (
+          <div data-testid="ticket-todos" className="mt-4 rounded-2xl bg-[#f6f5ff] p-3">
+            <div className="flex items-center gap-1.5 text-xs font-black text-[#5b3df5]">
+              <Ticket size={13} />行程裡要買票的地方
+            </div>
+            <ul className="mt-1.5 space-y-1">
+              {ticketTodos.map(todo => (
+                <li key={todo.itemId} className="flex items-start gap-1.5 text-[11px] leading-4 text-slate-600">
+                  <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-violet-300" />
+                  <span className="min-w-0 flex-1">
+                    {todo.date && <span className="text-slate-400">{todo.date.slice(5).replace('-', '/')} </span>}
+                    <span className="font-bold text-[#11183d]">{todo.placeName}</span>
+                    {todo.advanceBookingRequired && (
+                      <span className="ml-1 rounded bg-[#5b3df5] px-1 py-0.5 text-[9px] font-black text-white">需提前買</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>}
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
