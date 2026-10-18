@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, Clock3, Plus } from 'lucide-react';
 import PlacePickerSheet from './PlacePickerSheet';
+import { suggestionsForSlot } from '../services/suggestionsForSlot';
+import { fetchNearbyRestaurants, NearbyRestaurant } from '../services/nearbyRestaurantsService';
 import { ItineraryItem, PlaceCategory } from '../types';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import { AREA_COLORS } from '../constants/areaColors';
@@ -173,6 +175,12 @@ const DayBlockPlanner: React.FC<Props> = ({
     place is called, not what it is.
   */
   const [pickingAt, setPickingAt] = useState<number | null>(null);
+  /*
+    「或 Google 搜尋結果」 — asked once, when the sheet opens, for the corner it
+    is filling. Never on the day itself: a page that fires a lookup per empty
+    row spends quota on rows nobody opened.
+  */
+  const [nearbyPlaces, setNearbyPlaces] = useState<NearbyRestaurant[]>([]);
   const [typed, setTyped] = useState('');
 
   const cancelTyping = () => { setTypingAt(null); setTyped(''); };
@@ -406,6 +414,58 @@ const DayBlockPlanner: React.FC<Props> = ({
    * it ends. Press again, with nothing left between them, and they trade
    * places — which is the only move left that changes anything.
    */
+  /*
+    What is near this gap, from the collection. See `suggestionsForSlot`.
+
+    The stops either side of the slot are what make a gap a gap, so they are
+    what a suggestion is measured against.
+  */
+  const suggestionsFor = (slot: DaySlot) => {
+    if (slot.occupantId) return [];
+    const filled = slots
+      .filter(candidate => candidate.occupantId)
+      .map(candidate => ({ index: candidate.index, item: itemById.get(candidate.occupantId as string) }));
+    const before = filled.filter(entry => entry.index < slot.index).pop()?.item;
+    const after = filled.find(entry => entry.index > slot.index)?.item;
+    return suggestionsForSlot(slot.kind, before, after, places);
+  };
+
+  /*
+    The corner the open sheet is filling, as two numbers.
+
+    Deliberately not 「the slots array」. `fixedSchedule` has a default of `[]`,
+    so it is a new array on every render, so `slots` is rebuilt on every render
+    — and an effect depending on it ran, set state, and ran again. The suite
+    stopped producing output at all, which is what an infinite render looks
+    like from outside.
+  */
+  const nearbyAnchor = useMemo(() => {
+    if (pickingAt === null) return undefined;
+    const slot = slots.find(candidate => candidate.index === pickingAt);
+    if (!slot) return undefined;
+    const filled = slots
+      .filter(candidate => candidate.occupantId)
+      .map(candidate => ({ index: candidate.index, item: itemById.get(candidate.occupantId as string) }));
+    const before = filled.filter(entry => entry.index < slot.index).pop()?.item;
+    const after = filled.find(entry => entry.index > slot.index)?.item;
+    const anchorStop = [before, after].find(item =>
+      item && typeof item.latitude === 'number' && typeof item.longitude === 'number');
+    // Nothing on the day to be near: 「places somewhere in this city」 is noise.
+    return anchorStop
+      ? { latitude: anchorStop.latitude as number, longitude: anchorStop.longitude as number }
+      : undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickingAt]);
+
+  /** One lookup per corner. See `nearbyPlaces`. */
+  useEffect(() => {
+    if (!nearbyAnchor) { setNearbyPlaces(current => (current.length === 0 ? current : [])); return; }
+    let cancelled = false;
+    void fetchNearbyRestaurants(nearbyAnchor.latitude, nearbyAnchor.longitude)
+      .then(found => { if (!cancelled) setNearbyPlaces(found); });
+    return () => { cancelled = true; };
+  }, [nearbyAnchor]);
+
   const moveToward = (item: ItineraryItem, other: ItineraryItem, step: 1 | -1) => {
     const mine = minutesOfClock(item.time);
     const theirs = minutesOfClock(other.time);
@@ -699,15 +759,42 @@ const DayBlockPlanner: React.FC<Props> = ({
                       </button>
                     </span>
                   ) : (
-                  <button
-                    type="button"
-                    data-testid={`fill-block-${slot.index}`}
-                    aria-label={`${slot.startTime} ${slot.label}`}
-                    onClick={() => setPickingAt(slot.index)}
-                    className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-violet-50/40 px-2 py-1.5 text-left text-xs font-bold text-[#5b3df5]"
-                  >
-                    ＋ 選一個地點
-                  </button>
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <button
+                      type="button"
+                      data-testid={`fill-block-${slot.index}`}
+                      aria-label={`${slot.startTime} ${slot.label}`}
+                      onClick={() => setPickingAt(slot.index)}
+                      className="w-full rounded-lg border border-violet-200 bg-violet-50/40 px-2 py-1.5 text-left text-xs font-bold text-[#5b3df5]"
+                    >
+                      ＋ 選一個地點
+                    </button>
+                    {/*
+                      「有空白行程的時候 會直接顯示附近的好地點 從收藏的優先推薦」.
+
+                      An empty row offered a button, and pressing it opened
+                      fifty places for somebody to compare against a gap they
+                      can see. Which of them fits is arithmetic, and it is the
+                      same sum the meal advice already does. See
+                      `suggestionsForSlot`.
+                    */}
+                    {suggestionsFor(slot).length > 0 && (
+                      <span data-testid={`slot-suggestions-${slot.index}`} className="flex flex-wrap gap-1">
+                        {suggestionsFor(slot).map(suggestion => (
+                          <button
+                            key={suggestion.id}
+                            type="button"
+                            data-testid={`suggest-${slot.index}-${suggestion.id}`}
+                            onClick={() => onFillBlock(slot, suggestion.id)}
+                            className="max-w-full truncate rounded-lg bg-[#f4f1ff] px-2 py-1 text-[10px] font-bold text-[#5b3df5]"
+                          >
+                            {suggestion.placeName}
+                            {suggestion.detourKm >= 0.1 && `・繞 ${suggestion.detourKm} 公里`}
+                          </button>
+                        ))}
+                      </span>
+                    )}
+                  </span>
                   )}
                   </>
                 )}
@@ -798,6 +885,10 @@ const DayBlockPlanner: React.FC<Props> = ({
         const sitting = slot.occupantId ? itemById.get(slot.occupantId) : undefined;
         return (
           <PlacePickerSheet
+            nearby={nearbyPlaces}
+            onPickNearby={onFillBlockManually
+              ? placeName => { setPickingAt(null); onFillBlockManually(slot, placeName); }
+              : undefined}
             title={`${slot.startTime}–${slot.endTime}・${slot.label}`}
             places={groupedOptionsFor(slot).flatMap(group => group.places)}
             onPick={placeId => {

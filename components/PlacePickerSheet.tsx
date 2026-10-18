@@ -33,6 +33,16 @@ export interface PickablePlace {
 interface Props {
   title: string;
   places: PickablePlace[];
+  /**
+   * Places near this gap that are not in the collection.
+   *
+   * 「從收藏的優先推薦 或 Google 搜尋結果」 — the collection comes first and is
+   * free; this is what there is when it has nothing for this corner. Shown
+   * last and labelled, because 「somewhere you saved」 and 「somewhere Google
+   * knows about」 are not the same recommendation.
+   */
+  nearby?: Array<{ placeId: string; placeName: string; rating?: number }>;
+  onPickNearby?: (placeName: string) => void;
   /** Ordered as the slot wants them; the sheet keeps that order inside a ward. */
   onPick: (placeId: string) => void;
   onClose: () => void;
@@ -44,7 +54,9 @@ interface Props {
 /** Two lines of note is enough to recognise a place; the rest is in the card. */
 const NOTE_PREVIEW = 2;
 
-const PlacePickerSheet: React.FC<Props> = ({ title, places, onPick, onClose, onClear, onTypeYourOwn }) => {
+const PlacePickerSheet: React.FC<Props> = ({
+  title, places, onPick, onClose, onClear, onTypeYourOwn, nearby, onPickNearby,
+}) => {
   const [query, setQuery] = useState('');
 
   const groups = useMemo(() => {
@@ -113,6 +125,33 @@ const PlacePickerSheet: React.FC<Props> = ({ title, places, onPick, onClose, onC
             <p className="py-8 text-center text-xs font-bold text-slate-400">
               {query.trim() ? '收藏裡沒有符合的地點。' : '這趟旅程還沒有收藏的地點。'}
             </p>
+          )}
+
+          {/*
+            Google's answer, after the collection's. See `nearby`.
+          */}
+          {(nearby || []).length > 0 && onPickNearby && !query.trim() && (
+            <section data-testid="picker-nearby" className="mt-3">
+              <h3 className="text-[11px] font-black text-slate-400">這一帶的其他選擇</h3>
+              <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                {(nearby || []).slice(0, 3).map(place => (
+                  <li key={place.placeId}>
+                    <button
+                      type="button"
+                      data-testid={`pick-nearby-${place.placeId}`}
+                      onClick={() => onPickNearby(place.placeName)}
+                      className="rounded-xl border border-[#eceaf5] px-2.5 py-1.5 text-[11px] font-bold text-[#11183d]"
+                    >
+                      {place.placeName}
+                      {typeof place.rating === 'number' && (
+                        <span className="ml-1 text-[10px] font-black text-amber-600">★ {place.rating}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-[10px] text-slate-400">不是你收藏的地點，加入後再自己確認。</p>
+            </section>
           )}
 
           {groups.map(group => (
