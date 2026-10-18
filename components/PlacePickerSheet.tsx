@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Check, NotebookPen, Search, X } from 'lucide-react';
+import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import { PlaceCategory } from '../types';
 
@@ -66,14 +67,26 @@ const PlacePickerSheet: React.FC<Props> = ({ title, places, onPick, onClose, onC
     return [...byWard.filter(g => g.label !== '其他'), ...byWard.filter(g => g.label === '其他')];
   }, [places, query]);
 
+  /*
+    「縮小 目前太滿版 跟底下導覽列重疊了」.
+
+    The floating nav sits above the bottom edge and its raised + button stands
+    proud of it again, so 「the bottom of the screen」 is not somewhere a sheet
+    may end. `BOTTOM_NAV_CLEARANCE` is the one place that knows how much room
+    it needs; a number copied here would be a number that stops being right the
+    next time the bar changes.
+
+    z-40 rather than z-50: the nav is z-50, and a sheet that covers the way out
+    is worse than one that stops short of it.
+  */
   return (
     <div
       data-testid="place-picker"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+      className={`fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4 ${BOTTOM_NAV_CLEARANCE} sm:pb-4`}
       onClick={onClose}
     >
       <div
-        className="flex max-h-[86vh] w-full max-w-lg flex-col rounded-t-[28px] bg-white sm:rounded-[28px]"
+        className="flex max-h-[70vh] w-full max-w-lg flex-col rounded-[28px] bg-white shadow-2xl sm:max-h-[80vh]"
         onClick={event => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 px-4 pt-4">
