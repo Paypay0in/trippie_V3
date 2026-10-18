@@ -540,3 +540,41 @@ describe('the saved flight card', () => {
     expect(screen.getByText('+1')).toBeTruthy();
   });
 });
+
+/**
+ * 「是七點要到」.
+ *
+ * The check-in allowance decides when the last day stops being a day —
+ * 21:15 less two hours is the 19:15 the plan was bounded by — and it was a
+ * sentence on the saved card rather than something anyone could set.
+ */
+describe('提前到機場的時間', () => {
+  const anchor = (over: Partial<FlightAnchor> = {}): FlightAnchor => ({
+    id: 'out', direction: 'OUTBOUND',
+    departureDate: '2026-10-02', departureTime: '21:15',
+    departureAirport: '成田國際機場', departureAirportIata: 'NRT',
+    arrivalAirport: '桃園國際機場', arrivalAirportIata: 'TPE',
+    airportArrivalBufferMinutes: 120, source: 'MANUAL',
+    ...over,
+  });
+
+  it('can be changed, and is saved', async () => {
+    const user = userEvent.setup();
+    render(<Host initial={[anchor()]} oneWay />);
+    await user.click(screen.getByRole('button', { name: /編輯/ }));
+
+    await user.selectOptions(screen.getByTestId('airport-buffer-out'), '90');
+    await user.click(screen.getByRole('button', { name: /儲存/ }));
+
+    expect(savedAnchors()[0].airportArrivalBufferMinutes).toBe(90);
+  });
+
+  /* Two hours stays the answer for anyone who does not go looking. */
+  it('defaults to two hours', async () => {
+    const user = userEvent.setup();
+    render(<Host initial={[anchor()]} oneWay />);
+    await user.click(screen.getByRole('button', { name: /編輯/ }));
+
+    expect((screen.getByTestId('airport-buffer-out') as HTMLSelectElement).value).toBe('120');
+  });
+});

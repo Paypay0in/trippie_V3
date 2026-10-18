@@ -614,6 +614,32 @@ export default function FlightAnchorsForm({
                   onCommit={canonical => update(anchor.id, { departureTime: canonical })}
                 />
               </div>
+              {/*
+                「是七點要到」.
+
+                The check-in allowance decided when the last day stops being a
+                day — 21:15 less two hours is the 19:15 his plan was bounded by
+                — and it was a sentence on the saved card rather than something
+                he could set. Two hours is a sensible default and it is not
+                everyone's: a domestic hop does not need it, and a traveller
+                who checks bags wants more.
+              */}
+              <label className="flex items-center justify-between gap-2 rounded-xl border border-[#e5e5ef] bg-white px-2.5 py-2">
+                <span className="text-xs text-slate-500">提前到機場</span>
+                <select
+                  aria-label={`${legLabel(anchor.direction)}提前到機場的時間`}
+                  data-testid={`airport-buffer-${anchor.id}`}
+                  value={String(anchor.airportArrivalBufferMinutes || 120)}
+                  onChange={event => update(anchor.id, { airportArrivalBufferMinutes: Number(event.target.value) })}
+                  className="bg-transparent text-xs font-bold text-[#11183d]"
+                >
+                  {[60, 90, 120, 150, 180].map(minutes => (
+                    <option key={minutes} value={minutes}>
+                      {minutes % 60 === 0 ? `${minutes / 60} 小時前` : `${minutes} 分鐘前`}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <AirportField
                 label={`${legLabel(anchor.direction)}出發機場`}
                 anchorId={anchor.id}
