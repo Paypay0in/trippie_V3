@@ -164,6 +164,46 @@ export const separateOverlaps = (
         }
       }
 
+      /*
+        A fixed item cannot be pushed, so the flexible one before it is pulled
+        back instead.
+
+        「很不合理」 — 11:24 Reiyukai Shakaden Temple ran to 12:24 over a 12:00
+        Alchemy that could not move. The loop only ever pushed the *later*
+        item later, so when the later one was fixed it did nothing at all and
+        the overlap simply stood. Being unable to move the second thing is not
+        a reason to leave two things in one slot; it is a reason to move the
+        first.
+
+        Ends exactly where the fixed item begins — the least move that
+        separates them — and only when that start is still a time the previous
+        item could have begun at. A stop pulled back behind whatever came
+        before it would trade this overlap for another one, which is why the
+        day's own floor is carried forward as `settledTo`.
+      */
+      if (freeFrom !== undefined && start < freeFrom && isFixed(item)) {
+        const before = ordered.filter(other =>
+          other.id !== item.id && (timeToMinutes(moved.get(other.id) ?? other.time) ?? 0) < start);
+        const clash = before[before.length - 1];
+        /*
+          How early the clash may go: the end of whatever is before *it*, not
+          including itself. A first version measured against the running
+          cursor, which already held the clash's own end, so the pull was
+          always refused and the test caught it saying 11:24 unchanged.
+        */
+        const earlier = before[before.length - 2];
+        const floor = earlier
+          ? (timeToMinutes(moved.get(earlier.id) ?? earlier.time) ?? 0) + durationOf(earlier)
+          : 0;
+        if (clash && !isFixed(clash)) {
+          const pulled = start - durationOf(clash);
+          if (pulled >= floor) {
+            moved.set(clash.id, minutesToTime(pulled));
+            freeFrom = start;
+          }
+        }
+      }
+
       freeFrom = Math.max(freeFrom ?? 0, start + length);
     });
   });

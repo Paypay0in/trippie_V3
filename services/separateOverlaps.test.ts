@@ -237,3 +237,46 @@ describe('落地之前不能排 AI 加的行程', () => {
     expect(items.find(entry => entry.id === 'museum')?.time >= '11:00').toBe(true);
   });
 });
+
+/**
+ * 「很不合理」.
+ *
+ * His Day 4: 11:24 Reiyukai Shakaden Temple running an hour, over a 12:00
+ * Alchemy that could not move. The loop only pushed the later item later, so
+ * a fixed later item meant nothing happened and the overlap simply stood.
+ */
+describe('當後面那個不能動', () => {
+  const day = (id: string, time: string, over: Partial<ItineraryItem> = {}): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY', date: '2026-10-23', time,
+    durationMinutes: 60, ...over,
+  } as ItineraryItem);
+
+  it('pulls the flexible one before it back', () => {
+    const result = separateOverlaps([
+      day('temple', '11:24'),
+      day('alchemy', '12:00', { isPinned: true, durationMinutes: 120 }),
+    ]);
+
+    expect(result.items.find(item => item.id === 'temple')?.time).toBe('11:00');
+    expect(result.items.find(item => item.id === 'alchemy')?.time).toBe('12:00');
+    expect(result.movedCount).toBe(1);
+  });
+
+  /* Never back through whatever came before it: that is a second overlap. */
+  it('refuses to pull it back onto the stop before', () => {
+    const result = separateOverlaps([
+      day('sushi', '10:30'),
+      day('temple', '11:40'),
+      day('alchemy', '12:00', { isPinned: true, durationMinutes: 120 }),
+    ]);
+
+    // 11:00 would run back into 迴轉壽司, which ends at 11:30.
+    expect(result.items.find(item => item.id === 'temple')?.time).toBe('11:40');
+  });
+
+  it('leaves a day with no clash alone', () => {
+    const items = [day('temple', '10:00'), day('alchemy', '12:00', { isPinned: true })];
+
+    expect(separateOverlaps(items).movedCount).toBe(0);
+  });
+});
