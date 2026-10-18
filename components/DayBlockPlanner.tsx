@@ -32,6 +32,16 @@ interface PlaceOption {
   /** Which area it is in, for the colour and for sorting the list. */
   areaLabel?: string;
   areaColorIndex?: number;
+  /**
+   * The ward this place is actually in, which is what the list groups by.
+   *
+   * Deliberately not `areaLabel`. An area is a cluster of the whole trip and
+   * is named after the ward most of it sits in, so 豪德寺 — the only stop in
+   * 世田谷 — read 「(Minato City)」 in this very dropdown. For 「which places are
+   * near each other」 the cluster is the right answer; for 「where is this one」
+   * it is not.
+   */
+  district?: string;
   /** True when it is already somewhere on this trip's plan. */
   alreadyPlanned?: boolean;
   /** 🏷️ 景點 / 餐廳 / … The dropdown groups by it. See `placeCategory`. */
@@ -175,38 +185,53 @@ const DayBlockPlanner: React.FC<Props> = ({
     });
   };
 
+  /** 「(餐廳)」 beside a name, or nothing when no tag is known. */
+  const tagOf = (place: PlaceOption): string =>
+    (place.category && place.category !== 'other' ? CATEGORY_LABELS[place.category] : '');
+
   /**
-   * The same list, under 🏷️ headings.
+   * The same list, under 區 headings, with the 🏷️ tag beside each name.
    *
-   * 「當有標籤後 這個下拉式選單 展開後就依標籤分類展開」. Fifty-three places in one
-   * flat list is a list nobody reads to the end of — and the block already
-   * knows what it is asking for, since the slot is labelled 午餐 or 下午行程.
+   * 「當有標籤後 這個下拉式選單 展開後就依標籤分類展開」 built this with the tag as
+   * the heading; 「這個分類可以用city分類然後括號裡面是類別嗎」 turns it round.
    *
-   * So a meal block leads with 餐廳 and 咖啡, and an activity block with 景點.
-   * Leads, not filters: a café can be lunch and a market can be an afternoon,
-   * and a dropdown that hid them would be answering a question the traveller
-   * did not ask.
+   * And that is the right way round, because of what the dropdown is for: it
+   * fills one block of one day, and the thing that makes a day work is staying
+   * in one part of the city. Under 🏷️ headings a 餐廳 list was eight wards
+   * deep and every pick was a gamble on travel time. Under 區 headings the
+   * places that belong to the day you are building are already together.
    *
-   * Untagged places keep a heading of their own at the end rather than being
-   * dropped — most of a collection is untagged until 補齊 has been run.
+   * The slot still decides the order inside a ward — 午餐 leads with 餐廳, an
+   * afternoon with 景點 — so the block still knows what it is asking for. It
+   * leads rather than filters: a café can be lunch, and hiding it would answer
+   * a question nobody asked.
    */
   const groupedOptionsFor = (slot: DaySlot): { label: string; places: PlaceOption[] }[] => {
     const leading: PlaceCategory[] = slot.kind === 'meal'
       ? ['food', 'cafe', 'sight', 'shop', 'stay', 'transport']
       : ['sight', 'shop', 'cafe', 'food', 'stay', 'transport'];
+    const rank = (place: PlaceOption): number => {
+      const at = place.category ? leading.indexOf(place.category) : -1;
+      return at === -1 ? leading.length : at;
+    };
 
-    const sorted = optionsFor(slot);
-    const groups = leading
-      .map(category => ({
-        label: CATEGORY_LABELS[category],
-        places: sorted.filter(place => place.category === category),
-      }))
-      .filter(group => group.places.length > 0);
+    /*
+      `optionsFor` has already floated the day's own areas to the front, so the
+      first heading is the ward the day is being built in.
+    */
+    const groups: { label: string; places: PlaceOption[] }[] = [];
+    const byLabel = new Map<string, { label: string; places: PlaceOption[] }>();
+    optionsFor(slot).forEach(place => {
+      const label = place.district?.trim() || place.areaLabel?.trim() || '其他';
+      let group = byLabel.get(label);
+      if (!group) { group = { label, places: [] }; byLabel.set(label, group); groups.push(group); }
+      group.places.push(place);
+    });
 
-    const untagged = sorted.filter(place => !place.category || place.category === 'other');
-    return untagged.length > 0
-      ? [...groups, { label: '其他', places: untagged }]
-      : groups;
+    groups.forEach(group => { group.places.sort((left, right) => rank(left) - rank(right)); });
+    // A place with no ward goes last; it is the one heading that says nothing.
+    return [...groups.filter(group => group.label !== '其他'),
+      ...groups.filter(group => group.label === '其他')];
   };
 
   return (
@@ -405,7 +430,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                       <optgroup key={group.label} label={group.label}>
                         {group.places.map(place => (
                           <option key={place.id} value={place.id} disabled={place.alreadyPlanned}>
-                            {place.areaLabel ? `${place.placeName}（${place.areaLabel}）` : place.placeName}
+                            {tagOf(place) ? `${place.placeName}（${tagOf(place)}）` : place.placeName}
                             {place.alreadyPlanned ? '・已在行程中' : ''}
                           </option>
                         ))}

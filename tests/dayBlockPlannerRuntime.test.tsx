@@ -294,17 +294,18 @@ describe('typing a place into a slot', () => {
 });
 
 /**
- * 「當有標籤後 這個下拉式選單 展開後就依標籤分類展開」.
+ * 「當有標籤後 這個下拉式選單 展開後就依標籤分類展開」, then 「這個分類可以用city分類
+ * 然後括號裡面是類別嗎」 — the heading became the ward and the tag moved into
+ * the brackets beside the name.
  *
- * Fifty-three places in one flat list is a list nobody reads to the end of,
- * and the block already knows what it is asking for: the slot is labelled
- * 午餐 or 下午行程.
+ * That way round because of what the dropdown is for: it fills one block of
+ * one day, and what makes a day work is staying in one part of the city.
  */
-describe('依標籤分類的下拉選單', () => {
+describe('依區分類的下拉選單', () => {
   const tagged = [
-    { id: 'g-ramen', placeName: 'らぁ麺や 嶋', category: 'food' as const },
-    { id: 'g-coffee', placeName: 'DIART coffee', category: 'cafe' as const },
-    { id: 'g-garden', placeName: '新宿御苑', category: 'sight' as const },
+    { id: 'g-ramen', placeName: 'らぁ麺や 嶋', category: 'food' as const, district: '渋谷区' },
+    { id: 'g-coffee', placeName: 'DIART coffee', category: 'cafe' as const, district: '渋谷区' },
+    { id: 'g-garden', placeName: '新宿御苑', category: 'sight' as const, district: '新宿区' },
     { id: 'g-plain', placeName: 'Working holiday' },
   ];
 
@@ -321,32 +322,45 @@ describe('依標籤分類的下拉選單', () => {
     selectLabelled(needle).querySelectorAll('optgroup'),
   ).map(group => group.label);
 
-  it('把選項放進標籤的分組裡', () => {
+  const optionsUnder = (needle: string, ward: string) => Array
+    .from(selectLabelled(needle).querySelectorAll('optgroup'))
+    .filter(group => (group as HTMLOptGroupElement).label === ward)
+    .flatMap(group => Array.from(group.querySelectorAll('option')).map(option => option.textContent || ''));
+
+  it('以區為標題，不是以標籤', () => {
     renderPlanner({ places: tagged });
 
-    expect(groupsIn('行程')).toContain('餐廳');
-    expect(groupsIn('行程')).toContain('景點');
-    expect(groupsIn('行程')).toContain('咖啡');
+    expect(groupsIn('行程')).toContain('渋谷区');
+    expect(groupsIn('行程')).toContain('新宿区');
+    expect(groupsIn('行程')).not.toContain('餐廳');
+  });
+
+  it('類別寫在名字後面的括號裡', () => {
+    renderPlanner({ places: tagged });
+
+    expect(optionsUnder('行程', '渋谷区').join('|')).toContain('らぁ麺や 嶋（餐廳）');
+    expect(optionsUnder('行程', '新宿区').join('|')).toContain('新宿御苑（景點）');
   });
 
   /*
     Leading, not filtering: a café can be lunch and a market can be an
     afternoon. A dropdown that hid them would answer a question nobody asked.
   */
-  it('午餐的格子讓餐廳排在最前面，但沒有藏起別的', () => {
+  it('午餐的格子讓同一區裡的餐廳排在前面，但沒有藏起別的', () => {
     renderPlanner({ places: tagged });
 
-    const labels = groupsIn('午餐');
+    const inShibuya = optionsUnder('午餐', '渋谷区');
 
-    expect(labels[0]).toBe('餐廳');
-    expect(labels).toContain('景點');
+    expect(inShibuya[0]).toContain('らぁ麺や 嶋');
+    expect(inShibuya.join('|')).toContain('DIART coffee');
   });
 
-  /* Most of a collection is untagged until 補齊 has been run. */
-  it('沒有標籤的歸在「其他」，不會消失', () => {
+  /* 「其他」 is the one heading that says nothing, so it goes last. */
+  it('不知道在哪一區的歸在「其他」，排在最後，不會消失', () => {
     renderPlanner({ places: tagged });
 
-    expect(groupsIn('行程')).toContain('其他');
+    const labels = groupsIn('行程');
+    expect(labels[labels.length - 1]).toBe('其他');
     expect(screen.getAllByText('Working holiday').length).toBeGreaterThan(0);
   });
 });

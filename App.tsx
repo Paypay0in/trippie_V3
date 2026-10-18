@@ -3058,8 +3058,10 @@ const App: React.FC = () => {
         areaLabel: area?.label,
         areaColorIndex: area?.colorIndex,
         alreadyPlanned: planned.has(group.id),
-        // The 🏷️ tag the dropdown groups by. See `placeCategory`.
+        // The 🏷️ tag, printed beside the name. See `placeCategory`.
         category: group.category,
+        // The ward the dropdown groups by — this place's own, not its cluster's.
+        district: group.district,
       };
     });
   }, [tripScopedInspirations, tripInspirationContext, itinerary, tripAreas]);
