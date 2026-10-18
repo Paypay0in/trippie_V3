@@ -187,10 +187,28 @@ const DayBlockPlanner: React.FC<Props> = ({
 
   const cancelTyping = () => { setTypingAt(null); setTyped(''); };
 
+  /*
+    Putting something into a slot that is already taken.
+
+    「在這換了一家餐廳 但行程表上沒有同步刪除舊的餐廳行程」 — a slot holds one
+    stop, so filling an occupied one is a replacement and the stop that was
+    there has to leave. Choosing from the collection did that; choosing a
+    Google result or typing a name did not, and added a second stop at the same
+    hour while the planner kept drawing one row.
+
+    Every way into a slot goes through here, so there is no second path left to
+    forget it.
+  */
+  const replaceInSlot = (slot: DaySlot, fill: () => void) => {
+    const sitting = slot.occupantId ? itemById.get(slot.occupantId) : undefined;
+    if (sitting) onClearBlock?.(sitting.id);
+    fill();
+  };
+
   const commitTyped = (slot: DaySlot) => {
     const title = cleanManualTitle(typed);
     if (!title || !onFillBlockManually) return;
-    onFillBlockManually(slot, title);
+    replaceInSlot(slot, () => onFillBlockManually(slot, title));
     cancelTyping();
   };
 
@@ -668,7 +686,12 @@ const DayBlockPlanner: React.FC<Props> = ({
                   </span>
                 </span>
 
-                {occupant ? (
+                {/*
+                  Typing wins over the occupant: 自己輸入地點 is offered from a
+                  filled row too, and the field only ever rendered in the empty
+                  branch — so that button opened an input nobody could see.
+                */}
+                {occupant && typingAt !== slot.index ? (
                   <span className="flex min-w-0 flex-1 items-center gap-1.5">
                     {area && (
                       <span className={`h-2 w-2 shrink-0 rounded-full ${AREA_COLORS[area.colorIndex % AREA_COLORS.length].dot}`} />
@@ -709,7 +732,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                 ) : (
                   <>
                   {/* 「欄位可以寫『無』」: an empty block is a stated answer, not a gap. */}
-                  <span className="shrink-0 text-[11px] font-bold text-slate-300">無</span>
+                  {!occupant && <span className="shrink-0 text-[11px] font-bold text-slate-300">無</span>}
                   {typingAt === slot.index ? (
                     /*
                       「下拉式選單要讓用戶也可以手動新增」.
@@ -787,7 +810,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                             key={suggestion.id}
                             type="button"
                             data-testid={`suggest-${slot.index}-${suggestion.id}`}
-                            onClick={() => onFillBlock(slot, suggestion.id)}
+                            onClick={() => replaceInSlot(slot, () => onFillBlock(slot, suggestion.id))}
                             className="max-w-full truncate rounded-lg bg-[#f4f1ff] px-2 py-1 text-[10px] font-bold text-[#5b3df5]"
                           >
                             {suggestion.placeName}
@@ -889,17 +912,18 @@ const DayBlockPlanner: React.FC<Props> = ({
           <PlacePickerSheet
             nearby={nearbyPlaces}
             onPickNearby={onFillBlockManually
-              ? placeName => { setPickingAt(null); onFillBlockManually(slot, placeName); }
+              ? placeName => {
+                setPickingAt(null);
+                replaceInSlot(slot, () => onFillBlockManually(slot, placeName));
+              }
               : undefined}
             title={`${slot.startTime}–${slot.endTime}・${slot.label}`}
             places={groupedOptionsFor(slot).flatMap(group => group.places)}
             onPick={placeId => {
               setPickingAt(null);
-              if (sitting) {
-                onClearBlock?.(sitting.id);
-                if (sitting.id === placeId) return;
-              }
-              onFillBlock(slot, placeId);
+              /* Re-picking what is already there is 「clear」, not 「clear and re-add」. */
+              if (sitting && sitting.id === placeId) { onClearBlock?.(sitting.id); return; }
+              replaceInSlot(slot, () => onFillBlock(slot, placeId));
             }}
             onClose={() => setPickingAt(null)}
             onClear={sitting && onClearBlock

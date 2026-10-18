@@ -17,6 +17,11 @@ import { buildTripAreas } from '../services/tripAreas';
 import { ItineraryItem } from '../types';
 import type { FixedScheduleEntry } from '../services/itineraryDayFloor';
 
+const nearbyFound = vi.fn(async () => [] as Array<Record<string, unknown>>);
+vi.mock('../services/nearbyRestaurantsService', () => ({
+  fetchNearbyRestaurants: (...args: unknown[]) => nearbyFound(...(args as [])),
+}));
+
 afterEach(cleanup);
 
 const DAY = '2026-10-06';
@@ -472,6 +477,52 @@ describe('清空一格', () => {
 
     expect(onClearBlock).toHaveBeenCalledWith('it-nasari');
     expect(onFillBlock).toHaveBeenCalledWith(expect.anything(), 'g-diart');
+  });
+
+  /**
+   * 「在這換了一家餐廳 但行程表上沒有同步刪除舊的餐廳行程」.
+   *
+   * A slot holds one stop. Replacing from the collection removed the old one;
+   * taking a Google result or typing a name only added, so the day quietly
+   * held two stops at the same hour while the panel still drew one row.
+   */
+  it('removes the old stop when a Google result takes the slot', async () => {
+    const onClearBlock = vi.fn();
+    const onFillBlockManually = vi.fn();
+    const user = userEvent.setup();
+    nearbyFound.mockResolvedValueOnce([
+      { placeId: 'ChIJ-ichiran', placeName: '一蘭 淺草店', rating: 4.3, kind: '拉麵店' },
+    ]);
+    renderPlanner({
+      onClearBlock,
+      onFillBlockManually,
+      /* An anchor the sheet can be 「near」: the occupant itself is not one. */
+      items: [...gwangalli, item('it-later', 'Millak', '16:00', {
+        latitude: 35.1540, longitude: 129.1300,
+      })],
+    });
+
+    await user.click(filled());
+    await user.click(await screen.findByTestId('suggested-place-ChIJ-ichiran'));
+
+    expect(onClearBlock).toHaveBeenCalledWith('it-nasari');
+    expect(onFillBlockManually).toHaveBeenCalledWith(expect.anything(), '一蘭 淺草店');
+  });
+
+  it('removes the old stop when a typed name takes the slot', async () => {
+    const onClearBlock = vi.fn();
+    const onFillBlockManually = vi.fn();
+    const user = userEvent.setup();
+    renderPlanner({ onClearBlock, onFillBlockManually });
+
+    const index = filled().getAttribute('data-testid')!.replace('filled-block-', '');
+    await user.click(filled());
+    await user.click(screen.getByTestId('place-picker-manual'));
+    await user.type(screen.getByTestId(`manual-block-input-${index}`), 'Cafe Onion');
+    await user.click(screen.getByTestId(`manual-block-save-${index}`));
+
+    expect(onClearBlock).toHaveBeenCalledWith('it-nasari');
+    expect(onFillBlockManually).toHaveBeenCalledWith(expect.anything(), 'Cafe Onion');
   });
 
   /* A screen that cannot persist the removal must not appear to offer it. */
