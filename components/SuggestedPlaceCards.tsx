@@ -40,6 +40,16 @@ interface Props {
 /** Two lines of note is enough to recognise a place from. */
 const NOTE_PREVIEW = 2;
 
+/** The card, as a button where it can be taken and as a plain row where it cannot. */
+const CardShell: React.FC<{ id: string; onPick?: () => void; children: React.ReactNode }> = ({
+  id, onPick, children,
+}) => {
+  const className = 'flex w-full gap-2.5 rounded-2xl border border-[#eceaf5] bg-white p-2 text-left';
+  return onPick
+    ? <button type="button" data-testid={`suggested-place-${id}`} onClick={onPick} className={className}>{children}</button>
+    : <div data-testid={`suggested-place-${id}`} className={`${className} cursor-default`}>{children}</div>;
+};
+
 const SuggestedPlaceCards: React.FC<Props> = ({ places, onPick }) => {
   /*
     One lookup per place that did not bring a picture, shared with the picker.
@@ -56,12 +66,17 @@ const SuggestedPlaceCards: React.FC<Props> = ({ places, onPick }) => {
         const notes = place.notes || [];
         return (
           <li key={place.id}>
-            <button
-              type="button"
-              data-testid={`suggested-place-${place.id}`}
-              disabled={!onPick}
-              onClick={() => onPick?.(place)}
-              className="flex w-full gap-2.5 rounded-2xl border border-[#eceaf5] bg-white p-2 text-left disabled:cursor-default"
+            {/*
+              A button only when there is something to press.
+
+              「按下去沒有添加行程」 — these were rendered with no handler, and a
+              disabled button is indistinguishable from a live one at a glance.
+              A card that cannot be taken is a card rather than a button, so
+              looking tappable is tied to being tappable.
+            */}
+            <CardShell
+              id={place.id}
+              onPick={onPick ? () => onPick(place) : undefined}
             >
               {/*
                 A placeholder rather than a gap: a row that is sometimes 56px
@@ -102,7 +117,7 @@ const SuggestedPlaceCards: React.FC<Props> = ({ places, onPick }) => {
                   <span className="mt-0.5 block text-[10px] text-slate-300">還不是你的收藏，沒有筆記</span>
                 )}
               </span>
-            </button>
+            </CardShell>
           </li>
         );
       })}

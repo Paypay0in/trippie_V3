@@ -486,6 +486,34 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     [transitByFixedId, previousDate],
   );
 
+  /*
+    Taking one of the offered restaurants.
+
+    「按下去沒有添加行程」 — the cards were rendered with no handler at all, so
+    they were disabled buttons that looked tappable. A suggestion nobody can
+    act on is worse than no suggestion: it costs a tap to learn it is scenery.
+
+    The swap is 「out with the old, in at its hour」: the replacement takes the
+    date, time and length of the restaurant it replaces, because that slot is
+    what the whole warning is about.
+  */
+  const swapMealFor = (
+    itemId: string,
+    add: (slot: { date: string; time: string; durationMinutes: number }) => void,
+  ) => {
+    const replacing = items.find(item => item.id === itemId);
+    if (!replacing?.date || !replacing.time) return;
+    add({
+      date: replacing.date,
+      time: replacing.time,
+      durationMinutes: Number.isFinite(replacing.durationMinutes) && (replacing.durationMinutes as number) > 0
+        ? (replacing.durationMinutes as number)
+        : 60,
+    });
+    onDelete?.(itemId);
+    setRoutePlan(null);
+  };
+
   /** What this day would need in order to work. Built, never applied. */
   const adjustment = useMemo(
     () => buildFixedEventAdjustment(dayItems, fixedContext),
@@ -2076,11 +2104,17 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                                 return {
                                   id: swap.id,
                                   placeName: swap.placeName,
+                                  placeId: saved?.placeId,
                                   photoUrl: saved?.photoUrl,
                                   notes: saved?.notes,
                                   detourLabel: `少繞 ${swap.savesKm} 公里`,
                                 };
                               })}
+                              onPick={onFillBlock && onDelete
+                                ? place => swapMealFor(entry.itemId, picked => onFillBlock({
+                                  ...picked, placeGroupId: place.id,
+                                }))
+                                : undefined}
                             />
                           </span>
                         )}
@@ -2092,8 +2126,20 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                                 id: place.placeId,
                                 placeId: place.placeId,
                                 placeName: place.placeName,
+                                kind: place.kind,
                                 rating: place.rating,
                               }))}
+                              /*
+                                A place nobody has saved has no group to point
+                                at, so it goes in by name — the same path 自己
+                                輸入地點 uses, which is honest about carrying no
+                                coordinates until it is resolved.
+                              */
+                              onPick={onFillBlockManually && onDelete
+                                ? place => swapMealFor(entry.itemId, picked => onFillBlockManually({
+                                  ...picked, title: place.placeName,
+                                }))
+                                : undefined}
                             />
                           </span>
                         )}

@@ -87,3 +87,24 @@ describe('suggested places, as cards', () => {
     expect(screen.queryByTestId('suggested-place-cards')).toBeNull();
   });
 });
+
+/**
+ * 「按下去沒有添加行程」.
+ *
+ * The cards were rendered with no handler, so they were disabled buttons that
+ * looked exactly like live ones. A suggestion nobody can act on is worse than
+ * no suggestion: it costs a tap to find out it is scenery.
+ */
+describe('a card that cannot be taken', () => {
+  it('is not a button', () => {
+    render(<SuggestedPlaceCards places={[{ id: 'a', placeName: '梅丘 壽司之美登利' }]} />);
+
+    expect(screen.getByTestId('suggested-place-a').tagName).toBe('DIV');
+  });
+
+  it('is a button as soon as there is something to press', () => {
+    render(<SuggestedPlaceCards onPick={vi.fn()} places={[{ id: 'a', placeName: '梅丘 壽司之美登利' }]} />);
+
+    expect(screen.getByTestId('suggested-place-a').tagName).toBe('BUTTON');
+  });
+});
