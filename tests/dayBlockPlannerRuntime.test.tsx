@@ -542,36 +542,71 @@ describe('上下箭頭', () => {
   });
 
   /*
-    「這樣點擊就是一直在交換行程」.
+    「這樣點擊就是一直在交換行程」, then 「讓兩個行程相鄰」.
 
-    The first version skipped empty rows looking for something to trade with,
-    so a day of two stops hours apart could only ever swap those two back and
-    forth. 「Move down」 means the next row, and when that row is empty, moving
-    into it is the point.
+    東京都現代美術館 13:54–15:54 and Hoppy Street 19:00 are three hours apart.
+    The first press should close that gap, not rearrange the same dead
+    afternoon.
   */
-  it('moves into the next row when it is empty', async () => {
-    const spread = [
-      item('it-museum', '東京都現代美術館', '13:54', {
-        latitude: 35.6805, longitude: 139.8075, address: 'Koto City, Tokyo',
-      }),
-      item('it-hoppy', 'Hoppy Street', '19:00', {
-        latitude: 35.7142, longitude: 139.7967, address: 'Taito City, Tokyo',
-      }),
-    ];
+  const spreadOut = [
+    item('it-museum', '東京都現代美術館', '13:54', {
+      durationMinutes: 120, latitude: 35.6805, longitude: 139.8075, address: 'Koto City, Tokyo',
+    }),
+    item('it-hoppy', 'Hoppy Street', '19:00', {
+      durationMinutes: 90, latitude: 35.7142, longitude: 139.7967, address: 'Taito City, Tokyo',
+    }),
+  ];
+
+  const renderSpread = (over: Record<string, unknown> = {}) => renderPlanner({
+    items: spreadOut,
+    areas: buildTripAreas({ itinerary: spreadOut }),
+    onSwapBlocks: vi.fn(),
+    onShiftBlock: vi.fn(),
+    ...over,
+  });
+
+  it('closes the gap so the two stops touch', async () => {
     const onShiftBlock = vi.fn();
     const onSwapBlocks = vi.fn();
-    renderPlanner({
-      items: spread,
-      areas: buildTripAreas({ itinerary: spread }),
-      onShiftBlock,
-      onSwapBlocks,
-    });
+    renderSpread({ onShiftBlock, onSwapBlocks });
 
-    // 13:54 lands in block 2 — blocks 0 and 1 are the empty morning before it.
+    // The museum runs two hours, so ending at 19:00 means starting at 17:00.
     await userEvent.setup().click(screen.getByTestId('move-down-2'));
 
-    expect(onShiftBlock).toHaveBeenCalledWith('it-museum', '15:54');
+    expect(onShiftBlock).toHaveBeenCalledWith('it-museum', '17:00');
     expect(onSwapBlocks).not.toHaveBeenCalled();
+  });
+
+  it('pulls the later stop up to meet the earlier one', async () => {
+    const onShiftBlock = vi.fn();
+    renderSpread({ onShiftBlock });
+
+    const up = Array.from(document.querySelectorAll('[data-testid^="move-up-"]')).pop() as HTMLElement;
+    await userEvent.setup().click(up);
+
+    // 13:54 plus the museum's two hours.
+    expect(onShiftBlock).toHaveBeenCalledWith('it-hoppy', '15:54');
+  });
+
+  /* With nothing left between them, the only move that changes anything. */
+  it('swaps once there is no gap left', async () => {
+    const adjacent = [
+      item('it-a', 'A', '10:00', { durationMinutes: 120, latitude: 35.68, longitude: 139.8, address: 'Koto City, Tokyo' }),
+      item('it-b', 'B', '12:00', { durationMinutes: 120, latitude: 35.69, longitude: 139.81, address: 'Koto City, Tokyo' }),
+    ];
+    const onSwapBlocks = vi.fn();
+    const onShiftBlock = vi.fn();
+    renderPlanner({
+      items: adjacent,
+      areas: buildTripAreas({ itinerary: adjacent }),
+      onSwapBlocks,
+      onShiftBlock,
+    });
+
+    await userEvent.setup().click(screen.getByTestId('move-down-0'));
+
+    expect(onSwapBlocks).toHaveBeenCalledWith('it-a', 'it-b');
+    expect(onShiftBlock).not.toHaveBeenCalled();
   });
 
   /*

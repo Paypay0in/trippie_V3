@@ -315,22 +315,60 @@ const DayBlockPlanner: React.FC<Props> = ({
 
     A fixed row is a wall rather than a partner — the day is built around it.
   */
-  const neighbour = (slot: DaySlot, step: 1 | -1): DaySlot | undefined => {
-    const next = slots[slot.index + step];
-    if (!next) return undefined;
-    const sitting = next.occupantId ? itemById.get(next.occupantId) : undefined;
-    // A fixed row is a wall: the day is built around it and nothing trades with
-    // it. An empty one is somewhere to go.
-    return sitting && isFixed?.(sitting) ? undefined : next;
+  /*
+    The next stop in that direction, skipping the empty rows between.
+
+    A fixed row is a wall: the day is built around it, nothing trades with it,
+    and nothing is pushed past it.
+  */
+  const neighbour = (slot: DaySlot, step: 1 | -1): ItineraryItem | undefined => {
+    for (let index = slot.index + step; index >= 0 && index < slots.length; index += step) {
+      const sitting = slots[index].occupantId ? itemById.get(slots[index].occupantId as string) : undefined;
+      if (!sitting) continue;
+      return isFixed?.(sitting) ? undefined : sitting;
+    }
+    return undefined;
   };
   const swapUp = (slot: DaySlot) => neighbour(slot, -1);
   const swapDown = (slot: DaySlot) => neighbour(slot, 1);
 
-  /** Moves a stop one row, trading places if that row is taken. */
-  const moveTo = (item: ItineraryItem, target: DaySlot) => {
-    const sitting = target.occupantId ? itemById.get(target.occupantId) : undefined;
-    if (sitting) { onSwapBlocks?.(item.id, sitting.id); return; }
-    onShiftBlock?.(item.id, target.startTime);
+  const minutesOfClock = (clock?: string): number | undefined => {
+    if (!clock || !/^\d{2}:\d{2}$/.test(clock)) return undefined;
+    const [hours, mins] = clock.split(':').map(Number);
+    return hours * 60 + mins;
+  };
+  const clockOfMinutes = (minutes: number): string =>
+    `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+  const lengthOf = (item: ItineraryItem): number =>
+    (Number.isFinite(item.durationMinutes) && (item.durationMinutes as number) > 0
+      ? (item.durationMinutes as number)
+      : BLOCK_MINUTES);
+
+  /**
+   * Closes the gap to the next stop, and swaps once there is none.
+   *
+   * 「讓兩個行程相鄰」. Moving into whichever grid row came next left 東京都現代
+   * 美術館 and Hoppy Street three hours apart — a different arrangement of the
+   * same dead afternoon. What the arrow is for is 「put these two together」.
+   *
+   * So the first press makes them touch: moving down, this stop ends exactly
+   * when the next one starts; moving up, it starts exactly when the one above
+   * it ends. Press again, with nothing left between them, and they trade
+   * places — which is the only move left that changes anything.
+   */
+  const moveToward = (item: ItineraryItem, other: ItineraryItem, step: 1 | -1) => {
+    const mine = minutesOfClock(item.time);
+    const theirs = minutesOfClock(other.time);
+    if (mine === undefined || theirs === undefined) { onSwapBlocks?.(item.id, other.id); return; }
+
+    const wanted = step === 1 ? theirs - lengthOf(item) : theirs + lengthOf(other);
+    // Already touching — or the move would push it through the other stop
+    // rather than up against it. Either way the honest move is the swap.
+    if (wanted === mine || (step === 1 ? wanted <= mine : wanted >= mine) || wanted < 0 || wanted >= 24 * 60) {
+      onSwapBlocks?.(item.id, other.id);
+      return;
+    }
+    onShiftBlock?.(item.id, clockOfMinutes(wanted));
   };
 
   return (
@@ -491,7 +529,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                         data-testid={`move-up-${slot.index}`}
                         aria-label={`${occupant.location || occupant.title} 往前移`}
                         disabled={!swapUp(slot)}
-                        onClick={() => { const target = swapUp(slot); if (target) moveTo(occupant, target); }}
+                        onClick={() => { const other = swapUp(slot); if (other) moveToward(occupant, other, -1); }}
                         className="px-0.5 text-slate-300 disabled:opacity-30"
                       >
                         <ChevronUp size={12} />
@@ -501,7 +539,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                         data-testid={`move-down-${slot.index}`}
                         aria-label={`${occupant.location || occupant.title} 往後移`}
                         disabled={!swapDown(slot)}
-                        onClick={() => { const target = swapDown(slot); if (target) moveTo(occupant, target); }}
+                        onClick={() => { const other = swapDown(slot); if (other) moveToward(occupant, other, 1); }}
                         className="px-0.5 text-slate-300 disabled:opacity-30"
                       >
                         <ChevronDown size={12} />
