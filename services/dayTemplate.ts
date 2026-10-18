@@ -193,6 +193,20 @@ export const buildDayTemplate = ({
   let index = 0;
   let ranOutOfDay = false;
   const used = new Set<string>();
+  /*
+    A meal happens once.
+
+    Two blocks starting inside 11:30–14:00 both read 午餐, so his Day 4 offered
+    lunch at 11:46 and lunch again at 13:46 — and a day with two lunches and
+    two dinners is not a day anybody recognises. The window is the right way
+    to decide *which* block is the meal; it was being asked about every block
+    independently.
+
+    First one in the window takes it, which follows the same 「by the clock」
+    rule the labels are built on: the block you reach first at lunchtime is
+    lunch, and whatever comes after it is the afternoon.
+  */
+  const eaten = new Set<string>();
 
   /*
     What is already planned keeps its own clock; the free time between is cut
@@ -227,6 +241,29 @@ export const buildDayTemplate = ({
     }))
     .sort((left, right) => left.from - right.from);
 
+  /*
+    Whichever block holds something wins the label.
+
+    A test caught the first version handing 午餐 to the thirty-minute gap
+    before a 12:30 lunch, simply because the gap came first. 「the block you
+    reach first at lunchtime」 is the right rule only among empty ones — a
+    window that already has a stop in it has an answer, and it is that stop.
+  */
+  const occupiedMealStart = new Map<string, number>();
+  planned.forEach(entry => {
+    const meal = mealAt(entry.from);
+    if (meal && !occupiedMealStart.has(meal)) occupiedMealStart.set(meal, entry.from);
+  });
+
+  const mealOnce = (startMinutes: number): string | undefined => {
+    const meal = mealAt(startMinutes);
+    if (!meal || eaten.has(meal)) return undefined;
+    const held = occupiedMealStart.get(meal);
+    if (held !== undefined && held !== startMinutes) return undefined;
+    eaten.add(meal);
+    return meal;
+  };
+
   const MAX_BLOCKS = 12;
   while (index < MAX_BLOCKS && cursor < limit) {
     const next = planned.find(entry => !used.has(entry.id) && entry.from + entry.minutes > cursor);
@@ -236,7 +273,7 @@ export const buildDayTemplate = ({
       // when it started before the day's grid or runs past the end of it:
       // trimming an item to fit a block would be the table editing the plan.
       used.add(next.id);
-      const meal = mealAt(next.from);
+      const meal = mealOnce(next.from);
       slots.push({
         id: `${date}#${index}`,
         index,
@@ -282,7 +319,7 @@ export const buildDayTemplate = ({
       break;
     }
 
-    const meal = mealAt(cursor);
+    const meal = mealOnce(cursor);
     slots.push({
       id: `${date}#${index}`,
       index,

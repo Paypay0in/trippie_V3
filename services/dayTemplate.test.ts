@@ -266,3 +266,57 @@ describe('a day that already has plans in it', () => {
     expect(slots.find(slot => slot.occupantId === 'lunch')?.label).toBe('午餐');
   });
 });
+
+/**
+ * 「一天出現兩個午餐格、兩個晚餐格」.
+ *
+ * His Day 4 offered lunch at 11:46 and lunch again at 13:46, because every
+ * block asked the window independently. A day with two lunches is not a day
+ * anybody recognises.
+ */
+describe('一天只有一次午餐', () => {
+  const DAY4 = '2026-10-23';
+
+  it('labels only one block in a window', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY4, dayStart: '10:00', dayEnd: '21:00', blockMinutes: 120,
+      occupants: [
+        { id: 'ramen', time: '11:46', durationMinutes: 120 },
+      ],
+    });
+
+    expect(slots.filter(slot => slot.label === '午餐')).toHaveLength(1);
+    expect(slots.filter(slot => slot.label === '晚餐').length).toBeLessThanOrEqual(1);
+  });
+
+  /* The stop in the window is the meal; a gap beside it is the afternoon. */
+  it('gives the label to the block that holds something', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY4, dayStart: '10:00', dayEnd: '21:00',
+      occupants: [{ id: 'lunch', time: '12:30', durationMinutes: 60 }],
+    });
+
+    expect(slots.find(slot => slot.occupantId === 'lunch')?.label).toBe('午餐');
+    expect(slots.filter(slot => slot.label === '午餐')).toHaveLength(1);
+  });
+
+  /* With nothing in the window, the first block there is still lunch. */
+  it('still offers an empty lunch when nothing is planned', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY4, dayStart: '10:00', dayEnd: '21:00', blockMinutes: 120,
+    });
+
+    expect(slots.filter(slot => slot.label === '午餐')).toHaveLength(1);
+  });
+
+  /* Breakfast, lunch and dinner are separate windows and do not block each other. */
+  it('still offers each meal once on a long day', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY4, dayStart: '08:00', dayEnd: '21:00', blockMinutes: 90,
+    });
+
+    ['早餐', '午餐', '晚餐'].forEach(label => {
+      expect(slots.filter(slot => slot.label === label).length).toBeLessThanOrEqual(1);
+    });
+  });
+});
