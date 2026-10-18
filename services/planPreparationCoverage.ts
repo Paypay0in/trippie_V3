@@ -28,6 +28,19 @@ export interface PreparationTask {
    * day it is where the traveller is standing.
    */
   beforeDeparture?: boolean;
+  /**
+   * How many days ahead this has to be arranged.
+   *
+   * 「若很熱門就要放進去行前規劃中。比方說有些觀光列車是提前一個月要預約的」 — and
+   * that is a different kind of task from the rest of this list. 「before you
+   * leave」 is still weeks away; 「a month before you leave」 may already be
+   * today, and a checkbox cannot say that.
+   *
+   * Only set where the lead time is a published rule rather than a guess. An
+   * invented number here is worse than none: it would tell somebody they have
+   * missed a deadline that does not exist.
+   */
+  leadTimeDays?: number;
 }
 
 export interface ScheduleItem {
@@ -56,6 +69,20 @@ const REQUIREMENTS: Requirement[] = [
     mentions: ['包車'],
     satisfiedBy: ['包車'],
     task: { name: '預約包車與司機', canBeHumanAssisted: true },
+  },
+  {
+    /*
+      Japan's joyful trains and other reserved sightseeing services.
+
+      Reservations open exactly one month before the departure date at
+      みどりの窓口 and on the JR sites, and the popular ones are gone that
+      morning. Unlike everything else in this list, being late here is not an
+      inconvenience that can be sorted out locally — the seat does not exist
+      any more.
+    */
+    mentions: ['觀光列車', '觀光火車', '景觀列車', '觀光小火車', '觀光列車之旅', 'sightseeing train', 'scenic train', '觀光列車行程'],
+    satisfiedBy: ['觀光列車', '列車訂位', '景觀列車', 'sightseeing train'],
+    task: { name: '預約觀光列車座位', canBeHumanAssisted: true, leadTimeDays: 30 },
   },
   {
     // Sailings run to a timetable and sell out; missing one is not a delay,

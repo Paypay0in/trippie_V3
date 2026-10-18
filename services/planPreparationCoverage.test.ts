@@ -120,3 +120,49 @@ describe('tripHasStarted', () => {
     expect(tripHasStarted('not-a-date', '2026-10-20')).toBe(false);
   });
 });
+
+/**
+ * 「若很熱門就要放進去行前規劃中。比方說有些觀光列車是提前一個月要預約的」.
+ *
+ * A different kind of task from the rest of this list. 「before you leave」 is
+ * still weeks away; 「a month before you leave」 may already be today.
+ */
+describe('觀光列車', () => {
+  const schedule = [{ title: '搭乘觀光列車前往山區', placeName: '由布院之森' }];
+
+  it('is added when the schedule names one', () => {
+    const added = missingPreparation(schedule, []);
+
+    expect(added.map(task => task.name)).toContain('預約觀光列車座位');
+  });
+
+  /* Reservations open exactly one month before departure. */
+  it('carries the lead time, which a checkbox cannot say', () => {
+    const task = missingPreparation(schedule, [])
+      .find(entry => entry.name === '預約觀光列車座位');
+
+    expect(task?.leadTimeDays).toBe(30);
+  });
+
+  it('is not added when the list already covers it', () => {
+    const added = missingPreparation(schedule, [
+      { name: '完成列車訂位', canBeHumanAssisted: true },
+    ]);
+
+    expect(added.map(task => task.name)).not.toContain('預約觀光列車座位');
+  });
+
+  /* An ordinary train is not this. Nothing is claimed about a local service. */
+  it('says nothing about an ordinary train ride', () => {
+    const added = missingPreparation([{ title: '搭電車到淺草' }], []);
+
+    expect(added.map(task => task.name)).not.toContain('預約觀光列車座位');
+  });
+
+  /* The lead time survives the pass that marks before-departure tasks. */
+  it('survives markDepartureTiming', () => {
+    const marked = markDepartureTiming(missingPreparation(schedule, []));
+
+    expect(marked.find(task => task.name === '預約觀光列車座位')?.leadTimeDays).toBe(30);
+  });
+});

@@ -69,6 +69,14 @@ export interface PlanPreparationTask {
    * impossible.
    */
   beforeDeparture?: boolean;
+  /**
+   * How many days ahead it has to be arranged, where that is a published rule.
+   *
+   * 「有些觀光列車是提前一個月要預約的」. Carried through from
+   * `planPreparationCoverage`, which is where the number is argued for; never
+   * invented here, and absent means no deadline is claimed.
+   */
+  leadTimeDays?: number;
 }
 
 export interface ActivityPlanProposal {

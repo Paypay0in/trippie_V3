@@ -193,6 +193,19 @@ const ActivityPlanCards: React.FC<Props> = ({
                     {task.beforeDeparture && (
                       <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[9px] font-black text-slate-600">出發前</span>
                     )}
+                    {/*
+                      「有些觀光列車是提前一個月要預約的」.
+
+                      A different kind of task from the rest of the list.
+                      「before you leave」 is still weeks away; 「a month before
+                      you leave」 may already be today, and a checkbox cannot
+                      say that.
+                    */}
+                    {typeof task.leadTimeDays === 'number' && (
+                      <span className="ml-1 rounded bg-[#f0edff] px-1 py-0.5 text-[9px] font-black text-[#5b3df5]">
+                        需提前 {task.leadTimeDays} 天
+                      </span>
+                    )}
                   </span>
                   {task.canBeHumanAssisted && onRequestHelp && (
                     <button
