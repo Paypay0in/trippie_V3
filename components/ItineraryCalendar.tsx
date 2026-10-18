@@ -1098,6 +1098,18 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           /* So a meal row can ask whether a café was really meant as dinner. */
           categoryOf={categoryOf}
           /*
+            「上下箭頭去移動排序」. A swap of clock times, so each stop keeps its
+            own length and the day re-lays around them — the same change
+            `mealsAtMealtimes` makes, and the only one that cannot lose a slot.
+          */
+          onSwapBlocks={onUpdateItem ? (firstId, secondId) => {
+            const first = items.find(entry => entry.id === firstId);
+            const second = items.find(entry => entry.id === secondId);
+            if (!first?.time || !second?.time) return;
+            onUpdateItem(firstId, { time: second.time });
+            onUpdateItem(secondId, { time: first.time });
+          } : undefined}
+          /*
             Written one item at a time through the path that already persists a
             time change — the same one the inline time field uses. 「橘色處調 紅色
             處是不是就要調」 moves the whole day, but it is not a new kind of

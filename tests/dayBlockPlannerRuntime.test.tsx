@@ -497,3 +497,72 @@ describe('這一餐真的是這個嗎', () => {
     expect(document.querySelector('[data-testid^="meal-check-"]')).toBeNull();
   });
 });
+
+/**
+ * 「這邊在左邊欄位直接可以有上下箭頭去移動排序」.
+ *
+ * Reordering meant dragging cards in the timeline below — the right tool for
+ * a long day and the wrong one for 「these two are the wrong way round」,
+ * especially on a phone where a drag has to miss every other control on the
+ * way past.
+ */
+describe('上下箭頭', () => {
+  const twoStops = [
+    item('it-nasari', 'Nasari Sigdang', '10:00', {
+      latitude: 35.1535, longitude: 129.1190, address: 'Suyeong-gu, Busan',
+    }),
+    item('it-working', 'Working holiday', '12:00', {
+      latitude: 35.1529, longitude: 129.1181, address: 'Suyeong-gu, Busan',
+    }),
+  ];
+
+  const renderTwo = (over: Record<string, unknown> = {}) => renderPlanner({
+    items: twoStops,
+    areas: buildTripAreas({ itinerary: twoStops }),
+    ...over,
+  });
+
+  it('swaps the two stops either way round', async () => {
+    const onSwapBlocks = vi.fn();
+    renderTwo({ onSwapBlocks });
+
+    await userEvent.setup().click(screen.getByTestId('move-down-0'));
+
+    expect(onSwapBlocks).toHaveBeenCalledWith('it-nasari', 'it-working');
+  });
+
+  it('moves the second one back up', async () => {
+    const onSwapBlocks = vi.fn();
+    renderTwo({ onSwapBlocks });
+
+    await userEvent.setup().click(screen.getByTestId('move-up-1'));
+
+    expect(onSwapBlocks).toHaveBeenCalledWith('it-working', 'it-nasari');
+  });
+
+  /*
+    An arrow with nothing to trade with is not rendered. A dead button teaches
+    people the row cannot move at all.
+  */
+  it('offers nothing when there is only one stop', () => {
+    renderPlanner();
+
+    expect(document.querySelector('[data-testid^="move-up-"]')).toBeNull();
+    expect(document.querySelector('[data-testid^="move-down-"]')).toBeNull();
+  });
+
+  /* A flight is a wall, not a partner: swapping it with lunch breaks the day. */
+  it('refuses to trade with a fixed row', () => {
+    const onSwapBlocks = vi.fn();
+    renderTwo({ onSwapBlocks, isFixed: (entry: ItineraryItem) => entry.id === 'it-working' });
+
+    expect(document.querySelector('[data-testid^="move-down-"]')).toBeNull();
+  });
+
+  /* Nothing is offered when the caller cannot write the swap. */
+  it('offers nothing without a handler', () => {
+    renderTwo();
+
+    expect(document.querySelector('[data-testid^="move-down-"]')).toBeNull();
+  });
+});

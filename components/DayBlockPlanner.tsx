@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Clock3, Plus } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Clock3, Plus } from 'lucide-react';
 import { ItineraryItem, PlaceCategory } from '../types';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import { AREA_COLORS } from '../constants/areaColors';
@@ -106,6 +106,19 @@ interface Props {
    * Omitted asks nothing.
    */
   categoryOf?: (item: ItineraryItem) => string | undefined;
+  /**
+   * Swaps two filled rows, for the ▲▼ on the left of each one.
+   *
+   * 「這邊在左邊欄位直接可以有上下箭頭去移動排序」. Reordering a day meant dragging
+   * cards in the timeline below — which is the right tool for a long day and
+   * the wrong one for 「these two are the wrong way round」, especially on a
+   * phone where a drag has to miss every other control on the way past.
+   *
+   * A swap, not a move: the two stops trade clock times and keep their own
+   * lengths, which is the same thing `mealsAtMealtimes` does and the only
+   * change that cannot quietly lose a slot.
+   */
+  onSwapBlocks?: (firstId: string, secondId: string) => void;
 }
 
 /** 「一個行程都預設抓 2 小時」, and the lengths worth offering around it. */
@@ -126,6 +139,7 @@ const DayBlockPlanner: React.FC<Props> = ({
   onClearBlock,
   onUnpin,
   categoryOf,
+  onSwapBlocks,
   onShiftDay,
   country,
   isFixed,
@@ -269,6 +283,25 @@ const DayBlockPlanner: React.FC<Props> = ({
       ...groups.filter(group => group.label === '其他')];
   };
 
+  /*
+    The nearest filled row in each direction, which is what an arrow trades
+    with. Empty rows are skipped: 「move this up」 past a gap is still a move,
+    and stopping at a blank would make the arrow do nothing on a sparse day.
+
+    A fixed row is a wall rather than a partner — the day is built around it.
+  */
+  const neighbour = (slot: DaySlot, step: 1 | -1): ItineraryItem | undefined => {
+    for (let index = slot.index + step; index >= 0 && index < slots.length; index += step) {
+      const candidate = slots[index];
+      const item = candidate.occupantId ? itemById.get(candidate.occupantId) : undefined;
+      if (!item) continue;
+      return isFixed?.(item) ? undefined : item;
+    }
+    return undefined;
+  };
+  const swapUp = (slot: DaySlot) => neighbour(slot, -1);
+  const swapDown = (slot: DaySlot) => neighbour(slot, 1);
+
   return (
     <section data-testid="day-block-planner" className="mb-4 rounded-[22px] border border-[#e8e7f4] bg-white p-3">
       {/*
@@ -406,12 +439,47 @@ const DayBlockPlanner: React.FC<Props> = ({
                 data-testid={`day-block-${slot.index}`}
                 className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white px-2.5 py-2"
               >
-                <span className="w-[86px] shrink-0">
-                  <span className="block text-[11px] font-black text-[#11183d]">
-                    {slot.startTime}–{slot.endTime}
-                  </span>
-                  <span className={`block text-[10px] font-bold ${slot.kind === 'meal' ? 'text-amber-600' : 'text-slate-400'}`}>
-                    {slot.label}
+                <span className="flex w-[86px] shrink-0 items-center gap-1">
+                  {/*
+                    「這邊在左邊欄位直接可以有上下箭頭去移動排序」.
+
+                    Only between two filled rows, and never involving a fixed
+                    one: swapping a flight with lunch is not a reorder, it is
+                    a broken day. An arrow with nothing to trade with is not
+                    rendered rather than rendered dead — a button that does
+                    nothing teaches people the row cannot move.
+                  */}
+                  {onSwapBlocks && occupant && !fixed && (swapUp(slot) || swapDown(slot)) ? (
+                    <span className="flex shrink-0 flex-col">
+                      <button
+                        type="button"
+                        data-testid={`move-up-${slot.index}`}
+                        aria-label={`${occupant.location || occupant.title} 往前移`}
+                        disabled={!swapUp(slot)}
+                        onClick={() => { const other = swapUp(slot); if (other) onSwapBlocks(occupant.id, other.id); }}
+                        className="px-0.5 text-slate-300 disabled:opacity-30"
+                      >
+                        <ChevronUp size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        data-testid={`move-down-${slot.index}`}
+                        aria-label={`${occupant.location || occupant.title} 往後移`}
+                        disabled={!swapDown(slot)}
+                        onClick={() => { const other = swapDown(slot); if (other) onSwapBlocks(occupant.id, other.id); }}
+                        className="px-0.5 text-slate-300 disabled:opacity-30"
+                      >
+                        <ChevronDown size={12} />
+                      </button>
+                    </span>
+                  ) : null}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-black text-[#11183d]">
+                      {slot.startTime}–{slot.endTime}
+                    </span>
+                    <span className={`block text-[10px] font-bold ${slot.kind === 'meal' ? 'text-amber-600' : 'text-slate-400'}`}>
+                      {slot.label}
+                    </span>
                   </span>
                 </span>
 
