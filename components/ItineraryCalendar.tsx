@@ -3,9 +3,9 @@ import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
 import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
-import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
+import { fetchPlaceBasics, hoursForDate, PlaceBasics, readsAsClosed, summarizePlaceBasics } from '../services/placeBasicsService';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
-import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen } from 'lucide-react';
+import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen, Clock3 } from 'lucide-react';
 import { fetchPlacePhoto, PlacePhoto } from '../services/placePhotoService';
 import { fetchPlaceCommerce, hasDisplayableCommerce } from '../services/placeCommerceService';
 import { itemsForDay, orderItemsForDay, hasTimeOrderConflict } from '../services/itineraryOrdering';
@@ -226,33 +226,41 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     Google's own line for the places on this plan that carry no notes. See the
     card below, and `placeBasicsService` for why none of it is model-written.
   */
-  const [basicsByItemId, setBasicsByItemId] = useState<Record<string, string>>({});
-  const noteFreePlaceKey = items
-    .filter(item => item.placeId && (!item.savedTravelNotes || item.savedTravelNotes.length === 0))
+  /*
+    The whole record, not a sentence built from it.
+
+    「像這個開放時間也都要寫成行程表上」 — opening hours are in here and were being
+    thrown away one line after they arrived, because this screen only ever
+    wanted the rating. And it is asked for every place now rather than only
+    the ones carrying no notes: whether a museum is shut on the Monday it is
+    planned for has nothing to do with whether somebody wrote a note about it.
+  */
+  const [basicsByItemId, setBasicsByItemId] = useState<Record<string, PlaceBasics>>({});
+  const placeKey = items
+    .filter(item => item.placeId)
     .map(item => `${item.id}:${item.placeId}`)
     .join('|');
 
   useEffect(() => {
-    if (!noteFreePlaceKey) return;
+    if (!placeKey) return;
     let cancelled = false;
-    const wanted = noteFreePlaceKey.split('|').map(entry => {
+    const wanted = placeKey.split('|').map(entry => {
       const separator = entry.lastIndexOf(':');
       return { itemId: entry.slice(0, separator), placeId: entry.slice(separator + 1) };
     });
 
     void Promise.all(wanted.map(async ({ itemId, placeId }) => {
       const basics = await fetchPlaceBasics(placeId);
-      const line = summarizePlaceBasics(basics) || basics?.summary || '';
-      return line ? [itemId, line] as const : null;
+      return basics ? [itemId, basics] as const : null;
     })).then(found => {
       if (cancelled) return;
-      const resolved = found.filter((entry): entry is readonly [string, string] => entry !== null);
+      const resolved = found.filter((entry): entry is readonly [string, PlaceBasics] => entry !== null);
       if (resolved.length === 0) return;
       setBasicsByItemId(current => ({ ...current, ...Object.fromEntries(resolved) }));
     });
 
     return () => { cancelled = true; };
-  }, [noteFreePlaceKey]);
+  }, [placeKey]);
   const activeDate = dates.includes(selectedDate || '') ? selectedDate : defaultItineraryDate(dates);
 
   /**
@@ -851,11 +859,37 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   and these are places the collection has usually asked about
                   already.
                 */}
-                {(!item.savedTravelNotes || item.savedTravelNotes.length === 0) && basicsByItemId[item.id] && (
+                {(!item.savedTravelNotes || item.savedTravelNotes.length === 0)
+                  && (summarizePlaceBasics(basicsByItemId[item.id] || null) || basicsByItemId[item.id]?.summary) && (
                   <p data-testid={`item-basics-${item.id}`} className="mt-1.5 text-[11px] font-bold text-slate-500">
-                    {basicsByItemId[item.id]}
+                    {summarizePlaceBasics(basicsByItemId[item.id] || null) || basicsByItemId[item.id]?.summary}
                   </p>
                 )}
+
+                {/*
+                  The hours for the day this stop is actually on.
+
+                  Not today's. A museum open today and shut on the Monday he
+                  has it planned for is the case worth catching, and
+                  「10:00–18:00」 beside that Monday is a reassuring lie.
+                  See `hoursForDate`.
+                */}
+                {(() => {
+                  const hours = hoursForDate(basicsByItemId[item.id] || null, item.date);
+                  if (!hours) return null;
+                  const shut = readsAsClosed(hours);
+                  return (
+                    <p
+                      data-testid={`item-hours-${item.id}`}
+                      className={`mt-1 flex items-start gap-1 text-[11px] font-bold leading-4 ${
+                        shut ? 'text-rose-600' : 'text-slate-500'
+                      }`}
+                    >
+                      <Clock3 size={11} className="mt-0.5 shrink-0" />
+                      <span>{shut ? `這天公休・${hours}` : hours}</span>
+                    </p>
+                  );
+                })()}
                 {item.savedTravelNotes && item.savedTravelNotes.length > 0 && (() => {
                   const isExpanded = expandedNoteIds.includes(item.id);
                   const visible = isExpanded ? item.savedTravelNotes : item.savedTravelNotes.slice(0, VISIBLE_NOTE_COUNT);

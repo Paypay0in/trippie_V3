@@ -148,3 +148,39 @@ export const hoursForToday = (basics: PlaceBasics | null, now: Date = new Date()
   const index = (now.getDay() + 6) % 7;
   return lines[index];
 };
+
+/**
+ * The hours for a particular date, rather than for today.
+ *
+ * 「像這個開放時間也都要寫成行程表上」. `hoursForToday` has printed this on the
+ * saved-place card for months, and the itinerary card — the one screen that
+ * knows which *day* each stop is on — only ever showed the rating.
+ *
+ * Today is the wrong question there. A museum open today and shut on the
+ * Monday he has it planned for is exactly the case worth catching, and
+ * 「今天 10:00–18:00」 beside a Monday stop is a reassuring lie.
+ *
+ * @param isoDate a plain `YYYY-MM-DD`, read as a local date — these are trip
+ *   dates, not instants, and `new Date('2026-10-26')` would be parsed as UTC
+ *   and come out a day early west of Greenwich.
+ */
+export const hoursForDate = (basics: PlaceBasics | null, isoDate?: string): string | undefined => {
+  const lines = basics?.weekdayHours;
+  if (!lines || lines.length < 7 || !isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return undefined;
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return undefined;
+  // getDay() is Sunday-first; Google's list is Monday-first.
+  return lines[(date.getDay() + 6) % 7];
+};
+
+/**
+ * Whether that line means the place is shut.
+ *
+ * Matched on the words Google actually returns, in the languages this app
+ * asks in. Anything unrecognised is treated as open: printing 「公休」 over a
+ * day somebody can visit is the more expensive mistake, because they will
+ * cancel the stop rather than check.
+ */
+export const readsAsClosed = (line?: string): boolean =>
+  Boolean(line && /closed|休息|公休|定休|休館|休業|휴무/i.test(line));
