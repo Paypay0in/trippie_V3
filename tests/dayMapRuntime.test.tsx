@@ -293,6 +293,26 @@ describe('the bed on the day map', () => {
     expect(src.split('lodging-pin.png').length - 1).toBe(1);
   });
 
+  /*
+    「我覺得每天都要 因為要看住宿點離要去的地方多遠」.
+
+    Every day of the trip, including the morning the room is given back: the
+    traveller still woke up there, and 「how far is this from where I slept」 is
+    the question the map is being read for.
+  */
+  it('draws it on the check-out morning too', () => {
+    render(<ItineraryCalendar
+      items={[...stay(), stop('上野公園', '09:00', { date: '2026-10-24' })]}
+      startDate="2026-10-24"
+      endDate="2026-10-24"
+    />);
+
+    fireEvent.click(screen.getByTestId('toggle-map-mode'));
+
+    expect(decodeURIComponent((screen.getByTestId('day-map-image') as HTMLImageElement).src))
+      .toContain('icons/lodging-pin.png');
+  });
+
   it('names it in the list under the map', () => {
     render(<ItineraryCalendar
       items={[...stay(), stop('淺草寺', '10:30', { date: '2026-10-21' })]}
