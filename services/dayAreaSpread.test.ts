@@ -61,6 +61,7 @@ describe('dayAreaSpread', () => {
   it('has nothing to say about an empty day', () => {
     expect(dayAreaSpread([], buildTripAreas({}))).toEqual({
       areas: [], unplacedCount: 0, longestHopKm: undefined,
+      mainArea: undefined, firstArea: undefined, chosenCount: 0,
     });
   });
 });
@@ -124,5 +125,50 @@ describe('今天大多在哪', () => {
     ], noAreas, '日本');
 
     expect(spread.mainArea).toBeUndefined();
+  });
+});
+
+/**
+ * 「第一天這樣要寫說你的第一個行程在哪區」.
+ *
+ * His arrival day, as his phone showed it: 成田 11:00, the ride to 朋友家, and
+ * one museum. The banner read 「今天跨了 4 個區・最遠兩點約 54.6 公里」 — none of
+ * which was about anything he had chosen to do.
+ */
+describe('抵達日', () => {
+  const arrival = (id: string, time: string, latitude: number, longitude: number, address: string, over: Partial<ItineraryItem> = {}): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY', date: '2026-10-20', time,
+    latitude, longitude, address, ...over,
+  } as ItineraryItem);
+
+  const day1 = [
+    arrival('flight-landing-f9', '11:00', 35.7720, 140.3929, 'Narita International Airport, Chiba', {
+      type: 'FLIGHT', derivedFromFlightAnchorId: 'f9',
+    }),
+    arrival('airport-transfer-2026-10-20', '13:00', 35.7100, 139.7900, '2-chōme-17-10 Kuramae, Taito City, Tokyo', {
+      type: 'TRANSPORT',
+    }),
+    arrival('museum', '15:00', 35.6805, 139.8075, '4-chōme-1-1 Miyoshi, Koto City, Tokyo'),
+  ];
+
+  const areas = buildTripAreas({ itinerary: day1 });
+
+  it('counts only the stops he chose', () => {
+    expect(dayAreaSpread(day1, areas, '日本').chosenCount).toBe(1);
+  });
+
+  /* The ward as the address writes it: Google returns 「Koto City」 in English. */
+  it('names where the trip actually starts', () => {
+    expect(dayAreaSpread(day1, areas, '日本').firstArea).toBe('Koto City');
+  });
+
+  /* 54.6 km of it was the flight home from the airport. */
+  it('no longer measures the day by the airport it landed at', () => {
+    expect(dayAreaSpread(day1, areas, '日本').longestHopKm).toBeUndefined();
+  });
+
+  /* A day of one stop is not a day that crosses anything. */
+  it('raises no spread warning over a single stop', () => {
+    expect(daySpansTooManyAreas(dayAreaSpread(day1, areas, '日本'))).toBe(false);
   });
 });

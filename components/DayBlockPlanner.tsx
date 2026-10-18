@@ -327,12 +327,25 @@ const DayBlockPlanner: React.FC<Props> = ({
             When the day does not mostly sit anywhere, it says how many areas
             it crosses instead of picking one.
           */}
+          {/*
+            「第一天這樣要寫說你的第一個行程在哪區」.
+
+            One stop is not a route, and a day holding one has nothing to be
+            warned about — but it still has an answer worth printing. Arrival
+            day said 「今天跨了 4 個區・最遠兩點約 54.6 公里」 over a single museum;
+            the other three areas were the airport, the ride in and the room,
+            which `isChosen` now leaves out of the count entirely.
+          */}
           <span>
-            {spread.mainArea
-              ? `今日行程大多集中在 ${spread.mainArea}`
-              : `今天跨了 ${spread.areas.length} 個區`}
-            {spread.mainArea && spread.areas.length > 1 && `，另外跨到 ${spread.areas.length - 1} 區`}
-            {spread.longestHopKm !== undefined && spread.longestHopKm >= 1 && `・最遠兩點約 ${spread.longestHopKm} 公里`}
+            {spread.chosenCount <= 1
+              ? (spread.firstArea ? `第一個行程在 ${spread.firstArea}` : '今天只排了一個行程')
+              : <>
+                  {spread.mainArea
+                    ? `今日行程大多集中在 ${spread.mainArea}`
+                    : `今天跨了 ${spread.areas.length} 個區`}
+                  {spread.mainArea && spread.areas.length > 1 && `，另外跨到 ${spread.areas.length - 1} 區`}
+                  {spread.longestHopKm !== undefined && spread.longestHopKm >= 1 && `・最遠兩點約 ${spread.longestHopKm} 公里`}
+                </>}
           </span>
         </p>
       )}

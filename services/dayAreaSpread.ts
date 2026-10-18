@@ -2,6 +2,7 @@ import { ItineraryItem } from '../types';
 import { stopsOnTheGround } from './dayMapImage';
 import { TripAreas } from './tripAreas';
 import { distanceKm, districtOf, PlaceCluster } from './placeClusters';
+import { TRANSFER_ID_PREFIX } from './itineraryDayFloor';
 
 /**
  * Whether a day stays in one part of the city.
@@ -38,7 +39,40 @@ export interface DayAreaSpread {
    * enough to call it 「mostly」 anywhere — see `MOSTLY`.
    */
   mainArea?: string;
+  /**
+   * Where the day's first chosen stop is, for a day with no spread to report.
+   *
+   * 「第一天這樣要寫說你的第一個行程在哪區」 — arrival day read 「今天跨了 4 個區・
+   * 最遠兩點約 54.6 公里」 over a day holding exactly one thing he had chosen to
+   * do. The other three 「areas」 were Narita, the ride in, and the room.
+   *
+   * A day with one stop has no routing to warn about and still has an answer
+   * worth printing: which part of the city the trip actually starts in.
+   */
+  firstArea?: string;
+  /** How many stops the traveller chose, which is what a warning is about. */
+  chosenCount: number;
 }
+
+/**
+ * Flights, the ride from the airport, and the room.
+ *
+ * Left out of everything below, which reverses what this file used to do. The
+ * old reasoning was that 「a day whose only two areas are the airport and the
+ * hotel is not a day that needs warning about」 — true, and it assumed leaving
+ * them in could not invent a warning. His arrival day is the counter-example:
+ * one museum, and a banner announcing four areas and fifty-four kilometres.
+ *
+ * Crossing the city to the places you picked is a plan worth questioning.
+ * Being flown to Narita is not.
+ */
+const isChosen = (item: ItineraryItem): boolean =>
+  !item.derivedFromFlightAnchorId
+  && item.type !== 'FLIGHT'
+  && item.type !== 'HOTEL'
+  && item.fixedEventKind !== 'flight'
+  && item.fixedEventKind !== 'accommodation'
+  && !item.id.startsWith(TRANSFER_ID_PREFIX);
 
 /**
  * How much of a day has to be in one ward before it is 「mostly」 there.
@@ -66,7 +100,9 @@ export const dayAreaSpread = (
   const seen = new Map<string, PlaceCluster>();
   let unplacedCount = 0;
 
-  items.forEach(item => {
+  const chosen = items.filter(isChosen);
+
+  chosen.forEach(item => {
     const area = areas.areaOfItem(item.id);
     if (!area) { unplacedCount += 1; return; }
     if (!seen.has(area.id)) seen.set(area.id, area);
@@ -77,7 +113,7 @@ export const dayAreaSpread = (
     was reading two thousand kilometres and saying nothing about the four real
     stops in Tokyo. See `stopsOnTheGround`.
   */
-  const located = stopsOnTheGround(items).filter(item =>
+  const located = stopsOnTheGround(chosen).filter(item =>
     Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
 
   let longestHopKm: number | undefined;
@@ -108,9 +144,17 @@ export const dayAreaSpread = (
     ? leading[0]
     : undefined;
 
+  /*
+    The first thing on the day, by the clock. See `firstArea`.
+  */
+  const first = [...located].sort((left, right) =>
+    (left.time || '').localeCompare(right.time || ''))[0];
+
   return {
     areas: Array.from(seen.values()),
     unplacedCount,
+    firstArea: first ? districtOf(first.address, country) : undefined,
+    chosenCount: located.length,
     longestHopKm: longestHopKm === undefined ? undefined : Math.round(longestHopKm * 10) / 10,
     mainArea,
   };
