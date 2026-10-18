@@ -235,11 +235,46 @@ export interface AdjustmentChange {
 
 export interface FixedEventAdjustment {
   changes: AdjustmentChange[];
+  /**
+   * The banner's heading, which has to be true of this day.
+   *
+   * 「這天明明沒有航班但他會寫說有航班」 — Day 4 held a lunch he had pinned, and a
+   * pinned item is fixed because he said so. The arithmetic was right: things
+   * before it were moved to clear it. Every word around that arithmetic was
+   * about an airport that is not on the day.
+   */
+  headline: string;
   /** Conflicts no automatic change can fix — the user must decide. */
   unresolved: FixedEventConflict[];
   warnings: string[];
   summary: string;
 }
+
+/**
+ * How to talk about the thing a day is being rearranged around.
+ *
+ * A flight imposes check-in and a journey; a table he booked imposes only
+ * being there. The deadlines already differ — see `boundaryFor` — and the
+ * words have to differ with them, or a day with no flight announces one.
+ */
+const aboutTheFixedItem = (governing?: ItineraryItem): {
+  headline: string; reason: string; forWhat: string;
+} => {
+  const kind = governing ? fixedKindOf(governing) : undefined;
+  if (kind === 'flight' || kind === 'train') {
+    return {
+      headline: kind === 'train' ? '新增車次後，當日行程需要調整' : '新增航班後，當日行程需要調整',
+      reason: kind === 'train' ? '需預留前往車站與上車時間。' : '需預留機場交通與報到時間。',
+      forWhat: kind === 'train' ? '為了預留前往車站與上車時間' : '為了預留前往機場與報到時間',
+    };
+  }
+  const name = governing?.title?.trim() || governing?.location?.trim() || '固定的行程';
+  return {
+    headline: '固定行程前面的安排需要調整',
+    reason: `需趕上固定的「${name}」。`,
+    forWhat: `為了趕上固定的「${name}」`,
+  };
+};
 
 /** Start times relative to the first item, so gaps survive a shift. */
 const relativeOffsets = (items: ItineraryItem[]): number[] => {
@@ -279,6 +314,11 @@ export const buildFixedEventAdjustment = (
       changes: [],
       unresolved,
       warnings,
+      // This branch covers both 「two fixed events fight」 and 「nothing needs
+      // doing」; only the first is a conflict, and the second must not say so.
+      headline: unresolved.length > 0
+        ? '目前有兩個固定行程發生衝突'
+        : aboutTheFixedItem(fixed[0]).headline,
       summary: unresolved.length > 0 ? '目前有兩個固定行程發生衝突' : '目前行程沒有需要調整的地方。',
     };
   }
@@ -288,13 +328,15 @@ export const buildFixedEventAdjustment = (
     boundaryFor(item, context).mustLeaveByMinutes < boundaryFor(earliest, context).mustLeaveByMinutes ? item : earliest);
   const boundary = boundaryFor(governing, context).mustLeaveByMinutes;
   const governingStart = timeToMinutes(governing.time)!;
+  // What this day is actually being rearranged around. See `aboutTheFixedItem`.
+  const words = aboutTheFixedItem(governing);
 
   // Flexible activities that are meant to happen before the fixed event.
   const before = timed
     .filter(item => isFlexibleItem(item) && timeToMinutes(item.time)! < governingStart)
     .sort((left, right) => left.time.localeCompare(right.time));
   if (before.length === 0) {
-    return { changes: [], unresolved, warnings, summary: '目前行程沒有需要調整的地方。' };
+    return { changes: [], unresolved, warnings, headline: words.headline, summary: '目前行程沒有需要調整的地方。' };
   }
 
   const offsets = relativeOffsets(before);
@@ -319,7 +361,7 @@ export const buildFixedEventAdjustment = (
         itemId: item.id,
         fromTime: item.time,
         toTime: nextTime,
-        reason: '需預留機場交通與報到時間。',
+        reason: words.reason,
       });
     });
 
@@ -338,7 +380,8 @@ export const buildFixedEventAdjustment = (
       changes,
       unresolved,
       warnings,
-      summary: `為了預留前往機場與報到時間，我們建議調整 ${changes.length} 個行程。`,
+      headline: words.headline,
+      summary: `${words.forWhat}，我們建議調整 ${changes.length} 個行程。`,
     };
   }
 
@@ -354,7 +397,8 @@ export const buildFixedEventAdjustment = (
     })),
     unresolved,
     warnings,
-    summary: `為了預留前往機場與報到時間，我們建議調整 ${before.length} 個行程。`,
+    headline: words.headline,
+    summary: `${words.forWhat}，我們建議調整 ${before.length} 個行程。`,
   };
 };
 

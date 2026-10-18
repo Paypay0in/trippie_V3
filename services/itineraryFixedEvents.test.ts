@@ -297,7 +297,7 @@ describe('applyFixedEventAdjustment', () => {
   it('refuses to move a fixed event even if a proposal names one', () => {
     const result = applyFixedEventAdjustment(itinerary(), {
       changes: [{ type: 'move', itemId: 'it-flight', fromTime: '18:00', toTime: '20:00', reason: 'hand-built' }],
-      unresolved: [], warnings: [], summary: '',
+      unresolved: [], warnings: [], summary: '', headline: '',
     });
     expect(result.changed).toBe(false);
     expect(result.items.find(entry => entry.id === 'it-flight')?.time).toBe('18:00');
@@ -306,7 +306,7 @@ describe('applyFixedEventAdjustment', () => {
   it('skips a change whose item no longer exists', () => {
     const result = applyFixedEventAdjustment(itinerary(), {
       changes: [{ type: 'move', itemId: 'gone', fromTime: '11:00', toTime: '10:00', reason: '' }],
-      unresolved: [], warnings: [], summary: '',
+      unresolved: [], warnings: [], summary: '', headline: '',
     });
     expect(result.changed).toBe(false);
   });
@@ -462,5 +462,58 @@ describe('describeUnresolvedConflicts', () => {
   it('says nothing rather than naming a card that is gone', () => {
     expect(describeUnresolvedConflicts([conflict('stay', 'deleted')], items)).toBe('');
     expect(describeUnresolvedConflicts([], items)).toBe('');
+  });
+});
+
+/**
+ * 「這天明明沒有航班但他會寫說有航班」.
+ *
+ * His Day 4: 迴轉壽司 at 10:00, a temple at 11:24, and Alchemy at 12:00 which
+ * he had pinned. A pinned item is fixed because he said so, and the moves made
+ * around it were right. Every word around them was about an airport.
+ */
+describe('一天沒有航班的時候', () => {
+  const day = (id: string, time: string, title: string, over: Partial<ItineraryItem> = {}): ItineraryItem => ({
+    id, title, location: title, notes: '', type: 'ACTIVITY', date: '2026-10-23', time,
+    durationMinutes: 120, ...over,
+  } as ItineraryItem);
+
+  const dayFour = [
+    day('sushi', '10:00', '迴轉壽司 根室花丸 KITTE丸之內店'),
+    day('temple', '11:24', 'Reiyukai Shakaden Temple'),
+    day('alchemy', '12:00', 'Alchemy', { isPinned: true }),
+  ];
+
+  it('does not announce a flight', () => {
+    const adjustment = buildFixedEventAdjustment(dayFour);
+
+    expect(adjustment.headline).not.toContain('航班');
+    expect(adjustment.summary).not.toContain('機場');
+  });
+
+  it('names the thing the day is actually built around', () => {
+    const adjustment = buildFixedEventAdjustment(dayFour);
+
+    expect(adjustment.summary).toContain('Alchemy');
+    expect(adjustment.changes.every(change => !change.reason.includes('機場'))).toBe(true);
+  });
+
+  /* The arithmetic was never the problem and must not change. */
+  it('still moves what has to move', () => {
+    const adjustment = buildFixedEventAdjustment(dayFour);
+
+    expect(adjustment.changes.length).toBeGreaterThan(0);
+    expect(adjustment.changes.every(change => change.itemId !== 'alchemy')).toBe(true);
+  });
+
+  /* And a day that really does have a flight still says so. */
+  it('still announces a flight when there is one', () => {
+    const adjustment = buildFixedEventAdjustment([
+      day('sushi', '15:00', '迴轉壽司'),
+      day('flight', '18:00', '航班起飛', { type: 'FLIGHT', derivedFromFlightAnchorId: 'f1' }),
+    ]);
+
+    expect(adjustment.headline).toContain('航班');
+    expect(adjustment.summary).toContain('機場');
   });
 });

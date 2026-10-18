@@ -1102,7 +1102,13 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-black text-amber-800">
-                {adjustment.unresolved.length > 0 ? '目前有兩個固定行程發生衝突' : '新增航班後，當日行程需要調整'}
+                {/*
+                  「這天明明沒有航班但他會寫說有航班」. The heading was a constant,
+                  so a day rearranged around a lunch he had pinned announced a
+                  flight. It is named by what the day is actually built around
+                  now — see `aboutTheFixedItem`.
+                */}
+                {adjustment.unresolved.length > 0 ? '目前有兩個固定行程發生衝突' : adjustment.headline}
               </div>
               {/*
                 The heading already says there is a conflict. Repeating the
