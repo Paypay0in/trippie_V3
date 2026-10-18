@@ -1,5 +1,5 @@
 import { ItineraryItem, PlaceCategory, SavedExperienceNote, SavedTravelInspiration } from '../types';
-import { dedupeNoteTexts } from './itineraryImageSlices';
+import { keepDistinctNotes } from './distinctNotes';
 import { FixedScheduleEntry, fixedAnchorSchedule } from './itineraryDayFloor';
 import { localToday } from './localDate';
 import { cityDisplayName } from './cityNames';
@@ -34,23 +34,6 @@ export interface PlaceCoordinates {
   latitude: number;
   longitude: number;
 }
-
-/**
- * The notes of one place, with the ones that only restate another removed.
- *
- * Works on the notes rather than on their text so the surviving note keeps its
- * id and its provenance — the picker matches planned places by those.
- */
-const keepDistinctNotes = (notes: SavedExperienceNote[], placeName: string): SavedExperienceNote[] => {
-  const kept = dedupeNoteTexts(notes.map(note => note.text), placeName);
-  const remaining = [...kept];
-  return notes.filter(note => {
-    const index = remaining.indexOf(note.text.trim());
-    if (index < 0) return false;
-    remaining.splice(index, 1);
-    return true;
-  });
-};
 
 export interface TripInspirationPlaceGroup {
   /** Stable, data-derived id. Never an array index. */

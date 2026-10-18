@@ -5,6 +5,7 @@ import { CommunityPost, SavedExperienceNote, SavedTravelInspiration } from '../t
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { resolveSavedPlaceImage, SavedPlaceImageResult } from '../services/savedPlaceImageService';
 import { clusterSavedPlaces } from '../services/placeClusters';
+import { keepDistinctNotes } from '../services/distinctNotes';
 import { AREA_COLORS } from '../constants/areaColors';
 import { countryDisplayName } from '../services/countryIdentity';
 import { CATEGORY_LABELS } from '../services/placeCategory';
@@ -222,6 +223,35 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
     return () => { active = false; };
   }, [country, city]);
 
+  /*
+    「反覆寫一樣的話」.
+
+    味贊王鹽烤肉 carried 營業時間 12:00-23:00 three times, 五花肉 three times,
+    and 鹽烤肉餐廳 — which repeats the place's own name back. The rules for
+    deciding that live in `dedupeNoteTexts` and the trip planner has used them
+    for months; this screen, which is where notes are actually read, rendered
+    whatever was stored.
+
+    Display only. The editor below still opens the real records, because
+    deleting a line somebody wrote is their decision, not a side effect of
+    looking at the card.
+  */
+  const notesById = useMemo(() => {
+    const map = new Map<string, SavedExperienceNote[]>();
+    items.forEach(item => {
+      const kept = keepDistinctNotes(item.notes, item.placeName);
+      /*
+        Never down to nothing. 「鮑魚粥好吃」 on a place called 大海鮑魚粥 repeats
+        the name, which is a reason to rank it last among several and no reason
+        at all to leave the card blank when it is the only thing anybody wrote.
+      */
+      map.set(item.id, kept.length > 0 ? kept : item.notes);
+    });
+    return map;
+  }, [items]);
+  const notesOf = (item: SavedTravelInspiration): SavedExperienceNote[] =>
+    notesById.get(item.id) || item.notes;
+
   const creatorById = useMemo(() => {
     const map = new Map<string, { name: string; avatar?: string }>();
     communityPosts.forEach(post => map.set(post.creatorId, { name: post.authorName, avatar: post.authorAvatar }));
@@ -387,7 +417,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
               <button type="button" onClick={() => { setRebinding(null); setCandidates([]); setRebindError(''); }} className="mt-2 text-[11px] font-black text-slate-500">取消</button>
             </div>
           )}
-          {item.notes.length === 0 && basicsById[item.id] && (
+          {notesOf(item).length === 0 && basicsById[item.id] && (
             <p data-testid={`basics-${item.id}`} className="mt-1.5 text-[11px] font-bold text-slate-500">
               {basicsById[item.id]}
             </p>
@@ -400,7 +430,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             case, and the long tail of notes folds away.
           */}
           {(() => {
-            const sources = item.notes.map(note => {
+            const sources = notesOf(item).map(note => {
               const sourcePost = note.sourcePostId ? communityPosts.find(post => post.id === note.sourcePostId) : undefined;
               return sourcePost ? { name: sourcePost.authorName, avatar: sourcePost.authorAvatar, postId: note.sourcePostId } : { ...(creatorById.get(note.sourceCreatorId) || creator), postId: note.sourcePostId };
             });
@@ -409,10 +439,10 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
               screen cannot resolve both read 「原作者」, and folding them into one
               line would claim they are the same person.
             */
-            const authors = new Set(item.notes.map(note => note.sourcePostId || note.sourceCreatorId || ''));
-            const onlyAuthor = authors.size === 1 && item.notes.length > 1 ? sources[0] : null;
+            const authors = new Set(notesOf(item).map(note => note.sourcePostId || note.sourceCreatorId || ''));
+            const onlyAuthor = authors.size === 1 && notesOf(item).length > 1 ? sources[0] : null;
             const expanded = openNotes.has(item.id);
-            const shown = expanded ? item.notes : item.notes.slice(0, NOTE_PREVIEW);
+            const shown = expanded ? notesOf(item) : notesOf(item).slice(0, NOTE_PREVIEW);
             return <>
             {onlyAuthor && (
               <button
@@ -422,7 +452,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500"
               >
                 <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">{onlyAuthor.avatar ? <img src={onlyAuthor.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}</span>
-                {item.notes.length} 則筆記 · 全部來自 {onlyAuthor.name || '原作者'}
+                {notesOf(item).length} 則筆記 · 全部來自 {onlyAuthor.name || '原作者'}
               </button>
             )}
           <div className="mt-2 space-y-1.5">
@@ -434,14 +464,14 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
               </div>;
             })}
           </div>
-            {item.notes.length > NOTE_PREVIEW && (
+            {notesOf(item).length > NOTE_PREVIEW && (
               <button
                 type="button"
                 data-testid={`toggle-notes-${item.id}`}
                 onClick={(event) => { event.stopPropagation(); setOpenNotes(current => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; }); }}
                 className="mt-1.5 text-[11px] font-black text-violet-600"
               >
-                {expanded ? '收合' : `展開其餘 ${item.notes.length - NOTE_PREVIEW} 則`}
+                {expanded ? '收合' : `展開其餘 ${notesOf(item).length - NOTE_PREVIEW} 則`}
               </button>
             )}
             </>;

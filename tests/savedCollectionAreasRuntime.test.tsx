@@ -326,6 +326,10 @@ describe('repointing a place that is simply wrong', () => {
  * opening hours in a different script, and the 「旅 Ann」 chip printed beside
  * every single one of them. The chip exists to say which of several travellers
  * wrote a note — beside nine notes by one person it says nothing nine times.
+ *
+ * 「反覆寫一樣的話」 — and the repeats themselves are the other half. The rules
+ * for spotting them have been in `dedupeNoteTexts` for months and the planner
+ * has used them all along; this screen rendered whatever was stored.
  */
 describe('a card carrying nine notes by one person', () => {
   const note = (id: string, text: string): SavedExperienceNote => ({
@@ -352,22 +356,66 @@ describe('a card carrying nine notes by one person', () => {
   it('says who wrote them once instead of nine times', () => {
     mount([nine]);
 
-    expect(screen.getByTestId('notes-author-a').textContent).toContain('9 則筆記');
+    // Four, because five of the nine only restated another. 「9 則筆記」 was
+    // counting the repeats as notes.
+    expect(screen.getByTestId('notes-author-a').textContent).toContain('4 則筆記');
     // The chip that used to sit on every row is gone from the rows.
     expect(screen.queryAllByLabelText(/的原貼文/)).toHaveLength(0);
   });
 
-  it('shows four and folds the rest, until asked', () => {
+  /* 「反覆寫一樣的話」, line by line. */
+  it('drops the second and third telling of the opening hours', () => {
+    mount([nine]);
+
+    expect(screen.getByText('营业时间：12:00 - 23:00（15:00 - 17:00 为休息准备时间）')).toBeTruthy();
+    // The same hours again, and the break it already mentions.
+    expect(screen.queryByText('營業時間 12:00-23:00')).toBeNull();
+    expect(screen.queryByText('15:00-17:00 为休息时间')).toBeNull();
+  });
+
+  it('keeps one recommendation of 五花肉 and drops the cheering', () => {
+    mount([nine]);
+
+    expect(screen.getByText('推荐菜品：五花肉')).toBeTruthy();
+    expect(screen.queryByText('巨巨好吃的烤肉，强推五花肉')).toBeNull();
+    expect(screen.queryByText('五花肉Q彈多汁')).toBeNull();
+  });
+
+  /* 鹽烤肉餐廳 under 味贊王鹽烤肉 names the category the name already announced. */
+  it('drops the one that only repeats the place name', () => {
+    mount([nine]);
+
+    expect(screen.queryByText('鹽烤肉餐廳')).toBeNull();
+  });
+
+  /*
+    Four is what is left, so nothing is folded away any more — the fold is for
+    a long tail, and 「展開其餘 0 則」 is a button that does nothing.
+  */
+  it('shows all four without a fold', () => {
     mount([nine]);
 
     expect(screen.getByText('饭点人超多')).toBeTruthy();
-    expect(screen.queryByText('位於海雲台')).toBeNull();
-
-    fireEvent.click(screen.getByTestId('toggle-notes-a'));
     expect(screen.getByText('位於海雲台')).toBeTruthy();
+    expect(screen.queryByTestId('toggle-notes-a')).toBeNull();
+  });
 
+  /* A place somebody really did write five distinct things about still folds. */
+  it('still folds a long tail that is genuinely long', () => {
+    mount([saved({
+      id: 'a', placeName: '海雲台傳統市場', ...HAEUNDAE,
+      notes: [
+        note('d1', '糖餅要排隊'),
+        note('d2', '市場週一公休'),
+        note('d3', '二樓有生魚片'),
+        note('d4', '現金比較方便'),
+        note('d5', '晚上七點收攤'),
+      ],
+    })]);
+
+    expect(screen.queryByText('晚上七點收攤')).toBeNull();
     fireEvent.click(screen.getByTestId('toggle-notes-a'));
-    expect(screen.queryByText('位於海雲台')).toBeNull();
+    expect(screen.getByText('晚上七點收攤')).toBeTruthy();
   });
 
   /* Two travellers on one place is the case the chip was built for. */
