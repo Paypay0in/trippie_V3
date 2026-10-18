@@ -570,18 +570,31 @@ describe('a meal that would cost a detour', () => {
   };
   const plan = () => optimiseTripRoute(asakusaDay, { country: '日本', categoryOf: item => tags[item.id] });
 
-  it('keeps the shorter route rather than the tidier clock', () => {
+  /*
+    「我覺得吃飯時間應該被固定 所以即使移動後路線較順 應該是優先提示換餐廳」.
+
+    An earlier version of this test asserted the opposite — that the shorter
+    route won and the restaurant stayed at 15:21. That was the rule I had
+    written, and it was backwards: the hour somebody eats is a fact about them,
+    and the route is what should bend.
+  */
+  it('puts the restaurant at the mealtime even though it costs distance', () => {
+    const route = plan();
+    const ramen = route.days[0].items.find(item => item.id === 'ramen');
+
+    expect(ramen?.time && ramen.time >= '11:30' && ramen.time < '14:00').toBe(true);
+  });
+
+  it('reports the distance it actually walks to get there', () => {
     const route = plan();
     const walked = [...route.days[0].items]
       .sort((left, right) => (left.time || '').localeCompare(right.time || ''));
 
     expect(dayDistanceKm(walked)).toBeCloseTo(route.days[0].distanceKm, 2);
-    // The route it worked out, not the half-kilometre-longer one.
-    expect(route.days[0].distanceKm).toBeLessThan(2.5);
   });
 
-  /* Said rather than silently left at 15:00. The fix is a different place. */
-  it('names the restaurant it could not bring forward', () => {
+  /* Said rather than silently walked. The way out is a different place. */
+  it('names the restaurant whose mealtime cost a detour', () => {
     expect(plan().mealsNeedingANearerPlace).toEqual([
       { date: '2026-10-22', placeName: 'ramen' },
     ]);

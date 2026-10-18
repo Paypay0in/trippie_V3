@@ -98,12 +98,13 @@ export interface RoutePlan {
    */
   mealsMissing: Array<{ date: string; label: string }>;
   /**
-   * Restaurants left outside their mealtime because moving them there would
-   * have made the day walk further.
+   * Restaurants whose mealtime could only be reached by walking further.
    *
-   * 「那就可以建議換餐廳」 — the two rules pull against each other, and the right
-   * answer is neither 「eat at 15:00」 nor 「cross the city for lunch」. It is a
-   * different restaurant, and choosing one is not arithmetic.
+   * 「我覺得吃飯時間應該被固定 … 應該是優先提示換餐廳」. They are placed at the
+   * mealtime regardless — the hour somebody eats is a fact about them and the
+   * route is what bends — and the detour it cost is said out loud, because the
+   * way out of it is a nearer restaurant and that is a choice rather than
+   * arithmetic.
    */
   mealsNeedingANearerPlace: Array<{ date: string; placeName: string }>;
 }
@@ -271,15 +272,20 @@ const assignAreasToDays = (
  * nearest one. The set of stops and the day they are on do not change, so the
  * route stays the route — two of its stops simply change places on the clock.
  *
- * Except that it does not. 「那就可以建議換餐廳」 — swapping two stops onto each
- * other's times changes the order they are walked in, and on his 淺草 day that
- * added half a kilometre to a route that had just been shortened. The two
- * rules were pulling against each other and only one of them was being
- * measured.
+ * Except that it does not. Swapping two stops onto each other's times changes
+ * the order they are walked in, so this rule and 「walk least」 pull against each
+ * other, and only one of them was being measured.
  *
- * So a swap that lengthens the day is refused, and the window is reported as
- * having no restaurant near it. That is the honest answer: the right fix is a
- * different restaurant, and choosing one is not arithmetic.
+ * 「我覺得吃飯時間應該被固定 所以即使移動後路線較順 應該是優先提示換餐廳」 — so the
+ * mealtime wins. A first version had it the other way round, refusing a swap
+ * that cost distance, which left 拉麵 改 sitting at 15:21 to protect a route.
+ * That is backwards: the hour somebody eats is a fact about them, and the
+ * route is what should bend.
+ *
+ * The cost is still measured, and reported. 「Lunch at 15:21」 and 「cross the
+ * district for lunch」 are both bad days, and the way out of both is a nearer
+ * restaurant — which is a choice, not arithmetic, so it is offered rather than
+ * made.
  */
 export const mealsAtMealtimes = (
   items: ItineraryItem[],
@@ -312,8 +318,8 @@ export const mealsAtMealtimes = (
 
   const times = items.map(item => timeToMinutes(item.time) ?? 0);
   const order = [...items];
-  /** Meals left outside their window because moving them cost more than it saved. */
-  const refused: ItineraryItem[] = [];
+  /** Meals whose window could only be reached by walking further. */
+  const costly: ItineraryItem[] = [];
 
   order.forEach((item, index) => {
     if (categoryOf(item) !== 'food') return;
@@ -337,10 +343,12 @@ export const mealsAtMealtimes = (
     if (bestIndex !== -1) {
       const mealTime = times[bestIndex];
       const otherTime = times[index];
+      /*
+        The swap happens either way; the detour is only reported. See above:
+        the mealtime is the fixed thing and the route bends around it.
+      */
       if (keepTheRoute && walkedKm(order, times) < walkedKm(order, swapped(times, index, bestIndex))) {
-        // Further than before. Left where it is, and named instead.
-        refused.push(item);
-        return;
+        costly.push(item);
       }
       times[bestIndex] = otherTime;
       times[index] = mealTime;
@@ -373,7 +381,7 @@ export const mealsAtMealtimes = (
   });
 
   const placed = order.map((item, index) => ({ ...item, time: minutesToTime(times[index]) }));
-  return keepTheRoute ? Object.assign(placed, { refused }) : placed;
+  return keepTheRoute ? Object.assign(placed, { costly }) : placed;
 };
 
 /** The same clock with two entries exchanged, without touching the original. */
@@ -587,7 +595,7 @@ export const optimiseTripRoute = (
     const eaten = options.categoryOf
       ? mealsAtMealtimes(timed, options.categoryOf, () => false, true)
       : timed;
-    ((eaten as { refused?: ItineraryItem[] }).refused || []).forEach(item => {
+    ((eaten as { costly?: ItineraryItem[] }).costly || []).forEach(item => {
       mealsNeedingANearerPlace.push({ date, placeName: item.location || item.title || '' });
     });
 

@@ -1961,19 +1961,18 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             )}
 
             {/*
-              「那就可以建議換餐廳」 — the route rule and the mealtime rule pull
-              against each other, and the right answer is neither 「eat at
-              15:00」 nor 「cross the city for lunch」. Said, not resolved:
-              choosing a different restaurant is not arithmetic.
+              「吃飯時間應該被固定 … 優先提示換餐廳」 — the meal keeps its hour and
+              the route bends around it. The detour is said, not resolved:
+              choosing a nearer restaurant is a decision, not arithmetic.
             */}
             {routePlan.mealsNeedingANearerPlace.length > 0 && (
               <p data-testid="meals-need-a-nearer-place" className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
-                這幾間餐廳離當天的動線太遠，排到用餐時間反而要多繞路：
+                這幾間餐廳離當天的動線有點遠，為了排在用餐時間會多繞一段：
                 {routePlan.mealsNeedingANearerPlace
                   .map(entry => `${entry.date.slice(5).replace('-', '/')} ${entry.placeName}`)
                   .join('、')}
                 <span className="mt-0.5 block font-medium text-amber-600">
-                  建議換一間近一點的，或是接受這個時間。
+                  吃飯時間不會被挪開；想少走一點就換一間近的。
                 </span>
               </p>
             )}
