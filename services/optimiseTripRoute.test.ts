@@ -601,3 +601,41 @@ describe('a meal that would cost a detour', () => {
     expect(route.mealsNeedingANearerPlace).toEqual([]);
   });
 });
+
+/**
+ * 「每天走的路：11.4 → 8.0 公里」 sat directly above 「這趟行程已經不需要調整」.
+ *
+ * Both were honest. Nothing had moved, and 「before」 was being measured in
+ * whatever order the itinerary array happened to hold while 「after」 used the
+ * clock. Most of that 3.4 km was the comparison.
+ */
+describe('before and after are measured the same way', () => {
+  const stop = (id: string, time: string, latitude: number, longitude: number): ItineraryItem => ({
+    id, title: id, location: id, notes: '', type: 'ACTIVITY', date: '2026-10-22', time,
+    durationMinutes: 90, latitude, longitude, address: 'Taito City, Tokyo',
+  } as ItineraryItem);
+
+  /* Already walked north to south — and stored in no particular order. */
+  const shuffledInTheArray = [
+    stop('lonich', '17:07', 35.7012377, 139.7895126),
+    stop('senso', '10:00', 35.7147651, 139.7966553),
+    stop('harry', '11:46', 35.7111133, 139.7976072),
+    stop('leaves', '13:34', 35.7027051, 139.7978326),
+    stop('ramen', '15:21', 35.70444, 139.7901561),
+  ];
+
+  it('claims no saving on a day that is already in order', () => {
+    const plan = optimiseTripRoute(shuffledInTheArray, { country: '日本' });
+
+    expect(plan.beforeKm).toBeCloseTo(plan.afterKm, 2);
+  });
+
+  /* The array order must not be able to invent a saving. */
+  it('reads the same whichever order the array is in', () => {
+    const sorted = [...shuffledInTheArray]
+      .sort((left, right) => (left.time || '').localeCompare(right.time || ''));
+
+    expect(optimiseTripRoute(shuffledInTheArray, { country: '日本' }).beforeKm)
+      .toBeCloseTo(optimiseTripRoute(sorted, { country: '日本' }).beforeKm, 2);
+  });
+});

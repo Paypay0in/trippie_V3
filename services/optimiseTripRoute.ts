@@ -652,8 +652,22 @@ export const optimiseTripRoute = (
     });
   }
 
+  /*
+    Measured the same way 「after」 is: in the order the day is walked.
+
+    「每天走的路：11.4 → 8.0 公里」 sat directly above 「這趟行程已經不需要調整」 on
+    his screen, and both were honest. Nothing had moved — and 「before」 was
+    being measured in whatever order the itinerary array happened to hold,
+    while 「after」 had just been fixed to use the clock. Most of that 3.4 km was
+    the comparison, not the plan.
+
+    Same defect as the one found an hour ago, on the other side of the same
+    subtraction.
+  */
   const beforeKm = dates.reduce((sum, date) => sum
-    + dayDistanceKm(items.filter(item => item.date === date && !isAnchored(item) && ground.has(item.id))), 0);
+    + dayDistanceKm(items
+      .filter(item => item.date === date && !isAnchored(item) && ground.has(item.id))
+      .sort((left, right) => (left.time || '').localeCompare(right.time || ''))), 0);
   const afterKm = days.reduce((sum, day) => sum + day.distanceKm, 0);
 
   return { days, unplaced, beforeKm, afterKm, mealsMissing, mealsNeedingANearerPlace };
