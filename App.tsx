@@ -3080,6 +3080,14 @@ const App: React.FC = () => {
         category: group.category,
         // The ward the dropdown groups by — this place's own, not its cluster's.
         district: group.district,
+        /*
+          Where it is, so 優化動線 can offer a nearer restaurant than the one
+          costing a detour. 「能自動由我的收藏清單中推薦取代2的餐廳並列出」 — the
+          collection already holds the answer; only the coordinates were not
+          being handed over.
+        */
+        latitude: group.coordinates?.latitude,
+        longitude: group.coordinates?.longitude,
       };
     });
   }, [tripScopedInspirations, tripInspirationContext, itinerary, tripAreas]);

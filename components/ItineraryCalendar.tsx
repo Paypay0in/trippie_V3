@@ -4,6 +4,7 @@ import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
 import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
 import { betterOnAnotherDay, DayMoveSuggestion } from '../services/betterOnAnotherDay';
+import { nearerRestaurants } from '../services/nearerRestaurants';
 import { fetchPlaceBasics, hoursForDate, outsideOpeningHours, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { isPersonal, OWN_PERSONAL_LABEL, ownerLabelFor, partitionDayByViewer } from '../services/itineraryVisibility';
 import { Clock, MapPin, Plane, Hotel, BedDouble, Utensils, Ticket, Car, CalendarDays, Sparkles, Map, List, Plus, MoreHorizontal, Image as ImageIcon, Info, NotebookPen, Clock3 } from 'lucide-react';
@@ -1968,10 +1969,34 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             {routePlan.mealsNeedingANearerPlace.length > 0 && (
               <p data-testid="meals-need-a-nearer-place" className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
                 這幾間餐廳離當天的動線有點遠，為了排在用餐時間會多繞一段：
-                {routePlan.mealsNeedingANearerPlace
-                  .map(entry => `${entry.date.slice(5).replace('-', '/')} ${entry.placeName}`)
-                  .join('、')}
-                <span className="mt-0.5 block font-medium text-amber-600">
+                <ul className="mt-1 space-y-1.5">
+                  {routePlan.mealsNeedingANearerPlace.map(entry => {
+                    /*
+                      「能自動由我的收藏清單中推薦取代2的餐廳並列出」.
+
+                      Naming the restaurant left somebody to open the
+                      collection, read fifty places and work out which is near
+                      that day's route. The collection is right here and the
+                      comparison is arithmetic. See `nearerRestaurants`.
+                    */
+                    const day = (routePlan.days.find(entry2 => entry2.date === entry.date)?.items || [])
+                      .slice()
+                      .sort((left, right) => (left.time || '').localeCompare(right.time || ''));
+                    const swaps = nearerRestaurants(day, entry.itemId, savedPlaces || []);
+                    return (
+                      <li key={entry.itemId}>
+                        {`${entry.date.slice(5).replace('-', '/')} ${entry.placeName}`}
+                        {swaps.length > 0 && (
+                          <span data-testid={`nearer-than-${entry.itemId}`} className="mt-0.5 block font-medium text-amber-600">
+                            {'收藏裡比較近的：'}
+                            {swaps.map(swap => `${swap.placeName}（少繞 ${swap.savesKm} 公里）`).join('、')}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <span className="mt-1 block font-medium text-amber-600">
                   吃飯時間不會被挪開；想少走一點就換一間近的。
                 </span>
               </p>

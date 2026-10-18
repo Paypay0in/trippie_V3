@@ -106,7 +106,7 @@ export interface RoutePlan {
    * way out of it is a nearer restaurant and that is a choice rather than
    * arithmetic.
    */
-  mealsNeedingANearerPlace: Array<{ date: string; placeName: string }>;
+  mealsNeedingANearerPlace: Array<{ date: string; placeName: string; itemId: string }>;
 }
 
 /** How far a day walks, visiting its items in order. */
@@ -534,7 +534,7 @@ export const optimiseTripRoute = (
   const floors = earliestFreeStartByDate(fixedAnchorSchedule(items));
 
   /** Meals that could only reach their window by lengthening the day. */
-  const mealsNeedingANearerPlace: Array<{ date: string; placeName: string }> = [];
+  const mealsNeedingANearerPlace: RoutePlan['mealsNeedingANearerPlace'] = [];
 
   const days: RoutePlanDay[] = dates.map(date => {
     const anchored = (anchoredByDate.get(date) || []).filter(item => ground.has(item.id));
@@ -596,7 +596,9 @@ export const optimiseTripRoute = (
       ? mealsAtMealtimes(timed, options.categoryOf, () => false, true)
       : timed;
     ((eaten as { costly?: ItineraryItem[] }).costly || []).forEach(item => {
-      mealsNeedingANearerPlace.push({ date, placeName: item.location || item.title || '' });
+      mealsNeedingANearerPlace.push({
+        date, itemId: item.id, placeName: item.location || item.title || '',
+      });
     });
 
     /*

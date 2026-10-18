@@ -596,7 +596,7 @@ describe('a meal that would cost a detour', () => {
   /* Said rather than silently walked. The way out is a different place. */
   it('names the restaurant whose mealtime cost a detour', () => {
     expect(plan().mealsNeedingANearerPlace).toEqual([
-      { date: '2026-10-22', placeName: 'ramen' },
+      { date: '2026-10-22', itemId: 'ramen', placeName: 'ramen' },
     ]);
   });
 
