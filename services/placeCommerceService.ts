@@ -50,6 +50,27 @@ const isValidUrl = (value: unknown): value is string => {
  * currency. Anything partial degrades to "no price", which the card renders as
  * 查看最新票價 — never as a fabricated figure.
  */
+/**
+ * Whether a line of practical note means 「arrange it before you go」.
+ *
+ * 「需事先預約」 is the example in the type's own comment and is exactly the fact
+ * being looked for; it was sitting in a bullet list under the price, where a
+ * reminder is not a reminder. Inferred only when the source did not answer
+ * outright, and only from phrases that mean 「before you go」 — 預約 alone also
+ * appears in 「可預約導覽」, which is an option, not a requirement.
+ *
+ * Exported because the same sentence turns up in the traveller's own saved
+ * notes, and 旅程準備度 reads it there. One rule, or the two drift.
+ */
+export const needsBookingAhead = (note: string): boolean =>
+  /*
+    訂位 is in the list because this now reads restaurants too: 「要先訂位」 is
+    the ordinary way to write it, and the pattern had only the words a museum
+    uses. 「安排的餐廳 有需要預約的」.
+  */
+  /(事先|提前|事前|須|需|必須|要)[^。；]{0,4}(預約|訂位|劃位|訂票|購票|予約)|預售|指定日時|完全予約|timed.?entry|advance (booking|purchase|reservation)/i
+    .test(note);
+
 export const normalizePlaceCommerce = (value: unknown): PlaceCommerceInfo | null => {
   if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
@@ -103,19 +124,6 @@ export const normalizePlaceCommerce = (value: unknown): PlaceCommerceInfo | null
         ...(typeof rawPrice.label === 'string' && rawPrice.label.trim() ? { label: rawPrice.label.trim() } : {}),
       }
     : undefined;
-
-  /*
-  Read out of the practical lines a curated entry already carries.
-
-  「需事先預約」 is the example in the type's own comment and is exactly the fact
-  being looked for; it was sitting in a bullet list under the price, where a
-  reminder is not a reminder. Inferred only when the source did not answer
-  outright, and only from phrases that mean 「before you go」 — 預約 alone also
-  appears in 「可預約導覽」, which is an option, not a requirement.
-*/
-const needsBookingAhead = (note: string): boolean =>
-  /(事先|提前|事前|須|需|必須|要)[^。；]{0,4}(預約|訂票|購票|予約)|預售|指定日時|timed.?entry|advance (booking|purchase|reservation)/i
-    .test(note);
 
 const notes = Array.isArray(source.notes)
     ? source.notes.filter((note): note is string => typeof note === 'string' && Boolean(note.trim())).map(note => note.trim())

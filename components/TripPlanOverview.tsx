@@ -624,7 +624,8 @@ const TripPlanOverview: React.FC<Props> = ({
         {ticketTodos.length > 0 && (
           <div data-testid="ticket-todos" className="mt-4 rounded-2xl bg-[#f6f5ff] p-3">
             <div className="flex items-center gap-1.5 text-xs font-black text-[#5b3df5]">
-              <Ticket size={13} />行程裡要買票的地方
+              {/* 「安排的餐廳 有需要預約的 要放入行前規劃的待辦清單中」. */}
+              <Ticket size={13} />行程裡要先訂好的
               <span className="ml-auto text-[10px] font-bold text-slate-400">
                 {ticketTodos.filter(todo => bought.includes(todo.itemId)).length}/{ticketTodos.length}
               </span>
@@ -651,8 +652,14 @@ const TripPlanOverview: React.FC<Props> = ({
                         {todo.date && <span className="text-slate-400">{todo.date.slice(5).replace('-', '/')} </span>}
                         <span className={`font-bold ${done ? 'text-slate-400' : 'text-[#11183d]'}`}>{todo.placeName}</span>
                       </span>
-                      {todo.advanceBookingRequired && !done && (
-                        <span className="ml-1 rounded bg-[#5b3df5] px-1 py-0.5 text-[9px] font-black text-white">需提前買</span>
+                      {!done && (todo.kind === 'booking' || todo.advanceBookingRequired) && (
+                        <span className="ml-1 rounded bg-[#5b3df5] px-1 py-0.5 text-[9px] font-black text-white">
+                          {/*
+                            What the job actually is. Nobody is admitted to a
+                            restaurant; they are expected.
+                          */}
+                          {todo.kind === 'booking' ? '需訂位' : '需提前買'}
+                        </span>
                       )}
                       {/*
                         The links, hidden once it is bought: a done row that

@@ -130,3 +130,81 @@ describe('買票連結與打勾', () => {
     expect(screen.getByTestId('links').textContent).toBe('');
   });
 });
+
+/**
+ * 「安排的餐廳 有需要預約的 要放入行前規劃的待辦清單中」.
+ *
+ * The list asked `admissionRequired` and nothing else, so a restaurant that
+ * cannot be walked into — 予約制, 需事先訂位 — was invisible to the one panel
+ * whose job is 「what still has to be done」. Nobody is admitted to a
+ * restaurant; they are expected.
+ */
+describe('要訂位的餐廳', () => {
+  const Kinds: React.FC<{ itinerary: ItineraryItem[] }> = ({ itinerary }) => {
+    const todos = useTicketTodos(itinerary);
+    return <ul data-testid="kinds">{todos.map(todo => (
+      <li key={todo.itemId}>{todo.placeName}・{todo.kind}</li>
+    ))}</ul>;
+  };
+
+  it('lists a restaurant that has to be booked ahead', async () => {
+    commerceFor['ChIJ-sushi'] = { admissionRequired: false, advanceBookingRequired: true };
+
+    render(<Kinds itinerary={[item('s', '鮨 さいとう', 'ChIJ-sushi', '2026-10-21')]} />);
+
+    await waitFor(() => expect(screen.getByTestId('kinds').textContent).toContain('鮨 さいとう・booking'));
+  });
+
+  /* A ticket is still a ticket, and the two send somebody to different places. */
+  it('keeps the two apart', async () => {
+    commerceFor['ChIJ-mot2'] = { admissionRequired: true };
+
+    render(<Kinds itinerary={[item('m', '東京都現代美術館', 'ChIJ-mot2', '2026-10-20')]} />);
+
+    await waitFor(() => expect(screen.getByTestId('kinds').textContent).toContain('・ticket'));
+  });
+
+  /*
+    Most restaurants have no curated entry at all. What knows is the note the
+    traveller saved with the place, read by the same rule.
+  */
+  it('reads it out of the traveller’s own note', async () => {
+    commerceFor['ChIJ-yakiniku'] = null;
+    const withNote = {
+      ...item('y', 'Yoroniku', 'ChIJ-yakiniku', '2026-10-22'),
+      savedTravelNotes: [{ id: 'n1', text: '要先訂位，很難訂' }],
+    } as unknown as ItineraryItem;
+
+    render(<Kinds itinerary={[withNote]} />);
+
+    await waitFor(() => expect(screen.getByTestId('kinds').textContent).toContain('Yoroniku・booking'));
+  });
+
+  /* 「可預約導覽」 is an option, not a requirement. */
+  it('does not read a plain mention of booking as a requirement', async () => {
+    commerceFor['ChIJ-cafe'] = null;
+    const withNote = {
+      ...item('c', 'Kissa Hitofushi', 'ChIJ-cafe', '2026-10-22'),
+      savedTravelNotes: [{ id: 'n1', text: '可預約導覽' }],
+    } as unknown as ItineraryItem;
+
+    render(<Kinds itinerary={[withNote]} />);
+
+    await waitFor(() => expect(screen.getByTestId('kinds')).toBeTruthy());
+    expect(screen.getByTestId('kinds').textContent).toBe('');
+  });
+
+  /* A table nobody reserved is a table somebody else has. */
+  it('puts the bookings above a ticket that can be bought at the door', async () => {
+    commerceFor['ChIJ-door2'] = { admissionRequired: true };
+    commerceFor['ChIJ-table'] = { admissionRequired: false, advanceBookingRequired: true };
+
+    render(<Kinds itinerary={[
+      item('d', '現場買得到', 'ChIJ-door2', '2026-10-20'),
+      item('t', '要訂位', 'ChIJ-table', '2026-10-23'),
+    ]} />);
+
+    await waitFor(() => expect(screen.getByTestId('kinds').children).toHaveLength(2));
+    expect(screen.getByTestId('kinds').children[0].textContent).toContain('要訂位');
+  });
+});
