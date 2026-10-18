@@ -1,15 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import {
-  buildCuratedCommerce,
-  classifyPlaceTypes,
-  commerceNameKey,
-  CuratedCommerceEntry,
-  findCuratedCommerce,
-  isPriceFresh,
-  MAX_PRICE_AGE_DAYS,
-  PLACE_COMMERCE_CATALOGUE,
-} from './placeCommerceCatalogue';
+import { buildCuratedCommerce, classifyPlaceTypes, commerceNameKey, CuratedCommerceEntry, findCuratedCommerce, isPriceFresh, MAX_PRICE_AGE_DAYS, PLACE_COMMERCE_CATALOGUE, advanceBookingPlaces } from './placeCommerceCatalogue';
 
 const CHECKED = '2026-09-14';
 const NOW = new Date('2026-09-14T12:00:00Z');
@@ -267,5 +258,37 @@ describe('an exhausted model must not end the request', () => {
     // Named so the count is a fact rather than a vibe: what matters is that a
     // new endpoint added without either shows up here as a smaller ratio.
     expect(chained).toBeGreaterThanOrEqual(7);
+  });
+});
+
+/**
+ * 「兩條都接」 — the local half, which is what makes it askable per stop.
+ */
+describe('advanceBookingPlaces', () => {
+  const catalogue = [
+    { nameKeys: ['teamlabborderless'], admissionRequired: true, advanceBookingRequired: true },
+    { nameKeys: ['spaland'], admissionRequired: true },
+  ];
+
+  it('finds the places that must be booked ahead', () => {
+    expect(advanceBookingPlaces(['teamLab Borderless'], catalogue))
+      .toEqual([{ name: 'teamLab Borderless' }]);
+  });
+
+  /*
+    「needs a ticket」 is not this. Most ticketed places sell at the door, and a
+    preparation task for every museum is a list nobody finishes.
+  */
+  it('ignores a place that merely needs a ticket', () => {
+    expect(advanceBookingPlaces(['spaland'], catalogue)).toEqual([]);
+  });
+
+  it('ignores a place nobody has curated', () => {
+    expect(advanceBookingPlaces(['東京都現代美術館'], catalogue)).toEqual([]);
+  });
+
+  it('says each place once and skips blanks', () => {
+    expect(advanceBookingPlaces(['teamLab Borderless', 'teamLab Borderless', '', '  '], catalogue))
+      .toHaveLength(1);
   });
 });

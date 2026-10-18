@@ -215,3 +215,29 @@ export const buildCuratedCommerce = (
     ...(livePrice && !usablePrice ? { priceStale: true } : {}),
   };
 };
+
+/**
+ * The places on a schedule that the catalogue says must be booked ahead.
+ *
+ * 「兩條都接」. Purely local — this reads the curated table and makes no request
+ * — so it can be asked about every stop on a plan rather than only the main
+ * venue, which is what makes it worth wiring at all.
+ *
+ * Only `advanceBookingRequired` entries. 「needs a ticket」 is not this: most
+ * ticketed places sell at the door, and a preparation task for every museum
+ * is a list nobody finishes.
+ */
+export const advanceBookingPlaces = (
+  names: string[],
+  catalogue: CuratedCommerceEntry[] = PLACE_COMMERCE_CATALOGUE,
+): Array<{ name: string; leadTimeDays?: number }> => {
+  const found = new Map<string, { name: string; leadTimeDays?: number }>();
+  names.forEach(name => {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return;
+    const entry = findCuratedCommerce(undefined, trimmed, catalogue);
+    if (!entry?.advanceBookingRequired) return;
+    if (!found.has(trimmed)) found.set(trimmed, { name: trimmed });
+  });
+  return Array.from(found.values());
+};

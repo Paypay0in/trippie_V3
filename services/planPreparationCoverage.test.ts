@@ -166,3 +166,68 @@ describe('觀光列車', () => {
     expect(marked.find(task => task.name === '預約觀光列車座位')?.leadTimeDays).toBe(30);
   });
 });
+
+/**
+ * 「若很熱門就要放進去行前規劃中」, answered the other way round.
+ *
+ * The keyword rules read the words on a schedule, so they catch the categories
+ * somebody thought to list. This reads the place: a venue the commerce
+ * catalogue says cannot be walked into is a fact about the venue, whatever it
+ * happens to be called.
+ */
+describe('不先訂就進不去的地點', () => {
+  const schedule = [{ title: '下午', placeName: 'teamLab Borderless' }];
+
+  it('adds a task for a place on the schedule', () => {
+    const tasks = withRequiredPreparation(schedule, [], 5, [{ name: 'teamLab Borderless' }]);
+
+    expect(tasks.map(task => task.name)).toContain('預訂 teamLab Borderless');
+  });
+
+  it('carries a lead time where there is one', () => {
+    const tasks = withRequiredPreparation(schedule, [], 5, [{ name: 'teamLab Borderless', leadTimeDays: 14 }]);
+
+    expect(tasks.find(task => task.name.includes('teamLab'))?.leadTimeDays).toBe(14);
+  });
+
+  /* A place that is not on this plan is not this plan's problem. */
+  it('ignores a place the schedule never visits', () => {
+    const tasks = withRequiredPreparation(schedule, [], 5, [{ name: 'SPA LAND Centum City' }]);
+
+    expect(tasks.map(task => task.name)).not.toContain('預訂 SPA LAND Centum City');
+  });
+
+  it('does not repeat what the list already covers', () => {
+    const tasks = withRequiredPreparation(
+      schedule,
+      [{ name: '買好 teamLab Borderless 的票', canBeHumanAssisted: true }],
+      5,
+      [{ name: 'teamLab Borderless' }],
+    );
+
+    expect(tasks.filter(task => task.name.includes('teamLab'))).toHaveLength(1);
+  });
+
+  /*
+    A 觀光列車 keyword and a curated 觀光列車 venue are one task. A list that
+    says it twice is a list somebody stops reading.
+  */
+  it('says each task once', () => {
+    const tasks = withRequiredPreparation(
+      [{ title: '搭觀光列車', placeName: '預約觀光列車座位' }],
+      [],
+      5,
+      [{ name: '預約觀光列車座位' }],
+    );
+
+    expect(tasks.filter(task => task.name === '預約觀光列車座位')).toHaveLength(1);
+  });
+
+  /* With nothing supplied, the keyword behaviour is exactly what it was. */
+  it('changes nothing when no place is known to need booking', () => {
+    const before = withRequiredPreparation([{ title: '租車自駕' }], []);
+    const after = withRequiredPreparation([{ title: '租車自駕' }], [], 5, []);
+
+    expect(after).toEqual(before);
+  });
+});

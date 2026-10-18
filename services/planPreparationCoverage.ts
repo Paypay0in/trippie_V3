@@ -43,6 +43,25 @@ export interface PreparationTask {
   leadTimeDays?: number;
 }
 
+/**
+ * A place on the schedule that is known to need booking ahead.
+ *
+ * 「若很熱門就要放進去行前規劃中」, and then 「兩條都接」. The keyword rules below
+ * read the *words* on a schedule, so they only ever catch the categories
+ * somebody thought to list — 觀光列車, 租車, 渡輪. This reads the *place*: when
+ * the commerce catalogue says a venue cannot be walked into, that is a fact
+ * about the venue whatever it happens to be called.
+ *
+ * Supplied by the caller rather than looked up here, because 「which places
+ * need booking」 is the commerce layer's question and this file is about what a
+ * schedule implies.
+ */
+export interface AdvanceBookingPlace {
+  name: string;
+  /** Where the lead time is a published rule. See `leadTimeDays`. */
+  leadTimeDays?: number;
+}
+
 export interface ScheduleItem {
   title?: string;
   placeName?: string;
@@ -133,10 +152,27 @@ export const withRequiredPreparation = (
   items: ScheduleItem[],
   preparation: PreparationTask[],
   limit = 5,
+  /** Places the commerce layer knows cannot be walked into. */
+  advanceBooking: AdvanceBookingPlace[] = [],
 ): PreparationTask[] => {
-  const additions = missingPreparation(items, preparation);
-  if (additions.length === 0) return preparation.slice(0, limit);
-  return [...additions, ...preparation].slice(0, limit);
+  const booked = advanceBooking
+    // Only the ones this schedule actually visits.
+    .filter(place => place.name.trim() && haystack(items).includes(place.name.trim().toLowerCase()))
+    .filter(place => !covered(preparation, [place.name]))
+    .map(place => ({
+      name: `預訂 ${place.name.trim()}`,
+      canBeHumanAssisted: true,
+      ...(typeof place.leadTimeDays === 'number' ? { leadTimeDays: place.leadTimeDays } : {}),
+    }));
+
+  const additions = [...booked, ...missingPreparation(items, preparation)];
+  // Deduplicated by name: a 觀光列車 keyword and a curated 觀光列車 venue are one
+  // task, and a list that says it twice is a list somebody stops reading.
+  const seen = new Set<string>();
+  const distinct = additions.filter(task => !seen.has(task.name) && seen.add(task.name));
+
+  if (distinct.length === 0) return preparation.slice(0, limit);
+  return [...distinct, ...preparation].slice(0, limit);
 };
 
 /**

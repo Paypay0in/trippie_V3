@@ -11,6 +11,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
 import { clusterSavedPlaces } from "./services/placeClusters";
+import { advanceBookingPlaces } from "./services/placeCommerceCatalogue";
 import { fetchTransitousLeg, transitousEnabled } from "./services/transitousRouting";
 import { isNetworkError, isOverloadedError, isQuotaError, isRetryableProviderError, shouldTryNextModel } from "./services/providerFailure";
 import { createModelLadder, LADDER_PASSES, PASS_PAUSE_MS } from "./services/modelLadder";
@@ -2050,6 +2051,17 @@ async function startServer() {
                 canBeHumanAssisted: task?.canBeHumanAssisted === true,
               }))
               .filter((task: any) => task.name),
+            5,
+            /*
+              Places that cannot be walked into. 「若很熱門就要放進去行前規劃中」.
+
+              Read from the curated catalogue, which is local — no request per
+              stop — so every place on the plan can be asked rather than only
+              the main venue. A keyword rule reads the words on a schedule and
+              catches the categories somebody thought to list; this reads the
+              place itself.
+            */
+            advanceBookingPlaces(items.map((item: any) => String(item?.placeName || item?.title || ""))),
           )),
           items,
           mapsUrl: resolved?.mapsUrl,
