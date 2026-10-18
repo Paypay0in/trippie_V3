@@ -222,6 +222,14 @@ const DayBlockPlanner: React.FC<Props> = ({
   */
   const [chosenStart, setChosenStart] = useState('');
   /*
+    A time chosen for one day is not a time chosen for the next.
+
+    The state lives in this panel and the panel stays mounted while the day
+    tabs change, so 10:30 typed on Day 2 followed Day 3 around and offered to
+    move a day nobody had said anything about.
+  */
+  useEffect(() => { setChosenStart(''); }, [date]);
+  /*
     The move 幾點出門 is asking for, computed but not applied. See the button
     below for why it is an offer rather than an effect.
   */
@@ -532,9 +540,22 @@ const DayBlockPlanner: React.FC<Props> = ({
         {(
           <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold text-slate-500">
             <span className="shrink-0">幾點出門</span>
+            {/*
+              「這個也填過很多次了」.
+
+              It was blank every time the screen opened and forgot whatever was
+              typed, because nothing is stored by it: the input is an
+              instruction to move the day, and once the day has moved the
+              instruction is spent.
+
+              So it reports instead. The day already starts at a time —
+              whatever its first movable stop says — and that is what the field
+              shows until somebody asks for a different one. Nothing to fill in
+              twice, and the number beside 幾點出門 is true the moment it is read.
+            */}
             <input
               type="time"
-              value={chosenStart}
+              value={chosenStart || firstMovableTime || ''}
               onChange={event => setChosenStart(event.target.value)}
               data-testid="day-start-input"
               className="w-[6.5rem] min-w-0 rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-bold text-[#11183d]"

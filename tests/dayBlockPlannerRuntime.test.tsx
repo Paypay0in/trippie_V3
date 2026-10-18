@@ -877,3 +877,87 @@ describe('推薦要跟著時段', () => {
     expect((await askedFor('午餐'))?.[2]).toBe('food');
   });
 });
+
+/**
+ * 「這個也填過很多次了」.
+ *
+ * 幾點出門 was blank every time the screen opened and forgot whatever was typed
+ * — nothing is stored by it, because the input is an instruction to move the
+ * day and once the day has moved the instruction is spent.
+ */
+describe('幾點出門', () => {
+  const start = () => screen.getByTestId('day-start-input') as HTMLInputElement;
+
+  it('shows the time the day already starts at', () => {
+    renderPlanner({ items: [item('it-nasari', 'Nasari Sigdang', '10:30')] });
+
+    expect(start().value).toBe('10:30');
+  });
+
+  /* A flight is not when the traveller chose to leave. */
+  it('reads the first stop it could actually move', () => {
+    renderPlanner({
+      items: [
+        item('it-flight', '航班抵達', '06:35', { type: 'FLIGHT', derivedFromFlightAnchorId: 'a1' }),
+        item('it-asakusa', '淺草寺', '10:30'),
+      ],
+    });
+
+    expect(start().value).toBe('10:30');
+  });
+
+  /* A day with nothing movable on it has no start to report. */
+  it('is blank when there is nothing to move', () => {
+    renderPlanner({ items: [] });
+
+    expect(start().value).toBe('');
+  });
+
+  /* Typing still asks, rather than rewriting the day on the way to 11:00. */
+  it('offers the move once a different time is chosen', async () => {
+    const user = userEvent.setup();
+    renderPlanner({ items: [item('it-nasari', 'Nasari Sigdang', '09:00')], onShiftDay: vi.fn() });
+
+    expect(screen.queryByTestId('shift-day-start')).toBeNull();
+    await user.clear(start());
+    await user.type(start(), '11:00');
+
+    expect(screen.getByTestId('shift-day-start')).toBeTruthy();
+  });
+
+  /*
+    A time chosen for one day is not a time chosen for the next: this panel
+    stays mounted while the day tabs change, so 10:30 typed on Day 2 followed
+    Day 3 around and offered to move a day nobody had said anything about.
+  */
+  it('forgets the chosen time when the day changes', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <DayBlockPlanner
+        date={DAY}
+        items={[item('it-nasari', 'Nasari Sigdang', '09:00')]}
+        places={places}
+        onFillBlock={vi.fn()}
+        onChangeDuration={vi.fn()}
+        onShiftDay={vi.fn()}
+      />,
+    );
+    await user.clear(start());
+    await user.type(start(), '11:00');
+    expect(screen.getByTestId('shift-day-start')).toBeTruthy();
+
+    rerender(
+      <DayBlockPlanner
+        date="2026-10-07"
+        items={[item('it-other', '海雲台', '09:00', { date: '2026-10-07' })]}
+        places={places}
+        onFillBlock={vi.fn()}
+        onChangeDuration={vi.fn()}
+        onShiftDay={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId('shift-day-start')).toBeNull();
+    expect(start().value).toBe('09:00');
+  });
+});
