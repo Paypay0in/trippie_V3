@@ -47,6 +47,17 @@ interface Props {
    */
   nearby?: Array<{ placeId: string; placeName: string; rating?: number; kind?: string }>;
   onPickNearby?: (placeName: string) => void;
+  /**
+   * Searching Google for a name, when neither half of the sheet has it.
+   *
+   * 「這裡還需要：更多搜尋🔍」 — three places near a corner is an offer, and a
+   * traveller who already knows what they want （一蘭, 淺草 燒肉） was left with
+   * the three we chose and no way past them.
+   *
+   * Omitted and the search is not offered: a sheet that cannot run one must
+   * not appear to.
+   */
+  onSearchNearby?: (query: string) => Promise<Array<{ placeId: string; placeName: string; rating?: number; kind?: string }>>;
   /** Ordered as the slot wants them; the sheet keeps that order inside a ward. */
   onPick: (placeId: string) => void;
   onClose: () => void;
@@ -59,9 +70,13 @@ interface Props {
 const NOTE_PREVIEW = 2;
 
 const PlacePickerSheet: React.FC<Props> = ({
-  title, places, onPick, onClose, onClear, onTypeYourOwn, nearby, onPickNearby,
+  title, places, onPick, onClose, onClear, onTypeYourOwn, nearby, onPickNearby, onSearchNearby,
 }) => {
   const [query, setQuery] = useState('');
+  /** What a 更多搜尋 came back with, and whether one is in flight. */
+  const [found, setFound] = useState<Array<{ placeId: string; placeName: string; rating?: number; kind?: string }>>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchedFor, setSearchedFor] = useState('');
   /*
     「這為啥都沒圖」 — most saves never stored a photo of their own. The
     collection card has resolved one through Google for months; this screen
@@ -162,6 +177,55 @@ const PlacePickerSheet: React.FC<Props> = ({
                 onPick={place => onPickNearby(place.placeName)}
               />
               <p className="mt-1 text-[10px] text-slate-400">不是你收藏的地點，加入後再自己確認。</p>
+            </section>
+          )}
+
+          {/*
+            Google, for a name this collection does not have.
+
+            Below the saved places rather than above them: the collection is
+            still the first answer, and this is what there is when it has
+            nothing. 「從收藏的優先推薦 或 Google 搜尋結果」.
+          */}
+          {onSearchNearby && query.trim() && (
+            <section data-testid="picker-search-more" className="mt-3">
+              <button
+                type="button"
+                data-testid="search-more-places"
+                disabled={searching}
+                onClick={async () => {
+                  const wanted = query.trim();
+                  setSearching(true);
+                  setSearchedFor(wanted);
+                  const results = await onSearchNearby(wanted).catch(() => []);
+                  setFound(results);
+                  setSearching(false);
+                }}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-white py-2 text-[11px] font-black text-[#5b3df5] disabled:opacity-50"
+              >
+                <Search size={12} />
+                {searching ? '搜尋中…' : `在這一帶搜尋「${query.trim()}」`}
+              </button>
+              {searchedFor && !searching && found.length === 0 && (
+                <p className="mt-1.5 text-center text-[10px] font-bold text-slate-400">
+                  這一帶找不到「{searchedFor}」。
+                </p>
+              )}
+              {found.length > 0 && onPickNearby && (
+                <>
+                  <SuggestedPlaceCards
+                    places={found.slice(0, 5).map(place => ({
+                      id: place.placeId,
+                      placeId: place.placeId,
+                      placeName: place.placeName,
+                      rating: place.rating,
+                      kind: place.kind,
+                    }))}
+                    onPick={place => onPickNearby(place.placeName)}
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400">不是你收藏的地點，加入後再自己確認。</p>
+                </>
+              )}
             </section>
           )}
 

@@ -159,3 +159,86 @@ describe('what the slot is asking for', () => {
     });
   });
 });
+
+/**
+ * 「這裡還需要：更多搜尋🔍」.
+ *
+ * Three places near a corner is an offer. Somebody who already knows what they
+ * want was left with the three we chose and no way past them.
+ */
+describe('searching this corner by name', () => {
+  const handlerFor = () => {
+    let handler: ((req: unknown, res: unknown) => Promise<void>) | undefined;
+    const app = { post: (_path: string, fn: never) => { handler = fn; } } as never;
+    const sent: unknown[] = [];
+    const urls: string[] = [];
+    const bodies: unknown[] = [];
+    registerNearbyRestaurantsRoute(app, {
+      googleApiKey: () => 'test-key',
+      fetchImpl: (async (url: string, init?: RequestInit) => {
+        urls.push(String(url));
+        bodies.push(JSON.parse(String(init?.body || '{}')));
+        return {
+          ok: true,
+          json: async () => ({ places: [place({ userRatingCount: 4, rating: 4.9 })] }),
+        };
+      }) as never,
+    });
+    return {
+      call: (body: Record<string, unknown>) =>
+        handler!({ body }, { json: (value: unknown) => { sent.push(value); } }),
+      urls, bodies, sent,
+    };
+  };
+
+  const AT = { latitude: 35.7108, longitude: 139.7955 };
+
+  it('asks searchText rather than sweeping the category', async () => {
+    const route = handlerFor();
+
+    await route.call({ ...AT, query: '一蘭' });
+
+    expect(route.urls[0]).toContain('places:searchText');
+    expect((route.bodies[0] as { textQuery: string }).textQuery).toBe('一蘭');
+  });
+
+  /* A name is a request, so the place does not have to be well known. */
+  it('keeps a place with four reviews when it was asked for by name', async () => {
+    const route = handlerFor();
+
+    await route.call({ ...AT, query: '一蘭' });
+
+    expect((route.sent[0] as { restaurants: unknown[] }).restaurants).toHaveLength(1);
+  });
+
+  /* The same four-review place is noise when nobody asked for it. */
+  it('still holds the bar for 「what is near here」', async () => {
+    const route = handlerFor();
+
+    await route.call(AT);
+
+    expect(route.urls[0]).toContain('places:searchNearby');
+    expect((route.sent[0] as { restaurants: unknown[] }).restaurants).toHaveLength(0);
+  });
+
+  /*
+    Bias, not restriction: refusing the place somebody named because it is
+    300m outside our circle is a worse answer than showing it.
+  */
+  it('biases to the corner instead of fencing it', async () => {
+    const route = handlerFor();
+
+    await route.call({ ...AT, query: '淺草 燒肉' });
+
+    expect(route.bodies[0]).toHaveProperty('locationBias');
+    expect(route.bodies[0]).not.toHaveProperty('locationRestriction');
+  });
+
+  it('ignores a query of spaces', async () => {
+    const route = handlerFor();
+
+    await route.call({ ...AT, query: '   ' });
+
+    expect(route.urls[0]).toContain('places:searchNearby');
+  });
+});

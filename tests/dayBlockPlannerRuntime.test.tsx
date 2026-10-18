@@ -961,3 +961,59 @@ describe('幾點出門', () => {
     expect(start().value).toBe('09:00');
   });
 });
+
+/**
+ * 「這裡還需要：更多搜尋🔍」.
+ *
+ * The sheet offered the collection and three places Google chose. Somebody who
+ * already knows the name they want had no way past those three.
+ */
+describe('更多搜尋', () => {
+  const openSheet = async (user: ReturnType<typeof userEvent.setup>) => {
+    renderPlanner({
+      onClearBlock: vi.fn(),
+      onFillBlockManually: vi.fn(),
+      items: [
+        item('it-nasari', 'Nasari Sigdang', '10:00', { latitude: 35.1535, longitude: 129.1190 }),
+        item('it-evening', 'Cheongsapo', '18:00', { latitude: 35.1600, longitude: 129.1900 }),
+      ],
+    });
+    await user.click(document.querySelector('[data-testid^="fill-block-"]') as HTMLElement);
+  };
+
+  it('offers a search once something is typed', async () => {
+    const user = userEvent.setup();
+    await openSheet(user);
+
+    expect(screen.queryByTestId('search-more-places')).toBeNull();
+    await user.type(screen.getByTestId('place-picker-search'), '一蘭');
+
+    expect(screen.getByTestId('search-more-places').textContent).toContain('一蘭');
+  });
+
+  it('shows what came back as the same cards', async () => {
+    nearbyFound.mockResolvedValue([
+      { placeId: 'ChIJ-ichiran', placeName: '一蘭 淺草店', rating: 4.3, kind: '拉麵店' },
+    ]);
+    const user = userEvent.setup();
+    await openSheet(user);
+
+    await user.type(screen.getByTestId('place-picker-search'), '一蘭');
+    await user.click(screen.getByTestId('search-more-places'));
+
+    expect(await screen.findByTestId('suggested-place-ChIJ-ichiran')).toBeTruthy();
+    expect((nearbyFound.mock.calls as unknown[][]).at(-1)?.[3]).toBe('一蘭');
+  });
+
+  /* An empty answer is said, not left looking like a button that did nothing. */
+  it('says when the corner has nothing by that name', async () => {
+    nearbyFound.mockResolvedValue([]);
+    const user = userEvent.setup();
+    await openSheet(user);
+
+    await user.type(screen.getByTestId('place-picker-search'), '不存在的店');
+    await user.click(screen.getByTestId('search-more-places'));
+
+    expect(await screen.findByText(/找不到「不存在的店」/)).toBeTruthy();
+  });
+});

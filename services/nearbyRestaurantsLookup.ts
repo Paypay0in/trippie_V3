@@ -77,9 +77,20 @@ interface PlacesResponse {
   }>;
 }
 
-export const readNearbyRestaurants = (body: unknown): NearbyRestaurant[] =>
+export const readNearbyRestaurants = (
+  body: unknown,
+  /*
+    A floor on how well known a place has to be.
+    
+    It exists because 「near here」 ranked by popularity still returns places
+    with three reviews, and 「nearest」 is not a recommendation. A place the
+    traveller typed the name of is not a recommendation either — it is a
+    request, so the floor does not apply to it. 「這裡還需要：更多搜尋🔍」.
+  */
+  minimumRatings: number = ENOUGH_RATINGS,
+): NearbyRestaurant[] =>
   ((body as PlacesResponse)?.places || [])
-    .filter(place => (place.userRatingCount || 0) >= ENOUGH_RATINGS)
+    .filter(place => (place.userRatingCount || 0) >= minimumRatings)
     .flatMap(place => {
       const placeId = typeof place.id === 'string' ? place.id.trim() : '';
       const placeName = place.displayName?.text?.trim() || '';
@@ -125,34 +136,64 @@ export const registerNearbyRestaurantsRoute = (
 
     // Anything that is not 「活動」 asks for food, which is where this started.
     const looking = req.body?.looking === 'activity' ? 'activity' : 'food';
+    /*
+      「這裡還需要：更多搜尋🔍」.
+
+      Three places near a corner is an offer. A traveller who already knows
+      what they are looking for — 「一蘭」, 「淺草 燒肉」 — was left with the three
+      we chose and no way past them.
+
+      A named search is a different question from 「what is near here」, so it
+      asks Google a different way: `searchText` biased to the same corner
+      rather than a category sweep of it. Same fields, so the cards are the
+      same cards.
+    */
+    const query = typeof req.body?.query === 'string' ? req.body.query.trim().slice(0, 80) : '';
 
     const apiKey = deps.googleApiKey?.() ?? process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) { res.json({ restaurants: [] }); return; }
 
     try {
       const call = deps.fetchImpl ?? fetch;
-      const response = await call('https://places.googleapis.com/v1/places:searchNearby', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': apiKey,
-          // `primaryTypeDisplayName` rides along on a request already being
-          // made: 「告訴我是哪類餐廳」 costs nothing extra.
-          'X-Goog-FieldMask': 'places.id,places.displayName,places.primaryTypeDisplayName,places.location,places.rating,places.userRatingCount',
-        },
-        body: JSON.stringify({
-          includedPrimaryTypes: LOOKING_FOR[looking],
-          maxResultCount: 15,
-          // Popularity, not distance: ranked by distance the first page is
-          // whatever happens to be on that street corner.
-          rankPreference: 'POPULARITY',
-          languageCode: 'zh-TW',
-          locationRestriction: { circle: { center: { latitude, longitude }, radius } },
-        }),
-        signal: AbortSignal.timeout(6_000),
-      });
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        // `primaryTypeDisplayName` rides along on a request already being
+        // made: 「告訴我是哪類餐廳」 costs nothing extra.
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.primaryTypeDisplayName,places.location,places.rating,places.userRatingCount',
+      };
+      const response = query
+        ? await call('https://places.googleapis.com/v1/places:searchText', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            textQuery: query,
+            maxResultCount: 10,
+            languageCode: 'zh-TW',
+            // Bias, not restriction: a traveller searching a name wants that
+            // place, and refusing it for being 300m outside our circle is a
+            // worse answer than showing it.
+            locationBias: { circle: { center: { latitude, longitude }, radius } },
+          }),
+          signal: AbortSignal.timeout(6_000),
+        })
+        : await call('https://places.googleapis.com/v1/places:searchNearby', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            includedPrimaryTypes: LOOKING_FOR[looking],
+            maxResultCount: 15,
+            // Popularity, not distance: ranked by distance the first page is
+            // whatever happens to be on that street corner.
+            rankPreference: 'POPULARITY',
+            languageCode: 'zh-TW',
+            locationRestriction: { circle: { center: { latitude, longitude }, radius } },
+          }),
+          signal: AbortSignal.timeout(6_000),
+        });
       if (!response.ok) { res.json({ restaurants: [] }); return; }
-      res.json({ restaurants: readNearbyRestaurants(await response.json()) });
+      // A place asked for by name is a request, not a recommendation.
+      res.json({ restaurants: readNearbyRestaurants(await response.json(), query ? 0 : ENOUGH_RATINGS) });
     } catch {
       res.json({ restaurants: [] });
     }

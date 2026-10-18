@@ -944,6 +944,15 @@ const DayBlockPlanner: React.FC<Props> = ({
         return (
           <PlacePickerSheet
             nearby={nearbyPlaces}
+            /*
+              「這裡還需要：更多搜尋🔍」 — biased to the same corner the three
+              offers came from, so a name still lands near the day's stops.
+            */
+            onSearchNearby={nearbyAnchor
+              ? wanted => fetchNearbyRestaurants(
+                nearbyAnchor.latitude, nearbyAnchor.longitude, nearbyAnchor.looking, wanted,
+              )
+              : undefined}
             onPickNearby={onFillBlockManually
               ? placeName => {
                 setPickingAt(null);

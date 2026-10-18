@@ -27,8 +27,8 @@ const cache = new Map<string, Promise<NearbyRestaurant[]>>();
  * The corner and what was asked for: the same spot answers 「restaurants」 and
  * 「things to do」 differently, and a key without it serves one as the other.
  */
-const keyOf = (latitude: number, longitude: number, looking: LookingFor) =>
-  `${looking}:${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+const keyOf = (latitude: number, longitude: number, looking: LookingFor, query: string) =>
+  `${looking}:${query}:${latitude.toFixed(4)},${longitude.toFixed(4)}`;
 
 export const clearNearbyRestaurantsCache = () => cache.clear();
 
@@ -36,16 +36,18 @@ export const fetchNearbyRestaurants = (
   latitude: number,
   longitude: number,
   looking: LookingFor = 'food',
+  /** 「這裡還需要：更多搜尋🔍」 — a name, when the three on offer are not it. */
+  query = '',
 ): Promise<NearbyRestaurant[]> => {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return Promise.resolve([]);
-  const key = keyOf(latitude, longitude, looking);
+  const key = keyOf(latitude, longitude, looking, query.trim());
   const existing = cache.get(key);
   if (existing) return existing;
 
   const request = fetch('/api/places/nearby-restaurants', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ latitude, longitude, looking }),
+    body: JSON.stringify({ latitude, longitude, looking, query: query.trim() || undefined }),
   })
     .then(async response => (response.ok
       ? ((await response.json()) as { restaurants?: NearbyRestaurant[] }).restaurants || []
