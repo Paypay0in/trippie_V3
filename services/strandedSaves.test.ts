@@ -55,3 +55,51 @@ describe('saves in a country with no trip', () => {
     expect(strandedSaves([saved({ country: '加拿大' })], [])).toEqual([]);
   });
 });
+
+/**
+ * 「這些不是都有對應收藏的了嗎 幹嘛顯示」 — twenty 釜山 saves, every one correctly
+ * bound, listed as suspect because the 釜山 trip was still a draft.
+ */
+describe('a country the collection is plainly about', () => {
+  const korean = (index: number) =>
+    saved({ id: `k${index}`, placeName: `釜山 ${index}`, country: '韓國', city: 'Busan' });
+
+  /* Twenty of them. Somebody with twenty Korean saves collects for Korea. */
+  const collection = Array.from({ length: 20 }, (_, index) => korean(index));
+
+  it('is not stranded, even with no trip to it at all', () => {
+    expect(strandedSaves(collection, ['日本'])).toEqual([]);
+  });
+
+  /* And the damage still stands out beside it. */
+  it('still finds the handful flung onto another continent', () => {
+    const found = strandedSaves([
+      ...collection,
+      saved({ id: 'bad', placeName: 'Global Work & Travel Canada', country: '加拿大', city: 'Vancouver' }),
+    ], ['日本']);
+
+    expect(found.map(save => save.id)).toEqual(['bad']);
+  });
+
+  /*
+    A share means nothing in a small collection, so there is a floor: four
+    saves in one country is not yet a destination.
+  */
+  it('needs more than a handful before a country counts as collected for', () => {
+    const four = Array.from({ length: 4 }, (_, index) => korean(index));
+
+    expect(strandedSaves(four, ['日本']).map(save => save.id)).toHaveLength(4);
+  });
+
+  /* A country that is a small slice of a large collection is still flagged. */
+  it('does not excuse a country that is a sliver of the collection', () => {
+    const found = strandedSaves([
+      ...collection,
+      ...Array.from({ length: 5 }, (_, index) =>
+        saved({ id: `c${index}`, placeName: `somewhere ${index}`, country: '加拿大', city: 'Vancouver' })),
+    ], ['日本']);
+
+    // Five Canadian saves against twenty Korean ones: under a quarter.
+    expect(found).toHaveLength(5);
+  });
+});

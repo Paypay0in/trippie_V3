@@ -7646,9 +7646,18 @@ const App: React.FC = () => {
             Every country his own trips mention, so a save that landed somewhere
             else can be spotted. See `strandedSaves`.
           */
-          knownCountries={tripHistory
-            .map((trip) => trip.destinationCountry || trip.travelCountry || "")
-            .filter(Boolean)}
+          knownCountries={[
+            ...tripHistory.map((trip) => trip.destinationCountry || trip.travelCountry || ""),
+            /*
+              A trip being planned is a trip.
+
+              「這些不是都有對應收藏的了嗎 幹嘛顯示」 — twenty 釜山 saves, every one
+              correctly bound, listed as stranded because `tripHistory` holds
+              only archived journeys. His 釜山 trip is a draft, so Korea was
+              not a country he had ever planned for.
+            */
+            ...drafts.map((draft) => draft.destinationCountry || draft.travelCountry || ""),
+          ].filter(Boolean)}
           selectedGroupIds={selectedInspirationGroupIds}
           onSelectionChange={setSelectedInspirationGroupIds}
           onExploreCommunity={() => {
