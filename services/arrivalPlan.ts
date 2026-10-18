@@ -135,6 +135,8 @@ export const airportTransferItem = (
   notes: string;
   date: string;
   time: string;
+  /** How long the ride takes, so the day after it starts in the right place. */
+  durationMinutes: number;
   placeId?: string;
   address?: string;
   latitude?: number;
@@ -151,6 +153,17 @@ export const airportTransferItem = (
     : `已含入境與提領行李約 ${MINUTES_CLEARING_AIRPORT / 60} 小時，交通時間請再確認`,
   date: options.date,
   time: options.departTime,
+  /*
+    The length of the ride, not a default block.
+
+    「我覺得通常都是抵達去放行李才會出去玩」 — the day's free time has to begin after
+    the bags are down, and nothing could work that out from a card that said
+    only when the ride started. Same arithmetic as `reachHotelTime`, which is
+    where the 30-minute floor for an unknown journey is argued.
+  */
+  durationMinutes: options.travelSeconds && options.travelSeconds > 0
+    ? Math.max(MINUTES_MINIMUM_RIDE, Math.round(options.travelSeconds / 60))
+    : MINUTES_MINIMUM_RIDE,
   ...(options.hotelPlaceId ? { placeId: options.hotelPlaceId } : {}),
   ...(options.hotelAddress ? { address: options.hotelAddress } : {}),
   ...(typeof options.hotelLatitude === 'number' && Number.isFinite(options.hotelLatitude)

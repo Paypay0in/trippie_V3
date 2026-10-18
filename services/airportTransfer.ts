@@ -16,8 +16,13 @@ import { FlightArrivalPoint } from './flightDerivedItems';
 import { StaySpan } from './stayIntake';
 import { airportTransferItem, departAirportTime, reachHotelTime } from './arrivalPlan';
 
-/** Marks a card this module owns, so reconciliation can replace its own work. */
-export const TRANSFER_ID_PREFIX = 'airport-transfer-';
+/**
+ * Marks a card this module owns, so reconciliation can replace its own work.
+ * Defined in `itineraryDayFloor`, which reads it to know when the bags are
+ * down, and must not depend on this module to do it.
+ */
+export { TRANSFER_ID_PREFIX } from './itineraryDayFloor';
+import { TRANSFER_ID_PREFIX } from './itineraryDayFloor';
 
 export const transferIdFor = (arrivalDate: string): string => `${TRANSFER_ID_PREFIX}${arrivalDate}`;
 

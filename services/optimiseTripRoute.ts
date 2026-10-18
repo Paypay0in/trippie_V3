@@ -25,7 +25,7 @@ import { durationOf, minutesToTime, timeToMinutes } from './itineraryTimeline';
 import { MEAL_WINDOWS } from './dayTemplate';
 import { transitMinutesBetween } from './itineraryScheduling';
 import { separateOverlaps } from './separateOverlaps';
-import { earliestFreeStartByDate, fixedAnchorSchedule } from './itineraryDayFloor';
+import { earliestFreeStartByDate, fixedAnchorSchedule, TRANSFER_ID_PREFIX } from './itineraryDayFloor';
 
 /**
  * Flights, anything derived from one, check-ins, and anything pinned.
@@ -39,7 +39,15 @@ export const isAnchored = (item: ItineraryItem): boolean =>
   || item.type === 'FLIGHT'
   || Boolean(item.isPinned)
   // A check-in is the day's bookend rather than a stop on it.
-  || item.type === 'HOTEL';
+  || item.type === 'HOTEL'
+  /*
+    The ride from the airport to the room.
+
+    「我覺得通常都是抵達去放行李才會出去玩」. It is not a stop to be reordered — it
+    is the hinge the arrival day turns on, and the floor it sets is what keeps
+    the first sightseeing of the trip from happening with a suitcase in hand.
+  */
+  || item.id.startsWith(TRANSFER_ID_PREFIX);
 
 interface Point { latitude: number; longitude: number }
 

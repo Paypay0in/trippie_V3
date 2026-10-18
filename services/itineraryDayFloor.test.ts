@@ -18,7 +18,9 @@
  * already said.
  */
 import { describe, expect, it } from 'vitest';
-import { earliestFreeStartByDate, FixedScheduleEntry, fixedAnchorSchedule, isCoveredByFixedSchedule, latestFreeStartByDate } from './itineraryDayFloor';
+import { earliestFreeStartByDate, FixedScheduleEntry, fixedAnchorSchedule, fixedAnchorScheduleFromSnapshot, isCoveredByFixedSchedule, latestFreeStartByDate } from './itineraryDayFloor';
+import { airportTransferItem, departAirportTime } from './arrivalPlan';
+import { transferIdFor } from './airportTransfer';
 import { normalizeTripInspirationProposal } from './itineraryPlanningService';
 import { TripPlanningInput } from './tripInspirationSelection';
 import { ItineraryItem } from '../types';
@@ -239,8 +241,8 @@ describe('the arrival chain stops at the first real gap', () => {
 
   /*
     Two steps, each following on. `other` is the role anything unlabelled
-    carries — the roles are `to_airport`, `departure`, `landing`, `checkin`
-    and `other`, and there is no transfer among them.
+    carries — the roles are `to_airport`, `departure`, `landing`,
+    `to_lodging`, `checkin` and `other`.
   */
   it('chains more than one step while each follows on', () => {
     const floors = earliestFreeStartByDate([
@@ -257,5 +259,65 @@ describe('the arrival chain stops at the first real gap', () => {
     const floors = earliestFreeStartByDate([day({ time: '11:00', role: 'landing' })]);
 
     expect(floors['2026-10-20']).toBe('11:00');
+  });
+});
+
+/**
+ * 「我覺得通常都是抵達去放行李才會出去玩」.
+ *
+ * His arrival day: landed 11:00, 東京都現代美術館 at 12:00, 前往朋友家 at 13:00.
+ * The floor ended at the landing, so a museum was offered while he was still
+ * holding his suitcase. The ride to the room is the card that knows where the
+ * luggage goes, and it was not in the schedule this floor is computed from.
+ *
+ * Built from `airportTransferItem`, because the id is what carries the role
+ * and a fixture that invents one proves nothing about the real itinerary.
+ */
+describe('放行李才出去玩', () => {
+  const ARRIVED = '2026-10-20';
+  const transfer = (travelSeconds?: number) => airportTransferItem({
+    id: transferIdFor(ARRIVED),
+    date: ARRIVED,
+    departTime: departAirportTime('11:00') as string,
+    airportName: 'Narita International Airport',
+    hotelName: '朋友家',
+    travelSeconds,
+  }) as ItineraryItem;
+
+  const landing = item({
+    id: 'flight-landing-f9', date: ARRIVED, time: '11:00', title: '航班抵達',
+    type: 'FLIGHT', derivedFromFlightAnchorId: 'f9', durationMinutes: 0,
+  });
+
+  it('opens the day after the bags are down, not after the landing', () => {
+    const floors = earliestFreeStartByDate(fixedAnchorSchedule([landing, transfer(57 * 60)]));
+
+    // Out of the terminal at 13:00, 57 minutes to the room.
+    expect(floors[ARRIVED]).toBe('13:57');
+  });
+
+  /* An unknown ride is still not an instant one. See MINUTES_MINIMUM_RIDE. */
+  it('still leaves time for a ride nobody has measured', () => {
+    const floors = earliestFreeStartByDate(fixedAnchorSchedule([landing, transfer()]));
+
+    expect(floors[ARRIVED]).toBe('13:30');
+  });
+
+  /* The exact failure he photographed: a 12:00 museum on an 11:00 landing. */
+  it('leaves no room for the museum he was shown at 12:00', () => {
+    const floors = earliestFreeStartByDate(fixedAnchorSchedule([landing, transfer(57 * 60)]));
+
+    expect(floors[ARRIVED] > '12:00').toBe(true);
+  });
+
+  /* The AI adjustment route sees a lossier payload, and must reach the same answer. */
+  it('reaches the same floor from the adjustment snapshot', () => {
+    const ride = transfer(57 * 60);
+    const floors = earliestFreeStartByDate(fixedAnchorScheduleFromSnapshot([
+      { id: landing.id, date: ARRIVED, startTime: '11:00', durationMinutes: 0, placeName: '航班抵達', fixedEvent: true },
+      { id: ride.id, date: ARRIVED, startTime: ride.time, durationMinutes: ride.durationMinutes, placeName: ride.title },
+    ]));
+
+    expect(floors[ARRIVED]).toBe('13:57');
   });
 });

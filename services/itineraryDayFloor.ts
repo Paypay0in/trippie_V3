@@ -1,6 +1,13 @@
 import { ItineraryItem } from '../types';
 
 /**
+ * The id the airport-to-hotel ride carries. Declared here rather than imported
+ * so this module stays dependency-free — it is read by the server's snapshot
+ * path too. `airportTransfer` re-exports this as `TRANSFER_ID_PREFIX`.
+ */
+export const TRANSFER_ID_PREFIX = 'airport-transfer-';
+
+/**
  * The first moment a day is actually free.
  *
  * 「第一天行程非常不合理 且有重複的 怎麼會先入境金浦機場再去桃園機場」.
@@ -23,7 +30,7 @@ import { ItineraryItem } from '../types';
  * arrived. Which one it is decides whether the free time is before or after,
  * and getting that backwards pushes the whole last day to after the flight home.
  */
-export type FixedScheduleRole = 'to_airport' | 'departure' | 'landing' | 'checkin' | 'other';
+export type FixedScheduleRole = 'to_airport' | 'departure' | 'landing' | 'to_lodging' | 'checkin' | 'other';
 
 /** A fixed item the planner must schedule around, in a shape safe to send over the wire. */
 export interface FixedScheduleEntry {
@@ -59,7 +66,20 @@ const isAnchorBound = (item: ItineraryItem): boolean =>
   Boolean(item.derivedFromFlightAnchorId)
   || item.type === 'FLIGHT'
   || item.fixedEventKind === 'flight'
-  || item.fixedEventKind === 'accommodation';
+  || item.fixedEventKind === 'accommodation'
+  /*
+    The ride from the airport to the room.
+
+    「我覺得通常都是抵達去放行李才會出去玩」 — measured on his arrival day: landed
+    11:00, 東京都現代美術館 at 12:00, 前往朋友家 at 13:00. He was shown a museum
+    while still holding his suitcase, because the floor ended at the landing and
+    the one card that said where the luggage goes was not in this list.
+
+    Movable, like the check-in above it, and here for the same reason: this
+    hour is not sightseeing time. Only ever extends a floor a landing already
+    opened.
+  */
+  || item.id.startsWith(TRANSFER_ID_PREFIX);
 
 /*
   Which kind of anchor an item is.
@@ -74,6 +94,7 @@ const roleOf = (item: ItineraryItem): FixedScheduleRole => {
   if (item.id.startsWith('flight-arrival-')) return 'to_airport';
   if (item.id.startsWith('flight-departure-')) return 'departure';
   if (item.id.startsWith('flight-landing-')) return 'landing';
+  if (item.id.startsWith(TRANSFER_ID_PREFIX)) return 'to_lodging';
   if (item.fixedEventKind === 'accommodation') return 'checkin';
   return 'other';
 };
@@ -108,7 +129,10 @@ export const fixedAnchorScheduleFromSnapshot = (
 ): FixedScheduleEntry[] =>
   items
     .filter(item => typeof item?.id === 'string' && typeof item?.date === 'string' && isValidClock(item?.startTime as string)
-      && (item.fixedEvent === true || item.accommodation === true))
+      // The ride to the room is neither a fixed event nor a stay, and the day
+      // is not free until it is over. See `isAnchorBound`.
+      && (item.fixedEvent === true || item.accommodation === true
+        || (item.id as string).startsWith(TRANSFER_ID_PREFIX)))
     .map(item => ({
       date: item.date as string,
       time: item.startTime as string,

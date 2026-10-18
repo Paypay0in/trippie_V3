@@ -19,10 +19,12 @@
  */
 import { ItineraryItem } from '../types';
 import { durationOf, isTimedItem, minutesToTime, timeToMinutes } from './itineraryTimeline';
-import { earliestFreeStartByDate, fixedAnchorSchedule } from './itineraryDayFloor';
+import { earliestFreeStartByDate, fixedAnchorSchedule, TRANSFER_ID_PREFIX } from './itineraryDayFloor';
 
 const isFixed = (item: ItineraryItem): boolean =>
-  Boolean(item.derivedFromFlightAnchorId) || item.type === 'FLIGHT' || Boolean(item.isPinned);
+  Boolean(item.derivedFromFlightAnchorId) || item.type === 'FLIGHT' || Boolean(item.isPinned)
+  // The ride to the room: an addition clashing with it moves, not it.
+  || item.id.startsWith(TRANSFER_ID_PREFIX);
 
 /**
  * A time for the items this adjustment added without one.
