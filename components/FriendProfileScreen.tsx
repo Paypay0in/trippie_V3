@@ -64,7 +64,15 @@ const FriendProfileScreen: React.FC<Props> = ({
       </button>
     </div>
 
-    <div className="-mt-10 px-5">
+    {/*
+      Positioned, so the avatar is drawn over the cover it overlaps.
+
+      「大頭被裁掉了」 — the cover's wrapper is `relative` and this one was not,
+      and a positioned element paints above a static one whatever the order of
+      the markup. So the 40px of avatar pulled up over the cover was behind
+      it, and the circle arrived with its top half sliced off.
+    */}
+    <div className="relative -mt-10 px-5">
       <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-[#f7f8fc] bg-violet-100 text-xl font-black text-violet-700">
         {person.avatarUrl
           ? <img src={person.avatarUrl} alt="" className="h-full w-full object-cover" />
