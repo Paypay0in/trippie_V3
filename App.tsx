@@ -186,6 +186,7 @@ import {
   requestFriend,
 } from "./services/friendships";
 import { friendRequestNotices } from "./services/friendRequestNotices";
+import { tripsWithFriend } from "./services/tripsWithFriend";
 import FriendsPanel from "./components/FriendsPanel";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
@@ -6741,6 +6742,26 @@ const App: React.FC = () => {
                   }}
                   onAccept={async (person) => { await acceptFriend(person.id); await reloadFriendships(); }}
                   onRemove={async (person) => { await removeFriend(person.id); await reloadFriendships(); }}
+                  /*
+                    「然後點擊這個對象，應該要可以看到他跟我一起的旅行」.
+
+                    Read off the trips this device already holds — both the
+                    ones still being planned and the ones finished — because
+                    membership is on the trip and a second list of 「who I have
+                    travelled with」 would be a second answer to one question.
+                  */
+                  tripsWith={(person) =>
+                    tripsWithFriend([...drafts, ...tripHistory] as never, person.id)}
+                  onOpenTrip={(tripId) => {
+                    const finished = tripHistory.find((item) => item.id === tripId);
+                    if (finished) { handleOpenCompletedTrip(finished); return; }
+                    /* Still being planned: open it where it is worked on. */
+                    const draft = drafts.find((item) => item.id === tripId);
+                    if (!draft) return;
+                    setActiveDraftId(draft.id);
+                    setAppSection("trips");
+                    setViewMode("trip");
+                  }}
                 />
               }
               trips={tripHistory.map((trip) => ({

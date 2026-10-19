@@ -152,3 +152,83 @@ describe('邀請與好友', () => {
     expect(h.onRemove).toHaveBeenCalledWith(GINA);
   });
 });
+
+/**
+ * 「然後點擊這個對象，應該要可以看到他跟我一起的旅行」.
+ *
+ * The row said a name and offered to remove them — the one question nobody
+ * opens this screen to answer. What a friend is for here is the trips their
+ * name is already on.
+ */
+describe('一起去過的旅行', () => {
+  const shared = [
+    { id: 't1', label: '東京 2026 秋', startDate: '2026-10-20', endDate: '2026-10-24' },
+    { id: 't0', label: '釜山', startDate: '2026-03-20', endDate: '2026-03-24' },
+  ];
+
+  const withTrips = (over: Record<string, unknown> = {}) => panel({
+    friends: [GINA],
+    tripsWith: () => shared,
+    ...over,
+  });
+
+  it('says how many without being opened', () => {
+    withTrips();
+
+    expect(screen.getByTestId('friend-open-u-gina').textContent).toContain('一起去過 2 趟');
+  });
+
+  it('lists them when the name is tapped', async () => {
+    const user = userEvent.setup();
+    withTrips();
+
+    expect(screen.queryByTestId('friend-trips-u-gina')).toBeNull();
+    await user.click(screen.getByTestId('friend-open-u-gina'));
+
+    const list = screen.getByTestId('friend-trips-u-gina');
+    expect(list.textContent).toContain('東京 2026 秋');
+    expect(list.textContent).toContain('2026/10/20 – 10/24');
+  });
+
+  it('opens one', async () => {
+    const user = userEvent.setup();
+    const onOpenTrip = vi.fn();
+    withTrips({ onOpenTrip });
+
+    await user.click(screen.getByTestId('friend-open-u-gina'));
+    await user.click(screen.getByTestId('friend-trip-t1'));
+
+    expect(onOpenTrip).toHaveBeenCalledWith('t1');
+  });
+
+  it('closes again', async () => {
+    const user = userEvent.setup();
+    withTrips();
+
+    await user.click(screen.getByTestId('friend-open-u-gina'));
+    await user.click(screen.getByTestId('friend-open-u-gina'));
+
+    expect(screen.queryByTestId('friend-trips-u-gina')).toBeNull();
+  });
+
+  /*
+    A row that expands into 「no trips together」 teaches that tapping names is
+    pointless, and that lesson spreads to the rows where it is not.
+  */
+  it('is not tappable when there are none', () => {
+    panel({ friends: [GINA], tripsWith: () => [] });
+
+    expect(screen.queryByTestId('friend-open-u-gina')).toBeNull();
+    expect(screen.getByTestId('friend-u-gina').textContent).toContain('Gina');
+  });
+
+  /* 移除好友 is still there, and still only itself. */
+  it('leaves the remove button alone', async () => {
+    const user = userEvent.setup();
+    const h = withTrips();
+
+    await user.click(screen.getByTestId('friend-remove-u-gina'));
+
+    expect(h.onRemove).toHaveBeenCalled();
+  });
+});
