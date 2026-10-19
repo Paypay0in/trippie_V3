@@ -12,11 +12,12 @@ import ActivityPlanCards from './ActivityPlanCards';
 import { tripDays, tripDaysBrief } from '../services/tripFreeDays';
 import ServiceRequestSheet from './ServiceRequestSheet';
 import { ServiceRequest } from '../types';
-import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake, Ticket, Check } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, ChevronRight, ExternalLink, FileText, Lightbulb, Luggage, CalendarDays, CheckCircle2, Circle, Compass, MapPinned, Plane, Plug, Receipt, ShoppingBag, Sparkles, Users, ChevronDown, ChevronUp, Handshake, Ticket, Check } from 'lucide-react';
 import { openAppWithFallback, browserLaunchEnvironment } from '../services/appLaunch';
 import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
 import { fetchSuggestedPlaces } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
+import { powerAdviceFor, powerAdviceLines, powerHeadline } from '../services/powerAndPlugs';
 import { findOfficialLink } from '../services/officialTravelLinks';
 
 /**
@@ -298,6 +299,14 @@ const TripPlanOverview: React.FC<Props> = ({
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState('');
   const context = destination?.trim();
+  /*
+    「每個國家在行前 都要提醒電壓跟插座這件事 目前都沒有提醒到」.
+
+    A hand-written table, not a research call: a country's mains voltage and
+    plug standard are durably true, and the AI lookup above is for the things
+    that are not. See `powerAndPlugs`.
+  */
+  const power = powerAdviceFor(destinationCountry || destination);
   const localTips = getDestinationTips(destinationCountry || destination);
   // What the traveller last asked about, so the recommendations answer the
   // question rather than the country. Kept separate from the live textarea: the
@@ -1084,6 +1093,36 @@ const TripPlanOverview: React.FC<Props> = ({
               </div>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {power && (
+        /* Above the crowd-sourced tips and below the official rules, because
+           it is neither: nobody can waive it and nobody had to find it out. */
+        <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-1 flex items-center gap-2 font-black">
+            <Plug size={18} className="text-amber-500" />電壓與插座
+          </h2>
+          <p className="mb-3 text-xs leading-5 text-slate-500">
+            {destinationCountry || destination} 的插座跟台灣不一樣的話，到了才發現就來不及了。
+          </p>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+            <span data-testid="power-headline" className="block text-lg font-black text-[#11183d]">
+              {powerHeadline(power)}
+            </span>
+            {/* Said rather than implied: 「需要轉接頭」 is the one line somebody
+                scanning this screen has to come away with. */}
+            <span className={`mt-1.5 inline-block rounded-lg px-2 py-0.5 text-[11px] font-black ${
+              power.needsAdapter ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+            }`}>
+              {power.needsAdapter ? '需要轉接頭' : '不用轉接頭'}
+            </span>
+            <ul data-testid="power-advice" className="mt-3 space-y-2">
+              {powerAdviceLines(power).map(line => (
+                <li key={line} className="text-xs leading-5 text-slate-600">{line}</li>
+              ))}
+            </ul>
           </div>
         </section>
       )}
