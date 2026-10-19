@@ -65,7 +65,8 @@ describe('好友的主頁', () => {
   it('lists the trips you were both on', () => {
     open();
 
-    expect(screen.getByTestId('friend-shared-trips').textContent).toContain('共同旅程');
+    /* 共同旅程 is the tab's label now, and it carries the count. */
+    expect(screen.getByTestId('friend-tab-trips').textContent).toContain('共同旅程 (1)');
     expect(screen.getByTestId('friend-shared-trips').textContent).toContain('東京 2026 秋');
     expect(screen.getByTestId('friend-shared-trips').textContent).toContain('2026/10/20 – 10/24');
   });
@@ -80,26 +81,39 @@ describe('好友的主頁', () => {
   });
 
   /* Nobody else sees this section, because for them it is empty. */
-  it('leaves the section out when there are none', () => {
+  it('leaves the list out when there are none', () => {
     open({ sharedTrips: [] });
 
     expect(screen.queryByTestId('friend-shared-trips')).toBeNull();
   });
 
+  /* The two halves are tabs now; the trips open first. */
   it('shows their public posts, and opens one', async () => {
     const user = userEvent.setup();
     const h = open();
 
+    await user.click(screen.getByTestId('friend-tab-posts'));
     await user.click(screen.getByTestId('friend-post-p1'));
 
     expect(h.onOpenPost).toHaveBeenCalledWith('p1');
   });
 
   /* An answer about them, not a question about whether the screen works. */
-  it('says so when they have shared nothing', () => {
+  it('says so when they have shared nothing', async () => {
+    const user = userEvent.setup();
     open({ posts: [] });
 
+    await user.click(screen.getByTestId('friend-tab-posts'));
+
     expect(screen.getByTestId('friend-no-posts').textContent).toContain('Ann');
+  });
+
+  /* And the same for a friend there is no trip with. */
+  it('says so when there is no trip together', () => {
+    open({ sharedTrips: [] });
+
+    expect(screen.getByTestId('friend-no-trips')).toBeTruthy();
+    expect(screen.getByTestId('friend-tab-trips').textContent).toContain('(0)');
   });
 
   /*
@@ -121,5 +135,51 @@ describe('好友的主頁', () => {
     await user.click(screen.getByTestId('friend-profile-back'));
 
     expect(h.onBack).toHaveBeenCalled();
+  });
+});
+
+/**
+ * 「將頁面優化成這樣」 — the mock the Founder drew.
+ *
+ * What it has and this does not: 旅伴好友, 收藏的景點, and every editing
+ * control. The first two are somebody else's rows and this account cannot
+ * read them — a tab that can only ever say (0) is a tab lying about a
+ * stranger. The rest belong on your own profile, which is what was drawn.
+ */
+describe('照著稿子做的那些', () => {
+  it('draws a trip as a card with where it goes', () => {
+    open({
+      sharedTrips: [{
+        id: 't1', label: 'Tokyo', startDate: '2026-10-20', endDate: '2026-10-24',
+        destination: '日本・東京', memberCount: 2,
+      }],
+    });
+
+    const card = screen.getByTestId('friend-profile-trip-t1');
+    expect(card.textContent).toContain('日本・東京');
+    expect(card.textContent).toContain('2026/10/20 – 10/24');
+    expect(card.textContent).toContain('2 人');
+  });
+
+  /* A trip that never recorded where it goes still renders as a card. */
+  it('keeps the card when the trip has no destination', () => {
+    open({ sharedTrips: [{ id: 't1', label: '未命名的旅程' }] });
+
+    expect(screen.getByTestId('friend-profile-trip-t1').textContent).toContain('未命名的旅程');
+  });
+
+  /* Somebody else's friends and saves are not readable, so they are not drawn. */
+  it('offers no tab it cannot answer', () => {
+    open();
+
+    expect(screen.queryByText(/旅伴好友/)).toBeNull();
+    expect(screen.queryByText(/收藏的景點/)).toBeNull();
+  });
+
+  /* Nor any control that belongs on your own profile. */
+  it('offers nothing to edit on somebody else', () => {
+    open();
+
+    expect(screen.queryByText(/編輯個人資料|更換封面|新增共同旅程|發布貼文/)).toBeNull();
   });
 });

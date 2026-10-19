@@ -44,6 +44,16 @@ export interface SharedTrip {
   label: string;
   startDate?: string;
   endDate?: string;
+  /**
+   * Where it goes, for the card's photo and its 「日本・東京」 chip.
+   *
+   * Carried rather than re-derived: the trip object already knows, and a
+   * second guess at 「which city is this」 from the name is how 釜山 ends up
+   * illustrated with Tokyo.
+   */
+  destination?: string;
+  /** How many seats it has, which is 「2 人」 on the card. */
+  memberCount?: number;
 }
 
 /**
@@ -86,12 +96,21 @@ export const tripsWithFriend = (trips: TripLike[], friendUserId: string): Shared
       seen.add(trip.id);
       return true;
     })
-    .map(trip => ({
-      id: trip.id,
-      label: trip.name?.trim() || trip.destination?.trim() || '未命名的旅程',
-      ...(trip.startDate ? { startDate: trip.startDate } : {}),
-      ...(trip.endDate ? { endDate: trip.endDate } : {}),
-    }))
+    .map(trip => {
+      const seats = new Set(
+        [...(trip.members || []), ...(trip.companions || [])]
+          .map(member => member.userId || member.id)
+          .filter((id): id is string => Boolean(id)),
+      );
+      return {
+        id: trip.id,
+        label: trip.name?.trim() || trip.destination?.trim() || '未命名的旅程',
+        ...(trip.startDate ? { startDate: trip.startDate } : {}),
+        ...(trip.endDate ? { endDate: trip.endDate } : {}),
+        ...(trip.destination?.trim() ? { destination: trip.destination.trim() } : {}),
+        ...(seats.size > 0 ? { memberCount: seats.size } : {}),
+      };
+    })
     // Most recent first: the trip somebody is asking about is usually the last.
     .sort((left, right) => (right.startDate || '').localeCompare(left.startDate || ''));
 };
