@@ -61,6 +61,13 @@ type Props = {
    * rebuilder to quietly drop.
    */
   visits?: Map<string, PlaceVisit>;
+  /**
+   * 「下方兩個我去過了」 — say it about a place no trip ever took you to.
+   *
+   * A toggle rather than a date: nobody was asked when, so nothing claims a
+   * year. See `statedVisits` and `PlaceVisit.stated`.
+   */
+  onToggleVisited?: (place: SavedTravelInspiration) => void;
 };
 
 
@@ -73,7 +80,7 @@ type Props = {
  */
 const NOTE_PREVIEW = 4;
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits }) => {
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
@@ -351,6 +358,28 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50"
               >
                 重新對應地圖地點<span className="mt-0.5 block text-[10px] font-medium text-slate-400">對到錯的店時，搜尋正確的那家</span>
+              </button>
+            )}
+            {/*
+              「下方兩個我去過了」.
+
+              已訪 is derived from finished trips, and that stays the default —
+              but derivation can only answer 「did a trip in this app take you
+              there」. A place visited before the app existed, or on an
+              afternoon nobody wrote down, had no way to say so. Same
+              correction as the ticket list I refused to let anyone tick.
+            */}
+            {onToggleVisited && (
+              <button
+                type="button"
+                data-testid={`mark-visited-${item.id}`}
+                onClick={() => { onToggleVisited(item); setMenuItemId(null); }}
+                className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-emerald-50"
+              >
+                {visitOf(item, visits || new Map())?.stated ? '取消「已訪」' : '標記為去過'}
+                <span className="mt-0.5 block text-[10px] font-medium text-slate-400">
+                  {visitOf(item, visits || new Map())?.stated ? '這裡其實還沒去過' : '沒排進行程、但你去過了'}
+                </span>
               </button>
             )}
             <button type="button" onClick={() => { setRemoveTarget(item); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">移除這個地點<span className="mt-0.5 block text-[10px] font-medium text-rose-400">從我的旅行筆記移除</span></button>

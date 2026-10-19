@@ -458,4 +458,37 @@ describe('去過的地方', () => {
 
     expect(screen.queryByTestId('visited-a')).toBeNull();
   });
+
+  /*
+    「下方兩個我去過了」.
+
+    Derivation only knows the trips in this app. A place visited before it
+    existed, or on an afternoon nobody wrote down, has to be sayable — the same
+    correction as the ticket list I argued should not be tickable.
+  */
+  it('可以自己說去過', () => {
+    const onToggleVisited = vi.fn();
+    mount([saved({ id: 'a', placeName: '海雲台傳統市場', ...HAEUNDAE })], {
+      visits: new Map(),
+      onToggleVisited,
+    });
+
+    fireEvent.click(screen.getByLabelText('海雲台傳統市場 更多選項'));
+    expect(screen.getByTestId('mark-visited-a').textContent).toContain('標記為去過');
+    fireEvent.click(screen.getByTestId('mark-visited-a'));
+
+    expect(onToggleVisited).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }));
+  });
+
+  /* Said, not dated: nobody was asked when, so no year is claimed. */
+  it('自己說的不寫年份，而且收得回去', () => {
+    mount([saved({ id: 'a', placeName: '海雲台傳統市場', ...HAEUNDAE })], {
+      visits: new Map([['name:海雲台傳統市場', { date: '2026-10-19', stated: true }]]),
+      onToggleVisited: vi.fn(),
+    });
+
+    expect(screen.getByTestId('visited-a').textContent).toBe('已訪');
+    fireEvent.click(screen.getByLabelText('海雲台傳統市場 更多選項'));
+    expect(screen.getByTestId('mark-visited-a').textContent).toContain('取消「已訪」');
+  });
 });

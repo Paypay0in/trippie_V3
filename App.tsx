@@ -110,6 +110,12 @@ import {
 } from "./services/destinationFromTripName";
 import { deleteTripRow, fetchMyTrips, isSyncAvailable } from "./services/tripSync";
 import { IdentityDrift, identityDrift } from "./services/tripIdentityDrift";
+import {
+  StatedVisits,
+  loadStatedVisits,
+  saveStatedVisits,
+  toggleStatedVisit,
+} from "./services/statedVisits";
 import { strandedLocalTripEscape } from "./services/strandedLocalTrip";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
@@ -1899,6 +1905,9 @@ const App: React.FC = () => {
   // with a completely different set and would otherwise never find the shared
   // ledger at all. Listed as empty shells; opening one pulls its expenses.
   const [cloudTripNote, setCloudTripNote] = useState<string>("");
+  /** Places the traveller has said they went to. See `statedVisits`. */
+  const [statedVisits, setStatedVisits] = useState<StatedVisits>(() => loadStatedVisits());
+  useEffect(() => { saveStatedVisits(statedVisits); }, [statedVisits]);
   /** Trips whose name here disagrees with the cloud's. See `identityDrift`. */
   const [identityDrifts, setIdentityDrifts] = useState<IdentityDrift[]>([]);
   /** The owner's name as the server stores it, for devices that are not theirs. */
@@ -6632,7 +6641,15 @@ const App: React.FC = () => {
         visits={visitsByPlace(
           [...tripHistory, { name: currentTripName, itinerary }],
           new Date().toISOString().slice(0, 10),
+          statedVisits,
         )}
+        /*
+          「下方兩個我去過了」 — a place no trip in this app ever took him to.
+          Derivation cannot know that, and the collection is his.
+        */
+        onToggleVisited={(place) =>
+          setStatedVisits((current) =>
+            toggleStatedVisit(place, current, new Date().toISOString().slice(0, 10)))}
         /*
           「這在釜山 我無法改」 — a record bound to the wrong place is missing
           nothing, so every repair built around 「what is incomplete」 skipped it.

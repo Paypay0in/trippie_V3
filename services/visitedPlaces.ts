@@ -21,6 +21,15 @@ export interface PlaceVisit {
   date: string;
   /** The trip it belonged to, for saying which journey it was. */
   tripName?: string;
+  /**
+   * True when the traveller said so rather than a trip showing it.
+   *
+   * Carried because the two know different things. A plan knows the day; a
+   * tick knows only that it happened, and `date` here is the day it was
+   * ticked. Labelling that as 「已訪 · 2026」 would put a year on the screen
+   * that nobody claimed.
+   */
+  stated?: boolean;
 }
 
 /**
@@ -39,7 +48,7 @@ export interface PlaceVisit {
  * record has costs one extra map entry and makes the match work in both
  * directions.
  */
-const keysOf = (place: { placeId?: string; placeName?: string; location?: string; title?: string }): string[] => {
+export const placeIdentities = (place: { placeId?: string; placeName?: string; location?: string; title?: string }): string[] => {
   const keys: string[] = [];
   const id = place.placeId?.trim();
   if (id) keys.push(`place:${id}`);
@@ -47,6 +56,9 @@ const keysOf = (place: { placeId?: string; placeName?: string; location?: string
   if (name) keys.push(`name:${name}`);
   return keys;
 };
+
+/** The one rule for 「are these two records the same place」. */
+const keysOf = placeIdentities;
 
 /** A day that has already happened. Today still counts as happening. */
 const isPast = (date: string, today: string): boolean =>
@@ -57,20 +69,43 @@ const isPast = (date: string, today: string): boolean =>
  *
  * @param trips the traveller's own finished and in-progress journeys.
  * @param today `YYYY-MM-DD`; a day that has not arrived is not a visit.
+ * @param stated what the traveller has said themselves. See `statedVisits`.
  */
 export const visitsByPlace = (
   trips: Array<Pick<Trip, 'name' | 'itinerary'>>,
   today: string,
+  stated: Readonly<Record<string, string>> = {},
 ): Map<string, PlaceVisit> => {
   const visits = new Map<string, PlaceVisit>();
+
+  /*
+    What the traveller said, first, so a plan can still correct the date.
+
+    Derivation answers 「did a finished trip take you there」 and nothing else.
+    「下方兩個我去過了」 is the rest of the world: a place visited before this app
+    existed, on somebody else's trip, or on an afternoon nobody wrote down. The
+    collection is the traveller's own record, so it has to be able to hold what
+    only they know — the same correction as the ticket list, which I also
+    refused to let anyone tick.
+  */
+  Object.entries(stated).forEach(([key, date]) => {
+    if (date) visits.set(key, { date, stated: true });
+  });
 
   trips.forEach(trip => {
     (trip.itinerary || []).forEach((item: ItineraryItem) => {
       if (!isPast(item.date, today)) return;
       keysOf(item).forEach(key => {
         const existing = visits.get(key);
-        // The most recent visit: 「上次去是什麼時候」 is the question being asked.
-        if (!existing || existing.date < item.date) {
+        /*
+          The most recent visit: 「上次去是什麼時候」 is the question being asked.
+
+          A trip always wins over a tick, whatever the dates say. The tick's
+          date is the day it was ticked, so comparing the two would let
+          「I marked this today」 hide 「you went in March」 — which is the one
+          thing on this chip the traveller can recognise.
+        */
+        if (!existing || existing.stated || existing.date < item.date) {
           visits.set(key, { date: item.date, tripName: trip.name });
         }
       });
@@ -102,5 +137,8 @@ export const visitOf = (
  *
  * The exact day is still on the visit for anywhere that wants it.
  */
-export const visitLabel = (visit?: PlaceVisit): string =>
-  (visit ? `已訪 · ${visit.date.slice(0, 4)}` : '');
+export const visitLabel = (visit?: PlaceVisit): string => {
+  if (!visit) return '';
+  // No year on a visit nobody dated. See `PlaceVisit.stated`.
+  return visit.stated ? '已訪' : `已訪 · ${visit.date.slice(0, 4)}`;
+};
