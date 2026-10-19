@@ -6642,12 +6642,21 @@ const App: React.FC = () => {
               const finished = tripHistory.find((item) => item.id === tripId);
               setProfileFriend(null);
               if (finished) { handleOpenCompletedTrip(finished); return; }
-              /* Still being planned: open it where it is worked on. */
-              const draft = drafts.find((item) => item.id === tripId);
-              if (!draft) return;
-              setActiveDraftId(draft.id);
+              /*
+                Opened through `handleOpenDraft`, which is what 「open a trip」
+                means in this app.
+
+                I wrote `setActiveDraftId` here and nothing else, which points
+                the persistence effect at another trip while every live state
+                still holds the one on screen — and that effect writes the
+                name, the dates, the expenses and the itinerary onto whatever
+                `activeDraftId` names. Opening 釜山 from this page rewrote it
+                as 東京. 「怎麼變東京了」.
+
+                Setting the id is not opening a trip. Loading it is.
+              */
               setAppSection("trips");
-              setViewMode("trip");
+              handleOpenDraft(tripId);
             }}
           />
           {/*
