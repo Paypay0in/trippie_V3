@@ -203,8 +203,27 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                 same thing it said before she joined — so the one screen that
                 could have answered 「她到底有沒有加入？」 answered no, four
                 times, while she was in fact a member each time.
+
+                The repair for that read `type === 'member'` as joined, and
+                that is a different fact. 「Gina 跟諮是同一個人」: her seat said
+                已加入 with no account behind it at all — `user_id` was null,
+                so she was invisible to the friends screen, to the shared
+                ledger, and to the cloud.
+
+                Worse, the label took the cure away with it: 邀請 is hidden
+                for a seat that has joined, so the only way to attach an
+                account to that seat was gone from the one screen that offers
+                it. A wrong label is a wrong label; a wrong label that removes
+                the fix is a dead end.
+
+                `user_id` is the only thing that means 「there is an account
+                here」 — it is what `is_trip_member` reads and what
+                `claim_trip_invite` writes. A seat without it is a name, and
+                is offered the invite that would change that. The RPC refuses
+                to take a seat somebody already holds, so the worst an
+                unnecessary invite can do is say so.
               */
-              const hasJoined = Boolean(c.userId) || c.type === 'member';
+              const hasJoined = Boolean(c.userId);
               const isLinked = hasJoined || friends.some(f => f.id === c.id);
               return (
                 <div

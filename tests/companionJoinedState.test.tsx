@@ -54,3 +54,39 @@ describe('the companion list', () => {
     expect(screen.getByRole('button', { name: /邀請小明加入這趟旅程/ })).toBeTruthy();
   });
 });
+
+/**
+ * 「Gina 跟諮是同一個人」, and her seat said 已加入 with no account behind it.
+ *
+ * The repair for the bug above read `type === 'member'` as joined, which is a
+ * different fact. `user_id` is the only thing that means 「there is an account
+ * here」 — it is what `is_trip_member` reads and what `claim_trip_invite`
+ * writes — and a seat without one was claiming to have one.
+ *
+ * Worse, the label took the cure with it: 邀請 is hidden for a seat that has
+ * joined, so the only way to attach an account was gone from the one screen
+ * that offers it.
+ */
+describe('a seat that is a member and nothing more', () => {
+  const memberNoAccount: Companion = { id: 'seat-gina', name: 'Gina', type: 'member' };
+
+  it('does not claim somebody is in when no account is', () => {
+    renderModal([memberNoAccount]);
+
+    expect(screen.queryByText('已加入')).toBeNull();
+  });
+
+  it('still offers the invite that would put one there', () => {
+    renderModal([memberNoAccount]);
+
+    expect(screen.getByLabelText('邀請Gina加入這趟旅程')).toBeTruthy();
+  });
+
+  /* And a seat an account really holds still says so, and needs no invite. */
+  it('leaves a claimed seat alone', () => {
+    renderModal([joined]);
+
+    expect(screen.getByText('已加入')).toBeTruthy();
+    expect(screen.queryByLabelText('邀請Gina加入這趟旅程')).toBeNull();
+  });
+});
