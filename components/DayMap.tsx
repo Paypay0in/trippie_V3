@@ -50,8 +50,23 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
     way — this hides a pin, never an item.
   */
   const [withAirport, setWithAirport] = useState(false);
+  /*
+    「然後朋友家是可以排除掉的」.
+
+    On by default, because the whole reason the house is drawn is to read the
+    day's stops against where it is slept — but a stay an hour out of the city
+    zooms the picture out to hold it, which is the same thing the airport did
+    and the reason that toggle exists. A map of a day answers 「how far apart
+    are these」, and at that zoom it cannot answer anything.
+
+    This hides a pin, never a stop: the lodging is not in the list of things
+    to do and never was.
+  */
+  const [withLodging, setWithLodging] = useState(true);
   const isAirportStop = (item: ItineraryItem) =>
     item.type === 'FLIGHT' || Boolean(item.derivedFromFlightAnchorId);
+  const isLodgingItem = (item: ItineraryItem) =>
+    item.type === 'HOTEL' || item.fixedEventKind === 'accommodation';
   const airportCount = items.filter(isAirportStop).length;
   const shown = withAirport ? items : items.filter(item => !isAirportStop(item));
 
@@ -68,7 +83,7 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
     The stay, where the day does not carry a card for it. Added once: a day
     that does have a 住宿 item already has its house.
   */
-  const stops = lodging && !fromItems.some(stop => stop.lodging)
+  const withHouse = lodging && !fromItems.some(stop => stop.lodging)
     ? [...fromItems, {
       id: 'stay',
       latitude: lodging.latitude,
@@ -78,7 +93,16 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
       item: { id: 'stay', title: lodging.name, location: '', time: '' } as ItineraryItem,
     }]
     : fromItems;
-  const unmapped = shown.length - stops.length;
+  /* The house answers to the toggle wherever it came from. */
+  const lodgingCount = withHouse.filter(stop => stop.lodging).length;
+  const stops = withLodging ? withHouse : withHouse.filter(stop => !stop.lodging);
+  /*
+    Stops that could not be drawn. Counted among the day's own items only —
+    the lodging is not one of them, and a hidden house is not a stop missing
+    from the map.
+  */
+  const unmapped = shown.filter(item => !isLodgingItem(item)).length
+    - stops.filter(stop => !stop.lodging).length;
 
   if (stops.length === 0) {
     return (
@@ -164,7 +188,7 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
           </li>
         ))}
       </ul>
-      {(unmapped > 0 || airportCount > 0) && (
+      {(unmapped > 0 || airportCount > 0 || lodgingCount > 0) && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-3 py-2">
           <p data-testid="day-map-unmapped" className="text-[10px] font-bold leading-4 text-slate-400">
             {unmapped > 0 && `還有 ${unmapped} 個行程沒連結地圖，沒有畫在上面。`}
@@ -173,7 +197,24 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
               four pins for a six-stop day is a day the traveller counts twice.
             */}
             {airportCount > 0 && !withAirport && `機場（${airportCount} 個）沒有畫在上面，這樣才看得出市區的距離。`}
+            {lodgingCount > 0 && !withLodging && '住宿沒有畫在上面。'}
           </p>
+          {/*
+            「然後朋友家是可以排除掉的」 — a stay an hour out of the city zooms the
+            picture out to hold it, and at that zoom the day's own stops are
+            one blob. The same escape the airport has, for the same reason.
+          */}
+          {lodgingCount > 0 && (
+            <button
+              type="button"
+              data-testid="toggle-lodging-pin"
+              aria-pressed={withLodging}
+              onClick={() => setWithLodging(value => !value)}
+              className="shrink-0 rounded-lg border border-[#f5d9a6] px-2 py-1 text-[10px] font-black text-[#b36e06]"
+            >
+              {withLodging ? '不含住宿' : '含住宿'}
+            </button>
+          )}
           {airportCount > 0 && (
             <button
               type="button"

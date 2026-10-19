@@ -339,3 +339,89 @@ describe('the bed on the day map', () => {
       .not.toContain('lodging-pin.png');
   });
 });
+
+/**
+ * 「然後朋友家是可以排除掉的」.
+ *
+ * A stay an hour out of the city zooms the picture out to hold it, and at that
+ * zoom the day's own stops are one blob — the same thing the airport did, and
+ * the reason that toggle exists.
+ */
+describe('把住宿從地圖上拿掉', () => {
+  const stay = (): ItineraryItem[] => ([
+    {
+      id: 'stay-in', title: '入住 朋友家', location: '朋友家', notes: '', type: 'HOTEL',
+      date: DAY, time: '15:00', fixedEventKind: 'accommodation',
+      latitude: 35.7100, longitude: 139.7950,
+    },
+    {
+      id: 'stay-out', title: '退房 朋友家', location: '朋友家', notes: '', type: 'HOTEL',
+      date: '2026-10-24', time: '10:00', fixedEventKind: 'accommodation',
+      latitude: 35.7100, longitude: 139.7950,
+    },
+  ] as ItineraryItem[]);
+
+  const openMap = () => {
+    render(<ItineraryCalendar
+      items={[...stay(), stop('淺草寺', '10:30', { date: '2026-10-21' })]}
+      startDate="2026-10-21"
+      endDate="2026-10-24"
+    />);
+    fireEvent.click(screen.getByTestId('toggle-map-mode'));
+  };
+
+  const src = () => decodeURIComponent((screen.getByTestId('day-map-image') as HTMLImageElement).src);
+
+  it('offers the way out', () => {
+    openMap();
+
+    expect(screen.getByTestId('toggle-lodging-pin').textContent).toContain('不含住宿');
+  });
+
+  it('takes the house off when asked', () => {
+    openMap();
+
+    fireEvent.click(screen.getByTestId('toggle-lodging-pin'));
+
+    expect(src()).not.toContain('lodging-pin.png');
+    expect(screen.getByTestId('day-map-legend').textContent).not.toContain('朋友家');
+  });
+
+  /* Said, not quietly dropped — the same rule the airport line follows. */
+  it('says the house is not on it', () => {
+    openMap();
+    fireEvent.click(screen.getByTestId('toggle-lodging-pin'));
+
+    expect(screen.getByText(/住宿沒有畫在上面/)).toBeTruthy();
+  });
+
+  it('puts it back', () => {
+    openMap();
+    const toggle = () => screen.getByTestId('toggle-lodging-pin');
+
+    fireEvent.click(toggle());
+    fireEvent.click(toggle());
+
+    expect(src()).toContain('lodging-pin.png');
+  });
+
+  /* Hiding a pin is not hiding a stop: the count below must not move. */
+  it('does not count the hidden house as a stop left off the map', () => {
+    openMap();
+    fireEvent.click(screen.getByTestId('toggle-lodging-pin'));
+
+    expect(screen.queryByTestId('day-map-unmapped')?.textContent || '').not.toContain('沒連結地圖');
+  });
+
+  /* A day with nowhere to sleep has nothing to offer. */
+  it('is not offered when there is no house', () => {
+    render(<ItineraryCalendar
+      items={[stop('淺草寺', '10:30'), stop('晴空塔', '14:00', { longitude: 139.81 })]}
+      startDate={DAY}
+      endDate={DAY}
+    />);
+    fireEvent.click(screen.getByTestId('toggle-map-mode'));
+
+    expect(screen.queryByTestId('toggle-lodging-pin')).toBeNull();
+  });
+});
