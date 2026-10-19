@@ -707,8 +707,12 @@ const App: React.FC = () => {
     | "marketplace"
     | "points"
     | "map"
-  >("community");
-  const [appSection, setAppSection] = useState<AppSection>("community");
+  >("bookshelf");
+  /*
+    「我覺得社群現在可以先隱藏」 — so the app opens on the thing it is: a trip
+    planner and a ledger. 社群 still exists and 探索靈感 still reaches it.
+  */
+  const [appSection, setAppSection] = useState<AppSection>("trips");
   const [communityPosts, setCommunityPosts] =
     useState<CommunityPost[]>(loadCommunityPosts);
   const [savedTravelInspirations, setSavedTravelInspirations] = useState<

@@ -26,7 +26,9 @@ describe('the interface follows the device language', () => {
     renderNav();
 
     expect(screen.getByText('旅行')).toBeTruthy();
-    expect(screen.getByText('社群')).toBeTruthy();
+    // 社群 is not in the bar for now 「我覺得社群現在可以先隱藏」; 我 is, and it is
+    // the other translated label left to check.
+    expect(screen.getByText('我')).toBeTruthy();
     expect(screen.getByLabelText('新增旅程或記錄')).toBeTruthy();
   });
 
@@ -35,7 +37,7 @@ describe('the interface follows the device language', () => {
     renderNav();
 
     expect(screen.getByText('Trips')).toBeTruthy();
-    expect(screen.getByText('Community')).toBeTruthy();
+    expect(screen.getByText('You')).toBeTruthy();
     expect(screen.getByLabelText('Add a trip or a record')).toBeTruthy();
     // The Chinese it replaced is gone, not merely joined.
     expect(screen.queryByText('旅行')).toBeNull();

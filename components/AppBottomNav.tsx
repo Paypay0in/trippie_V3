@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Map, Plus, BriefcaseBusiness, UserRound } from 'lucide-react';
+import { Map, Plus, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export type AppSection = 'community' | 'trips' | 'services' | 'profile';
@@ -39,7 +39,20 @@ const AppBottomNav: React.FC<Props> = ({ active, onChange, onPlus }) => {
   */
   return (
     <nav className="fixed bottom-[max(0.85rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex w-[calc(100%-1.5rem)] -translate-x-1/2 items-end justify-around rounded-[1.9rem] border border-slate-200/70 bg-white/90 px-3 pb-2.5 pt-2 shadow-[0_14px_40px_rgba(30,41,90,.16)] backdrop-blur-2xl md:max-w-2xl lg:max-w-2xl">
-      <button onClick={() => onChange('community')} className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${active === 'community' ? 'text-violet-600' : 'text-slate-400'}`}><Compass size={20} />{t('nav.community')}</button>
+      {/*
+        社群 is not here either, for now.
+
+        「我覺得社群現在可以先隱藏」 — the feed holds one post, by the Founder, and
+        a tab whose job is 「what other travellers are sharing」 that opens on
+        your own single post is a room with nobody in it. The app this is
+        going out as is a trip planner and a ledger; that is what the bar
+        should say it is.
+
+        The section is untouched — `AppSection` still has `community`, the
+        screen still renders, and 探索靈感 inside the trip screens still opens
+        it. Putting the tab back is this line, not a rebuild. Same treatment
+        服務 already has, for the same reason.
+      */}
       <button onClick={() => onChange('trips')} className={`flex min-h-11 min-w-14 flex-col items-center justify-center gap-0.5 text-[10px] font-bold ${active === 'trips' ? 'text-violet-600' : 'text-slate-400'}`}><Map size={20} />{t('nav.trips')}</button>
       <button onClick={onPlus} className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-lg shadow-violet-500/30" aria-label={t('nav.addAriaLabel')}><Plus size={28} /></button>
       {/*
