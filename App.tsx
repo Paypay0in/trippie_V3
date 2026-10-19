@@ -188,6 +188,7 @@ import {
 import { friendRequestNotices } from "./services/friendRequestNotices";
 import { tripsWithFriend } from "./services/tripsWithFriend";
 import { friendProblem } from "./services/friendProblem";
+import { personOrStranger } from "./services/personOrStranger";
 import FriendsPanel from "./components/FriendsPanel";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
@@ -6703,24 +6704,32 @@ const App: React.FC = () => {
               friendsPanel={
                 <FriendsPanel
                   myEmail={authUser?.email}
+                  /*
+                    A friendship this device cannot put a name to is still a
+                    friendship.
+
+                    「沒動」 — both of these dropped any row whose person was
+                    missing from `friendPeople`, so a profile that failed to
+                    resolve took the whole relationship off the screen: no
+                    pending request, no friend, no count, and nothing saying
+                    why. The row existed in the database the entire time.
+
+                    `personOrStranger` names them 旅人 instead. A placeholder
+                    name is a small wrong; a relationship that renders as
+                    nothing is somebody pressing ✓ into a void.
+                  */
                   friends={friendIdsFor(friendships, authUser?.id)
-                    .map((id) => friendPeople[id])
-                    .filter((person): person is Person => Boolean(person))}
+                    .map((id) => personOrStranger(friendPeople[id], id))}
                   pending={friendships
                     .filter((row) => row.status === 'pending')
                     .map((row) => {
                       const otherId = row.requesterId === authUser?.id ? row.addresseeId : row.requesterId;
-                      const person = friendPeople[otherId];
-                      return person
-                        ? {
-                            person,
-                            direction: (row.addresseeId === authUser?.id ? 'incoming' : 'outgoing') as
-                              'incoming' | 'outgoing',
-                          }
-                        : null;
-                    })
-                    .filter((entry): entry is { person: Person; direction: 'incoming' | 'outgoing' } =>
-                      Boolean(entry))}
+                      return {
+                        person: personOrStranger(friendPeople[otherId], otherId),
+                        direction: (row.addresseeId === authUser?.id ? 'incoming' : 'outgoing') as
+                          'incoming' | 'outgoing',
+                      };
+                    })}
                   suggestions={companionSuggestions(companionSeats, {
                     me: authUser?.id,
                     friendIds: friendIdsFor(friendships, authUser?.id),
