@@ -177,3 +177,39 @@ describe('兩份名單', () => {
     expect(tripsWithFriend([trip({ members: [], companions: [] })], GINA)).toEqual([]);
   });
 });
+
+/**
+ * 「Tokyo 2026/10/20 – 10/24」 listed twice.
+ *
+ * Drafts and history hold the same journey, and the archived copy does not
+ * always carry the id the draft had — so deduping on the id alone let one
+ * trip arrive as two. That is not a list of two trips; it is the same trip
+ * seen from two shelves.
+ */
+describe('同一趟的兩份', () => {
+  const draft = {
+    id: 'draft-tokyo', name: 'Tokyo', startDate: '2026-10-20', endDate: '2026-10-24',
+    members: [{ userId: GINA }],
+  };
+  const archived = {
+    id: 'archived-tokyo', name: 'Tokyo', startDate: '2026-10-20', endDate: '2026-10-24',
+    members: [{ userId: GINA }],
+  };
+
+  it('shows it once when the two copies have different ids', () => {
+    expect(tripsWithFriend([draft, archived], GINA)).toHaveLength(1);
+  });
+
+  it('still shows two trips that really are two', () => {
+    const busan = { ...archived, id: 'busan', name: '釜山', startDate: '2026-03-20', endDate: '2026-03-24' };
+
+    expect(tripsWithFriend([draft, busan], GINA)).toHaveLength(2);
+  });
+
+  /* Same name, different dates, is two journeys to the same place. */
+  it('keeps two visits to one city apart', () => {
+    const again = { ...draft, id: 'tokyo-2', startDate: '2027-04-01', endDate: '2027-04-05' };
+
+    expect(tripsWithFriend([draft, again], GINA)).toHaveLength(2);
+  });
+});
