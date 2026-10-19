@@ -179,11 +179,16 @@ describe('打開好友的主頁', () => {
     ...over,
   });
 
-  /* A page nobody expects anything from is a page nobody opens. */
+  /*
+    A page nobody expects anything from is a page nobody opens.
+
+    「共同旅程」 rather than 「一起去過」: planned trips count too, and the past
+    tense made a count of 1 on a trip nobody has taken yet read as wrong.
+  */
   it('says how many trips before it is opened', () => {
     withTrips();
 
-    expect(screen.getByTestId('friend-open-u-gina').textContent).toContain('一起去過 2 趟');
+    expect(screen.getByTestId('friend-open-u-gina').textContent).toContain('共同旅程 2');
   });
 
   it('hands the person over when the row is tapped', async () => {
@@ -203,7 +208,7 @@ describe('打開好友的主頁', () => {
     await user.click(screen.getByTestId('friend-open-u-gina'));
 
     expect(h.onOpenProfile).toHaveBeenCalledWith(GINA);
-    expect(screen.getByTestId('friend-open-u-gina').textContent).not.toContain('一起去過');
+    expect(screen.getByTestId('friend-open-u-gina').textContent).not.toContain('共同旅程');
   });
 
   /* A screen with nowhere to send them does not pretend the row leads there. */

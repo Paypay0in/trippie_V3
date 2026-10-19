@@ -321,7 +321,7 @@ const FriendsPanel: React.FC<Props> = ({
                       */}
                       {shared.length > 0 && (
                         <span className="shrink-0 text-support font-semibold text-violet-600">
-                          一起去過 {shared.length} 趟
+                          共同旅程 {shared.length}
                         </span>
                       )}
                       <ChevronRight size={15} className="shrink-0 text-slate-400" />

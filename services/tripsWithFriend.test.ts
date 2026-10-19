@@ -116,3 +116,26 @@ describe('座位跟帳號的兩種關聯', () => {
     expect(tripsWithFriend([older], GINA)).toEqual([]);
   });
 });
+
+/**
+ * 「我是希望進行中的也可以出現」.
+ *
+ * They always did — the caller hands in the trips still being planned and the
+ * ones already taken together, and nothing here asks which is which. The past
+ * tense on the label was what made a count of 1 on an upcoming trip read as
+ * wrong; the arithmetic was never about whether a trip had happened.
+ */
+describe('還沒出發的旅程', () => {
+  it('counts a trip that has not happened yet', () => {
+    const upcoming = trip({ id: 'tokyo', name: '東京 2026 秋', startDate: '2099-10-20', endDate: '2099-10-24' });
+
+    expect(tripsWithFriend([upcoming], GINA).map(entry => entry.id)).toEqual(['tokyo']);
+  });
+
+  it('counts both, and puts the nearer one first', () => {
+    const past = trip({ id: 'busan', name: '釜山', startDate: '2026-03-20' });
+    const upcoming = trip({ id: 'tokyo', name: '東京', startDate: '2099-10-20' });
+
+    expect(tripsWithFriend([past, upcoming], GINA).map(entry => entry.id)).toEqual(['tokyo', 'busan']);
+  });
+});

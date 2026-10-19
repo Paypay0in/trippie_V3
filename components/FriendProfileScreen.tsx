@@ -101,7 +101,15 @@ const FriendProfileScreen: React.FC<Props> = ({
         <span className="w-px bg-slate-100" />
         <span className="flex-1 text-center">
           <span className="block text-lg font-black">{sharedTrips.length}</span>
-          <span className="text-[11px] font-bold text-slate-400">一起去過</span>
+          {/*
+            「我是希望進行中的也可以出現」.
+
+            It did include them — planned trips and finished ones go in
+            together — but 「一起去過」 is the past tense, so a count of 1 on a
+            trip nobody has taken yet reads as wrong even when it is right.
+            A label that has to be explained is a label that is lying.
+          */}
+          <span className="text-[11px] font-bold text-slate-400">共同旅程</span>
         </span>
       </div>
 
@@ -115,7 +123,7 @@ const FriendProfileScreen: React.FC<Props> = ({
       {sharedTrips.length > 0 && (
         <section data-testid="friend-shared-trips" className="mt-5">
           <h2 className="flex items-center gap-1.5 text-sm font-black">
-            <Users size={14} className="text-violet-500" />一起去過的旅行
+            <Users size={14} className="text-violet-500" />共同旅程
           </h2>
           <ul className="mt-2 space-y-1.5">
             {sharedTrips.map(trip => (

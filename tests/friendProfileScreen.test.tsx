@@ -65,6 +65,7 @@ describe('好友的主頁', () => {
   it('lists the trips you were both on', () => {
     open();
 
+    expect(screen.getByTestId('friend-shared-trips').textContent).toContain('共同旅程');
     expect(screen.getByTestId('friend-shared-trips').textContent).toContain('東京 2026 秋');
     expect(screen.getByTestId('friend-shared-trips').textContent).toContain('2026/10/20 – 10/24');
   });
