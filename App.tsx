@@ -109,6 +109,7 @@ import {
   detectDestinationFromTripName,
 } from "./services/destinationFromTripName";
 import { deleteTripRow, fetchMyTrips, isSyncAvailable } from "./services/tripSync";
+import { IdentityDrift, identityDrift } from "./services/tripIdentityDrift";
 import { strandedLocalTripEscape } from "./services/strandedLocalTrip";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
@@ -1898,6 +1899,8 @@ const App: React.FC = () => {
   // with a completely different set and would otherwise never find the shared
   // ledger at all. Listed as empty shells; opening one pulls its expenses.
   const [cloudTripNote, setCloudTripNote] = useState<string>("");
+  /** Trips whose name here disagrees with the cloud's. See `identityDrift`. */
+  const [identityDrifts, setIdentityDrifts] = useState<IdentityDrift[]>([]);
   /** The owner's name as the server stores it, for devices that are not theirs. */
   const [remoteOwnerName, setRemoteOwnerName] = useState<string>("");
   // Latest drafts for the merge below. Comparing inside a setDrafts updater
@@ -1969,6 +1972,17 @@ const App: React.FC = () => {
         still reporting: 「應向 Gina 收取 NT$ 16,000」, the right sum owed by the
         wrong person to the wrong person.
       */
+      /*
+        「我的釜山不見了」 — and it was not, it was wearing 東京's name.
+
+        The `trips` row keeps the name the trip was created under, because
+        `ensureTripRow` inserts and never updates. That makes it the only
+        surviving copy of an identity this device overwrote, and it also makes
+        it stale for every rename the traveller meant. So this reports, and he
+        decides. See `identityDrift`.
+      */
+      setIdentityDrifts(identityDrift(draftsRef.current, result.data));
+
       const cloudOwnerById = new Map(
         result.data.filter((trip) => trip.ownerId).map((trip) => [trip.id, trip.ownerId as string]),
       );
@@ -4910,6 +4924,38 @@ const App: React.FC = () => {
     showToast(`已打開：${draft.name || "未命名旅程"}`);
   };
 
+  /**
+   * Put a trip's own name back, from the cloud row that still has it.
+   *
+   * The live screen fields are set as well as the stored draft, and only when
+   * that trip is the open one: the standing persistence effect writes the
+   * screen into `activeDraftId`, so restoring the draft alone would be undone
+   * on the next render by the very mechanism that caused this.
+   */
+  const handleRestoreTripIdentity = (drift: IdentityDrift) => {
+    setDrafts((current) =>
+      current.map((draft) =>
+        draft.id === drift.id
+          ? {
+              ...draft,
+              name: drift.cloudName,
+              destination: drift.cloudDestination ?? draft.destination,
+              startDate: drift.cloudStartDate ?? draft.startDate,
+              endDate: drift.cloudEndDate ?? draft.endDate,
+            }
+          : draft,
+      ),
+    );
+    if (activeDraftId === drift.id) {
+      setDraftName(drift.cloudName);
+      if (drift.cloudDestination) setTripDestination(drift.cloudDestination);
+      if (drift.cloudStartDate) setTripStartDate(drift.cloudStartDate);
+      if (drift.cloudEndDate) setTripEndDate(drift.cloudEndDate);
+    }
+    setIdentityDrifts((current) => current.filter((entry) => entry.id !== drift.id));
+    showToast(`已還原名稱：${drift.cloudName}`);
+  };
+
   const handleCreateNewTrip = () => {
     setPendingTripDestination(null);
     setTripSetupMode("create");
@@ -7211,6 +7257,8 @@ const App: React.FC = () => {
           openDisputeNotice(notice);
         }}
         activeSection="trips"
+        identityDrifts={identityDrifts}
+        onRestoreTripIdentity={handleRestoreTripIdentity}
         authStatus={authStatus}
         authenticatedDisplayName={authProfile?.displayName}
         onSectionChange={(section) => {

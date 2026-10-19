@@ -35,6 +35,7 @@ import { DisputeNotice } from "../services/disputeInbox";
 import { countryDisplayName, countryKey } from '../services/countryIdentity';
 import { cityDisplayName } from '../services/cityNames';
 import { coverImageQuery, fixtureImageFor } from '../services/destinationCoverImage';
+import { IdentityDrift } from '../services/tripIdentityDrift';
 
 interface Props {
   activeSection: AppSection;
@@ -68,6 +69,15 @@ interface Props {
    */
   notices?: DisputeNotice[];
   onOpenNotice?: (notice: DisputeNotice) => void;
+  /**
+   * Trips whose name here disagrees with the cloud's. See `identityDrift`.
+   *
+   * 「我的釜山不見了」 — it was on this shelf under another trip's name, and the
+   * shelf said nothing. Reported rather than repaired: a rename the traveller
+   * meant drifts the same way, so he picks.
+   */
+  identityDrifts?: IdentityDrift[];
+  onRestoreTripIdentity?: (drift: IdentityDrift) => void;
 }
 
 type SavedNotesStorageStatus = "device_only" | "account_linked" | "cloud_synced";
@@ -170,6 +180,8 @@ const TravelHome: React.FC<Props> = ({
   onDeleteDraft,
   notices = [],
   onOpenNotice,
+  identityDrifts = [],
+  onRestoreTripIdentity,
 }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -453,6 +465,43 @@ const TravelHome: React.FC<Props> = ({
         </div>
       </header>
       <main className="flex-1 space-y-3 px-[var(--screen-pad)] pb-5 pt-3">
+        {/*
+          「我的釜山不見了」.
+
+          It was on the shelf the whole time, under 東京's name — so the shelf
+          is where this has to be said. Above the hero, because a trip the
+          traveller cannot find is not something to scroll to.
+        */}
+        {identityDrifts.length > 0 && (
+          <section data-testid="identity-drift" className="rounded-[20px] border border-amber-200 bg-amber-50 p-4">
+            <h2 className="text-[13px] font-black text-amber-900">雲端記得的名稱不一樣</h2>
+            <p className="mt-1 text-[11px] font-bold leading-5 text-amber-700">
+              這趟旅程在雲端叫別的名字。如果你沒有自己改過，就是它被蓋掉了。
+            </p>
+            <ul className="mt-3 space-y-2">
+              {identityDrifts.map((drift) => (
+                <li
+                  key={drift.id}
+                  data-testid={`identity-drift-${drift.id}`}
+                  className="flex items-center gap-3 rounded-[16px] bg-white px-3 py-2.5"
+                >
+                  <span className="min-w-0 flex-1 text-[12px] font-bold leading-5">
+                    <span className="block truncate text-slate-400 line-through">{drift.localName}</span>
+                    <span className="block truncate text-[13px] font-black text-slate-800">{drift.cloudName}</span>
+                  </span>
+                  <button
+                    type="button"
+                    data-testid={`identity-drift-restore-${drift.id}`}
+                    onClick={() => onRestoreTripIdentity?.(drift)}
+                    className="shrink-0 rounded-full bg-amber-500 px-3.5 py-1.5 text-[11px] font-black text-white"
+                  >
+                    還原
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {/* While searching, the hero is a result like any other. */}
         {(activeDraft ? heroMatches : !searching) && (
         <section data-testid="travel-hero">
