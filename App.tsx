@@ -187,6 +187,7 @@ import {
 } from "./services/friendships";
 import { friendRequestNotices } from "./services/friendRequestNotices";
 import { tripsWithFriend } from "./services/tripsWithFriend";
+import { friendProblem } from "./services/friendProblem";
 import FriendsPanel from "./components/FriendsPanel";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
@@ -6735,13 +6736,32 @@ const App: React.FC = () => {
                     */
                     return { problem: result.status === 'setup_required' ? 'setup' as const : 'error' as const };
                   }}
+                  /*
+                    What came back is read, not discarded.
+
+                    「沒動」 — these three awaited a result and threw it away, so
+                    a refused write and a successful one looked identical: the
+                    list reloaded, showed the same thing, and said nothing.
+                  */
                   onRequest={async (person) => {
-                    await requestFriend(person.id);
+                    const result = await requestFriend(person.id);
+                    if (result.status !== 'ok') {
+                      showToast(friendProblem(result), 'error');
+                      return;
+                    }
                     setFriendPeople((current) => ({ ...current, [person.id]: person }));
                     await reloadFriendships();
                   }}
-                  onAccept={async (person) => { await acceptFriend(person.id); await reloadFriendships(); }}
-                  onRemove={async (person) => { await removeFriend(person.id); await reloadFriendships(); }}
+                  onAccept={async (person) => {
+                    const result = await acceptFriend(person.id);
+                    if (result.status !== 'ok') showToast(friendProblem(result), 'error');
+                    await reloadFriendships();
+                  }}
+                  onRemove={async (person) => {
+                    const result = await removeFriend(person.id);
+                    if (result.status !== 'ok') showToast(friendProblem(result), 'error');
+                    await reloadFriendships();
+                  }}
                   /*
                     「然後點擊這個對象，應該要可以看到他跟我一起的旅行」.
 

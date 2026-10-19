@@ -109,12 +109,28 @@ export const acceptFriend = async (requesterId: string): Promise<FriendResult<nu
   const { data: session } = await supabase!.auth.getUser();
   const me = session?.user?.id;
   if (!me) return { status: 'unavailable' };
-  const { error } = await supabase!
+  /*
+    `select()`, so a no-op cannot be reported as a success.
+
+    「沒動」 — an update that matches no row returns no error. Row-level
+    security filters before the write, so a request addressed to another
+    account, a row already accepted, or a policy that does not let this user
+    through all end the same way: zero rows changed, no error raised, and a
+    screen that re-reads the same pending request it started with.
+
+    Asking for the changed rows back makes the difference visible, which is
+    the only reason a caller can say anything true about it.
+  */
+  const { data, error } = await supabase!
     .from('friendships')
     .update({ status: 'accepted', responded_at: new Date().toISOString() })
     .eq('requester_id', requesterId)
-    .eq('addressee_id', me);
+    .eq('addressee_id', me)
+    .select('requester_id');
   if (error) return classify(error);
+  if (!data || data.length === 0) {
+    return { status: 'error', message: '這筆邀請沒有被更新，可能已經被處理過或不是寄給這個帳號的。' };
+  }
   return { status: 'ok', data: null };
 };
 
