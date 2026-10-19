@@ -373,3 +373,62 @@ describe('the opening of a day', () => {
     expect(slots[0].startTime).toBe('08:00');
   });
 });
+
+/**
+ * 「這邊少了一個：無」.
+ *
+ * His 海雲台 day ended 19:00–21:00 with dinner and nothing under it. Every
+ * other row offers 無 and a way to fill it; the last one offered the end of
+ * the table, so a drink after dinner had to be added from somewhere else.
+ */
+describe('一天的最後一格', () => {
+  it('offers one more row when the day is full to its edge', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY,
+      dayStart: '10:00',
+      occupants: [{ id: 'dinner', time: '19:00', durationMinutes: 120 }],
+    });
+
+    const last = slots[slots.length - 1];
+    expect(last.occupantId).toBeUndefined();
+    expect(last.startTime).toBe('21:00');
+  });
+
+  /* 「one more row」 is a row somebody might use, not a 02:00 block. */
+  it('never reaches past 23:00', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY,
+      dayStart: '10:00',
+      occupants: [{ id: 'late', time: '19:00', durationMinutes: 240 }],
+    });
+
+    expect(slots[slots.length - 1].occupantId).toBe('late');
+  });
+
+  /* A day with room left already has somewhere to put things. */
+  it('adds nothing to a day that still has empty rows', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY,
+      dayStart: '10:00',
+      occupants: [{ id: 'lunch', time: '12:00', durationMinutes: 60 }],
+    });
+
+    const empties = slots.filter(slot => !slot.occupantId).length;
+    expect(empties).toBeGreaterThan(0);
+    expect(slots[slots.length - 1].endTime <= '21:00').toBe(true);
+  });
+
+  /* And never past the flight home. */
+  it('does not extend a day into the trip to the airport', () => {
+    const { slots } = buildDayTemplate({
+      date: DAY,
+      dayStart: '10:00',
+      occupants: [{ id: 'dinner', time: '19:00', durationMinutes: 120 }],
+      fixedSchedule: [
+        { date: DAY, time: '21:30', durationMinutes: 60, label: '抵達機場', role: 'to_airport' },
+      ],
+    });
+
+    slots.forEach(slot => expect(slot.startTime < '21:30').toBe(true));
+  });
+});

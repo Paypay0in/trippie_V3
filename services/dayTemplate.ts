@@ -52,6 +52,21 @@ export const DEFAULT_DAY_START = '10:00';
 export const DEFAULT_DAY_END = '21:00';
 
 /**
+ * How late the day may still be *extended* to, when its last stop ends at the
+ * edge of the grid.
+ *
+ * 「這邊少了一個：無」 — a day whose dinner ran 19:00–21:00 ended on that row,
+ * with nothing under it. Every other row offers 無 and a way to fill it; the
+ * last one offered the end of the table, so a drink after dinner had to be
+ * added from somewhere else entirely.
+ *
+ * Separate from `DEFAULT_DAY_END` on purpose: this is not 「plan until 23:00」,
+ * which would hand everybody two empty evening rows they did not ask for. It
+ * is 「there is always one more row」.
+ */
+export const LATEST_EXTENSION = '23:00';
+
+/**
  * What an itinerary item with no stated length runs for.
  *
  * Sixty minutes, which is what the timeline already draws and what the overlap
@@ -345,6 +360,47 @@ export const buildDayTemplate = ({
     });
     cursor += free;
     index += 1;
+  }
+
+  /*
+    One more row, always.
+
+    The grid stops at `DEFAULT_DAY_END`, so a day whose last stop ends exactly
+    there ended on a filled row — the table said 「this is the day」 and then
+    offered no way to add anything after dinner. Only when the day is full to
+    its edge: a day with empty rows already has somewhere to put things.
+
+    Never past the flight home, and never past `LATEST_EXTENSION`: 「one more
+    row」 is a row somebody might use, not a 02:00 block.
+  */
+  const lastSlot = slots[slots.length - 1];
+  const extensionLimit = Math.min(
+    toMinutes(LATEST_EXTENSION),
+    ceiling ? toMinutes(ceiling) : toMinutes(LATEST_EXTENSION),
+  );
+  const lastEnds = lastSlot ? toMinutes(lastSlot.startTime) + lastSlot.durationMinutes : 0;
+  /*
+    Only when the day is full to its own edge.
+
+    A day with time left at the end already has an answer for that time: the
+    loop above offered it, or refused it for being shorter than a block, and
+    re-offering it here would undo that rule rather than extend the day.
+  */
+  if (lastSlot?.occupantId && lastEnds >= limit && index < MAX_BLOCKS) {
+    const from = lastEnds;
+    const free = Math.min(blockMinutes, extensionLimit - from);
+    if (free >= MIN_FREE_MINUTES) {
+      const meal = mealOnce(from);
+      slots.push({
+        id: `${date}#${index}`,
+        index,
+        kind: meal ? 'meal' : 'activity',
+        label: meal || activityLabel(from),
+        startTime: toClock(from),
+        endTime: toClock(from + free),
+        durationMinutes: free,
+      });
+    }
   }
 
   return { slots, ranOutOfDay };
