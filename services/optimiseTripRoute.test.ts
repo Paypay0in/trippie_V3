@@ -359,8 +359,15 @@ describe('那天沒有餐廳的時候', () => {
  */
 describe('排好的行程不會壓到固定項目', () => {
   it('不會跟機場接送同一個時間', () => {
+    /*
+      The ride to the room, not the ride to the airport: `airport-transfer-`
+      is the id the arrival transfer is built with. An id beginning
+      `flight-arrival-` means 「be at the airport」, which closes the day — the
+      ceiling honours that now, so a fixture using it was asking for a stop
+      after the traveller had left for their flight.
+    */
     const transfer = {
-      id: 'flight-arrival-out', title: '前往 朋友家', location: '朋友家',
+      id: 'airport-transfer-out', title: '前往 朋友家', location: '朋友家',
       notes: '', type: 'TRANSPORT', date: '2026-10-20', time: '13:00',
       durationMinutes: 60, latitude: 35.7040, longitude: 139.7930,
       derivedFromFlightAnchorId: 'anchor-out',
@@ -650,5 +657,82 @@ describe('before and after are measured the same way', () => {
 
     expect(optimiseTripRoute(shuffledInTheArray, { country: '日本' }).beforeKm)
       .toBeCloseTo(optimiseTripRoute(sorted, { country: '日本' }).beforeKm, 2);
+  });
+});
+
+/**
+ * 「10/24 15:15 → 10/24 23:59」, on all six stops at once.
+ *
+ * `minutesToTime` clamps to 23:59, so once the cursor ran past the end of the
+ * day every remaining stop was written at the same minute — a plan that says
+ * 「do these six things at one minute to midnight」. The clamp made a failure
+ * look like an answer.
+ */
+describe('一天排不下的時候', () => {
+  const late = (id: string, time: string) => at(id, '2026-10-24', 35.66, 139.70, {
+    time, durationMinutes: 180,
+  });
+
+  it('never puts two stops at the same minute', () => {
+    const plan = optimiseTripRoute([
+      late('a', '10:30'), late('b', '12:15'), late('c', '13:45'),
+      late('d', '15:15'), late('e', '16:00'), late('f', '17:00'),
+      late('g', '18:00'), late('h', '19:00'),
+    ], { dayStart: '10:00' });
+
+    const times = plan.days.flatMap(day => day.items).map(item => item.time);
+    expect(new Set(times).size).toBe(times.length);
+  });
+
+  it('never writes 23:59', () => {
+    const plan = optimiseTripRoute([
+      late('a', '10:30'), late('b', '12:15'), late('c', '13:45'),
+      late('d', '15:15'), late('e', '16:00'), late('f', '17:00'),
+      late('g', '18:00'), late('h', '19:00'),
+    ], { dayStart: '10:00' });
+
+    expect(plan.days.flatMap(day => day.items).map(item => item.time)).not.toContain('23:59');
+  });
+
+  /* Said, not silently dropped: the same treatment as a stop with no map position. */
+  it('reports what the day had no room for', () => {
+    const plan = optimiseTripRoute([
+      late('a', '10:30'), late('b', '12:15'), late('c', '13:45'),
+      late('d', '15:15'), late('e', '16:00'), late('f', '17:00'),
+      late('g', '18:00'), late('h', '19:00'),
+    ], { dayStart: '10:00' });
+
+    expect(plan.unplaced.length).toBeGreaterThan(0);
+    expect(plan.unplaced[0].reason).toContain('排不下');
+  });
+
+  /* The day ends when they leave for the flight home. */
+  it('stops at the trip to the airport', () => {
+    const toAirport = {
+      id: 'flight-arrival-home', title: '抵達機場', location: '成田機場',
+      notes: '', type: 'TRANSPORT', date: '2026-10-24', time: '15:00',
+      durationMinutes: 60, latitude: 35.7647, longitude: 140.3863,
+      derivedFromFlightAnchorId: 'anchor-home',
+    } as ItineraryItem;
+
+    const plan = optimiseTripRoute(
+      [toAirport, late('a', '10:30'), late('b', '12:15'), late('c', '13:45')],
+      { dayStart: '10:00' },
+    );
+
+    plan.days.flatMap(day => day.items).forEach(item => {
+      expect(item.time < '15:00').toBe(true);
+    });
+  });
+
+  /* A day with room for everything is untouched by any of this. */
+  it('leaves an ordinary day alone', () => {
+    const plan = optimiseTripRoute([
+      at('a', '2026-10-22', 35.66, 139.70, { time: '10:00', durationMinutes: 60 }),
+      at('b', '2026-10-22', 35.67, 139.71, { time: '12:00', durationMinutes: 60 }),
+    ], { dayStart: '10:00' });
+
+    expect(plan.unplaced).toHaveLength(0);
+    expect(plan.days.flatMap(day => day.items)).toHaveLength(2);
   });
 });

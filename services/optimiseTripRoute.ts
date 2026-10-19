@@ -25,7 +25,7 @@ import { durationOf, isTimedItem, minutesToTime, timeToMinutes } from './itinera
 import { MEAL_WINDOWS } from './dayTemplate';
 import { transitMinutesBetween } from './itineraryScheduling';
 import { separateOverlaps } from './separateOverlaps';
-import { earliestFreeStartByDate, fixedAnchorSchedule, TRANSFER_ID_PREFIX } from './itineraryDayFloor';
+import { earliestFreeStartByDate, fixedAnchorSchedule, latestFreeStartByDate, TRANSFER_ID_PREFIX } from './itineraryDayFloor';
 
 /**
  * Flights, anything derived from one, check-ins, and anything pinned.
@@ -520,6 +520,8 @@ export const optimiseTripRoute = (
   });
 
   const requestedStart = timeToMinutes(options.dayStart || '10:00') ?? 600;
+  /** Midnight, for a day with no flight home to end it. */
+  const END_OF_DAY_MINUTES = 24 * 60;
   /*
     A day cannot begin before the traveller is in the country.
 
@@ -532,6 +534,8 @@ export const optimiseTripRoute = (
     check-in; none of that is re-derived here.
   */
   const floors = earliestFreeStartByDate(fixedAnchorSchedule(items));
+  /* And when it closes. See the ceiling in the layout below. */
+  const ceilings = latestFreeStartByDate(fixedAnchorSchedule(items));
 
   /** Meals that could only reach their window by lengthening the day. */
   const mealsNeedingANearerPlace: RoutePlan['mealsNeedingANearerPlace'] = [];
@@ -573,14 +577,38 @@ export const optimiseTripRoute = (
       ? { latitude: lastAnchorBefore.latitude, longitude: lastAnchorBefore.longitude }
       : undefined;
 
-    const timed = ordered.map(item => {
+    /*
+      When the day is over.
+
+      「10/24 15:15 → 10/24 23:59」, on all six stops at once. `minutesToTime`
+      clamps to 23:59, so once the cursor ran past midnight every remaining
+      stop was written at the same minute — a plan that says 「do these six
+      things at one minute to midnight」, which is not a plan, and the clamp
+      made it look like an answer instead of a failure.
+
+      The day ends at the flight home where there is one — `latestFreeStartByDate`
+      is the same function the template is bounded by — and at midnight
+      otherwise.
+    */
+    const ceiling = timeToMinutes(ceilings[date] || '') ?? END_OF_DAY_MINUTES;
+
+    const timed: ItineraryItem[] = [];
+    ordered.forEach(item => {
       if (previous && located(item)) {
         cursor += transitMinutesBetween(previous, { latitude: item.latitude, longitude: item.longitude });
       }
-      const next = { ...item, date, time: minutesToTime(cursor) };
+      /*
+        Left where it was, and said. An item the day has no room for keeps its
+        own time and is reported — the same treatment as one with no map
+        position, and for the same reason: the traveller can see it and decide.
+      */
+      if (cursor >= ceiling || cursor + durationOf(item) > ceiling) {
+        unplaced.push({ item, reason: '今天已經排不下，留在原本的時間' });
+        return;
+      }
+      timed.push({ ...item, date, time: minutesToTime(cursor) });
       cursor += durationOf(item);
       if (located(item)) previous = { latitude: item.latitude, longitude: item.longitude };
-      return next;
     });
 
     /*
