@@ -3201,6 +3201,30 @@ const App: React.FC = () => {
       current.filter((inspiration) => !removing.has(inspiration.id)));
   };
 
+  /**
+   * 「並且像代辦清單 要可以打勾的」, written where the trip can see it.
+   *
+   * On the itinerary item rather than on this device: a trip hydrates from the
+   * cloud on every open, so a tick kept locally was invisible to the
+   * traveller's other phone and to whoever they are travelling with — who
+   * could buy the same ticket again.
+   */
+  const handleToggleTicketBought = (itemId: string, bought: boolean) => {
+    setItinerary((current) => {
+      const nextItinerary = current.map((item) =>
+        item.id === itemId ? { ...item, ticketBought: bought } : item,
+      );
+      setDrafts((draftsCurrent) =>
+        draftsCurrent.map((draft) =>
+          draft.id === activeDraftId
+            ? { ...draft, itinerary: [...nextItinerary], updatedAt: new Date().toISOString() }
+            : draft,
+        ),
+      );
+      return nextItinerary;
+    });
+  };
+
   const handleUpdateItineraryItem = (
     id: string,
     updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time" | "durationMinutes">>,
@@ -6779,6 +6803,11 @@ const App: React.FC = () => {
           }}
           onCreatePost={openCommunityComposer}
           commentCounts={commentCounts(postComments)}
+          /*
+            追蹤, now that the friendships table exists. Undefined when nobody
+            is signed in: there is no such question to ask.
+          */
+          friendIds={authUser?.id ? friendIdsFor(friendships, authUser.id) : undefined}
           onSectionChange={(section) => {
             if (section === "profile" && authStatus !== "authenticated") {
               setAuthEntryContext("account");
@@ -7977,6 +8006,7 @@ const App: React.FC = () => {
               <TripPlanOverview
                 onManageMembers={() => setIsCompanionsOpen(true)}
                 onRequestHumanHelp={handleRequestHumanHelp}
+                onToggleTicketBought={handleToggleTicketBought}
                 onApplyPlanOption={handleApplyItineraryProposal}
                 originLatitude={tripDestinationCoordinates?.latitude}
                 originLongitude={tripDestinationCoordinates?.longitude}

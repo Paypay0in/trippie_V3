@@ -882,6 +882,19 @@ export interface ItineraryItem {
    * This is the existing SavedExperienceNote shape, not a copy of the post.
    */
   savedTravelNotes?: SavedExperienceNote[];
+  /**
+   * Whether the ticket or table this stop needs has been arranged.
+   *
+   * 「並且像代辦清單 要可以打勾的」. The list of places needing one is derived from
+   * the plan and stays derived; 「I bought that one」 is the opposite — nothing
+   * in the plan implies it — so it is the one thing here that is stored.
+   *
+   * On the item rather than on the device: a trip hydrates from the cloud on
+   * every open, so a tick kept locally was invisible to the traveller's other
+   * phone and to whoever they are travelling with, who could buy it twice.
+   * Column 0029, run 2026-10-18.
+   */
+  ticketBought?: boolean;
 }
 
 export interface PublicTrip extends Trip {

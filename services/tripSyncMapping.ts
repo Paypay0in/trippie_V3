@@ -29,6 +29,18 @@ export interface ExpenseRow {
   split_method: string;
   split_allocations: Record<string, number>;
   disputes: unknown[];
+  /**
+   * Bills this one has been declared a different purchase from.
+   *
+   * 「這每次都跳出詢問 我已經回答過了」. The answer used to live on the device,
+   * because the cloud had nowhere to put it and a shared trip hydrates from
+   * these rows on every open — so anything this mapping could not carry was
+   * wiped by the next snapshot, and the other traveller was asked the same
+   * fourteen questions for themselves.
+   *
+   * Column 0022, run 2026-10-18. Nothing was wired here before it existed.
+   */
+  not_duplicate_of?: unknown;
   needs_review: boolean;
   linked_shopping_item_id: string | null;
   /** Receipts, as downscaled data URLs, the same shape community posts use. */
@@ -86,6 +98,8 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   split_method: expense.splitMethod ?? 'EQUAL',
   split_allocations: expense.splitAllocations ?? {},
   disputes: expense.disputes ?? [],
+  // A fact about two purchases, not an opinion one phone holds.
+  not_duplicate_of: expense.notDuplicateOf ?? [],
   needs_review: Boolean(expense.needsReview),
   linked_shopping_item_id: expense.linkedShoppingItemId ?? null,
   receipt_photos: expense.receiptPhotos ?? [],
@@ -156,6 +170,17 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   splitMethod: (row.split_method as SplitMethod) ?? 'EQUAL',
   splitAllocations: row.split_allocations ?? {},
   disputes: Array.isArray(row.disputes) ? (row.disputes as Expense['disputes']) : [],
+  /*
+    Absent rather than empty: `notDuplicateOf` is optional on the client and an
+    empty array on every expense would change the fingerprint of every row an
+    older client ever wrote, republishing the whole ledger on the first open.
+  */
+  ...((row.not_duplicate_of as unknown[] | undefined)?.length
+    ? {
+      notDuplicateOf: (row.not_duplicate_of as unknown[])
+        .filter((id): id is string => typeof id === 'string' && Boolean(id)),
+    }
+    : {}),
   needsReview: Boolean(row.needs_review),
   linkedShoppingItemId: row.linked_shopping_item_id ?? undefined,
   note: typeof row.note === 'string' && row.note.trim() ? row.note : undefined,
@@ -244,6 +269,8 @@ export interface ItineraryItemRow {
   visibility: string | null;
   /** Whose item it is, when it is personal. */
   owner_user_id: string | null;
+  /** Whether the ticket or table this stop needs has been arranged. */
+  ticket_bought?: unknown;
 }
 
 const ITEM_TYPES = ['FLIGHT', 'HOTEL', 'ACTIVITY', 'FOOD', 'TRANSPORT'] as const;
@@ -280,6 +307,8 @@ export const toItineraryRow = (item: ItineraryItem, tripId: string): ItineraryIt
   // and every open republishes the whole itinerary.
   visibility: item.visibility === 'personal' ? 'personal' : null,
   owner_user_id: item.visibility === 'personal' ? item.ownerUserId ?? null : null,
+  // 「並且像代辦清單 要可以打勾的」, shared rather than remembered by one phone.
+  ticket_bought: item.ticketBought === true,
 });
 
 export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
@@ -313,6 +342,8 @@ export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
     : undefined,
   visibility: row.visibility === 'personal' ? 'personal' : undefined,
   ownerUserId: row.visibility === 'personal' ? row.owner_user_id ?? undefined : undefined,
+  // Absent rather than false, so an item nobody ticked reads as it always did.
+  ...(row.ticket_bought === true ? { ticketBought: true } : {}),
 });
 
 export interface FlightAnchorRow {

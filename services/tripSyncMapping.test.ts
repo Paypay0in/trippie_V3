@@ -304,3 +304,52 @@ describe('flightModeFromAnchors', () => {
     expect(flightModeFromAnchors([])).toBe('ONE_WAY');
   });
 });
+
+/**
+ * 「這每次都跳出詢問 我已經回答過了」, and 「並且像代辦清單 要可以打勾的」.
+ *
+ * Both answers used to live on the device, because the cloud had nowhere to
+ * put them — and a shared trip hydrates from these rows on every open, so
+ * anything this mapping could not carry was wiped by the next snapshot.
+ * Columns 0022 and 0029, run 2026-10-18.
+ */
+describe('the two answers that used to live on one phone', () => {
+  it('carries 「these two are not the same purchase」 both ways', () => {
+    const settled = { ...expense, notDuplicateOf: ['expense-2', 'expense-3'] };
+
+    expect(fromExpenseRow(toExpenseRow(settled, TRIP)).notDuplicateOf)
+      .toEqual(['expense-2', 'expense-3']);
+  });
+
+  /*
+    Absent rather than empty. The fingerprint is the row as text, so an empty
+    array on every expense would republish a ledger nobody edited.
+  */
+  it('leaves an expense nobody answered about alone', () => {
+    expect(fromExpenseRow(toExpenseRow(expense, TRIP)).notDuplicateOf).toBeUndefined();
+  });
+
+  it('ignores anything in that column that is not an id', () => {
+    const row = { ...toExpenseRow(expense, TRIP), not_duplicate_of: ['expense-2', 7, null, ''] };
+
+    expect(fromExpenseRow(row).notDuplicateOf).toEqual(['expense-2']);
+  });
+
+  it('carries 「I already bought this ticket」', () => {
+    const ticked = {
+      id: 'it-2', time: '10:00', title: 'teamLab', location: 'teamLab', notes: '',
+      type: 'ACTIVITY' as const, date: '2026-10-23', ticketBought: true,
+    };
+
+    expect(fromItineraryRow(toItineraryRow(ticked, 'trip-1')).ticketBought).toBe(true);
+  });
+
+  it('leaves a stop nobody ticked alone', () => {
+    const plain = {
+      id: 'it-3', time: '10:00', title: '淺草寺', location: '淺草寺', notes: '',
+      type: 'ACTIVITY' as const, date: '2026-10-21',
+    };
+
+    expect(fromItineraryRow(toItineraryRow(plain, 'trip-1')).ticketBought).toBeUndefined();
+  });
+})

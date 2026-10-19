@@ -15,14 +15,32 @@ interface Props {
   onCreatePost: () => void;
   /** Real counts from the comments table; 0 is drawn, not hidden. */
   commentCounts?: Record<string, number>;
+  /**
+   * The people this traveller has accepted as friends.
+   *
+   * 追蹤 was removed because there was nothing behind it: the feed filtered on
+   * `status` alone and `tab` was in the dependency array without ever being
+   * read — three choices, one behaviour. The table it needed is migration
+   * 0025, run 2026-10-18.
+   *
+   * Undefined means 「nobody is signed in」, which is different from 「signed in
+   * with no friends yet」: the first has no such question to ask, the second
+   * has an answer and it is empty.
+   */
+  friendIds?: string[];
 }
 const fallbackImage = 'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=900&q=85';
 
-const CommunityHome: React.FC<Props> = ({ activeSection, onSectionChange, onPlus, posts, onOpenPost, onCreatePost, commentCounts = {} }) => {
+const CommunityHome: React.FC<Props> = ({ activeSection, onSectionChange, onPlus, posts, onOpenPost, onCreatePost, commentCounts = {}, friendIds }) => {
   const [tab, setTab] = useState<'discover' | 'following' | 'next'>('discover');
   const [liked, setLiked] = useState<string[]>(() => loadLikedPosts());
   const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
-  const feed = useMemo(() => posts.filter(post => post.status === 'published').sort((a, b) => new Date(b.publishedAt || b.createdAt).getTime() - new Date(a.publishedAt || a.createdAt).getTime()), [posts, tab]);
+  const feed = useMemo(() => posts
+    .filter(post => post.status === 'published')
+    // 追蹤 is 「posts by people I have accepted」, and nothing else.
+    .filter(post => tab !== 'following' || (friendIds || []).includes(post.creatorId))
+    .sort((a, b) => new Date(b.publishedAt || b.createdAt).getTime() - new Date(a.publishedAt || a.createdAt).getTime()),
+  [posts, tab, friendIds]);
   useEffect(() => {
     let active = true;
     const destinations: string[] = Array.from(new Set(feed.map(post => `${post.country}・${post.city}`)));
@@ -37,17 +55,20 @@ const CommunityHome: React.FC<Props> = ({ activeSection, onSectionChange, onPlus
     return () => { active = false; };
   }, [feed]);
   /*
-    One tab, so no tab row.
+    A tab exists only where something is behind it.
 
-    「追蹤」 and 「下一個目的地」 sat beside 「發現」 and showed it: the feed filtered
-    on `status` alone, and `tab` was in the dependency array without ever being
-    read. Three choices, one behaviour.
+    「追蹤」 and 「下一個目的地」 once sat beside 「發現」 and did nothing: the feed
+    filtered on `status` alone and `tab` was in the dependency array without
+    ever being read. Three choices, one behaviour — so they went.
 
-    Neither can be built yet either — 追蹤 needs the friendships table, which is
-    migration 0025 and unrun. So they go until there is something behind them,
-    and the row returns on its own the moment this list has two entries again.
+    追蹤 comes back now that the friendships table exists （migration 0025） and
+    the feed actually filters on it. 下一個目的地 stays gone until it does
+    something. The row draws itself the moment this list has two entries.
   */
-  const tabs: ['discover' | 'following' | 'next', string][] = [['discover', '發現']];
+  const tabs: Array<['discover' | 'following' | 'next', string]> = [
+    ['discover', '發現'],
+    ...(friendIds ? [['following', '追蹤'] as ['following', string]] : []),
+  ];
   return <div className={`mx-auto min-h-screen w-full bg-[#f7f8fc] text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
     <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="sticky top-0 z-20 border-b border-slate-100 bg-white/95 px-[var(--screen-pad)] pb-2 backdrop-blur-xl"><div className="flex items-center justify-between"><AppWordmark />{/*
       No bell here.

@@ -1,7 +1,6 @@
 import { entryPoints, worthListing } from '../services/entryPoints';
 import { useTicketTodos } from './useTicketTodos';
 import { ERRAND_ID_PREFIX, ticketErrands } from '../services/ticketErrands';
-import { loadBoughtTickets, toggleBoughtTicket } from '../services/ticketsBought';
 import { planningDestination } from '../services/planningDestination';
 import React, { useEffect, useState } from 'react';
 import { HelpRequest } from '../services/serviceMatching';
@@ -139,6 +138,15 @@ interface Props {
   /** Hands a question or a to-do to the service tab, worded as the traveller wrote it. */
   onRequestHumanHelp?: (request: HelpRequest) => void;
   /**
+   * Marks the ticket or table for an itinerary stop as arranged.
+   *
+   * 「並且像代辦清單 要可以打勾的」. Written onto the itinerary item, so it reaches
+   * the traveller's other phone and whoever they are travelling with. Omitted
+   * and the boxes are not offered: a checkbox that cannot persist is worse
+   * than a list without one.
+   */
+  onToggleTicketBought?: (itemId: string, bought: boolean) => void;
+  /**
    * Publishes one request covering the tasks the traveller selected. Publishing
    * is not completing: the checklist ticks stay theirs.
    */
@@ -232,7 +240,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   /*
@@ -244,7 +252,16 @@ const TripPlanOverview: React.FC<Props> = ({
   */
   const ticketTodos = useTicketTodos(itinerary);
   /* 「要可以打勾的」. The one fact here nothing in the plan implies. */
-  const [bought, setBought] = useState<string[]>(() => loadBoughtTickets());
+  /*
+    Which of them are already arranged.
+
+    Read off the plan, not off this device. The tick used to live in
+    localStorage because the itinerary row had nowhere to put it — so the
+    traveller's other phone saw an unticked list, and whoever they are
+    travelling with could buy the same ticket again. Column `ticket_bought`
+    landed 2026-10-18 and the itinerary is one of the three things that sync.
+  */
+  const bought = itinerary.filter(item => item.ticketBought === true).map(item => item.id);
   const completed = preTasks.filter(item => 'completed' in item ? item.completed : item.isPurchased);
   const pending = preTasks.filter(item => !('completed' in item ? item.completed : item.isPurchased));
   /*
@@ -638,7 +655,7 @@ const TripPlanOverview: React.FC<Props> = ({
           I argued against the tick: buying happens on somebody else's site, so
           the box states what the traveller says rather than what we saw. That
           is what a to-do list is, and he is right that it is the useful one.
-          Where the mark lives is in `ticketsBought`.
+          The mark lives on the itinerary item, so it travels with the trip.
         */}
         {ticketTodos.length > 0 && (
           <div data-testid="ticket-todos" className="mt-4 rounded-2xl bg-[#f6f5ff] p-3">
@@ -654,12 +671,17 @@ const TripPlanOverview: React.FC<Props> = ({
                 const done = bought.includes(todo.itemId);
                 return (
                   <li key={todo.itemId} className="flex items-start gap-1.5 text-[11px] leading-4 text-slate-600">
+                    {/*
+                      Only where it can be written. A box that forgets is a box
+                      that lies about what has been done.
+                    */}
                     <button
                       type="button"
+                      disabled={!onToggleTicketBought}
                       data-testid={`ticket-bought-${todo.itemId}`}
                       aria-label={`${todo.placeName} 已買票`}
                       aria-pressed={done}
-                      onClick={() => setBought(current => toggleBoughtTicket(current, todo.itemId))}
+                      onClick={() => onToggleTicketBought?.(todo.itemId, !done)}
                       className={`mt-[1px] flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
                         done ? 'border-[#5b3df5] bg-[#5b3df5] text-white' : 'border-slate-300 bg-white'
                       }`}
@@ -729,8 +751,12 @@ const TripPlanOverview: React.FC<Props> = ({
                 );
               })}
             </ul>
-            {/* Said, not implied: this tick is on this phone. See `ticketsBought`. */}
-            <p className="mt-1.5 text-[10px] text-slate-400">打勾只記在這支手機上。</p>
+            {/*
+              The line that said 「打勾只記在這支手機上」 is gone, because it is no
+              longer true: the tick is on the itinerary item now and travels
+              with the trip. A caveat left standing after it stops applying is
+              worse than never having written it.
+            */}
           </div>
         )}
       </section>}
