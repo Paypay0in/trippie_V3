@@ -2,6 +2,7 @@ import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMembe
 import { idsToPrune } from './syncPrune';
 import { changedRows, RowFingerprints, withFingerprints } from './rowFingerprints';
 import type { SharedTaxRule } from './sharedTaxRule';
+import type { TripIdentity } from './tripIdentityPlan';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import {
   ExpenseRow,
@@ -150,6 +151,16 @@ const failed = (error: unknown): SyncResult<never> => ({
 export interface TripRowBootstrap {
   /** True only when this call inserted the trip row for the first time. */
   created: boolean;
+  /**
+   * What the existing row calls the trip, and who owns it. Absent when this
+   * call inserted the row, which already carries what was given to it.
+   *
+   * Read here rather than in a request of its own: this function was already
+   * selecting the row to find out whether it existed, and it only ever asked
+   * for the id. One column list later, 「what is this trip called in the
+   * cloud」 has an answer on every open. See `identityPlan`.
+   */
+  identity?: TripIdentity & { ownerId?: string };
 }
 
 /**
@@ -183,11 +194,26 @@ export const ensureTripRow = async ({
     // local data. Upsert cannot report that distinction reliably.
     const { data: existing, error: readError } = await supabase
       .from('trips')
-      .select('id')
+      .select('id,name,destination,start_date,end_date,currency,owner_id')
       .eq('id', tripId)
       .maybeSingle();
     if (readError) throw readError;
-    if (existing) return { status: 'ok', data: { created: false } };
+    if (existing) {
+      return {
+        status: 'ok',
+        data: {
+          created: false,
+          identity: {
+            name: (existing.name as string) || '',
+            destination: (existing.destination as string) ?? undefined,
+            startDate: (existing.start_date as string) ?? undefined,
+            endDate: (existing.end_date as string) ?? undefined,
+            currency: (existing.currency as string) ?? undefined,
+            ownerId: (existing.owner_id as string) ?? undefined,
+          },
+        },
+      };
+    }
 
     const { error } = await supabase.from('trips').insert(
       {
@@ -202,6 +228,37 @@ export const ensureTripRow = async ({
     );
     if (error) throw error;
     return { status: 'ok', data: { created: true } };
+  } catch (error) {
+    return failed(error);
+  }
+};
+
+/**
+ * Publish what the trip is called.
+ *
+ * Only the owner may: `trips_update` is `owner_id = auth.uid()` on both sides,
+ * which is also why there is no conflict rule here. An update matching no rows
+ * returns no error, so a member calling this gets a silent, harmless nothing —
+ * `identityPlan` is what keeps them from trying.
+ */
+export const updateTripIdentity = async (
+  tripId: string,
+  identity: TripIdentity,
+): Promise<SyncResult<null>> => {
+  if (!supabase) return { status: 'unavailable' };
+  try {
+    const { error } = await supabase
+      .from('trips')
+      .update({
+        name: identity.name,
+        destination: identity.destination ?? null,
+        start_date: identity.startDate ?? null,
+        end_date: identity.endDate ?? null,
+        ...(identity.currency ? { currency: identity.currency } : {}),
+      })
+      .eq('id', tripId);
+    if (error) throw error;
+    return { status: 'ok', data: null };
   } catch (error) {
     return failed(error);
   }

@@ -8,8 +8,10 @@ import {
   fetchTripSnapshot,
   isSyncAvailable,
   pushTripSnapshot,
+  updateTripIdentity,
 } from '../services/tripSync';
 import { shouldHydrateInitialSnapshot } from '../services/tripSnapshotApply';
+import { identityPlan, TripIdentity } from '../services/tripIdentityPlan';
 import { withFingerprints } from '../services/rowFingerprints';
 import { toExpenseRow, toItineraryRow, toTripInspirationRow } from '../services/tripSyncMapping';
 import { nextKnownIds } from '../services/syncPrune';
@@ -66,6 +68,15 @@ interface Options {
   note?: string;
   /** Called when the trip already exists remotely and the remote copy wins. */
   onRemoteSnapshot: (snapshot: TripSyncSnapshot) => void;
+  /**
+   * The cloud's name, destination and dates, on a trip somebody else owns.
+   *
+   * 「我把東京加他了」 — his rename never left his phone, because the trip row
+   * was written once and never updated. The owner's device publishes a change;
+   * every other device takes what it is given, because `trips_update` will not
+   * let it do anything else. See `identityPlan`.
+   */
+  onRemoteIdentity?: (identity: TripIdentity) => void;
   /**
    * The trip's want-to-go list. Shared because that is what it is for:
    * 「跟朋友會先把想去的地方列一個表單」.
@@ -171,6 +182,7 @@ export const useTripSync = ({
   taxRule,
   note,
   onRemoteSnapshot,
+  onRemoteIdentity,
 }: Options): TripSyncState => {
   const [state, setState] = useState<TripSyncState>('off');
   // The failure text, kept so the badge can show it. A red badge that will not
@@ -189,6 +201,17 @@ export const useTripSync = ({
   const readyTripIdRef = useRef<string | null>(null);
   const onRemoteSnapshotRef = useRef(onRemoteSnapshot);
   onRemoteSnapshotRef.current = onRemoteSnapshot;
+  const onRemoteIdentityRef = useRef(onRemoteIdentity);
+  onRemoteIdentityRef.current = onRemoteIdentity;
+  /**
+   * The cloud's identity for the open trip, and this device's own at the moment
+   * it opened.
+   *
+   * Both are needed to tell 「the traveller just renamed this」 from 「these two
+   * were already apart」, which is the whole of the rule. See `identityPlan`.
+   */
+  const remoteIdentityRef = useRef<(TripIdentity & { ownerId?: string }) | undefined>(undefined);
+  const openedWithRef = useRef<TripIdentity | undefined>(undefined);
 
   const enabled = Boolean(tripId && authUserId && isSyncAvailable());
 
@@ -364,6 +387,30 @@ export const useTripSync = ({
       if (shouldHydrateInitialSnapshot(ensured.data.created)) {
         onRemoteSnapshotRef.current(remote.data);
       }
+
+      /*
+        What the trip is called, on both sides.
+
+        `openedWith` is recorded here and nowhere else: a later change to the
+        name is a person typing, and that is the only thing the owner's device
+        publishes. A disagreement that was already present when the trip opened
+        stays a question for the shelf to ask — publishing it would have sent
+        last night's local overwrite to the server.
+      */
+      remoteIdentityRef.current = ensured.data.identity;
+      const localIdentity: TripIdentity = { name: tripName, destination, startDate, endDate, currency };
+      openedWithRef.current = localIdentity;
+      const plan = identityPlan({
+        local: localIdentity,
+        remote: ensured.data.identity,
+        isOwner: (ensured.data.identity?.ownerId ?? authUserId) === authUserId,
+        openedWith: localIdentity,
+      });
+      if (plan.action === 'pull') {
+        // Taken, so the pulled name does not then read as something typed here.
+        openedWithRef.current = plan.identity;
+        onRemoteIdentityRef.current?.(plan.identity);
+      }
       rememberRemote(remote.data);
       lastReadRef.current = `${clockNow()} 開啟時 ${countsOf(remote.data)}`;
       refreshDetail();
@@ -412,6 +459,42 @@ export const useTripSync = ({
   const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors, inspirations, taxRule });
   const payloadRef = useRef({ members, expenses, itinerary, flightAnchors, inspirations, taxRule });
   payloadRef.current = { members, expenses, itinerary, flightAnchors, inspirations, taxRule };
+
+  /**
+   * Publish the name, destination and dates when they change.
+   *
+   * Separate from the ledger push because it is a different table with a
+   * different rule: `trips_update` belongs to the owner alone, and an update
+   * matching no rows reports no error — so a member silently writing nothing
+   * every time they typed would have looked exactly like success.
+   */
+  useEffect(() => {
+    if (!enabled || !tripId || readyTripIdRef.current !== tripId) return;
+
+    const timer = window.setTimeout(() => {
+      const local: TripIdentity = { name: tripName, destination, startDate, endDate, currency };
+      const plan = identityPlan({
+        local,
+        remote: remoteIdentityRef.current,
+        isOwner: (remoteIdentityRef.current?.ownerId ?? authUserId) === authUserId,
+        openedWith: openedWithRef.current,
+      });
+      if (plan.action !== 'push') return;
+      void updateTripIdentity(tripId, plan.identity).then(result => {
+        if (readyTripIdRef.current !== tripId) return;
+        if (result.status === 'error') {
+          setFailure(`旅程名稱：${result.message}`);
+          return;
+        }
+        // The server now says this, so a later edit is measured against it.
+        remoteIdentityRef.current = { ...plan.identity, ownerId: remoteIdentityRef.current?.ownerId };
+        openedWithRef.current = plan.identity;
+      });
+    }, PUSH_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, tripId, authUserId, tripName, destination, startDate, endDate, currency, publishRevision]);
 
   useEffect(() => {
     if (!enabled || !tripId || readyTripIdRef.current !== tripId) return;

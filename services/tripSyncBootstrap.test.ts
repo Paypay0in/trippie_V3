@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const database = vi.hoisted(() => ({
-  existing: null as null | { id: string },
+  existing: null as null | Record<string, unknown>,
   inserts: [] as Array<Record<string, unknown>>,
 }));
 
@@ -40,9 +40,34 @@ beforeEach(() => {
 
 describe('trip row bootstrap', () => {
   it('reports an existing visible trip without rewriting it', async () => {
-    database.existing = { id: 'trip-1' };
+    /*
+      The row's own name comes back with it now, from the select that was
+      already happening. 「我把東京加他了」 — a rename never left the device that
+      made it, because nothing ever asked what the cloud called the trip.
+    */
+    database.existing = {
+      id: 'trip-1',
+      name: '釜山',
+      destination: '釜山',
+      start_date: '2026-10-02',
+      end_date: '2026-10-06',
+      owner_id: 'user-1',
+    };
 
-    await expect(ensureTripRow(input)).resolves.toEqual({ status: 'ok', data: { created: false } });
+    await expect(ensureTripRow(input)).resolves.toEqual({
+      status: 'ok',
+      data: {
+        created: false,
+        identity: {
+          name: '釜山',
+          destination: '釜山',
+          startDate: '2026-10-02',
+          endDate: '2026-10-06',
+          currency: undefined,
+          ownerId: 'user-1',
+        },
+      },
+    });
     expect(database.inserts).toEqual([]);
   });
 

@@ -4278,6 +4278,20 @@ const App: React.FC = () => {
     // it is, and that is one traveller's business.
     taxRule: toSharedTaxRule(travelRules),
     note: cloudTripNote,
+    /*
+      What the owner calls this trip.
+
+      Only reached on a trip somebody else owns — `identityPlan` will not hand
+      this device a name it is allowed to publish. 「我把東京加他了」 and his
+      rename stayed on his phone, because the trip row was inserted once and
+      never updated; this is the other half of closing that.
+    */
+    onRemoteIdentity: (identity) => {
+      setDraftName(identity.name);
+      if (identity.destination) setTripDestination(identity.destination);
+      if (identity.startDate) setTripStartDate(identity.startDate);
+      if (identity.endDate) setTripEndDate(identity.endDate);
+    },
     onRemoteSnapshot: (snapshot) => {
       // The remote copy wins on open. Someone else may have added an expense
       // since this device last looked, and the local copy has no way to know.
