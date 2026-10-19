@@ -125,6 +125,14 @@ const PIN = '0x5b3df5';
  * why it has to be an absolute URL and why it is ours rather than a hotlink to
  * somebody else's sprite sheet.
  */
+/**
+ * The house, in a colour that is not every other pin's.
+ *
+ * 「朋友家換個顏色！讓他明顯一點！」 — it was drawn in this project's violet, which
+ * is also the colour of every numbered stop and of the roads' labels around
+ * it, so the one marker that is *not* a stop disappeared into the ones that
+ * are. Amber reads at a glance and is not used by anything else on the map.
+ */
 export const LODGING_ICON_PATH = '/icons/lodging-pin.png';
 
 /**

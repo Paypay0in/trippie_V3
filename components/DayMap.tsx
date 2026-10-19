@@ -136,9 +136,16 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
                 ?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
               className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
             >
-              {/* A house rather than a number: it is not the nth thing done. */}
+              {/*
+                A house rather than a number: it is not the nth thing done.
+
+                「朋友家換個顏色！讓他明顯一點！」 — it was violet, which is the colour
+                of every numbered pin on this map and of half the app. The one
+                marker that is not a stop should not be the same colour as all
+                the stops. Amber matches the pin the map itself draws.
+              */}
               <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white ${
-                stop.lodging ? 'bg-[#8b5cf6]' : 'bg-[#5b3df5]'
+                stop.lodging ? 'bg-[#f59e0b]' : 'bg-[#5b3df5]'
               }`}>
                 {stop.lodging ? <Home size={11} /> : stop.number}
               </span>
