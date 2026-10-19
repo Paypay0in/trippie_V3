@@ -634,10 +634,22 @@ const TripPlanOverview: React.FC<Props> = ({
   };
 
   const planOnly = variant === 'plan';
+  /*
+    「他直接跳旅行中 但旅行前的總覽 沒有」.
+
+    A trip is 旅行中 from its first day, which is right — and it meant the
+    preparation panel disappeared at 01:27 on the morning of a 04:35 flight,
+    with items still unticked. A checklist that vanishes while it still has
+    work on it is worse than no checklist: the traveller was using it.
+
+    So it stays for as long as it has something to say, and goes quiet on its
+    own once everything is done. Nothing to tap, nothing to configure.
+  */
+  const showPreparation = planOnly || openTasks > 0;
 
   return (
     <div className="space-y-3 pb-4">
-      {planOnly && <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+      {showPreparation && <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="mb-2 text-xs font-black uppercase tracking-[.18em] text-violet-600">旅程準備度</div>

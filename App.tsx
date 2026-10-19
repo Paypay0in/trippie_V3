@@ -8335,6 +8335,12 @@ const App: React.FC = () => {
             <TripPlanOverview
               onManageMembers={() => setIsCompanionsOpen(true)}
               onRequestHumanHelp={handleRequestHumanHelp}
+              /*
+                Tickable here too. The preparation panel now stays while it
+                still has unfinished items, and a checklist you can read but
+                not tick is the half that made it useless at 01:27.
+              */
+              onToggleTicketBought={handleToggleTicketBought}
               onApplyPlanOption={handleApplyItineraryProposal}
               originLatitude={tripDestinationCoordinates?.latitude}
               originLongitude={tripDestinationCoordinates?.longitude}
