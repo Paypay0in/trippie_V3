@@ -101,6 +101,18 @@ describe('好友的主頁', () => {
     expect(screen.getByTestId('friend-no-posts').textContent).toContain('Ann');
   });
 
+  /*
+    Opened on a desktop it ran the whole 1200px: a full-bleed cover, a tiny
+    avatar in the corner, two stat numbers marooned at the far left. Every
+    screen in this app is in the same column, and the one that is not is the
+    one that looks broken.
+  */
+  it('stays in the column every other screen is in', () => {
+    open();
+
+    expect(screen.getByTestId('friend-profile').className).toContain('md:max-w-2xl');
+  });
+
   it('goes back', async () => {
     const user = userEvent.setup();
     const h = open();

@@ -6619,6 +6619,7 @@ const App: React.FC = () => {
       */
       if (profileFriend)
         return (
+          <div className="min-h-screen bg-[#f7f8fc]">
           <FriendProfileScreen
             person={profileFriend}
             posts={communityPosts.filter(
@@ -6649,6 +6650,23 @@ const App: React.FC = () => {
               setViewMode("trip");
             }}
           />
+          {/*
+            The bar stays. Every other screen in this section has it, and a
+            page that takes it away makes 「where am I」 a question with one
+            answer: the ← in the corner. See `BOTTOM_NAV_CLEARANCE`, which
+            this screen already leaves room for.
+          */}
+          <AppBottomNav
+            active="profile"
+            onChange={(section) => {
+              setProfileFriend(null);
+              setAppSection(section);
+              if (section === "community") setViewMode("community");
+              if (section === "trips") setViewMode("bookshelf");
+            }}
+            onPlus={() => setIsGlobalActionOpen(true)}
+          />
+          </div>
         );
       if (accountView === "landing")
         return (

@@ -35,7 +35,16 @@ interface Props {
 const FriendProfileScreen: React.FC<Props> = ({
   person, posts, sharedTrips, onBack, onOpenPost, onOpenTrip,
 }) => (
-  <main data-testid="friend-profile" className="min-h-screen bg-[#f7f8fc] pb-28 text-[#11183d]">
+  /*
+    The same column every other screen is in.
+
+    On a phone this looked right because a phone is that column. Opened on a
+    desktop it ran the whole 1200px: a full-bleed cover, a 20px avatar in the
+    corner, and two stat numbers marooned at the far left. Every screen in
+    this app is `md:max-w-2xl mx-auto`, and the one that is not is the one
+    that looks broken.
+  */
+  <main data-testid="friend-profile" className="min-h-screen bg-[#f7f8fc] pb-28 text-[#11183d] md:mx-auto md:max-w-2xl">
     <div className="relative">
       {/*
         The cover, or the gradient that stands in for one. Never a grey gap:
