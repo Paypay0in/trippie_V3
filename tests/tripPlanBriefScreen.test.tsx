@@ -4,7 +4,7 @@
  * 告訴我你的旅行計畫 — the questionnaire behind 「AI 幫我排行程」.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import TripPlanBriefScreen from '../components/TripPlanBriefScreen';
 
@@ -232,5 +232,46 @@ describe('先看計畫，再決定要不要建立', () => {
 
     expect((await screen.findByTestId('brief-error')).textContent).toContain('沒有被建立');
     expect(onGenerate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 「生成我的專屬行程」 answered 「AI 行程規劃現在無法使用」 to a 400 that was
+ * saying something quite specific, and the planner looked dead rather than
+ * fussy. Nobody could tell which from the screen.
+ */
+describe('when the planner refuses', () => {
+  it('says what the server said', async () => {
+    const onPreview = vi.fn().mockRejectedValue(new Error('請先選擇要排進行程的收藏靈感。'));
+    render(
+      <TripPlanBriefScreen
+        onClose={vi.fn()}
+        onPreview={onPreview}
+        onGenerate={vi.fn()}
+      />,
+    );
+    fill();
+
+    fireEvent.click(screen.getByTestId('brief-generate'));
+
+    await waitFor(() => expect(screen.getByTestId('brief-error').textContent)
+      .toContain('請先選擇要排進行程的收藏靈感。'));
+  });
+
+  it('falls back to its own words when there are none', async () => {
+    const onPreview = vi.fn().mockRejectedValue(new Error('  '));
+    render(
+      <TripPlanBriefScreen
+        onClose={vi.fn()}
+        onPreview={onPreview}
+        onGenerate={vi.fn()}
+      />,
+    );
+    fill();
+
+    fireEvent.click(screen.getByTestId('brief-generate'));
+
+    await waitFor(() => expect(screen.getByTestId('brief-error').textContent)
+      .toContain('AI 行程規劃現在無法使用'));
   });
 });

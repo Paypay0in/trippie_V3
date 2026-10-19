@@ -2638,7 +2638,20 @@ ${MODE_RULES[mode]}
     // posts no `selections`, so it keeps the original contract below untouched.
     if (Array.isArray(input.selections)) {
       const selections = input.selections as Array<Record<string, unknown>>;
-      if (selections.length === 0) { res.status(400).json({ error: "請先選擇要排進行程的收藏靈感。" }); return; }
+      /*
+        No selections is a trip, not a mistake.
+
+        This used to answer 400 「請先選擇要排進行程的收藏靈感。」, and the one
+        screen that asks a traveller to describe a trip from nothing —
+        告訴我你的旅行計畫 — posts exactly that: an empty array, because a trip
+        being created has no saved inspiration yet. So 生成我的專屬行程 failed
+        for everybody who had not already collected places, which is everybody
+        on their first trip.
+
+        The emptiness of the array was never the question. It was only ever
+        standing in for 「which caller is this」, and it answered wrongly for
+        the caller that mattered most.
+      */
       const model = "gemini-3-flash-preview";
       // Trip-wide guidance the user typed. Bounded before it reaches the prompt so a
       // pasted wall of text cannot crowd out the trip facts or the selection rules.
@@ -2673,8 +2686,25 @@ ${MODE_RULES[mode]}
           ? `只剩下 ${createRemaining.join("、")} 可以安排，${input.today} 以前的日期已經過去了，不要安排任何行程到那些天。`
           : "這趟旅程的日期都已經過去了，不要再安排新的行程。"}`
         : "";
+      /*
+        What the traveller has already chosen, or the fact that they have not.
+
+        Both cases are one prompt with one set of rules. Written as two prompts
+        they would drift, and the one nobody is looking at is always the one
+        that stops saying what the other says.
+      */
+      const selectionBlock = selections.length > 0
+        ? `【2. 使用者已收藏並挑選的地點與原作者經驗筆記】\n${JSON.stringify(selections)}`
+        : "【2. 使用者已收藏並挑選的地點】\n（這趟旅程還沒有任何收藏，整份行程由你依目的地、日期與下面的偏好自己提案。）";
+      const selectionRules = selections.length > 0
+        ? "1. 每個被挑選的地點都要排進去，而且整份提案中只能出現一次。\n2. 回傳 sourceInspirationIds 時，必須原封不動使用上面每個地點提供的 inspirationIds。\n"
+        : "1. 沒有被挑選的地點，所以整份行程由你提案；同一個地點在整份提案中只能出現一次。\n2. 每個項目的 sourceInspirationIds 一律是空陣列。\n";
+      const additionRule = selections.length > 0
+        ? "你可以加入少量未被收藏的建議地點來補完一天（包含使用者在規劃偏好裡指名想做的活動），但那些項目的 sourceInspirationIds 必須是空陣列。"
+        : "每一天都要排滿合理數量的地點，優先放該目的地真正值得去、且符合使用者偏好的地方；使用者在偏好裡指名想做的活動一定要排進去。";
+
       const generationConfig = {
-        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${createTodayBlock}${flightBlock}\n\n【2. 使用者已收藏並挑選的地點與原作者經驗筆記】\n${JSON.stringify(selections)}${preferenceBlock}\n\n規則：\n1. 每個被挑選的地點都要排進去，而且整份提案中只能出現一次。\n2. 回傳 sourceInspirationIds 時，必須原封不動使用上面每個地點提供的 inspirationIds。\n3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. 你可以加入少量未被收藏的建議地點來補完一天（包含使用者在規劃偏好裡指名想做的活動），但那些項目的 sourceInspirationIds 必須是空陣列。\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n只回傳 JSON。`,
+        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${createTodayBlock}${flightBlock}\n\n${selectionBlock}${preferenceBlock}\n\n規則：\n${selectionRules}3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. ${additionRule}\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {

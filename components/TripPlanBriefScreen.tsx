@@ -360,7 +360,20 @@ const TripPlanBriefScreen: React.FC<Props> = ({
             setPlanError('');
             onPreview(brief)
               .then(result => setProposal(result))
-              .catch(() => setPlanError('AI 行程規劃現在無法使用，你的旅程沒有被建立。稍後再試一次。'))
+              /*
+                The server's own words, when it has any.
+
+                This threw them away and said 「AI 行程規劃現在無法使用」 to
+                everything — including a 400 that was saying, precisely,
+                「請先選擇要排進行程的收藏靈感。」. One generic sentence over a
+                specific answer cost a whole day of the planner looking dead
+                rather than looking fussy, and nobody could tell which.
+              */
+              .catch((error: unknown) => setPlanError(
+                error instanceof Error && error.message.trim()
+                  ? `${error.message} 你的旅程沒有被建立。`
+                  : 'AI 行程規劃現在無法使用，你的旅程沒有被建立。稍後再試一次。',
+              ))
               .finally(() => setPlanning(false));
           }}
           className="mt-3 flex h-[var(--cta-h)] w-full items-center justify-center gap-2 rounded-control bg-violet-600 text-action font-bold text-white disabled:bg-slate-200 disabled:text-slate-400"
