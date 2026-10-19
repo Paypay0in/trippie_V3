@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Check, ChevronDown, ChevronUp, MapPinned, Search, UserPlus, X } from 'lucide-react';
+import { Check, ChevronRight, Search, UserPlus, X } from 'lucide-react';
 import { Person } from '../services/friendships';
 import { searchIntent } from '../services/friendSearch';
 import { CompanionSuggestion, asPerson, metOnLabel } from '../services/companionSuggestions';
-import { SharedTrip, sharedTripDates } from '../services/tripsWithFriend';
+import { SharedTrip } from '../services/tripsWithFriend';
 
 /**
  * 「這裡要有可以加朋友的欄位」.
@@ -43,8 +43,15 @@ export interface Props {
    * screen to answer. See `tripsWithFriend`.
    */
   tripsWith?: (person: Person) => SharedTrip[];
-  /** Opens one of them. Omitted and the trips are listed but not tappable. */
-  onOpenTrip?: (tripId: string) => void;
+  /**
+   * Opens their page.
+   *
+   * 「點擊這個好友可以看到他公開的主頁還有我們的共同旅行紀錄」 — the row used to
+   * expand into the shared trips in place. One question, two designs: the
+   * page answers it with their posts beside it, so the row hands over rather
+   * than answering a smaller version of the same thing.
+   */
+  onOpenProfile?: (person: Person) => void;
 }
 
 type Outcome =
@@ -66,10 +73,8 @@ const Avatar: React.FC<{ person: Person }> = ({ person }) => (
 
 const FriendsPanel: React.FC<Props> = ({
   myEmail, friends, pending, suggestions = [], onLookup, onRequest, onAccept, onRemove,
-  tripsWith, onOpenTrip,
+  tripsWith, onOpenProfile,
 }) => {
-  /* Which friend's trips are open. One at a time; the list is short. */
-  const [openFriendId, setOpenFriendId] = useState<string | null>(null);
   /**
    * Suggestions already asked for, this session.
    *
@@ -286,7 +291,6 @@ const FriendsPanel: React.FC<Props> = ({
           <ul className="mt-1.5 space-y-1.5">
             {friends.map(person => {
               const shared = tripsWith ? tripsWith(person) : [];
-              const open = openFriendId === person.id;
               return (
               <li
                 key={person.id}
@@ -302,19 +306,25 @@ const FriendsPanel: React.FC<Props> = ({
                     into 「no trips together」 teaches that tapping names is
                     pointless, and the count beside it already says so.
                   */}
-                  {shared.length > 0 ? (
+                  {onOpenProfile ? (
                     <button
                       type="button"
                       data-testid={`friend-open-${person.id}`}
-                      aria-expanded={open}
-                      onClick={() => setOpenFriendId(current => (current === person.id ? null : person.id))}
+                      onClick={() => onOpenProfile(person)}
                       className="flex min-w-0 flex-1 items-center gap-2 text-left"
                     >
                       <span className="min-w-0 flex-1 truncate text-field font-semibold">{person.displayName}</span>
-                      <span className="shrink-0 text-support font-semibold text-violet-600">
-                        一起去過 {shared.length} 趟
-                      </span>
-                      {open ? <ChevronUp size={15} className="shrink-0 text-slate-400" /> : <ChevronDown size={15} className="shrink-0 text-slate-400" />}
+                      {/*
+                        Said on the row as well, because it is the reason to
+                        open the page and a page nobody expects anything from
+                        is a page nobody opens.
+                      */}
+                      {shared.length > 0 && (
+                        <span className="shrink-0 text-support font-semibold text-violet-600">
+                          一起去過 {shared.length} 趟
+                        </span>
+                      )}
+                      <ChevronRight size={15} className="shrink-0 text-slate-400" />
                     </button>
                   ) : (
                     <span className="min-w-0 flex-1 truncate text-field font-semibold">{person.displayName}</span>
@@ -329,33 +339,6 @@ const FriendsPanel: React.FC<Props> = ({
                     <X size={17} />
                   </button>
                 </div>
-                {open && (
-                  <ul data-testid={`friend-trips-${person.id}`} className="mt-2 space-y-1 border-t border-hairline pt-2">
-                    {shared.map(trip => (
-                      <li key={trip.id}>
-                        {/* Tappable only where the screen above can open one. */}
-                        {onOpenTrip ? (
-                          <button
-                            type="button"
-                            data-testid={`friend-trip-${trip.id}`}
-                            onClick={() => onOpenTrip(trip.id)}
-                            className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left"
-                          >
-                            <MapPinned size={13} className="shrink-0 text-violet-400" />
-                            <span className="min-w-0 flex-1 truncate text-support font-semibold">{trip.label}</span>
-                            <span className="shrink-0 text-[11px] text-ink-soft">{sharedTripDates(trip)}</span>
-                          </button>
-                        ) : (
-                          <span className="flex items-center gap-2 px-1 py-1.5">
-                            <MapPinned size={13} className="shrink-0 text-violet-400" />
-                            <span className="min-w-0 flex-1 truncate text-support font-semibold">{trip.label}</span>
-                            <span className="shrink-0 text-[11px] text-ink-soft">{sharedTripDates(trip)}</span>
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </li>
               );
             })}

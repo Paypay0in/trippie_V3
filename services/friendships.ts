@@ -19,6 +19,16 @@ export interface Person {
   id: string;
   displayName: string;
   avatarUrl?: string;
+  /**
+   * What they wrote about themselves, and the cover behind their name.
+   *
+   * 「點擊這個好友可以看到他公開的主頁」 — both columns are on `profiles` already
+   * （`bio` since 0009, `cover_url` since 0024） and this query was reading
+   * neither, so a friend's page would have had to fetch the same row again to
+   * show the two fields that make it a page rather than a name.
+   */
+  bio?: string;
+  coverUrl?: string;
 }
 
 export interface Friendship {
@@ -198,7 +208,7 @@ export const fetchPeople = async (ids: string[]): Promise<FriendResult<Person[]>
   if (ids.length === 0) return { status: 'ok', data: [] };
   const { data, error } = await supabase!
     .from('profiles')
-    .select('id, display_name, avatar_url')
+    .select('id, display_name, avatar_url, bio, cover_url')
     .in('id', ids);
   if (error) return classify(error);
   return {
@@ -207,6 +217,8 @@ export const fetchPeople = async (ids: string[]): Promise<FriendResult<Person[]>
       id: row.id,
       displayName: row.display_name || '旅人',
       avatarUrl: row.avatar_url || undefined,
+      ...(row.bio ? { bio: row.bio } : {}),
+      ...(row.cover_url ? { coverUrl: row.cover_url } : {}),
     })),
   };
 };

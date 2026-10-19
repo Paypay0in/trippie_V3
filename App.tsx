@@ -190,6 +190,7 @@ import { tripsWithFriend } from "./services/tripsWithFriend";
 import { friendProblem } from "./services/friendProblem";
 import { personOrStranger } from "./services/personOrStranger";
 import FriendsPanel from "./components/FriendsPanel";
+import FriendProfileScreen from "./components/FriendProfileScreen";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
 import { TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
@@ -835,6 +836,14 @@ const App: React.FC = () => {
     fetched alongside, so the list shows faces rather than uuids.
   */
   const [friendships, setFriendships] = useState<Friendship[]>([]);
+  /*
+    Whose page is open, if anybody's.
+
+    「點擊這個好友可以看到他公開的主頁還有我們的共同旅行紀錄」. The person is held
+    rather than the id, because the page needs the name and the cover and this
+    is the object the row already had in its hand.
+  */
+  const [profileFriend, setProfileFriend] = useState<Person | null>(null);
   const [friendPeople, setFriendPeople] = useState<Record<string, Person>>({});
 
   /*
@@ -6600,6 +6609,47 @@ const App: React.FC = () => {
     appSection === "profile"
   ) {
     if (appSection === "profile") {
+      /*
+        A friend's page, over the account screen it was opened from.
+
+        「點擊這個好友可以看到他公開的主頁還有我們的共同旅行紀錄」. Nothing is
+        fetched for it: the posts are filtered out of the feed this device
+        already holds and the trips out of its own trip list. A screen that
+        re-asks for what is in memory is a second answer waiting to disagree.
+      */
+      if (profileFriend)
+        return (
+          <FriendProfileScreen
+            person={profileFriend}
+            posts={communityPosts.filter(
+              (post) => post.creatorId === profileFriend.id && post.status === "published",
+            )}
+            sharedTrips={tripsWithFriend(
+              [...drafts, ...tripHistory] as never,
+              profileFriend.id,
+            )}
+            onBack={() => setProfileFriend(null)}
+            onOpenPost={(postId) => {
+              if (!communityPosts.some((post) => post.id === postId)) return;
+              setProfileFriend(null);
+              setSelectedCommunityPostId(postId);
+              setCommunityView("detail");
+              setAppSection("community");
+              setViewMode("community");
+            }}
+            onOpenTrip={(tripId) => {
+              const finished = tripHistory.find((item) => item.id === tripId);
+              setProfileFriend(null);
+              if (finished) { handleOpenCompletedTrip(finished); return; }
+              /* Still being planned: open it where it is worked on. */
+              const draft = drafts.find((item) => item.id === tripId);
+              if (!draft) return;
+              setActiveDraftId(draft.id);
+              setAppSection("trips");
+              setViewMode("trip");
+            }}
+          />
+        );
       if (accountView === "landing")
         return (
           <div className="min-h-screen bg-[#f7f8fc]">
@@ -6781,16 +6831,7 @@ const App: React.FC = () => {
                   */
                   tripsWith={(person) =>
                     tripsWithFriend([...drafts, ...tripHistory] as never, person.id)}
-                  onOpenTrip={(tripId) => {
-                    const finished = tripHistory.find((item) => item.id === tripId);
-                    if (finished) { handleOpenCompletedTrip(finished); return; }
-                    /* Still being planned: open it where it is worked on. */
-                    const draft = drafts.find((item) => item.id === tripId);
-                    if (!draft) return;
-                    setActiveDraftId(draft.id);
-                    setAppSection("trips");
-                    setViewMode("trip");
-                  }}
+                  onOpenProfile={(person) => setProfileFriend(person)}
                 />
               }
               trips={tripHistory.map((trip) => ({

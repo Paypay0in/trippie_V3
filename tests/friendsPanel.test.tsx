@@ -26,6 +26,11 @@ const panel = (props: Record<string, unknown> = {}) => {
     onAccept: vi.fn(),
     onRemove: vi.fn(),
     ...props,
+  } as Record<string, unknown> & {
+    onRequest: ReturnType<typeof vi.fn>;
+    onAccept: ReturnType<typeof vi.fn>;
+    onRemove: ReturnType<typeof vi.fn>;
+    onOpenProfile?: ReturnType<typeof vi.fn>;
   };
   render(<FriendsPanel {...(handlers as never)} />);
   return handlers;
@@ -154,13 +159,14 @@ describe('邀請與好友', () => {
 });
 
 /**
- * 「然後點擊這個對象，應該要可以看到他跟我一起的旅行」.
+ * 「然後點擊這個對象，應該要可以看到他跟我一起的旅行」, and then 「點擊這個好友可以
+ * 看到他公開的主頁還有我們的共同旅行紀錄」.
  *
- * The row said a name and offered to remove them — the one question nobody
- * opens this screen to answer. What a friend is for here is the trips their
- * name is already on.
+ * The row first expanded into the shared trips in place. One question, two
+ * designs — the page answers it with their public posts beside it, so the row
+ * hands over rather than answering a smaller version of the same thing.
  */
-describe('一起去過的旅行', () => {
+describe('打開好友的主頁', () => {
   const shared = [
     { id: 't1', label: '東京 2026 秋', startDate: '2026-10-20', endDate: '2026-10-24' },
     { id: 't0', label: '釜山', startDate: '2026-03-20', endDate: '2026-03-24' },
@@ -169,54 +175,40 @@ describe('一起去過的旅行', () => {
   const withTrips = (over: Record<string, unknown> = {}) => panel({
     friends: [GINA],
     tripsWith: () => shared,
+    onOpenProfile: vi.fn(),
     ...over,
   });
 
-  it('says how many without being opened', () => {
+  /* A page nobody expects anything from is a page nobody opens. */
+  it('says how many trips before it is opened', () => {
     withTrips();
 
     expect(screen.getByTestId('friend-open-u-gina').textContent).toContain('一起去過 2 趟');
   });
 
-  it('lists them when the name is tapped', async () => {
+  it('hands the person over when the row is tapped', async () => {
     const user = userEvent.setup();
-    withTrips();
+    const h = withTrips();
 
-    expect(screen.queryByTestId('friend-trips-u-gina')).toBeNull();
     await user.click(screen.getByTestId('friend-open-u-gina'));
 
-    const list = screen.getByTestId('friend-trips-u-gina');
-    expect(list.textContent).toContain('東京 2026 秋');
-    expect(list.textContent).toContain('2026/10/20 – 10/24');
+    expect(h.onOpenProfile).toHaveBeenCalledWith(GINA);
   });
 
-  it('opens one', async () => {
+  /* A friend with no shared trip still has a page. */
+  it('opens for somebody there is no trip with', async () => {
     const user = userEvent.setup();
-    const onOpenTrip = vi.fn();
-    withTrips({ onOpenTrip });
+    const h = panel({ friends: [GINA], tripsWith: () => [], onOpenProfile: vi.fn() });
 
     await user.click(screen.getByTestId('friend-open-u-gina'));
-    await user.click(screen.getByTestId('friend-trip-t1'));
 
-    expect(onOpenTrip).toHaveBeenCalledWith('t1');
+    expect(h.onOpenProfile).toHaveBeenCalledWith(GINA);
+    expect(screen.getByTestId('friend-open-u-gina').textContent).not.toContain('一起去過');
   });
 
-  it('closes again', async () => {
-    const user = userEvent.setup();
-    withTrips();
-
-    await user.click(screen.getByTestId('friend-open-u-gina'));
-    await user.click(screen.getByTestId('friend-open-u-gina'));
-
-    expect(screen.queryByTestId('friend-trips-u-gina')).toBeNull();
-  });
-
-  /*
-    A row that expands into 「no trips together」 teaches that tapping names is
-    pointless, and that lesson spreads to the rows where it is not.
-  */
-  it('is not tappable when there are none', () => {
-    panel({ friends: [GINA], tripsWith: () => [] });
+  /* A screen with nowhere to send them does not pretend the row leads there. */
+  it('is not tappable when there is no page to open', () => {
+    panel({ friends: [GINA], tripsWith: () => shared });
 
     expect(screen.queryByTestId('friend-open-u-gina')).toBeNull();
     expect(screen.getByTestId('friend-u-gina').textContent).toContain('Gina');
