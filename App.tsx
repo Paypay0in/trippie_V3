@@ -925,6 +925,35 @@ const App: React.FC = () => {
   }, [authUser?.id]);
 
   useEffect(() => { void reloadFriendships(); }, [reloadFriendships]);
+
+  /*
+    Asked again when there is a reason to think the answer changed.
+
+    「但我這邊可能需要看到好友清單」 — a friendship is the one record here that
+    somebody else completes. This device fetched it on sign-in and after its
+    own taps, so when Gina pressed ✓ on her phone his list went on reading
+    「還沒有好友」 until the app was reloaded, with nothing on screen admitting
+    it was showing an old answer.
+
+    Two moments, both free: opening 我, which is the screen the list is on,
+    and coming back to the tab, which is what a traveller does after telling
+    somebody 「accept it」. Not a poll — a request every few seconds to learn
+    nothing is a request nobody asked for.
+  */
+  useEffect(() => {
+    if (appSection !== 'profile') return;
+    void reloadFriendships();
+  }, [appSection, reloadFriendships]);
+
+  useEffect(() => {
+    const again = () => { if (document.visibilityState === 'visible') void reloadFriendships(); };
+    window.addEventListener('focus', again);
+    document.addEventListener('visibilitychange', again);
+    return () => {
+      window.removeEventListener('focus', again);
+      document.removeEventListener('visibilitychange', again);
+    };
+  }, [reloadFriendships]);
   const [customCategories, setCustomCategories] = useState<CustomCategories>(
     () => loadCustomCategories(),
   );
