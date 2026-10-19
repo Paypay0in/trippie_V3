@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Sparkles, X } from 'lucide-react';
 import { OVERLAY } from '../constants/layers';
+import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import {
   AssistanceNeed,
   ServiceCategory,
@@ -112,8 +113,19 @@ const ServiceRequestSheet: React.FC<Props> = ({
   const canPublish = title.trim().length > 0 && (selectedTasks.length > 0 || goal.trim().length > 0);
 
   return (
-    <div className={`fixed inset-0 ${OVERLAY} flex items-end justify-center bg-black/40`}>
-      <div className="max-h-[90vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 md:max-w-2xl">
+    /*
+      「太滿版了」.
+
+      The sheet ran to the bottom edge of the screen, where the floating nav
+      and its raised ＋ already are — so 整理成協助需求 and the date fields at the
+      foot of the form sat underneath them. The same two measurements the
+      picker sheet settled on: `BOTTOM_NAV_CLEARANCE` is the one place that
+      knows how much room the bar needs（a number copied here is a number that
+      stops being right the next time it changes）, and 85vh so the sheet reads
+      as a sheet over the screen rather than as the screen.
+    */
+    <div className={`fixed inset-0 ${OVERLAY} flex items-end justify-center bg-black/40 ${BOTTOM_NAV_CLEARANCE} sm:items-center sm:p-4 sm:pb-4`}>
+      <div className="max-h-[85vh] w-full overflow-y-auto rounded-3xl bg-white p-5 md:max-w-2xl">
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h2 className="text-lg font-black text-[#11183d]">發佈協助需求</h2>

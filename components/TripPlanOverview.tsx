@@ -1385,7 +1385,14 @@ const TripPlanOverview: React.FC<Props> = ({
       </section>
       </>}
 
-      {onPublishServiceRequest && selectedHelpTaskIds.length > 0 && (
+      {/*
+        Hidden while the sheet it opens is open.
+
+        「太滿版了」 — the standing bar sat over the sheet's own footer, offering
+         整理成協助需求 a second time on top of the form that button had just
+        opened. One of them is the way forward; two is a question about which.
+      */}
+      {onPublishServiceRequest && selectedHelpTaskIds.length > 0 && !isPublishingHelp && (
         /* A standing selection, not an action: the traveller keeps browsing the
            list and publishes once, when the set is right. */
         <div className="fixed bottom-24 left-1/2 z-40 w-[calc(100%-2rem)] -translate-x-1/2 md:max-w-xl">
