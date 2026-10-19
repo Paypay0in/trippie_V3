@@ -24,7 +24,8 @@ interface Props {
   settlementOnly?: boolean;
   expenses: Expense[];
   companions: Companion[];
-  members?: TripMember[];
+  /** Who is on the trip, from `buildTripRoster`. Never re-derived here. */
+  members: TripMember[];
   batches?: SettlementBatch[];
   onExport: () => void;
   onAddCash: () => void;
@@ -129,7 +130,15 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
     };
 
     const d: Record<string, number> = {}; 
-    const accountingMembers = members || companions.map((companion, index) => ({ ...companion, type: index === 0 ? 'owner' as const : 'guest' as const }));
+    /*
+      The roster, as the caller derived it.
+
+      This used to fall back to `companions` with index 0 called the owner —
+      a positional guess that made a companion the owner whenever the roster
+      was not passed. Every caller passes it, and `buildTripRoster` is the one
+      place that decides who the owner is.
+    */
+    const accountingMembers = members;
     // Same outstanding accounting the settlement screens use, so a partly
     // settled expense reports the same remaining balance everywhere.
     Object.assign(d, calculateOutstandingDebts(allExpenses || expenses, accountingMembers, batches || []));

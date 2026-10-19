@@ -4842,13 +4842,6 @@ const App: React.FC = () => {
         endDate: end,
         expenses: [...expenses],
         companions: [...companions],
-        members: buildTripMembers(
-          archivedTripId,
-          userId,
-          authProfile?.displayName || userProfile.name || "我",
-          companions,
-          friends,
-        ),
         shoppingList: [...shoppingList],
         itinerary: itinerary.length > 0 ? [...itinerary] : undefined,
         travelCountry: travelCountry || undefined,
@@ -5315,13 +5308,6 @@ const App: React.FC = () => {
         budget,
         expenses: [],
         companions: nextCompanions,
-        members: buildTripMembers(
-          newDraftId,
-          userId,
-          authProfile?.displayName || userProfile.name || "我",
-          nextCompanions,
-          friends,
-        ),
         shoppingList: [],
         /*
           On the draft, not set afterwards.

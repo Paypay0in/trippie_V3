@@ -470,7 +470,6 @@ export interface Trip {
   totalCost: number;
   expenses: Expense[];
   companions: Companion[];
-  members?: TripMember[];
   settlementBatches?: SettlementBatch[];
   shoppingList: ShoppingItem[];
   itinerary?: ItineraryItem[];

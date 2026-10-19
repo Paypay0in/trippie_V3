@@ -14,7 +14,8 @@ const trip = (over: Record<string, unknown> = {}) => ({
   name: '東京 2026 秋',
   startDate: '2026-10-20',
   endDate: '2026-10-24',
-  members: [{ userId: 'user-me' }, { userId: GINA }],
+  ownerId: 'user-me',
+  companions: [{ userId: GINA }],
   ...over,
 });
 
@@ -30,13 +31,13 @@ describe('一起去過的旅行', () => {
     joined.
   */
   it('does not count a seat nobody claimed', () => {
-    const invited = trip({ members: [{ userId: 'user-me' }, { name: 'Gina' }] });
+    const invited = trip({ companions: [{ name: 'Gina' }] });
 
     expect(tripsWithFriend([invited], GINA)).toEqual([]);
   });
 
   it('leaves out the trips taken without her', () => {
-    const alone = trip({ id: 't2', name: '首爾', members: [{ userId: 'user-me' }] });
+    const alone = trip({ id: 't2', name: '首爾', companions: [] });
 
     expect(tripsWithFriend([trip(), alone], GINA).map(entry => entry.id)).toEqual(['t1']);
   });
@@ -96,7 +97,7 @@ describe('旅行的日期', () => {
  */
 describe('座位跟帳號的兩種關聯', () => {
   it('counts a seat created as the friend', () => {
-    const busan = trip({ id: 'busan', name: '釜山', members: [{ id: GINA }, { userId: 'user-me' }] });
+    const busan = trip({ id: 'busan', name: '釜山', companions: [{ id: GINA }] });
 
     expect(tripsWithFriend([busan], GINA).map(entry => entry.id)).toEqual(['busan']);
   });
@@ -111,7 +112,7 @@ describe('座位跟帳號的兩種關聯', () => {
     is the whole reason this is matched on an id.
   */
   it('does not guess from a bare name', () => {
-    const older = trip({ members: [{ userId: 'user-me' }, {}] });
+    const older = trip({ companions: [{}] });
 
     expect(tripsWithFriend([older], GINA)).toEqual([]);
   });
@@ -143,38 +144,34 @@ describe('還沒出發的旅程', () => {
 /**
  * 「目前我跟他一起有的行程：東京」, and the page said 0.
  *
- * Adding somebody to a trip writes `companions`. `members` is built when the
- * trip is created and when it is archived, and never in between — so for a
- * trip somebody joined afterwards it still describes the day it was made.
+ * Adding somebody to a trip writes `companions`. There used to be a second
+ * roster, `members`, built when the trip was created and when it was archived
+ * and never in between — so for a trip somebody joined afterwards it still
+ * described the day it was made. Reading both was the patch. Deleting the
+ * stale one is the repair, and these hold the repair.
  */
-describe('兩份名單', () => {
+describe('一份名單', () => {
   it('counts somebody added after the trip was created', () => {
     const tokyo = {
       id: 'tokyo',
       name: '東京 2026 秋',
       startDate: '2026-10-20',
-      /* As it was on the day it was created: just the owner. */
-      members: [{ userId: 'user-me' }],
-      /* As it is now. */
+      ownerId: 'user-me',
       companions: [{ id: GINA }],
     };
 
     expect(tripsWithFriend([tokyo], GINA).map(entry => entry.id)).toEqual(['tokyo']);
   });
 
-  it('still counts one who was there from the start', () => {
-    expect(tripsWithFriend([trip({ companions: [] })], GINA)).toHaveLength(1);
+  /* The owner holds a seat, and is never in `companions`. */
+  it('finds a trip the friend owns', () => {
+    const hers = { id: 'hers', name: '她的釜山', ownerId: GINA, companions: [{ userId: 'user-me' }] };
+
+    expect(tripsWithFriend([hers], GINA).map(entry => entry.id)).toEqual(['hers']);
   });
 
-  it('counts a trip once when both lists name her', () => {
-    const both = trip({ companions: [{ userId: GINA }] });
-
-    expect(tripsWithFriend([both], GINA)).toHaveLength(1);
-  });
-
-  /* And neither list naming her is still not her. */
   it('does not invent one from an empty roster', () => {
-    expect(tripsWithFriend([trip({ members: [], companions: [] })], GINA)).toEqual([]);
+    expect(tripsWithFriend([trip({ companions: [] })], GINA)).toEqual([]);
   });
 });
 
@@ -191,7 +188,7 @@ describe('兩份名單', () => {
 describe('去重只看 id', () => {
   const draft = {
     id: 'draft-tokyo', name: 'Tokyo', startDate: '2026-10-20', endDate: '2026-10-24',
-    members: [{ userId: GINA }],
+    companions: [{ userId: GINA }],
   };
 
   it('keeps two rows that share a name and dates but not an id', () => {

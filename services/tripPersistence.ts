@@ -44,7 +44,6 @@ export interface TripDraft {
   budget?: number;
   expenses: Expense[];
   companions: Companion[];
-  members?: TripMember[];
   settlementBatches?: SettlementBatch[];
   /**
    * What the traveller answered on 告訴我你的旅行計畫, kept with the trip.
@@ -341,9 +340,6 @@ const normalizeDraft = (value: Partial<TripDraft>): TripDraft | null => {
     endDate: typeof value.endDate === 'string' ? value.endDate : undefined,
   });
   const legacyCompanions = Array.isArray(value.companions) ? value.companions : [];
-  const normalizedMembers = Array.isArray(value.members)
-    ? value.members.filter(item => item && typeof item === 'object' && typeof (item as TripMember).id === 'string' && typeof (item as TripMember).name === 'string').map(item => ({ id: (item as TripMember).id, name: (item as TripMember).name, userId: typeof (item as TripMember).userId === 'string' ? (item as TripMember).userId : undefined, type: (item as TripMember).type === 'owner' || (item as TripMember).type === 'member' ? (item as TripMember).type : 'guest' as const }))
-    : [{ id: `${value.id}:owner`, name: '我', userId: typeof value.ownerId === 'string' ? value.ownerId : undefined, type: 'owner' as const }, ...legacyCompanions.filter(item => item && typeof item.id === 'string' && typeof item.name === 'string').map(item => ({ id: item.id, name: item.name, type: 'guest' as const }))];
   return {
     id: value.id,
     ownerId: typeof value.ownerId === 'string' && value.ownerId ? value.ownerId : undefined,
@@ -360,7 +356,6 @@ const normalizeDraft = (value: Partial<TripDraft>): TripDraft | null => {
     budget: typeof value.budget === 'number' && Number.isFinite(value.budget) && value.budget >= 0 ? value.budget : undefined,
     expenses: refiled,
     companions: legacyCompanions,
-    members: normalizedMembers,
     settlementBatches: Array.isArray(value.settlementBatches) ? value.settlementBatches.filter(batch => batch && typeof batch.id === 'string' && Array.isArray(batch.expenseIds) && Array.isArray(batch.memberIds)).map(batch => ({ ...batch, status: batch.status === 'settled' ? 'settled' as const : 'open' as const, frozenResult: normalizeFrozenSettlementResult(batch.frozenResult) })) : [],
     shoppingList: normalizeShoppingList(value.shoppingList),
     itinerary: normalizeItinerary(value.itinerary),

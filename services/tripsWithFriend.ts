@@ -19,22 +19,16 @@ export interface TripLike {
   destination?: string;
   startDate?: string;
   endDate?: string;
+  /** The account that owns the trip. The owner is never a companion. */
+  ownerId?: string;
   /**
-   * The roster as the cloud holds it. Built when the trip is created and when
-   * it is archived — and not in between.
-   */
-  members?: Array<{ id?: string; userId?: string }>;
-  /**
-   * The roster as the traveller edits it.
+   * The roster, and the only one.
    *
-   * 「目前我跟他一起有的行程：東京」, and the page said 0. 諮 was added to 東京
-   * after it was created, and adding somebody writes `companions` — `members`
-   * is a snapshot taken at creation and at archive, so it still described the
-   * day the trip was made.
-   *
-   * Both are read here. One of them is always the stale one, and which one it
-   * is depends on when the person was added, so a screen that reads only one
-   * is wrong for half the trips in the list.
+   * There used to be a second, `members`, written when a trip was created and
+   * when it was archived and at no point in between — so 「目前我跟他一起有的
+   * 行程：東京」 read 0, because 諮 was added after the trip existed. Reading
+   * both was the patch; deleting the stale one is the repair. The live roster
+   * plus `ownerId` is everybody on the trip.
    */
   companions?: Array<{ id?: string; userId?: string }>;
 }
@@ -67,8 +61,9 @@ export const tripsWithFriend = (trips: TripLike[], friendUserId: string): Shared
   const seen = new Set<string>();
 
   return trips
-    .filter(trip => [...(trip.members || []), ...(trip.companions || [])].some(member =>
-      member.userId === friendUserId || member.id === friendUserId))
+    .filter(trip => trip.ownerId === friendUserId
+      || (trip.companions || []).some(companion =>
+        companion.userId === friendUserId || companion.id === friendUserId))
     .filter(trip => {
       /*
         The id, and only the id.
