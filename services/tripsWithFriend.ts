@@ -66,30 +66,24 @@ export const tripsWithFriend = (trips: TripLike[], friendUserId: string): Shared
   if (!friendUserId) return [];
   const seen = new Set<string>();
 
-  /*
-    What makes two rows the same trip.
-
-    The id, and then the name and the dates. Drafts and history hold the same
-    journey, and the copy that was archived does not always carry the id the
-    draft had — so 「Tokyo 2026/10/20 – 10/24」 arrived twice, which is not a
-    list of two trips, it is the same trip seen from two shelves.
-
-    Two genuinely different journeys sharing a name and both ends of their
-    dates is not something a traveller has; one of them showing is a better
-    wrong than both.
-  */
-  const identities = (trip: TripLike): string[] => [
-    `id:${trip.id}`,
-    `trip:${(trip.name || trip.destination || '').trim()}|${trip.startDate || ''}|${trip.endDate || ''}`,
-  ];
-
   return trips
     .filter(trip => [...(trip.members || []), ...(trip.companions || [])].some(member =>
       member.userId === friendUserId || member.id === friendUserId))
     .filter(trip => {
-      const keys = identities(trip);
-      if (keys.some(key => seen.has(key))) return false;
-      keys.forEach(key => seen.add(key));
+      /*
+        The id, and only the id.
+
+        I briefly deduped on the name and the dates as well, to settle two rows
+        that both read 「Tokyo 2026/10/20 – 10/24」 — and the Founder's answer was
+        「有一趟旅程是釜山」. So the second row was not a duplicate: it was 釜山
+        wearing the wrong name, and the rule I added would have hidden the one
+        row that proves it.
+
+        A list may repeat itself. A list that quietly drops a row cannot be
+        argued with.
+      */
+      if (seen.has(trip.id)) return false;
+      seen.add(trip.id);
       return true;
     })
     .map(trip => ({

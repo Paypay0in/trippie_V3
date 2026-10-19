@@ -179,37 +179,28 @@ describe('兩份名單', () => {
 });
 
 /**
- * 「Tokyo 2026/10/20 – 10/24」 listed twice.
+ * 「Tokyo 2026/10/20 – 10/24」 listed twice, and 「有一趟旅程是釜山」.
  *
- * Drafts and history hold the same journey, and the archived copy does not
- * always carry the id the draft had — so deduping on the id alone let one
- * trip arrive as two. That is not a list of two trips; it is the same trip
- * seen from two shelves.
+ * I deduped on the name and the dates to settle that, and it was the wrong
+ * repair: the second row was not a duplicate, it was 釜山 under the wrong
+ * name — and the rule would have hidden the one row that proves it.
+ *
+ * A list may repeat itself. A list that quietly drops a row cannot be argued
+ * with.
  */
-describe('同一趟的兩份', () => {
+describe('去重只看 id', () => {
   const draft = {
     id: 'draft-tokyo', name: 'Tokyo', startDate: '2026-10-20', endDate: '2026-10-24',
     members: [{ userId: GINA }],
   };
-  const archived = {
-    id: 'archived-tokyo', name: 'Tokyo', startDate: '2026-10-20', endDate: '2026-10-24',
-    members: [{ userId: GINA }],
-  };
 
-  it('shows it once when the two copies have different ids', () => {
-    expect(tripsWithFriend([draft, archived], GINA)).toHaveLength(1);
+  it('keeps two rows that share a name and dates but not an id', () => {
+    const other = { ...draft, id: 'another' };
+
+    expect(tripsWithFriend([draft, other], GINA)).toHaveLength(2);
   });
 
-  it('still shows two trips that really are two', () => {
-    const busan = { ...archived, id: 'busan', name: '釜山', startDate: '2026-03-20', endDate: '2026-03-24' };
-
-    expect(tripsWithFriend([draft, busan], GINA)).toHaveLength(2);
-  });
-
-  /* Same name, different dates, is two journeys to the same place. */
-  it('keeps two visits to one city apart', () => {
-    const again = { ...draft, id: 'tokyo-2', startDate: '2027-04-01', endDate: '2027-04-05' };
-
-    expect(tripsWithFriend([draft, again], GINA)).toHaveLength(2);
+  it('still shows one row for one trip listed twice', () => {
+    expect(tripsWithFriend([draft, draft], GINA)).toHaveLength(1);
   });
 });
