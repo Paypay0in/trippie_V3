@@ -19,7 +19,7 @@ export interface TripLike {
   destination?: string;
   startDate?: string;
   endDate?: string;
-  members?: Array<{ userId?: string }>;
+  members?: Array<{ id?: string; userId?: string }>;
 }
 
 export interface SharedTrip {
@@ -32,17 +32,26 @@ export interface SharedTrip {
 /**
  * Trips where this person is a member.
  *
- * Matched on `userId`, never on the name somebody typed: 「Gina」 on a roster is
- * a seat that may or may not have been claimed, and claiming it is exactly
- * what writes the id. Pairing the two by name would show a trip they were
- * invited to and never joined.
+ * Matched on an id, never on the name somebody typed: 「Gina」 on a roster is a
+ * seat that may or may not belong to an account, and pairing by name would
+ * show a trip they were invited to and never joined.
+ *
+ * Two ids count, because the app already treats both as 「this seat is that
+ * account」: `userId`, written when an invite is claimed, and the seat's own
+ * `id` where it was created as the friend themselves — which is what
+ * `CompanionsModal` reads when it draws 已連結好友.
+ *
+ * 「Gina 跟我一起去釜山呀」 — a seat on an older trip may carry neither, and
+ * then this is empty and correct: nothing in the data says that Gina is this
+ * account rather than somebody with the same name.
  */
 export const tripsWithFriend = (trips: TripLike[], friendUserId: string): SharedTrip[] => {
   if (!friendUserId) return [];
   const seen = new Set<string>();
 
   return trips
-    .filter(trip => (trip.members || []).some(member => member.userId === friendUserId))
+    .filter(trip => (trip.members || []).some(member =>
+      member.userId === friendUserId || member.id === friendUserId))
     .filter(trip => {
       // Drafts and history can hold the same trip; it is one trip either way.
       if (seen.has(trip.id)) return false;

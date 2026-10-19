@@ -85,3 +85,34 @@ describe('旅行的日期', () => {
     expect(sharedTripDates({ id: 't', label: 'x' })).toBe('');
   });
 });
+
+/**
+ * 「Gina 跟我一起去釜山呀」.
+ *
+ * A seat is tied to an account two ways, and the app already treats both as
+ * 「this seat is that person」: `userId`, written when an invite is claimed,
+ * and the seat's own `id` where it was created as the friend themselves —
+ * which is what `CompanionsModal` reads when it draws 已連結好友.
+ */
+describe('座位跟帳號的兩種關聯', () => {
+  it('counts a seat created as the friend', () => {
+    const busan = trip({ id: 'busan', name: '釜山', members: [{ id: GINA }, { userId: 'user-me' }] });
+
+    expect(tripsWithFriend([busan], GINA).map(entry => entry.id)).toEqual(['busan']);
+  });
+
+  it('still counts a claimed invite', () => {
+    expect(tripsWithFriend([trip()], GINA)).toHaveLength(1);
+  });
+
+  /*
+    And a seat carrying neither is still not her. Nothing in the data says
+    「Gina」 is this account rather than somebody else with that name — which
+    is the whole reason this is matched on an id.
+  */
+  it('does not guess from a bare name', () => {
+    const older = trip({ members: [{ userId: 'user-me' }, {}] });
+
+    expect(tripsWithFriend([older], GINA)).toEqual([]);
+  });
+});
