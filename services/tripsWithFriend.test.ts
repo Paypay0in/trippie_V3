@@ -139,3 +139,41 @@ describe('還沒出發的旅程', () => {
     expect(tripsWithFriend([past, upcoming], GINA).map(entry => entry.id)).toEqual(['tokyo', 'busan']);
   });
 });
+
+/**
+ * 「目前我跟他一起有的行程：東京」, and the page said 0.
+ *
+ * Adding somebody to a trip writes `companions`. `members` is built when the
+ * trip is created and when it is archived, and never in between — so for a
+ * trip somebody joined afterwards it still describes the day it was made.
+ */
+describe('兩份名單', () => {
+  it('counts somebody added after the trip was created', () => {
+    const tokyo = {
+      id: 'tokyo',
+      name: '東京 2026 秋',
+      startDate: '2026-10-20',
+      /* As it was on the day it was created: just the owner. */
+      members: [{ userId: 'user-me' }],
+      /* As it is now. */
+      companions: [{ id: GINA }],
+    };
+
+    expect(tripsWithFriend([tokyo], GINA).map(entry => entry.id)).toEqual(['tokyo']);
+  });
+
+  it('still counts one who was there from the start', () => {
+    expect(tripsWithFriend([trip({ companions: [] })], GINA)).toHaveLength(1);
+  });
+
+  it('counts a trip once when both lists name her', () => {
+    const both = trip({ companions: [{ userId: GINA }] });
+
+    expect(tripsWithFriend([both], GINA)).toHaveLength(1);
+  });
+
+  /* And neither list naming her is still not her. */
+  it('does not invent one from an empty roster', () => {
+    expect(tripsWithFriend([trip({ members: [], companions: [] })], GINA)).toEqual([]);
+  });
+});

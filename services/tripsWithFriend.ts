@@ -19,7 +19,24 @@ export interface TripLike {
   destination?: string;
   startDate?: string;
   endDate?: string;
+  /**
+   * The roster as the cloud holds it. Built when the trip is created and when
+   * it is archived — and not in between.
+   */
   members?: Array<{ id?: string; userId?: string }>;
+  /**
+   * The roster as the traveller edits it.
+   *
+   * 「目前我跟他一起有的行程：東京」, and the page said 0. 諮 was added to 東京
+   * after it was created, and adding somebody writes `companions` — `members`
+   * is a snapshot taken at creation and at archive, so it still described the
+   * day the trip was made.
+   *
+   * Both are read here. One of them is always the stale one, and which one it
+   * is depends on when the person was added, so a screen that reads only one
+   * is wrong for half the trips in the list.
+   */
+  companions?: Array<{ id?: string; userId?: string }>;
 }
 
 export interface SharedTrip {
@@ -50,7 +67,7 @@ export const tripsWithFriend = (trips: TripLike[], friendUserId: string): Shared
   const seen = new Set<string>();
 
   return trips
-    .filter(trip => (trip.members || []).some(member =>
+    .filter(trip => [...(trip.members || []), ...(trip.companions || [])].some(member =>
       member.userId === friendUserId || member.id === friendUserId))
     .filter(trip => {
       // Drafts and history can hold the same trip; it is one trip either way.
