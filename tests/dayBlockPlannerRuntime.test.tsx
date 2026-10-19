@@ -1085,3 +1085,58 @@ describe('往右推刪除', () => {
     expect(screen.queryByTestId('swipe-delete-0')).toBeNull();
   });
 });
+
+/**
+ * 「我覺得這個很明確可以把行程中間的時間調整好」.
+ *
+ * His 11:45–13:45 teamLab ran ninety minutes into a 12:15 Alchemy that cannot
+ * move. The times read forwards, so 「重新安排時間」 saw nothing to repair —
+ * that one is for a day whose clock runs backwards. What overlapped was the
+ * lengths.
+ */
+describe('把疊在一起的時間排開', () => {
+  const overlapping = [
+    item('it-teamlab', 'teamLab', '11:45', { durationMinutes: 120 }),
+    item('it-alchemy', 'Alchemy', '12:15', {
+      durationMinutes: 120, isPinned: true,
+    }),
+  ];
+
+  it('offers to separate them, and says how many', () => {
+    renderPlanner({ items: overlapping, onShiftDay: vi.fn() });
+
+    expect(screen.getByTestId('tidy-day-times').textContent).toContain('1 個行程');
+  });
+
+  it('moves the one that can move, and leaves the fixed one', async () => {
+    const onShiftDay = vi.fn();
+    const user = userEvent.setup();
+    renderPlanner({ items: overlapping, onShiftDay });
+
+    await user.click(screen.getByTestId('tidy-day-times'));
+
+    const written = onShiftDay.mock.calls[0][0] as ItineraryItem[];
+    expect(written.find(entry => entry.id === 'it-alchemy')?.time).toBe('12:15');
+    expect(written.find(entry => entry.id === 'it-teamlab')?.time).not.toBe('11:45');
+  });
+
+  /* A day that already reads one thing at a time is not offered a repair. */
+  it('says nothing about a day with no overlap', () => {
+    renderPlanner({
+      items: [
+        item('a', '淺草寺', '10:00', { durationMinutes: 60 }),
+        item('b', '晴空塔', '12:00', { durationMinutes: 60 }),
+      ],
+      onShiftDay: vi.fn(),
+    });
+
+    expect(screen.queryByTestId('tidy-day-times')).toBeNull();
+  });
+
+  /* A screen that cannot write the times must not appear to offer it. */
+  it('offers nothing when the caller cannot write it', () => {
+    renderPlanner({ items: overlapping });
+
+    expect(screen.queryByTestId('tidy-day-times')).toBeNull();
+  });
+});

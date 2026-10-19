@@ -13,6 +13,7 @@ const CLEAR_OPTION = '__none__';
 const MANUAL_OPTION = '__manual__';
 import { BLOCK_MINUTES, buildDayTemplate, DaySlot } from '../services/dayTemplate';
 import { shiftDayToStart } from '../services/shiftDayStart';
+import { separateOverlaps } from '../services/separateOverlaps';
 import { FixedScheduleEntry, latestFreeStartByDate } from '../services/itineraryDayFloor';
 import { transitMinutesBetween } from '../services/itineraryScheduling';
 import { minutesToTime, timeToMinutes } from '../services/itineraryTimeline';
@@ -254,6 +255,23 @@ const DayBlockPlanner: React.FC<Props> = ({
     const result = shiftDayToStart(items, chosenStart);
     return result.movedCount > 0 ? result : null;
   }, [items, chosenStart, onShiftDay]);
+  /*
+    Two stops in the same half hour, and a button that settles it.
+
+    「我覺得這個很明確可以把行程中間的時間調整好」 — his 11:45–13:45 teamLab ran
+    ninety minutes into a 12:15 Alchemy that cannot move. The times read
+    forwards, so 「重新安排時間」 saw nothing to repair: that one is for a day
+    whose clock runs backwards, and this day's clock is fine. What overlaps is
+    the *lengths*.
+
+    `separateOverlaps` has settled exactly this since the AI adjustment was
+    written — nothing fixed is ever moved, and the flexible stop beside it
+    gives way. It had no button anywhere.
+
+    Offered, never applied: the times on screen are the traveller's own.
+  */
+  const tidied = useMemo(() => separateOverlaps(items), [items]);
+
   const firstMovableTime = useMemo(() => {
     const times = items
       .filter(entry => !entry.derivedFromFlightAnchorId && entry.type !== 'FLIGHT')
@@ -650,6 +668,21 @@ const DayBlockPlanner: React.FC<Props> = ({
                 </>}
           </span>
         </p>
+      )}
+
+      {/*
+        Said where the overlap is visible, and only when there is one.
+      */}
+      {tidied.movedCount > 0 && onShiftDay && (
+        <button
+          type="button"
+          data-testid="tidy-day-times"
+          onClick={() => onShiftDay(tidied.items)}
+          className="mt-2 w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold text-amber-700"
+        >
+          今天有 {tidied.movedCount} 個行程的時間疊在一起，要把它們排開嗎？
+          <span className="mt-0.5 block font-medium text-amber-600">航班、住宿與你固定的行程不會被動到</span>
+        </button>
       )}
 
       {slots.length === 0 ? (
