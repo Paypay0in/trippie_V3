@@ -78,12 +78,20 @@ const FriendProfileScreen: React.FC<Props> = ({
       */}
       {person.bio && <p className="mt-1 text-xs leading-5 text-slate-500">{person.bio}</p>}
 
-      <div className="mt-4 flex gap-6 rounded-2xl border border-slate-100 bg-white px-5 py-3">
-        <span className="text-center">
+      {/*
+        Two numbers, sharing the card they are in.
+
+        They were `gap-6` at its left edge, so on anything wider than a phone
+        the card was mostly empty and the pair read as the start of a row that
+        had failed to load the rest of itself.
+      */}
+      <div className="mt-4 flex rounded-2xl border border-slate-100 bg-white py-3">
+        <span className="flex-1 text-center">
           <span className="block text-lg font-black">{posts.length}</span>
           <span className="text-[11px] font-bold text-slate-400">公開貼文</span>
         </span>
-        <span className="text-center">
+        <span className="w-px bg-slate-100" />
+        <span className="flex-1 text-center">
           <span className="block text-lg font-black">{sharedTrips.length}</span>
           <span className="text-[11px] font-bold text-slate-400">一起去過</span>
         </span>
