@@ -2111,16 +2111,51 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             {dayMoves.length > 0 && (
               <div data-testid="better-on-another-day" className="mt-3 rounded-xl bg-[#f0edff] px-3 py-2 text-[11px] leading-5 text-[#3c2fa8]">
                 換一天會更順：
-                <ul className="mt-1 space-y-0.5">
+                <ul className="mt-1 space-y-1">
                   {dayMoves.slice(0, 3).map(move => (
-                    <li key={move.itemId}>
-                      <span className="font-black">{move.placeName}</span>
-                      {` ${move.fromDate.slice(5).replace('-', '/')} → ${move.toDate.slice(5).replace('-', '/')}，少走約 ${move.savesKm} 公里`}
+                    <li key={move.itemId} className="flex items-start gap-2">
+                      <span className="min-w-0 flex-1">
+                        <span className="font-black">{move.placeName}</span>
+                        {` ${move.fromDate.slice(5).replace('-', '/')} → ${move.toDate.slice(5).replace('-', '/')}，少走約 ${move.savesKm} 公里`}
+                      </span>
+                      {/*
+                        「這個結果不能在這個介面就點擊套用嗎」.
+
+                        It said 「要的話自己拖過去」 — a correct instruction that
+                        costs a drag across a day tab for something this panel
+                        had already worked out. The move is one call, the same
+                        one the drag makes: `onReorder` with a date.
+
+                        Per row, not 「apply all」: these are three separate
+                        judgements about three separate days, and a button that
+                        takes all of them would make the one somebody disagreed
+                        with the price of the two they wanted.
+                      */}
+                      {onReorder && (
+                        <button
+                          type="button"
+                          data-testid={`move-to-day-${move.itemId}`}
+                          onClick={() => {
+                            if (onReorder(move.itemId, { toDate: move.toDate }) === false) return;
+                            /*
+                              Gone from the list once it is done. Recomputing
+                              here would read the items this render was given,
+                              which are the ones from before the move.
+                            */
+                            setDayMoves(current => current.filter(entry => entry.itemId !== move.itemId));
+                          }}
+                          className="shrink-0 rounded-lg bg-[#5b3df5] px-2 py-0.5 text-[10px] font-black text-white"
+                        >
+                          移到 {move.toDate.slice(5).replace('-', '/')}
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
-                <span className="mt-0.5 block font-medium text-[#5b3df5]">
-                  這幾筆不會被這次套用改到，要的話自己拖過去。
+                <span className="mt-1 block font-medium text-[#5b3df5]">
+                  {onReorder
+                    ? '這幾筆不會被上面的「套用」一起改到，要搬哪一筆就按哪一筆。'
+                    : '這幾筆不會被這次套用改到，要的話自己拖過去。'}
                 </span>
               </div>
             )}
