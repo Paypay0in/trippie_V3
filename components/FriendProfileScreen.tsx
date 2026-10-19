@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, MapPinned, Users } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Images, MapPinned, Users } from 'lucide-react';
 import { Person } from '../services/friendships';
 import { CommunityPost } from '../types';
 import { SharedTrip, sharedTripDates } from '../services/tripsWithFriend';
@@ -51,14 +51,18 @@ const FriendProfileScreen: React.FC<Props> = ({
         a page that opens on an empty rectangle reads as a page that failed.
       */}
       {person.coverUrl
-        ? <img src={person.coverUrl} alt="" className="h-40 w-full object-cover" />
-        : <div className="h-40 w-full bg-gradient-to-br from-violet-100 via-blue-100 to-violet-50" />}
+        ? <img src={person.coverUrl} alt="" className="h-44 w-full object-cover" />
+        : <div className="h-44 w-full bg-gradient-to-br from-[#2F5BFF] via-[#6B4DF6] to-[#8B3DFF]" />}
+      {/*
+        A wash under the name, so a bright cover never takes the text with it.
+      */}
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-b from-transparent to-[#f7f8fc]" />
       <button
         type="button"
         data-testid="friend-profile-back"
         aria-label="返回"
         onClick={onBack}
-        className="absolute left-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#11183d] shadow"
+        className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-[#11183d] shadow-[0_4px_14px_rgba(17,26,74,.18)] backdrop-blur"
       >
         <ArrowLeft size={18} />
       </button>
@@ -73,18 +77,18 @@ const FriendProfileScreen: React.FC<Props> = ({
       it, and the circle arrived with its top half sliced off.
     */}
     <div className="relative -mt-10 px-5">
-      <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-[#f7f8fc] bg-violet-100 text-xl font-black text-violet-700">
+      <span className="flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full border-4 border-[#f7f8fc] bg-gradient-to-br from-violet-100 to-blue-100 text-2xl font-black text-violet-700 shadow-[0_10px_26px_rgba(17,26,74,.12)]">
         {person.avatarUrl
           ? <img src={person.avatarUrl} alt="" className="h-full w-full object-cover" />
           : person.displayName.slice(0, 1)}
       </span>
-      <h1 className="mt-2 text-xl font-black">{person.displayName}</h1>
+      <h1 className="mt-3 text-2xl font-black tracking-tight">{person.displayName}</h1>
       {/*
         The address is not here, and that is deliberate: `find_person_by_email`
         never returns it either. Knowing somebody's email is how you find them,
         not something being their friend tells you.
       */}
-      {person.bio && <p className="mt-1 text-xs leading-5 text-slate-500">{person.bio}</p>}
+      {person.bio && <p className="mt-1.5 text-[13px] leading-6 text-slate-500">{person.bio}</p>}
 
       {/*
         Two numbers, sharing the card they are in.
@@ -93,14 +97,14 @@ const FriendProfileScreen: React.FC<Props> = ({
         the card was mostly empty and the pair read as the start of a row that
         had failed to load the rest of itself.
       */}
-      <div className="mt-4 flex rounded-2xl border border-slate-100 bg-white py-3">
+      <div className="mt-5 flex rounded-[22px] border border-[#eceaf5] bg-white py-4 shadow-[0_6px_18px_rgba(17,26,74,.05)]">
         <span className="flex-1 text-center">
-          <span className="block text-lg font-black">{posts.length}</span>
+          <span className="block text-2xl font-black leading-7">{posts.length}</span>
           <span className="text-[11px] font-bold text-slate-400">公開貼文</span>
         </span>
-        <span className="w-px bg-slate-100" />
+        <span className="my-1 w-px bg-slate-100" />
         <span className="flex-1 text-center">
-          <span className="block text-lg font-black">{sharedTrips.length}</span>
+          <span className="block text-2xl font-black leading-7 text-[#5b3df5]">{sharedTrips.length}</span>
           {/*
             「我是希望進行中的也可以出現」.
 
@@ -121,11 +125,14 @@ const FriendProfileScreen: React.FC<Props> = ({
         public half and are worth reading second.
       */}
       {sharedTrips.length > 0 && (
-        <section data-testid="friend-shared-trips" className="mt-5">
-          <h2 className="flex items-center gap-1.5 text-sm font-black">
-            <Users size={14} className="text-violet-500" />共同旅程
+        <section data-testid="friend-shared-trips" className="mt-6">
+          <h2 className="flex items-center gap-2 text-base font-black">
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+              <Users size={15} />
+            </span>
+            共同旅程
           </h2>
-          <ul className="mt-2 space-y-1.5">
+          <ul className="mt-2.5 space-y-2">
             {sharedTrips.map(trip => (
               <li key={trip.id}>
                 {onOpenTrip ? (
@@ -133,17 +140,26 @@ const FriendProfileScreen: React.FC<Props> = ({
                     type="button"
                     data-testid={`friend-profile-trip-${trip.id}`}
                     onClick={() => onOpenTrip(trip.id)}
-                    className="flex w-full items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-left"
+                    className="flex w-full items-center gap-3 rounded-[20px] border border-[#eceaf5] bg-white px-3.5 py-3 text-left shadow-[0_4px_14px_rgba(17,26,74,.04)] transition hover:border-[#d9d5f5]"
                   >
-                    <MapPinned size={14} className="shrink-0 text-violet-400" />
-                    <span className="min-w-0 flex-1 truncate text-xs font-black">{trip.label}</span>
-                    <span className="shrink-0 text-[11px] text-slate-400">{sharedTripDates(trip)}</span>
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eef1ff] to-[#f3efff] text-[#6b4df6]">
+                      <MapPinned size={17} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-black">{trip.label}</span>
+                      <span className="mt-0.5 block text-[11px] font-bold text-slate-400">{sharedTripDates(trip)}</span>
+                    </span>
+                    <ChevronRight size={16} className="shrink-0 text-slate-300" />
                   </button>
                 ) : (
-                  <span className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-2.5">
-                    <MapPinned size={14} className="shrink-0 text-violet-400" />
-                    <span className="min-w-0 flex-1 truncate text-xs font-black">{trip.label}</span>
-                    <span className="shrink-0 text-[11px] text-slate-400">{sharedTripDates(trip)}</span>
+                  <span className="flex items-center gap-3 rounded-[20px] border border-[#eceaf5] bg-white px-3.5 py-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#eef1ff] to-[#f3efff] text-[#6b4df6]">
+                      <MapPinned size={17} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-black">{trip.label}</span>
+                      <span className="mt-0.5 block text-[11px] font-bold text-slate-400">{sharedTripDates(trip)}</span>
+                    </span>
                   </span>
                 )}
               </li>
@@ -152,18 +168,23 @@ const FriendProfileScreen: React.FC<Props> = ({
         </section>
       )}
 
-      <section className="mt-5">
-        <h2 className="text-sm font-black">公開的旅行分享</h2>
+      <section className="mt-6">
+        <h2 className="flex items-center gap-2 text-base font-black">
+          <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <Images size={15} />
+          </span>
+          公開的旅行分享
+        </h2>
         {posts.length === 0 ? (
           /*
             Said, not left blank. 「他還沒有公開的分享」 is an answer about them;
             an empty space is a question about whether this screen works.
           */
-          <p data-testid="friend-no-posts" className="mt-2 rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-xs font-bold text-slate-400">
+          <p data-testid="friend-no-posts" className="mt-2.5 rounded-[20px] border border-dashed border-[#dcd9ec] bg-white/60 px-4 py-8 text-center text-xs font-bold text-slate-400">
             {person.displayName} 還沒有公開的旅行分享。
           </p>
         ) : (
-          <ul data-testid="friend-posts" className="mt-2 grid grid-cols-2 gap-2.5">
+          <ul data-testid="friend-posts" className="mt-2.5 grid grid-cols-2 gap-3">
             {posts.map(post => (
               <li key={post.id}>
                 <button
@@ -171,12 +192,12 @@ const FriendProfileScreen: React.FC<Props> = ({
                   data-testid={`friend-post-${post.id}`}
                   disabled={!onOpenPost}
                   onClick={() => onOpenPost?.(post.id)}
-                  className="block w-full overflow-hidden rounded-2xl bg-white text-left shadow-sm"
+                  className="block w-full overflow-hidden rounded-[20px] border border-[#eceaf5] bg-white text-left shadow-[0_4px_14px_rgba(17,26,74,.04)]"
                 >
                   {post.coverImage
-                    ? <img src={post.coverImage} alt="" className="block h-28 w-full object-cover" />
-                    : <span className="block h-28 w-full bg-slate-100" />}
-                  <span className="block p-2.5">
+                    ? <img src={post.coverImage} alt="" className="block h-32 w-full object-cover" />
+                    : <span className="block h-32 w-full bg-gradient-to-br from-[#eef1ff] to-[#f3efff]" />}
+                  <span className="block p-3">
                     <span className="block text-xs font-black leading-5">{post.title}</span>
                     <span className="mt-1 block text-[10px] font-bold text-slate-400">
                       {post.country}・{post.city}
