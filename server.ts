@@ -2772,7 +2772,7 @@ ${MODE_RULES[mode]}
         : "每一天都要排滿合理數量的地點，優先放該目的地真正值得去、且符合使用者偏好的地方；使用者在偏好裡指名想做的活動一定要排進去。";
 
       const generationConfig = {
-        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${createTodayBlock}${flightBlock}\n\n${selectionBlock}${preferenceBlock}\n\n規則：\n${selectionRules}3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. ${additionRule}\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n只回傳 JSON。`,
+        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${createTodayBlock}${flightBlock}\n\n${selectionBlock}${preferenceBlock}\n\n規則：\n${selectionRules}3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. ${additionRule}\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n9. 不要在任何欄位寫出票價、門票、人均消費這類金額。你沒有查證過現在的價格，寫出來的數字會被當成事實。要提到費用就只說「需要門票」「要先買票」，金額留給使用者自己確認。\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -2827,7 +2827,42 @@ ${MODE_RULES[mode]}
           res.status(502).json({ error: "AI 回傳的行程格式無法解析，請重新產生。", provider: "google", model: attemptedModel });
           return;
         }
-        res.json({ days: Array.isArray(data.days) ? data.days : [], warnings: Array.isArray(data.warnings) ? data.warnings : [] });
+        /*
+          The same two guards the activity planner has had all along.
+
+          Price scrubbing and booking-ahead reminders lived only on
+          `/api/activity-plans`, so one half of this product refused to quote a
+          price it had not verified while the other half wrote 「門票約 2000 日
+          圓」 into a note, and only one of them told anybody that teamLab sells
+          out. Two standards inside one app, and the weaker one is the path a
+          trip is actually created through.
+
+          Reused rather than reimplemented: `stripPriceClaims` and
+          `withRequiredPreparation` are the same functions, so the two paths
+          cannot drift into disagreeing about what needs confirming.
+        */
+        const proposedDays = (Array.isArray(data.days) ? data.days : []).map((day: Record<string, unknown>) => ({
+          ...day,
+          items: (Array.isArray(day.items) ? day.items : []).map((item: Record<string, unknown>) => ({
+            ...item,
+            note: stripPriceClaims(typeof item.note === "string" ? item.note : undefined),
+          })),
+        }));
+        const scheduleItems = proposedDays.flatMap((day: Record<string, unknown>) =>
+          (Array.isArray(day.items) ? day.items : []).map((item: Record<string, unknown>) => ({
+            title: typeof item.placeName === "string" ? item.placeName : "",
+            placeName: typeof item.placeName === "string" ? item.placeName : "",
+            notes: typeof item.note === "string" ? item.note : "",
+          })));
+        const preparation = markDepartureTiming(withRequiredPreparation(scheduleItems, []));
+
+        res.json({
+          days: proposedDays,
+          warnings: (Array.isArray(data.warnings) ? data.warnings : [])
+            .map((warning: unknown) => stripPriceClaims(typeof warning === "string" ? warning : undefined))
+            .filter((warning: string | undefined): warning is string => Boolean(warning)),
+          preparation,
+        });
       } catch (error) {
         const quotaStatus = quotaStatusOf(error);
         if (quotaStatus) {

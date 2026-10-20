@@ -499,6 +499,28 @@ const TripPlanBriefScreen: React.FC<Props> = ({
               ))}
             </ul>
 
+            {/*
+              What has to be booked before any of this works.
+
+              Shown before the trip is created rather than discovered inside
+              it: 「teamLab 要先買票」 is the kind of thing that decides whether
+              a day is possible, and the plan above reads as a finished answer
+              without it.
+            */}
+            {(proposal.preparation?.length ?? 0) > 0 && (
+              <div data-testid="brief-preparation" className="mt-2 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2">
+                <p className="text-[11px] font-black text-violet-700">出發前要先確認</p>
+                <ul className="mt-1 space-y-0.5">
+                  {proposal.preparation?.map(task => (
+                    <li key={task.name} className="text-[11px] leading-5 text-violet-900">
+                      ・{task.name}
+                      {task.leadTimeDays ? `（建議提前 ${task.leadTimeDays} 天）` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {proposal.warnings.length > 0 && (
               <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
                 {proposal.warnings.join('；')}

@@ -3208,6 +3208,19 @@ const App: React.FC = () => {
       if (driving) handleBatchAddShoppingItems([driving.item], "draft");
 
       /*
+        And what the plan itself requires booking ahead.
+
+        Derived from the schedule by `withRequiredPreparation`, the same rule
+        the activity planner has always used — so 「teamLab 要先買票」 reaches
+        旅程準備度 on the trip it belongs to, instead of being something the
+        traveller finds out at the door.
+      */
+      const planTasks = (proposal?.preparation || [])
+        .map((task) => task.name)
+        .filter(Boolean);
+      if (planTasks.length) handleBatchAddShoppingItems(planTasks, "draft");
+
+      /*
         And the plan the traveller just accepted, through the path that already
         writes an accepted plan. 「P0 — AI 生成沒有產生日程」 — the trip was created
         and the brief stored, and nothing ever turned it into days.

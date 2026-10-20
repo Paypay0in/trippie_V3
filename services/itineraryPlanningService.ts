@@ -49,6 +49,15 @@ export interface ProposedItineraryDay {
 export interface TripInspirationProposal {
   days: ProposedItineraryDay[];
   warnings: string[];
+  /**
+   * What has to be booked or confirmed before the plan can be followed.
+   *
+   * Derived server-side by `withRequiredPreparation` from the schedule itself —
+   * the same function the activity planner has always used. 「標示待確認資訊」
+   * was built once and wired to one of the two planning paths, and the one it
+   * missed is the path a trip is actually created through.
+   */
+  preparation?: Array<{ name: string; canBeHumanAssisted?: boolean; leadTimeDays?: number; beforeDeparture?: boolean }>;
 }
 
 export class ItineraryProposalRequestError extends Error {
@@ -362,7 +371,19 @@ export const normalizeTripInspirationProposal = (
     }
   }));
 
-  return { days, warnings: [...modelWarnings, ...warnings] };
+  const preparation = raw && typeof raw === 'object' && Array.isArray((raw as { preparation?: unknown }).preparation)
+    ? (raw as { preparation: unknown[] })
+      .preparation
+      .filter((task): task is { name: string } =>
+        Boolean(task) && typeof task === 'object' && typeof (task as { name?: unknown }).name === 'string'
+        && Boolean((task as { name: string }).name.trim()))
+    : [];
+
+  return {
+    days,
+    warnings: [...modelWarnings, ...warnings],
+    ...(preparation.length ? { preparation } : {}),
+  };
 };
 
 /**
