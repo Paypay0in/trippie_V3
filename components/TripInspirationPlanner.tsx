@@ -24,6 +24,7 @@ import {
   selectTripInspirationGroups,
   TripDestinationContext,
 } from '../services/tripInspirationSelection';
+import { elsewhereLabel, savedElsewhere } from '../services/savedElsewhere';
 import {
   enumerateTripDates,
   generateTripInspirationProposal,
@@ -584,6 +585,17 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   }, [existingItinerary, trip.startDate, trip.endDate]);
 
   const groups = useMemo(() => selectTripInspirationGroups(inspirations, trip), [inspirations, trip]);
+  /*
+    「我的旅行筆記都不見了」 — they were filed under another country.
+
+    This list is scoped to the trip's destination, and the backfill line above
+    it counts the whole collection. Two counts of one thing, stacked, with
+    nothing saying which is which.
+  */
+  const elsewhere = useMemo(
+    () => savedElsewhere(inspirations, trip.destinationCountry || trip.destination),
+    [inspirations, trip.destinationCountry, trip.destination],
+  );
   const groupIds = useMemo(() => new Set(groups.map(group => group.id)), [groups]);
   // Places already in the official itinerary. Compared against the canonical trip
   // itinerary — not a pending proposal, not the local selection, and never a name.
@@ -1246,6 +1258,17 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       {groups.length === 0 ? (
         <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-5 text-center">
           <p className="text-sm font-bold text-slate-500">目前沒有這個目的地的收藏靈感</p>
+          {/*
+            Where they are, when there are some. Saying 「你沒有」 to somebody
+            holding twenty-one of them is how a screen loses an argument it
+            was never having.
+          */}
+          {elsewhere.length > 0 && (
+            <p data-testid="saved-elsewhere" className="mt-1.5 text-xs leading-5 text-slate-400">
+              你的 {elsewhere.reduce((total, entry) => total + entry.count, 0)} 個收藏都在別的目的地
+              （{elsewhereLabel(elsewhere)}），沒有不見。
+            </p>
+          )}
           <button type="button" onClick={onExploreCommunity} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-violet-200 bg-white px-4 text-sm font-black text-violet-600">
             前往社群找靈感<ArrowRight size={15} />
           </button>
