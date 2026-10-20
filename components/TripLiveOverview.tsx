@@ -1,11 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, CloudSun, Coffee, MapPin, Navigation, Plus, Receipt, ShoppingBag, TrainFront } from 'lucide-react';
-import { Category, Expense, ItineraryItem } from '../types';
+import { Category, Expense, ItineraryItem, TripMember } from '../types';
 import { WeatherSnapshot } from '../services/weatherService';
 import { estimateRoute, RouteEstimate } from '../services/routesService';
 import { localDateKey, selectNextStop } from '../services/nextStop';
+import { expenseCostToViewer, ownerMemberIdOf } from '../services/viewerSpend';
 
-interface Props { expenses: Expense[]; itinerary: ItineraryItem[]; startDate?: string; endDate?: string; onQuickAdd: (category?: Category) => void; onOpenPlanning: () => void; onOpenRecords: () => void; destination: string; destinationCoordinates?: { latitude: number; longitude: number }; destinationCountry?: string; }
+interface Props {
+  expenses: Expense[];
+  itinerary: ItineraryItem[];
+  startDate?: string;
+  endDate?: string;
+  onQuickAdd: (category?: Category) => void;
+  onOpenPlanning: () => void;
+  onOpenRecords: () => void;
+  destination: string;
+  destinationCoordinates?: { latitude: number; longitude: number };
+  destinationCountry?: string;
+  /**
+   * Who is reading, and the roster their share is worked out against.
+   *
+   * 「我打開看會是這樣 但我今天只有花 998」 — this card summed `twdAmount`, the
+   * whole of every bill on the day, including the half somebody else carries
+   * and the bills they paid for themselves. `expenseCostToViewer` is the one
+   * place that answers 「what did this cost *me*」, and four other screens were
+   * already using it. Without a viewer the full amount is still the honest
+   * answer: a solo ledger has nobody to apportion to.
+   */
+  viewerMemberId?: string;
+  members?: TripMember[];
+}
 const timeToMinutes = (value: string) => {
   const match = value.trim().match(/(?:^|\s)(\d{1,2}):(\d{2})(?=\s|$|:)/);
   if (!match) return null;
@@ -14,7 +38,7 @@ const timeToMinutes = (value: string) => {
   return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? hours * 60 + minutes : null;
 };
 
-const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, endDate, onQuickAdd, onOpenPlanning, onOpenRecords, destination, destinationCoordinates, destinationCountry }) => {
+const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, endDate, onQuickAdd, onOpenPlanning, onOpenRecords, destination, destinationCoordinates, destinationCountry, viewerMemberId, members = [] }) => {
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState(false);
@@ -40,7 +64,10 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
   const today = localDateKey(clock);
   const currentMinutes = clock.getHours() * 60 + clock.getMinutes();
   const todayExpenses = expenses.filter(expense => expense.phase === 'during' && expense.date.slice(0, 10) === today);
-  const todayTotal = todayExpenses.reduce((sum, expense) => sum + expense.twdAmount, 0);
+  const todayTotal = todayExpenses.reduce(
+    (sum, expense) => sum + expenseCostToViewer(expense, viewerMemberId, ownerMemberIdOf(members)),
+    0,
+  );
 
   const outsideTrip = Boolean((startDate && today < startDate) || (endDate && today > endDate));
   const todayItems = outsideTrip ? [] : itinerary.filter(item => item.date === today);

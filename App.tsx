@@ -8407,6 +8407,13 @@ const App: React.FC = () => {
             <TripLiveOverview
               expenses={expenses}
               itinerary={itinerary}
+              /*
+                Whose money the day's total is about. 「我今天只有花 998」 — the
+                card was adding up whole bills, including the half his
+                companion carries.
+              */
+              viewerMemberId={viewerMemberId}
+              members={settlementMembers}
               startDate={tripStartDate}
               endDate={tripEndDate}
               destination={tripDestination}
