@@ -1,13 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  ArrowRight,
   CalendarDays,
   Image as ImageIcon,
   Loader2,
   MapPin,
   Search,
-  Sparkles,
   Users,
 } from 'lucide-react';
 import { Companion } from '../types';
@@ -38,7 +36,6 @@ type Props = {
   friends: Companion[];
   onBack: () => void;
   onSubmit: (values: TripSetupValues) => void;
-  onOpenAiPlanner: () => void;
 };
 
 const normalizeDestinationQuery = (value: string) =>
@@ -55,7 +52,6 @@ const CreateEditTripScreen: React.FC<Props> = ({
   friends,
   onBack,
   onSubmit,
-  onOpenAiPlanner,
 }) => {
   const [destination, setDestination] = useState(initialDestination);
   const [startDate, setStartDate] = useState(initialStartDate);
@@ -306,8 +302,18 @@ const CreateEditTripScreen: React.FC<Props> = ({
               right edge of the card — which is the 「沒有滿版」 shape, seen from
               the inside.
             */}
-            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-              <label className="relative min-w-0">
+            {/*
+              Two columns and nothing between them.
+
+              「日期的格子凸出去啦！」 — the second field ran past the right edge of
+              the card. The arrow and its two gaps were taking about 23px out of
+              a row that had none to give, and an iOS date input will not shrink
+              to fit whatever the track says. Removing the decoration gives the
+              width back to the two things that need it; 開始/結束 are already
+              labelled, so the arrow was saying what the fields say.
+            */}
+            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
+              <label className="relative min-w-0 overflow-hidden">
                 <CalendarDays
                   size={17}
                   className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -317,11 +323,10 @@ const CreateEditTripScreen: React.FC<Props> = ({
                   value={startDate}
                   onChange={(event) => setStartDate(event.target.value)}
                   aria-label="開始日期"
-                  className="h-[var(--control-h)] w-full min-w-0 rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
+                  className="block h-[var(--control-h)] w-full min-w-0 max-w-full rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
                 />
               </label>
-              <ArrowRight size={15} className="shrink-0 text-slate-400" />
-              <label className="relative min-w-0">
+              <label className="relative min-w-0 overflow-hidden">
                 <CalendarDays
                   size={17}
                   className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -332,7 +337,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
                   min={startDate || undefined}
                   onChange={(event) => setEndDate(event.target.value)}
                   aria-label="結束日期"
-                  className="h-[var(--control-h)] w-full min-w-0 rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
+                  className="block h-[var(--control-h)] w-full min-w-0 max-w-full rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
                 />
               </label>
             </div>
@@ -392,17 +397,14 @@ const CreateEditTripScreen: React.FC<Props> = ({
               {mode === 'create' ? '建立旅程' : '儲存變更'}
             </button>
             {/*
-              Secondary, and shaped like it. A second filled button beside the
-              first asks the traveller which one the screen is for.
+              「讓ai 幫你排行程 點擊下去會清空上面所有欄位 直接拿掉」.
+
+              It navigated to the shelf and scrolled to the planner tile, which
+              throws away everything typed on this screen — the destination, the
+              dates, the companions just added. A link that silently discards a
+              half-filled form is worse than no link, and 「AI 幫我排行程」 is on
+              the home screen anyway, where nothing is lost by going there.
             */}
-            <button
-              type="button"
-              onClick={onOpenAiPlanner}
-              className="flex h-[var(--control-h-sm)] w-full items-center justify-center gap-1.5 rounded-control text-action font-medium text-ink-soft transition hover:text-violet-600"
-            >
-              <Sparkles size={16} className="text-violet-500" />
-              讓 AI 幫你準備這趟旅程
-            </button>
           </section>
         </form>
       </main>

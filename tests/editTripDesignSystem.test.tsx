@@ -39,7 +39,6 @@ const renderScreen = (props: Record<string, unknown> = {}) =>
       friends={[]}
       onBack={vi.fn()}
       onSubmit={vi.fn()}
-      onOpenAiPlanner={vi.fn()}
       {...props}
     />,
   );
@@ -101,10 +100,12 @@ describe('主要與次要動作', () => {
     expect(save.className).toContain('h-[var(--cta-h)]');
   });
 
-  it('AI 那顆不是第二顆實心按鈕', () => {
+  /* 建立旅程 is the only filled button; it was already the only one that mattered. */
+  it('只有一顆實心按鈕', () => {
     renderScreen();
-    const ai = screen.getByRole('button', { name: /讓 AI 幫你準備這趟旅程/ });
-    expect(ai.className).not.toMatch(/bg-(violet|blue|indigo)-[5-7]00/);
+    const filled = screen.getAllByRole('button')
+      .filter(button => /bg-(violet|blue|indigo)-[5-7]00/.test(button.className));
+    expect(filled).toHaveLength(1);
   });
 
   it('日期不合法時主要動作會停用', () => {
@@ -188,11 +189,16 @@ describe('功能沒有被改版弄丟', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
-  it('AI 規劃的入口還在', () => {
-    const onOpenAiPlanner = vi.fn();
-    renderScreen({ onOpenAiPlanner });
-    fireEvent.click(screen.getByRole('button', { name: /讓 AI 幫你準備這趟旅程/ }));
-    expect(onOpenAiPlanner).toHaveBeenCalled();
+  /*
+    「讓ai 幫你排行程 點擊下去會清空上面所有欄位 直接拿掉」.
+
+    It navigated away to the shelf, which throws away the destination, the
+    dates and the companions just typed here. 「AI 幫我排行程」 lives on the home
+    screen, where leaving costs nothing.
+  */
+  it('沒有會清空表單的 AI 入口', () => {
+    renderScreen();
+    expect(screen.queryByRole('button', { name: /讓 AI 幫你準備這趟旅程/ })).toBeNull();
   });
 
   it('圖片授權標示留著 —— 那是授權條件，不是裝飾', () => {

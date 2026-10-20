@@ -5452,15 +5452,6 @@ const App: React.FC = () => {
     setViewMode("trip");
   };
 
-  const handleOpenAiPlannerFromSetup = () => {
-    setViewMode("bookshelf");
-    window.setTimeout(() => {
-      document
-        .getElementById("ai-trip-planner")
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 80);
-  };
-
   const handleDeleteHistory = (id: string) => {
     const target = tripHistory.find((trip) => trip.id === id);
     setConfirmRequest({
@@ -7286,7 +7277,6 @@ const App: React.FC = () => {
           setViewMode(tripSetupMode === "create" ? "bookshelf" : "trip")
         }
         onSubmit={handleSubmitTripSetup}
-        onOpenAiPlanner={handleOpenAiPlannerFromSetup}
       />
     );
   }
