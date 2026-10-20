@@ -316,6 +316,7 @@ import {
 import TripInspirationPlanner from "./components/TripInspirationPlanner";
 import { buildAcceptedItineraryItems } from "./services/itineraryAcceptance";
 import { enrichProposalPlaces, PlacePreview, previewPlaceResolution } from "./services/itineraryPlaceEnrichment";
+import { routeOptimisedProposal } from "./services/routeOptimisedProposal";
 import type { AdjustmentApplyResult, ProposalAcceptanceResult } from "./components/TripInspirationPlanner";
 import {
   applyItineraryAdjustment,
@@ -7199,9 +7200,9 @@ const App: React.FC = () => {
         the plan is built here, from the same service the planner panel uses,
         and nothing is written until the traveller accepts it.
       */
-      onPreview={(brief) => {
+      onPreview={async (brief) => {
         const setup = briefToTripSetup(brief);
-        return generateTripInspirationProposal(
+        const planned = await generateTripInspirationProposal(
           buildTripPlanningInput(
             { destination: setup.destination, startDate: setup.startDate, endDate: setup.endDate },
             [],
@@ -7209,6 +7210,31 @@ const App: React.FC = () => {
             [],
           ),
         );
+
+        /*
+          Resolved and routed before the preview, not after the 建立.
+
+          `optimiseTripRoute` clusters by area, assigns areas to days and keeps
+          meals in their windows — and it was wired to 「重排行程」, a button
+          somebody has to notice is needed. Most people will not press it; they
+          will look at a day that criss-crosses the city and conclude this app
+          plans badly.
+
+          The places are looked up first because the router needs coordinates
+          to do anything at all, and the whole thing happens before the
+          traveller sees the plan: optimising after they accept would mean the
+          preview said one thing and the trip says another.
+        */
+        const { proposal: located } = await enrichProposalPlaces(planned, {
+          destination: setup.destination,
+          destinationCountry: brief.destination,
+        }).catch(() => ({ proposal: planned }));
+
+        return routeOptimisedProposal(located, {
+          country: brief.destination,
+          dayStart: brief.dayStartTime,
+          categoryOf: categoryOfItineraryItem,
+        }).proposal;
       }}
       onGenerate={handleGenerateFromBrief}
       onUploadBookings={() => { setIsPlanBriefOpen(false); setIsBookingImportOpen(true); }}
