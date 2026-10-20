@@ -41,6 +41,17 @@ export const claimFailureMessage = (raw?: string): string => {
   if (message.includes('invite not found') || message.includes('expired')) {
     return '這個邀請連結已經失效或被用過了，請對方重新產生一次。';
   }
+  /*
+    The seat is held by somebody else's account.
+
+    This reached the reader as 「加入失敗：this seat has already been taken」 —
+    raw English, inside a Chinese sentence, describing a thing nobody calls a
+    seat. It is also the most likely real failure: the owner invites one
+    person per row, and a link forwarded to a second one lands here.
+  */
+  if (message.includes('seat has already been taken')) {
+    return '這個邀請的位子已經被別的帳號使用了。請對方在「管理旅伴」為你新增一位旅伴，再產生一次連結。';
+  }
   if (message.includes('jwt') || message.includes('auth')) {
     return '登入狀態已過期，請重新登入後再開一次連結。';
   }

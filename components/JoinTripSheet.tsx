@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Check, Loader2, LogIn, Users } from 'lucide-react';
 import { InvitePreview, claimInvite, inviteTokenFromUrl, previewInvite } from '../services/tripInvites';
 import { claimFailureMessage } from '../services/inviteFailure';
+import { forgetDeletedTrip } from '../services/deletedTrips';
 import { getSession, subscribeToAuthChanges } from '../services/authService';
 
 /**
@@ -126,22 +127,54 @@ const JoinTripSheet: React.FC = () => {
     stripInviteFromUrl();
 
     void previewInvite(found).then(result => {
-      if (result.status === 'ok' && result.data) setPreview(result.data);
-      if (result.status === 'ok' && !result.data) {
+      if (result.status === 'ok' && result.data) { setPreview(result.data); return; }
+      if (result.status === 'ok') {
         setState('error');
         setError('這個邀請連結已經失效了，請對方重新產生一次。');
+        return;
       }
+      /*
+        A failed preview used to fall through both branches: no state change,
+        so the sheet said 正在確認邀請… forever while the claim ran blind
+        behind it. 「她登入沒看到東京的旅冊」 is what that looks like from the
+        outside — a screen that never finishes and never fails.
+      */
+      setState('error');
+      setError(result.status === 'unavailable'
+        ? '雲端尚未設定，無法確認這個邀請。'
+        : `確認邀請失敗：${result.message}`);
     });
   }, []);
 
   // Claimed as soon as there is an account to claim it with, whether that
   // account already existed or was created a moment ago.
   useEffect(() => {
-    if (!token || !authUserId || state !== 'idle' || (preview?.alreadyClaimed ?? false)) return;
+    /*
+      A used invite is still tried.
+
+      `claim_trip_invite` is idempotent on purpose: a caller who already holds
+      a seat gets the trip id back and nothing is written. The client refused
+      to call it once `claimed_at` was stamped — so somebody whose first claim
+      succeeded but whose trip never appeared could reopen the link forever and
+      only ever read 「這個邀請已經被使用過了」, which is a success-shaped sentence
+      with no trip behind it. The server decides; this does not.
+    */
+    if (!token || !authUserId || state !== 'idle') return;
     setState('joining');
     void claimInvite(token).then(result => {
       if (result.status === 'ok') {
         clearPendingInvite(window.sessionStorage);
+        /*
+          Joining is asking for the trip, which outranks having deleted it.
+
+          A trip deleted on this device is tombstoned, and the cloud merge
+          drops anything tombstoned — so an invite to a trip she had removed
+          once claimed successfully, reloaded, and merged into nothing, with
+          no message, on every reload forever.
+        */
+        if (typeof result.data === 'string' && result.data.trim()) {
+          forgetDeletedTrip(result.data.trim());
+        }
         // The one thing the claim knows and the app did not: which trip.
         try {
           if (typeof result.data === 'string' && result.data.trim()) {

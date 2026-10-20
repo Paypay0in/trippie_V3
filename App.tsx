@@ -2044,7 +2044,29 @@ const App: React.FC = () => {
       const joined = [...draftsRef.current, ...missing].find(
         (draft) => draft.id === joinedId,
       );
-      if (!joined) return;
+      /*
+        「我用這個連結分享給 sherry 但她登入沒看到東京的旅冊」.
+
+        This was a bare `return`. The claim had succeeded, the reload had
+        happened, and the trip was not in what the cloud handed back — so the
+        app simply carried on, and did it again on every reload, saying
+        nothing. The marker is kept, because a later read may still find it;
+        what was missing was any admission that it had not.
+
+        The cause is on the server side of the fence: `trips_select` needs a
+        `trip_members` row carrying her auth id, and if the claim wrote none —
+        or somebody else holds that seat — she can read nothing. That cannot
+        be fixed from here, but it can stop being invisible.
+      */
+      if (!joined) {
+        // A toast, not the sync note: the note only reaches the `?sync=1`
+        // panel, which is exactly nobody in the situation this describes.
+        showToast(
+          "已加入，但這個帳號還讀不到那趟旅程。請對方在「管理旅伴」確認你顯示為已加入。",
+          "error",
+        );
+        return;
+      }
       clearJoinedTripId(window.localStorage);
       hydrateDraft(joined as TripDraft);
       setViewMode("trip");
