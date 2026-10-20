@@ -306,6 +306,21 @@ const TripPlanOverview: React.FC<Props> = ({
     plug standard are durably true, and the AI lookup above is for the things
     that are not. See `powerAndPlugs`.
   */
+  /*
+    One value for 「where this trip goes」, 「為何不能點」.
+
+    The field showed 墨西哥 — because it falls back to `destination` when the
+    country was never resolved — and the button beside it was disabled on
+    `!destinationCountry`, which was empty. So the screen displayed a
+    destination and refused to act on the one it was displaying, with no way
+    to tell from the outside which of the two was lying.
+
+    The same shape as every other one of these: two readings of one fact, and
+    the stricter one is the one nobody can see. `handleResearchTravelRules`
+    uses the trip's own destination text anyway, so the gate was stricter than
+    the thing it was guarding.
+  */
+  const lookupDestination = (destinationCountry || destination || '').trim();
   const power = powerAdviceFor(destinationCountry || destination);
   const localTips = getDestinationTips(destinationCountry || destination);
   // What the traveller last asked about, so the recommendations answer the
@@ -842,12 +857,15 @@ const TripPlanOverview: React.FC<Props> = ({
                     country under a city was two answers to a question with
                     one. Typing a city still resolves to its country. */}
                 <input
-                  value={destinationCountry || destination}
+                  data-testid="entry-rules-destination"
+                  value={lookupDestination}
                   onChange={event => onChangeDestination(event.target.value)}
                   placeholder="例如：韓國"
                   className="mt-0.5 w-full bg-transparent text-sm font-black text-[#11183d] outline-none placeholder:font-bold placeholder:text-slate-300"
                 />
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{destinationCountry ? '查詢會用這個國家' : '輸入國家或城市'}</span>
+                {/* What the lookup will actually be given, rather than which
+                    internal field happened to hold it. */}
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{lookupDestination ? `查詢會用「${lookupDestination}」` : '輸入國家或城市'}</span>
               </label>
               <label className="rounded-xl bg-white p-3 shadow-sm">
                 <span className="block text-[10px] font-black text-slate-400">護照</span>
@@ -883,7 +901,8 @@ const TripPlanOverview: React.FC<Props> = ({
             )}
             <button
               type="button"
-              disabled={!destinationCountry || !hasPassport || researching}
+              data-testid="entry-rules-lookup"
+              disabled={!lookupDestination || !hasPassport || researching}
               onClick={async () => {
                 setResearching(true);
                 setResearchError('');
