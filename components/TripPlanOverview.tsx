@@ -17,7 +17,8 @@ import { openAppWithFallback, browserLaunchEnvironment } from '../services/appLa
 import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, ShoppingItem, TravelRules } from '../types';
 import { fetchSuggestedPlaces } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
-import { powerAdviceFor, powerAdviceLines, powerHeadline } from '../services/powerAndPlugs';
+import { powerAdviceLines, powerHeadline, powerProfileFor } from '../services/powerAndPlugs';
+import PlugTypeIcon from './PlugTypeIcon';
 import { findOfficialLink } from '../services/officialTravelLinks';
 
 /**
@@ -321,7 +322,7 @@ const TripPlanOverview: React.FC<Props> = ({
     the thing it was guarding.
   */
   const lookupDestination = (destinationCountry || destination || '').trim();
-  const power = powerAdviceFor(destinationCountry || destination);
+  const power = powerProfileFor(lookupDestination);
   const localTips = getDestinationTips(destinationCountry || destination);
   // What the traveller last asked about, so the recommendations answer the
   // question rather than the country. Kept separate from the live textarea: the
@@ -1136,20 +1137,28 @@ const TripPlanOverview: React.FC<Props> = ({
             <Plug size={18} className="text-amber-500" />電壓與插座
           </h2>
           <p className="mb-3 text-xs leading-5 text-slate-500">
-            {destinationCountry || destination} 的插座跟台灣不一樣的話，到了才發現就來不及了。
+            {lookupDestination} 的插座長這樣，出發前先看一眼帶的充電器對不對得上。
           </p>
           <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-            <span data-testid="power-headline" className="block text-lg font-black text-[#11183d]">
+            {/*
+              The shapes first.
+
+              「另外要附圖片」 — 「A/B 型插座」 is an answer for somebody who already
+              knows the letters, and almost nobody does. The question is whether
+              a plug goes in a hole, which is a question about a shape.
+            */}
+            <div data-testid="power-plugs" className="flex flex-wrap items-center gap-3">
+              {power.plugs.map(plug => (
+                <span key={plug} className="flex flex-col items-center gap-1">
+                  <PlugTypeIcon type={plug} />
+                  <span className="text-[10px] font-black text-slate-500">{plug} 型</span>
+                </span>
+              ))}
+            </div>
+            <span data-testid="power-headline" className="mt-3 block text-lg font-black text-[#11183d]">
               {powerHeadline(power)}
             </span>
-            {/* Said rather than implied: 「需要轉接頭」 is the one line somebody
-                scanning this screen has to come away with. */}
-            <span className={`mt-1.5 inline-block rounded-lg px-2 py-0.5 text-[11px] font-black ${
-              power.needsAdapter ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-            }`}>
-              {power.needsAdapter ? '需要轉接頭' : '不用轉接頭'}
-            </span>
-            <ul data-testid="power-advice" className="mt-3 space-y-2">
+            <ul data-testid="power-advice" className="mt-2 space-y-2">
               {powerAdviceLines(power).map(line => (
                 <li key={line} className="text-xs leading-5 text-slate-600">{line}</li>
               ))}

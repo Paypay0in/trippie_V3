@@ -37,19 +37,16 @@ const mount = (over: Record<string, unknown>) => {
 afterEach(cleanup);
 
 describe('電壓與插座', () => {
-  it('states the voltage and the socket for 韓國', () => {
+  it('states the voltage and shows the socket shapes for 韓國', () => {
     mount({ destination: '釜山', destinationCountry: '韓國' });
 
-    expect(screen.getByTestId('power-headline').textContent).toBe('220V · C/F 型插座');
-    expect(screen.getByText('需要轉接頭')).toBeTruthy();
+    expect(screen.getByTestId('power-headline').textContent).toBe('220V · 60Hz');
+    // 「另外要附圖片」 — the letters mean nothing without the shape.
+    expect(screen.getByTestId('plug-type-C')).toBeTruthy();
+    expect(screen.getByTestId('plug-type-F')).toBeTruthy();
   });
 
-  /*
-    The two questions are separate, and the screen has to keep them apart.
-    Telling somebody with only a phone charger to buy a converter is how a
-    section stops being read.
-  */
-  it('names what actually needs a converter', () => {
+  it('separates what copes with any voltage from what does not', () => {
     mount({ destination: '釜山', destinationCountry: '韓國' });
 
     const advice = screen.getByTestId('power-advice').textContent || '';
@@ -57,11 +54,23 @@ describe('電壓與插座', () => {
     expect(advice).toContain('吹風機');
   });
 
-  it('says plainly that Japan needs nothing', () => {
+  /*
+    「我目前設定是持有中國護照 因此這邊寫台灣很奇怪！」 — home was hardcoded. The
+    app does not know where this reader's sockets are, so it says nothing
+    about them.
+  */
+  it('never mentions a country the traveller did not name', () => {
+    mount({ destination: '墨西哥市', destinationCountry: '墨西哥' });
+
+    const card = screen.getByTestId('power-advice').textContent || '';
+    expect(card).not.toContain('台灣');
+  });
+
+  it('answers for 日本 too', () => {
     mount({ destination: '東京', destinationCountry: '日本' });
 
-    expect(screen.getByTestId('power-headline').textContent).toBe('100V · A/B 型插座');
-    expect(screen.getByText('不用轉接頭')).toBeTruthy();
+    expect(screen.getByTestId('power-headline').textContent).toBe('100V · 50Hz');
+    expect(screen.getByTestId('plug-type-A')).toBeTruthy();
   });
 
   /* A country the table has never heard of says nothing, rather than guessing. */

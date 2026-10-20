@@ -1,7 +1,8 @@
 /**
  * The voltage and the socket shape, for the country being travelled to.
  *
- * 「每個國家在行前 都要提醒電壓跟插座這件事 目前都沒有提醒到」.
+ * 「每個國家在行前 都要提醒電壓跟插座這件事 目前都沒有提醒到」, and then
+ * 「我目前設定是持有中國護照 因此這邊寫台灣很奇怪！…只顯示旅遊目的地的！」.
  *
  * Hand-written, like the airport directory and the destination tips, and for
  * the same reason: this is durably true. A country's mains voltage and plug
@@ -10,18 +11,17 @@
  * that has been settled for fifty years. Anything that *is* time-sensitive —
  * entry rules, refunds — stays with the AI lookup above it.
  *
- * Two questions are answered here, and they are not the same question:
+ * It describes the destination and nothing else. The first version compared
+ * the destination against home and hardcoded home as 台灣, which is a guess
+ * about the reader — and the reader who found it was travelling on a Chinese
+ * passport, reading a line about Taiwanese plugs on a Mexican trip. The app
+ * does not know where somebody's sockets are: a passport is not a residence,
+ * and a residence is not where they are flying from.
  *
- * - **轉接頭** — does the plug fit? Purely about shape. A Taiwanese charger is
- *   Type A; a Korean socket takes C and F; so it does not fit, and no amount of
- *   voltage agreement changes that.
- * - **變壓器** — will it survive the voltage? Almost every phone, laptop and
- *   camera charger made this century is marked 100–240V and needs nothing. What
- *   does not is anything that makes heat: a hairdryer, a straightener, a
- *   travel kettle.
- *
- * Conflating the two is how 「要帶變壓器」 ends up on a screen for somebody who
- * only owns a phone charger.
+ * So no comparison, and no 「要不要帶轉接頭」 verdict, because that verdict needs
+ * the half this app does not have. What it does have is exactly true: this is
+ * the voltage, these are the socket shapes, and here is what that means for
+ * the two kinds of thing people pack.
  */
 import { countryKey } from './countryIdentity';
 
@@ -111,105 +111,24 @@ export const powerProfileFor = (country?: string): PowerProfile | undefined => {
   return key ? BY_KEY.get(key) : undefined;
 };
 
-export interface PowerAdvice extends PowerProfile {
-  /** The plugs at home, for saying what will and will not fit. */
-  homePlugs: string[];
-  homeVoltage: number;
-  /** Nothing the traveller owns will physically go in without one. */
-  needsAdapter: boolean;
-  /** The voltage is different enough that heating appliances will not cope. */
-  differentVoltage: boolean;
-}
-
-/** Taiwan, where this app is used, unless the traveller has said otherwise. */
-const DEFAULT_HOME = '台灣';
+/** 「127V · 60Hz」. */
+export const powerHeadline = (profile: PowerProfile): string =>
+  `${profile.voltage}V · ${profile.frequency}Hz`;
 
 /**
- * What to tell somebody flying from `home` to `destination`.
+ * What the numbers mean for what is in the bag.
  *
- * Nothing is returned when either country is unknown to the table, or when the
- * two are the same place. A reminder that says 「台灣 110V，記得帶轉接頭」 to
- * somebody flying to Taipei is worse than no reminder: it teaches the reader
- * that this section is noise.
+ * The split is the useful part and survives the loss of the home country,
+ * because it is a fact about the appliance rather than about the traveller:
+ * almost everything with a charging brick is marked 100–240V and does not care
+ * what the wall is; anything that makes heat does.
  */
-export const powerAdviceFor = (
-  destination?: string,
-  home: string = DEFAULT_HOME,
-): PowerAdvice | undefined => {
-  const there = powerProfileFor(destination);
-  const here = powerProfileFor(home) || powerProfileFor(DEFAULT_HOME);
-  if (!there || !here) return undefined;
-  if (countryKey(destination) === countryKey(home)) return undefined;
-
-  return {
-    ...there,
-    homePlugs: here.plugs,
-    homeVoltage: here.voltage,
-    // Shape only. Any shared letter means at least one socket takes the plug.
-    needsAdapter: !there.plugs.some(plug => here.plugs.includes(plug)),
-    /*
-      Ten per cent, which is the margin equipment is built to tolerate. 110 and
-      120 are the same supply as far as anything plugged into them is
-      concerned; 110 and 220 are not.
-    */
-    differentVoltage: Math.abs(there.voltage - here.voltage) / here.voltage > 0.1,
-  };
-};
-
-/** 「220V · C/F 型插座」. */
-export const powerHeadline = (advice: PowerProfile): string =>
-  `${advice.voltage}V · ${advice.plugs.join('/')} 型插座`;
-
-/**
- * The sentence underneath, in the order the traveller has to act on it.
- *
- * The converter line names what actually needs one. 「要帶變壓器」 on its own
- * sends somebody shopping for a brick to charge a phone that never needed it.
- */
-export const powerAdviceLines = (advice: PowerAdvice): string[] => {
-  const lines: string[] = [];
-
-  if (advice.needsAdapter) {
-    lines.push(`台規插頭插不進去，要帶轉接頭（${advice.homePlugs.join('/')} → ${advice.plugs.join('/')}）。`);
-  } else {
-    lines.push('插頭形狀和台灣一樣，不用轉接頭。');
-  }
-
-  if (advice.differentVoltage) {
-    lines.push(
-      `電壓 ${advice.homeVoltage}V → ${advice.voltage}V。手機、筆電、相機的充電器多半標示 100–240V，直接用沒問題；`
-      + '吹風機、離子夾、快煮壺這類會發熱的才需要變壓器，或是在當地買、用飯店的。',
-    );
-  } else {
-    lines.push(`電壓和台灣一樣是 ${advice.voltage}V，電器可以直接用。`);
-  }
-
-  if (advice.note) lines.push(advice.note);
+export const powerAdviceLines = (profile: PowerProfile): string[] => {
+  const lines = [
+    `插座是 ${profile.plugs.join('、')} 型，插頭對不上就要轉接頭。`,
+    `電壓 ${profile.voltage}V。手機、筆電、相機的充電器多半標示 100–240V，`
+    + `對得上插座就能直接用；吹風機、離子夾、快煮壺這類會發熱的，要先看機身有沒有支援 ${profile.voltage}V。`,
+  ];
+  if (profile.note) lines.push(profile.note);
   return lines;
-};
-
-/**
- * The one thing that has to be bought before departure, or nothing.
- *
- * Only the adapter, and only when nothing will fit without it. A converter is
- * deliberately not a chore: most travellers need none, and a preparation list
- * that fills itself with things nobody asked for is a list people stop
- * reading — and then the item that mattered is in it too.
- *
- * Shares `powerAdviceFor` with the screen rather than deciding again, so the
- * card and the checklist can never disagree about whether a plug fits.
- *
- * Not wired to anything yet. Trip creation knows the destination as free text
- * （「首爾」）, and this needs the country; seeding it from there would fire for
- * somebody who happened to type 「韓國」 and stay silent for everybody else,
- * which is a checklist that is wrong in a way nobody can see. It is wired the
- * day the country is resolved before the list is seeded.
- */
-export const adapterPreparationFor = (
-  destination?: string,
-  home?: string,
-): string | null => {
-  const advice = powerAdviceFor(destination, home);
-  if (!advice?.needsAdapter) return null;
-  return `帶萬用轉接頭（${advice.plugs.join('/')} 型插座）`;
 };
