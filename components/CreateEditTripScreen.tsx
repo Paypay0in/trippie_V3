@@ -294,51 +294,56 @@ const CreateEditTripScreen: React.FC<Props> = ({
               screen read as heavier than what it contains.
             */}
             {/*
-              minmax(0,1fr), not 1fr.
+              Two lines, one field each.
 
-              A 1fr track is minmax(auto, 1fr): it will not shrink below its
-              content's min-content width. An iOS date input reports a whole
-              date as its minimum, so the row refused to fit and ran off the
-              right edge of the card — which is the 「沒有滿版」 shape, seen from
-              the inside.
-            */}
-            {/*
-              Two columns and nothing between them.
+              「一樣」, twice. The row was two equal `minmax(0,1fr)` tracks with
+              `w-full min-w-0 max-w-full` inputs, then with the arrow removed,
+              then with Safari's native appearance turned off — and the second
+              box still came out wider than the first and past the edge of the
+              card. Three diagnoses, none of them observed anywhere but in a
+              screenshot.
 
-              「日期的格子凸出去啦！」 — the second field ran past the right edge of
-              the card. The arrow and its two gaps were taking about 23px out of
-              a row that had none to give, and an iOS date input will not shrink
-              to fit whatever the track says. Removing the decoration gives the
-              width back to the two things that need it; 開始/結束 are already
-              labelled, so the arrow was saying what the fields say.
+              So the question stops being interesting. A field that owns the
+              whole line cannot be squeezed by the one beside it, whatever the
+              control decides it wants to be. It costs one row of height and it
+              is correct by construction rather than by argument.
+
+              Each one is labelled now. Side by side, 開始 and 結束 were implied
+              by the order and by an arrow; stacked, the order says nothing.
             */}
-            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-2">
-              <label className="relative min-w-0 overflow-hidden">
-                <CalendarDays
-                  size={17}
-                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  aria-label="開始日期"
-                  className="block h-[var(--control-h)] w-full min-w-0 max-w-full rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
-                />
+            <div className="mt-2 space-y-2">
+              <label className="block">
+                <span className="mb-1 block text-support font-medium text-ink-soft">開始</span>
+                <span className="relative block">
+                  <CalendarDays
+                    size={17}
+                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    aria-label="開始日期"
+                    className="block h-[var(--control-h)] w-full min-w-0 max-w-full rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
+                  />
+                </span>
               </label>
-              <label className="relative min-w-0 overflow-hidden">
-                <CalendarDays
-                  size={17}
-                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  type="date"
-                  value={endDate}
-                  min={startDate || undefined}
-                  onChange={(event) => setEndDate(event.target.value)}
-                  aria-label="結束日期"
-                  className="block h-[var(--control-h)] w-full min-w-0 max-w-full rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
-                />
+              <label className="block">
+                <span className="mb-1 block text-support font-medium text-ink-soft">結束</span>
+                <span className="relative block">
+                  <CalendarDays
+                    size={17}
+                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="date"
+                    value={endDate}
+                    min={startDate || undefined}
+                    onChange={(event) => setEndDate(event.target.value)}
+                    aria-label="結束日期"
+                    className="block h-[var(--control-h)] w-full min-w-0 max-w-full rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
+                  />
+                </span>
               </label>
             </div>
             {dateRangeInvalid && (
