@@ -1757,6 +1757,74 @@ async function startServer() {
    * search the budget is dropped and the client shows 價格需確認, because a
    * remembered figure and a looked-up one look identical on screen.
    */
+  /**
+   * One sentence, taken apart into the brief the form already holds.
+   *
+   * 「11月去東京五天，兩個人，喜歡美術館、咖啡廳和購物，不想太趕。住宿在新宿，想去
+   * teamLab。」 — a parse, not research, so no grounded search and no browsing:
+   * every answer is already inside the sentence, and a model that goes looking
+   * is a model that can come back with a fact nobody asked for.
+   *
+   * Absent is a real answer here. The schema has no required field, and the
+   * prompt says so in as many words — a sentence that never mentions how many
+   * people must come back without `travellers`, because a confident 2 reads
+   * exactly like a stated 2 on the form that follows.
+   */
+  app.post("/api/trip-brief/parse", async (req, res) => {
+    const sentence = typeof req.body?.sentence === "string" ? req.body.sentence.trim().slice(0, 600) : "";
+    if (!sentence) { res.status(400).json({ error: "先寫一句話描述你想去的旅行。" }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在無法解析，請直接填下面的表單。" }); return; }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
+        contents: `把下面這句話拆成旅行規劃的欄位。這是「讀出使用者說了什麼」，不是查資料也不是替他決定。
+
+"""
+${sentence}
+"""
+
+規則：
+1. 沒有說到的欄位就「不要回傳那個欄位」。不要猜、不要補預設值。沒說幾個人就不要回 travellers，沒說步調就不要回 pace。
+2. startDate / endDate 只有在句子講出明確日期（像「11/3 到 11/7」「2026-11-03」）時才填，格式 YYYY-MM-DD。
+3. 只講月份（像「11月」）時，填 month（1–12），絕對不要自己編出 startDate。只講天數（像「五天」）時填 days。
+4. pace：「不想太趕」「悠閒」「慢慢玩」= 2；沒特別說 = 不要回傳；「想多去幾個地方」「緊湊」「充實」= 4。
+5. transport 只能是 walk / drive / transit 的組合，而且只有句子真的提到走路、開車租車、搭大眾運輸時才填。
+6. interests 放喜歡的類型（美術館、咖啡廳、購物）；mustDo 放指名一定要去的地點（teamLab）；lodging 放住宿的地點或區域（新宿）。這三個都用句子裡原本的講法，不要翻譯也不要擴寫。
+7. destination 用句子裡的地名原文。
+只回傳 JSON。`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              destination: { type: Type.STRING },
+              travellers: { type: Type.NUMBER },
+              startDate: { type: Type.STRING },
+              endDate: { type: Type.STRING },
+              month: { type: Type.NUMBER },
+              days: { type: Type.NUMBER },
+              pace: { type: Type.NUMBER },
+              transport: { type: Type.ARRAY, items: { type: Type.STRING } },
+              dayStartTime: { type: Type.STRING },
+              interests: { type: Type.ARRAY, items: { type: Type.STRING } },
+              mustDo: { type: Type.ARRAY, items: { type: Type.STRING } },
+              lodging: { type: Type.STRING },
+            },
+          },
+        },
+      }));
+
+      const parsed = JSON.parse(response.text || "{}");
+      res.json(parsed);
+    } catch (error) {
+      console.error("Trip brief parse failed:", error);
+      res.status(502).json({ error: "這句話現在讀不出來，直接填下面的表單也可以。" });
+    }
+  });
+
   app.post("/api/activity-plans", async (req, res) => {
     const intent = typeof req.body?.intent === "string" ? req.body.intent.trim() : "";
     const destination = typeof req.body?.destination === "string" ? req.body.destination.trim() : "";
