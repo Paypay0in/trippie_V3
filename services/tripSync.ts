@@ -453,6 +453,45 @@ export const deleteTripRow = async (tripId: string): Promise<SyncResult<null>> =
  * Members are a small set the owner edits as a whole, so upserting the list and
  * removing what is no longer in it matches how the UI actually changes it.
  */
+/**
+ * Take one traveller off a trip, on the server as well as here.
+ *
+ * 「這本東京帳冊 我已經刪掉『諮』了 怎麼還出現」.
+ *
+ * Removing a companion was local only. The push deliberately never prunes the
+ * roster — see `pushMembers`, where pruning once deleted somebody minutes
+ * after she claimed her invite — so the seat stayed in `trip_members`, and the
+ * next read put her back, because the remote roster is taken wholesale. The
+ * traveller removed the same person over and over and the app kept undoing it.
+ *
+ * That comment's own conclusion is this function: taking somebody off a trip
+ * has to be something a person does on purpose. A push is not that. A tap on
+ * 移除 is.
+ *
+ * Only the owner may: `trip_members_write` is the trip's `owner_id`. A delete
+ * matching no rows reports no error, so the caller checks what it got back
+ * rather than assuming — this is the shape that let the roster lie in the
+ * first place.
+ */
+export const removeTripMember = async (
+  tripId: string,
+  memberId: string,
+): Promise<SyncResult<{ removed: number }>> => {
+  if (!supabase) return { status: 'unavailable' };
+  try {
+    const { data, error } = await supabase
+      .from('trip_members')
+      .delete()
+      .eq('trip_id', tripId)
+      .eq('id', memberId)
+      .select('id');
+    if (error) throw error;
+    return { status: 'ok', data: { removed: (data ?? []).length } };
+  } catch (error) {
+    return failed(error);
+  }
+};
+
 export const pushMembers = async (
   members: TripMember[],
   tripId: string,

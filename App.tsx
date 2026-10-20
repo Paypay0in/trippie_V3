@@ -108,7 +108,7 @@ import {
   destinationLabel,
   detectDestinationFromTripName,
 } from "./services/destinationFromTripName";
-import { deleteTripRow, fetchMyTrips, isSyncAvailable } from "./services/tripSync";
+import { deleteTripRow, fetchMyTrips, isSyncAvailable, removeTripMember } from "./services/tripSync";
 import { IdentityDrift, identityDrift } from "./services/tripIdentityDrift";
 import {
   StatedVisits,
@@ -2679,7 +2679,44 @@ const App: React.FC = () => {
     showToast(`已將好友 ${friend.name} 加入此旅程`);
   };
 
-  const handleRemoveCompanion = (id: string) => {
+  /**
+   * 「這本東京帳冊 我已經刪掉『諮』了 怎麼還出現」.
+   *
+   * Removing a companion only ever changed this device. The push deliberately
+   * never prunes the roster — pruning once deleted somebody minutes after she
+   * claimed her invite — so the seat stayed in `trip_members`, and the next
+   * read put her back, because the remote roster is taken wholesale. He
+   * removed the same person repeatedly and the app undid it every time.
+   *
+   * The server is told first, and the local list only changes if it agreed.
+   * Removing here and failing there is what produced the ghost: a screen that
+   * says somebody is gone while every other device, and this one a minute
+   * later, says they are not.
+   */
+  const handleRemoveCompanion = async (id: string) => {
+    const tripId = activeDraftId || currentLoadedTripId;
+
+    if (isSyncAvailable() && authUser?.id && tripId) {
+      const result = await removeTripMember(tripId, id);
+      if (result.status === "error") {
+        showToast(`沒能移除旅伴：${result.message}`, "error");
+        return;
+      }
+      /*
+        Zero rows is not an error and is not success either.
+
+        `trip_members_write` belongs to the trip's owner, and a delete matching
+        nothing reports nothing — so a member tapping 移除 would have seen the
+        name vanish and come back. It is also the ordinary case for a seat that
+        never reached the cloud, which is why the local removal still happens
+        when sync is off entirely.
+      */
+      if (result.status === "ok" && result.data.removed === 0) {
+        showToast("只有旅程的擁有者可以移除旅伴。", "error");
+        return;
+      }
+    }
+
     setCompanions((prev) => prev.filter((c) => c.id !== id));
     showToast("已移除旅伴", "error");
   };
