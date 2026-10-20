@@ -140,6 +140,7 @@ import {
 import {
   buildTripRoster,
   memberNameById,
+  ownerUserIdFor,
   resolveViewer,
 } from "./services/tripRoster";
 import { selectSpendingExpenses } from "./services/spendingLedger";
@@ -4160,7 +4161,11 @@ const App: React.FC = () => {
    * settlement had nobody to owe, and his bills offered her an edit button,
    * because every permission question answered 「you are the owner」.
    */
-  const settlementOwnerUserId = drafts.find(draft => draft.id === settlementTripId)?.ownerId || userId;
+  const settlementOwnerUserId = ownerUserIdFor({
+    storedOwnerId: drafts.find(draft => draft.id === settlementTripId)?.ownerId,
+    viewerUserId: userId,
+    companions,
+  });
   /**
    * What to call the owner on a device that is not theirs.
    *

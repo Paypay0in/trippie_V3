@@ -28,6 +28,49 @@ export const ownerMemberId = (tripId: string): string => `${tripId}:owner`;
  */
 export const isOwnerShapedId = (id: string): boolean => isOwnerIdentity(id);
 
+/**
+ * Whose trip this is, when the stored answer is missing.
+ *
+ * 「Sherry 的帳本 有帳但不能儲存 分帳的部分也不會自動計算」.
+ *
+ * The owner seat was built with `draft.ownerId || viewerUserId` — so a trip
+ * whose `ownerId` had not arrived yet put *her* auth id in *his* seat. And
+ * `resolveViewer` checks the owner seat first, so she then matched as the
+ * owner, with `isResolved: true`: no banner, no warning, every permission
+ * question answering 「yes, you are」.
+ *
+ * Two things follow, and both are about money. `calculateTripDebts` folds
+ * every owner alias onto the owner's id, so she and he became one member and
+ * the whole split cancelled to zero. And her own records were filed under his
+ * seat, which is why she could not edit them again.
+ *
+ * The missing piece is evidence: a companion seat carrying this account's id
+ * is proof that this account is a *member*, which is proof it is not the
+ * owner. In that case the owner is somebody whose id this device has not been
+ * told, and the seat says so by carrying none — which is the honest answer,
+ * and the one that lets `resolveViewer` fall through to her real seat.
+ *
+ * A trip with no `ownerId` and no companion claiming this account is a trip
+ * only this device has ever had. That one is genuinely the reader's.
+ */
+export const ownerUserIdFor = ({
+  storedOwnerId,
+  viewerUserId,
+  companions,
+}: {
+  storedOwnerId?: string;
+  viewerUserId?: string;
+  companions: Companion[];
+}): string | undefined => {
+  const stored = storedOwnerId?.trim();
+  if (stored) return stored;
+  if (!viewerUserId?.trim()) return undefined;
+
+  const holdsASeat = companions.some(companion =>
+    companion.userId === viewerUserId || companion.id === viewerUserId);
+  return holdsASeat ? undefined : viewerUserId;
+};
+
 export interface BuildTripRosterInput {
   tripId: string;
   /** Auth (or anonymous) user id of the trip owner. */
