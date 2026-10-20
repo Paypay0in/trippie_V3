@@ -134,3 +134,31 @@
 [data-safe-top] {
   padding-top: max(var(--safe-top-base, 1.25rem), env(safe-area-inset-top));
 }
+
+/*
+  「日期的格子凸出去啦！」, and after the first fix, 「一樣」.
+
+  The row is two equal `minmax(0,1fr)` tracks and the inputs are `w-full
+  min-w-0 max-w-full`, so nothing in the layout asks for more room — and the
+  two boxes still came out different widths, with the right one past the edge
+  of the card. Equal tracks cannot produce unequal boxes. The control is
+  ignoring the width it was given.
+
+  That is Safari's `input[type="date"]`: with the native appearance on, it
+  sizes itself from its own shadow content （the date segments plus the
+  calendar button） and paints at that width whatever CSS says. Turning the
+  native appearance off is what makes it an ordinary box again. The picker
+  still opens on tap — appearance governs the painting, not the behaviour.
+
+  Here rather than on one screen: every date field in this app is the same
+  control with the same bug, and the three that are not on screen today would
+  each have to find this out again.
+*/
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+}
