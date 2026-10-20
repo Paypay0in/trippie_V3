@@ -3077,9 +3077,19 @@ const App: React.FC = () => {
               formattedAddress: undefined,
               latitude: undefined,
               longitude: undefined,
-              city: undefined,
+              /*
+                Emptied, never removed.
+
+                `JSON.stringify` omits an undefined key, and the loader used to
+                delete any record that came back without a country or a city —
+                so this button, whose label promises 「店名和你寫的筆記都留著」,
+                destroyed every record it touched on the next reload. The
+                loader no longer requires them; these stay as empty strings so
+                an older build cannot do it either.
+              */
+              city: '',
               district: undefined,
-              country: undefined,
+              country: '',
               // Cleared too, or the backfill would skip the very records that
               // need asking again.
               placeResolvedAt: undefined,

@@ -7,7 +7,32 @@ const CATEGORIES = ['food', 'cafe', 'stay', 'sight', 'shop', 'transport', 'other
 const normalize = (value: unknown): SavedTravelInspiration | null => {
   if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
-  if (!['id', 'savedByUserId', 'country', 'city', 'placeName', 'sourcePostId', 'sourceSliceId', 'sourceCreatorId', 'savedAt'].every(key => typeof source[key] === 'string' && Boolean(source[key]))) return null;
+  /*
+    What a saved place has to have to be a saved place.
+
+    「我原本存 40 個」, and the collection was down to twenty-two.
+
+    This gate used to require nine non-empty strings, `country` and `city`
+    among them — and 「把這 N 個退回未對應」 writes `country: undefined` and
+    `city: undefined` onto every record it touches, by design, because the
+    whole point is to forget a wrong map binding. `JSON.stringify` omits an
+    undefined key, the record came back without one, this returned `null`, and
+    the `.filter` below deleted it. The standing effect then wrote the
+    shortened list back to storage, so one reload made it permanent — and the
+    sync prune, seeing records that had locally disappeared, deleted the server
+    rows too.
+
+    The button says 「只清掉地圖對應，店名和你寫的筆記都留著」. It destroyed them.
+
+    A record's identity is its `id` and the name of the place. Where it is, who
+    posted it and when it was saved are facts *about* it: a record missing one
+    is a record with a gap, not a record that never existed. They are read as
+    empty strings now, which is also what every other screen already handles —
+    `savedElsewhere` skips a blank country, the backfill exists precisely to
+    fill them in.
+  */
+  if (!['id', 'placeName'].every(key => typeof source[key] === 'string' && Boolean(source[key]))) return null;
+  const text = (key: string): string => (typeof source[key] === 'string' ? source[key] as string : '');
   const notes = Array.isArray(source.notes) ? source.notes.filter(note => note && typeof note === 'object').map(note => {
     const item = note as Record<string, unknown>;
     return typeof item.id === 'string' && typeof item.sourceNoteId === 'string' && typeof item.sourceSliceId === 'string' && typeof item.sourcePostId === 'string' && typeof item.sourceCreatorId === 'string' && typeof item.text === 'string'
@@ -18,7 +43,7 @@ const normalize = (value: unknown): SavedTravelInspiration | null => {
     (Array.isArray(source.sourceNoteIds) ? source.sourceNoteIds : notes.map(note => note.sourceNoteId))
       .filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
   ));
-  return { id: source.id as string, savedByUserId: source.savedByUserId as string, country: source.country as string, city: source.city as string, placeName: source.placeName as string, placeId: typeof source.placeId === 'string' ? source.placeId : undefined, resolvedPlaceName: typeof source.resolvedPlaceName === 'string' ? source.resolvedPlaceName : undefined, formattedAddress: typeof source.formattedAddress === 'string' ? source.formattedAddress : undefined, latitude: typeof source.latitude === 'number' ? source.latitude : undefined, longitude: typeof source.longitude === 'number' ? source.longitude : undefined, placePhotoUrl: typeof source.placePhotoUrl === 'string' ? source.placePhotoUrl : undefined, sourcePostId: source.sourcePostId as string, sourceSliceId: source.sourceSliceId as string, sourceCreatorId: source.sourceCreatorId as string, sourceNoteIds, savedAt: source.savedAt as string, notes,
+  return { id: source.id as string, savedByUserId: text('savedByUserId'), country: text('country'), city: text('city'), placeName: source.placeName as string, placeId: typeof source.placeId === 'string' ? source.placeId : undefined, resolvedPlaceName: typeof source.resolvedPlaceName === 'string' ? source.resolvedPlaceName : undefined, formattedAddress: typeof source.formattedAddress === 'string' ? source.formattedAddress : undefined, latitude: typeof source.latitude === 'number' ? source.latitude : undefined, longitude: typeof source.longitude === 'number' ? source.longitude : undefined, placePhotoUrl: typeof source.placePhotoUrl === 'string' ? source.placePhotoUrl : undefined, sourcePostId: text('sourcePostId'), sourceSliceId: text('sourceSliceId'), sourceCreatorId: text('sourceCreatorId'), sourceNoteIds, savedAt: text('savedAt'), notes,
     /*
       Fields added to the record after this whitelist was written.
 
