@@ -25,6 +25,7 @@ import {
   TripDestinationContext,
 } from '../services/tripInspirationSelection';
 import { elsewhereLabel, savedElsewhere } from '../services/savedElsewhere';
+import { hiddenSameCountrySaves } from '../services/hiddenSameCountrySaves';
 import {
   enumerateTripDates,
   generateTripInspirationProposal,
@@ -595,6 +596,18 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const elsewhere = useMemo(
     () => savedElsewhere(inspirations, trip.destinationCountry || trip.destination),
     [inspirations, trip.destinationCountry, trip.destination],
+  );
+  /*
+    「我的東京儲存的旅遊靈感都不見了」 — on a 東京 trip, one of twenty-two showing.
+
+    The others are in Japan and have no coordinates, so the city-scoped match
+    falls back to comparing 「台東區」 with 「東京」 and hides them. The banner
+    above counts them and offers the repair; the list below said nothing. See
+    `hiddenSameCountrySaves`.
+  */
+  const hiddenHere = useMemo(
+    () => hiddenSameCountrySaves(inspirations, trip),
+    [inspirations, trip],
   );
   const groupIds = useMemo(() => new Set(groups.map(group => group.id)), [groups]);
   // Places already in the official itinerary. Compared against the canonical trip
@@ -1253,6 +1266,19 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             移除這 {misplaced.length} 筆
           </button>
         </div>
+      )}
+
+      {/*
+        The link between the two boxes. Without it they are two true
+        statements — 「22 個要更新」 and a list with one row — and the reader is
+        left to conclude the collection is gone.
+      */}
+      {hiddenHere > 0 && (
+        <p data-testid="hidden-same-country" className="mt-3 rounded-2xl bg-amber-50 px-3 py-2.5 text-[11px] leading-5 text-amber-800">
+          同一個國家還有 <b className="font-black">{hiddenHere} 個收藏</b>沒有出現在下面，
+          因為它們還沒有地圖位置，App 分不出是這個城市還是別的城市。
+          按上面的「補齊這 {placeGaps.length} 個地點」查一次就會回來。
+        </p>
       )}
 
       {groups.length === 0 ? (
