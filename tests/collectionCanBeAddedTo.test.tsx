@@ -75,3 +75,32 @@ describe('the collection screen', () => {
     expect(screen.queryByTestId('screenshot-intake')).toBeNull();
   });
 });
+
+/**
+ * 「能讓收藏清單中看到我在記帳下寫的備註嗎與圖片嗎？」
+ *
+ * The collection holds what somebody else said about a place; the ledger holds
+ * what it cost when you went.
+ */
+describe('a saved place you have paid at', () => {
+  const bill = {
+    id: 'e', date: '2026-10-20', description: '黑船亭 洋食料理', twdAmount: 882,
+    amountOriginal: 4300, currency: 'JPY', exchangeRate: 0.205,
+    category: '餐飲', phase: 'during', merchantPlaceId: 'ChIJ-k',
+    note: '蘑菇義大利麵很好吃', receiptPhotos: ['photo-1'],
+  };
+
+  it('says what it cost, with the note written on the bill', () => {
+    mount({ items: [saved({ placeId: 'ChIJ-k' })], expenses: [bill] });
+
+    const block = screen.getByTestId('spend-at-a');
+    expect(block.textContent).toContain('NT$ 882');
+    expect(block.textContent).toContain('蘑菇義大利麵很好吃');
+  });
+
+  it('shows nothing for a place no bill was recorded at', () => {
+    mount({ items: [saved({ placeId: 'ChIJ-other' })], expenses: [bill] });
+
+    expect(screen.queryByTestId('spend-at-a')).toBeNull();
+  });
+});

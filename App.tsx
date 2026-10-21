@@ -6740,6 +6740,11 @@ const App: React.FC = () => {
         onAddSavedPlace={handleAddSavedPlace}
         onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
         /*
+          The open trip's bills plus everything already filed, so a place
+          visited on a finished trip still shows what it cost.
+        */
+        expenses={[...expenses, ...tripHistory.flatMap((trip) => trip.expenses || [])]}
+        /*
           「這在釜山 我無法改」 — a record bound to the wrong place is missing
           nothing, so every repair built around 「what is incomplete」 skipped it.
           The same writer the planner's lookup uses, stamped like any other

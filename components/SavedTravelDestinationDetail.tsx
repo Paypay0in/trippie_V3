@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
-import { Ellipsis, MapPin, Plus } from 'lucide-react';
-import { CommunityPost, SavedExperienceNote, SavedTravelInspiration } from '../types';
+import { Ellipsis, MapPin, Plus, Receipt } from 'lucide-react';
+import { CommunityPost, Expense, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { keepDistinctNotes } from '../services/distinctNotes';
@@ -15,6 +15,7 @@ import SavedPlaceCard from './SavedPlaceCard';
 import AddPlaceByName from './AddPlaceByName';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
+import { spendAtPlace, spendSummary } from '../services/spendAtPlace';
 import PlaceThumbnail from './PlaceThumbnail';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { dayMapSrc } from '../services/dayMapImage';
@@ -80,6 +81,13 @@ type Props = {
    */
   onAddSavedPlace?: (resolved: ResolvedCandidate) => void;
   onSaveScreenshotPlaces?: (slices: ItinerarySlice[]) => Promise<number> | number;
+  /**
+   * The trip's bills, so a saved place can show what it cost when you went.
+   *
+   * 「能讓收藏清單中看到我在記帳下寫的備註嗎與圖片嗎？」. Matched on
+   * `merchantPlaceId` — see `spendAtPlace` for why not on the name.
+   */
+  expenses?: Expense[];
 };
 
 
@@ -92,7 +100,7 @@ type Props = {
  */
 const NOTE_PREVIEW = 4;
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces }) => {
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [] }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
@@ -503,7 +511,46 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             const onlyAuthor = authors.size === 1 && notesOf(item).length > 1 ? sources[0] : null;
             const expanded = openNotes.has(item.id);
             const shown = expanded ? notesOf(item) : notesOf(item).slice(0, NOTE_PREVIEW);
+            const spend = spendAtPlace(item, expenses);
             return <>
+            {/*
+              What it cost when you went.
+
+              「能讓收藏清單中看到我在記帳下寫的備註嗎與圖片嗎？」 — the collection
+              holds what somebody else said about a place; the ledger holds the
+              receipt, the amount and the line you wrote afterwards. Joined on
+              `merchantPlaceId`, which a receipt scan already records. See
+              `spendAtPlace`.
+            */}
+            {spend.length > 0 && (
+              <div data-testid={`spend-at-${item.id}`} className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2">
+                <span className="flex items-center gap-1 text-[11px] font-black text-emerald-800">
+                  <Receipt size={11} />你在這裡花過 {spendSummary(spend)}
+                </span>
+                {spend.map(entry => (
+                  <span key={entry.expenseId} className="mt-1.5 flex items-start gap-2">
+                    {entry.photo && (
+                      <img
+                        src={entry.photo}
+                        alt=""
+                        loading="lazy"
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                      />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[11px] font-bold text-emerald-900">
+                        {entry.date.slice(5).replace('-', '/')}・{entry.description}
+                      </span>
+                      {/* The line the traveller wrote, which is the part of a
+                          bill nobody else could have written. */}
+                      {entry.note && (
+                        <span className="mt-0.5 block text-[10px] leading-4 text-emerald-700">{entry.note}</span>
+                      )}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            )}
             {onlyAuthor && (
               <button
                 type="button"
