@@ -108,6 +108,60 @@ describe('the four counts', () => {
   });
 });
 
+/*
+  「這都能去掉機場」 — 桃園 and 成田 were pins on the footprint, areas of their
+  own, and counted as 造訪景點. An airport is the one place on a trip nobody
+  chose to go to.
+*/
+describe('getting there is not being there', () => {
+  const airport = stop({
+    id: 'tpe', title: 'Taiwan Taoyuan International Airport',
+    type: 'FLIGHT', latitude: 25.0777, longitude: 121.2328,
+  });
+
+  it('leaves an airport out of 造訪景點', () => {
+    const built = recap([stop({ id: 'a' }), airport]);
+
+    expect(built.stats.places).toBe(1);
+  });
+
+  /* By name as well as by type: an item typed ACTIVITY still reads as one. */
+  it('reads an airport by its name when the type says nothing', () => {
+    const built = recap([stop({ id: 'nrt', title: '成田機場第二航廈' })]);
+
+    expect(built.stats.places).toBe(0);
+  });
+
+  it('never promotes an airport to 旅程亮點, however it was rated', () => {
+    const built = recap(
+      [{ ...airport, latitude: 25.0777, longitude: 121.2328 }],
+      [bill({
+        merchant: 'Taiwan Taoyuan International Airport', rating: 5,
+        merchantLatitude: 25.0777, merchantLongitude: 121.2328,
+      })],
+    );
+
+    expect(built.highlights).toEqual([]);
+    expect(built.favouritePlace).toBeUndefined();
+  });
+
+  /* It still happened, so the day still lists it. */
+  it('keeps it on the day it was on', () => {
+    const built = recap([airport]);
+
+    expect(built.days[0].stops.map(entry => entry.itemId)).toEqual(['tpe']);
+  });
+
+  it('calls a flight and a hotel what they are', () => {
+    const built = recap([
+      stop({ id: 'f', title: 'JL802', type: 'FLIGHT' }),
+      stop({ id: 'h', title: 'Hotel Plus Hostel', type: 'HOTEL' }),
+    ]);
+
+    expect(built.days[0].stops.map(entry => entry.category)).toEqual(['transport', 'stay']);
+  });
+});
+
 describe('the days', () => {
   it('numbers them from one, in date order', () => {
     const built = recap([

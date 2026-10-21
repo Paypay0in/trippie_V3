@@ -108,6 +108,16 @@ const asPlace = (item: ItineraryItem) => ({
 
 const BY_SLICE: Partial<Record<ItineraryItem['type'], PlaceCategory>> = {
   FOOD: 'food',
+  /*
+    A flight is a way of getting there, not somewhere you went.
+
+    「這都能去掉機場」 — 桃園 and 成田 were pins on the footprint map and areas
+    in their own right, and 造訪景點 counted them. An airport is the one place
+    on the map nobody chose.
+  */
+  FLIGHT: 'transport',
+  TRANSPORT: 'transport',
+  HOTEL: 'stay',
 };
 
 /**
@@ -119,6 +129,21 @@ const BY_SLICE: Partial<Record<ItineraryItem['type'], PlaceCategory>> = {
  */
 const categoryOf = (item: ItineraryItem): PlaceCategory =>
   BY_SLICE[item.type] ?? placeCategory({ name: item.title });
+
+/**
+ * Getting there, rather than being there.
+ *
+ * Exported because the areas on the review are grouped from the itinerary
+ * directly, and an airport that is off the map but still its own 一帶 would
+ * be the screen disagreeing with itself.
+ *
+ * Read off `placeCategory`, which has answered 「what kind of place is this」
+ * for this project since the collection's tags — 機場, airport, 航站, station
+ * are all already in its table. A second airport rule here would be a second
+ * answer to a question already settled.
+ */
+export const isGettingThere = (item: ItineraryItem): boolean =>
+  categoryOf(item) === 'transport';
 
 /** A day that has been and gone, or a stop the traveller ticked. */
 const hasHappened = (item: ItineraryItem, today: string): boolean =>
@@ -195,7 +220,7 @@ export const buildTripRecap = (
     Top 3 between two openings reads as though it were made up.
   */
   const byRating = visited
-    .filter(stop => typeof stop.rating === 'number')
+    .filter(stop => typeof stop.rating === 'number' && stop.category !== 'transport')
     .sort((left, right) =>
       (right.rating as number) - (left.rating as number)
       || (right.twdAmount ?? 0) - (left.twdAmount ?? 0)
@@ -204,7 +229,7 @@ export const buildTripRecap = (
   return {
     stats: {
       days: dates.length,
-      places: visited.filter(stop => stop.category !== 'food').length,
+      places: visited.filter(stop => stop.category !== 'food' && stop.category !== 'transport').length,
       meals: visited.filter(stop => stop.category === 'food').length,
       totalTwd: input.expenses.reduce((sum, expense) => sum + costToViewer(expense), 0),
     },

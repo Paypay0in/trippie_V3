@@ -18,7 +18,7 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, CalendarRange, MapPin, NotebookPen, Receipt, Sparkles, Star, UtensilsCrossed } from 'lucide-react';
 import { Expense, Trip, TripMember } from '../types';
-import { RecapStop, buildTripRecap, starsFor } from '../services/tripRecap';
+import { RecapStop, buildTripRecap, isGettingThere, starsFor } from '../services/tripRecap';
 import { buildTripAreas } from '../services/tripAreas';
 import { dayMapSrc } from '../services/dayMapImage';
 import { CATEGORY_LABELS } from '../services/placeCategory';
@@ -95,7 +95,11 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
     there — the review is about where this trip went.
   */
   const areas = useMemo(
-    () => buildTripAreas({ itinerary: trip.itinerary || [], country: trip.travelCountry }).clusters,
+    () => buildTripAreas({
+      // 「這都能去掉機場」 — 桃園 一帶 is not an area of a trip to Tokyo.
+      itinerary: (trip.itinerary || []).filter(item => !isGettingThere(item)),
+      country: trip.travelCountry,
+    }).clusters,
     [trip.itinerary, trip.travelCountry],
   );
 
@@ -108,7 +112,10 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
     the line is that order; five days joined up would draw a route nobody
     took, in the order the itinerary happens to be stored in.
   */
-  const pins = recap.visited.filter(stop => typeof stop.latitude === 'number');
+  /* The places, not the airports they were reached through. */
+  const pins = recap.visited.filter(
+    stop => typeof stop.latitude === 'number' && stop.category !== 'transport',
+  );
   const footprint = pins.length > 0
     ? dayMapSrc({
       stops: pins.map((stop, index) => ({
