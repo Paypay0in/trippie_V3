@@ -9069,6 +9069,8 @@ const App: React.FC = () => {
                 onAddFromScreenshots={handleAddShoppingFromScreenshots}
                 phase={currentPhase}
                 makeId={generateId}
+                /* 「拍收據的時候 就要自動對比購物清單」 — see `boughtFromReceipt`. */
+                expenses={ratedExpenses}
               />
             </div>
           </div>

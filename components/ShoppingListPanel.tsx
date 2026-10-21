@@ -3,6 +3,8 @@ import { ShoppingItem } from '../types';
 import { Check, ChevronDown, ImageIcon, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, Circle } from 'lucide-react';
 import { findProductImage, sourceLabel } from '../services/productImageService';
 import { byRegion, checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
+import { boughtFromReceipts } from '../services/boughtFromReceipt';
+import { Expense } from '../types';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
 
 /**
@@ -48,6 +50,13 @@ interface Props {
   onAddFromScreenshots?: (items: ShoppingItem[]) => void;
   phase?: ShoppingItem['phase'];
   makeId?: () => string;
+  /**
+   * The trip's bills, so a receipt can say what was already bought.
+   *
+   * 「之後若用戶拍收據的時候 就要自動對比購物清單中的東西是否已經買到」. The
+   * comparison is automatic; the ticking is not. See `boughtFromReceipt`.
+   */
+  expenses?: Expense[];
 }
 
 /** The chip every list has, whatever is in it. */
@@ -63,6 +72,7 @@ const ShoppingListPanel: React.FC<Props> = ({
   onAddFromScreenshots,
   phase,
   makeId,
+  expenses = [],
 }) => {
   const [newItemName, setNewItemName] = useState('');
   const [filter, setFilter] = useState(ALL);
@@ -167,6 +177,18 @@ const ShoppingListPanel: React.FC<Props> = ({
     return [...groups.entries()];
   }, [shown]);
 
+  /*
+    Rows a receipt says were bought, offered rather than ticked.
+
+    An unticked row that was bought costs a glance at the shelf; a ticked row
+    that was not costs the trip home without the thing. The two mistakes are
+    not the same size, so the screen asks.
+  */
+  const probablyBought = useMemo(
+    () => (onUpdateItem ? boughtFromReceipts(shoppingList, expenses) : []),
+    [shoppingList, expenses, onUpdateItem],
+  );
+
   const fold = (label: string) => setCollapsed(current => {
     const next = new Set(current);
     if (next.has(label)) next.delete(label); else next.add(label);
@@ -228,6 +250,34 @@ const ShoppingListPanel: React.FC<Props> = ({
                 {label} {count}
               </button>
             ))}
+          </div>
+        )}
+
+        {probablyBought.length > 0 && (
+          <div data-testid="shopping-bought-offer" className="mb-2 rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5">
+            <p className="text-[11px] font-black text-emerald-800">
+              收據上出現了這 {probablyBought.length} 樣，已經買到了嗎？
+            </p>
+            <div className="mt-1.5 space-y-1">
+              {probablyBought.map(({ item, line, date }) => (
+                <div key={item.id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-emerald-900">
+                    {item.name}
+                    <span className="ml-1 text-emerald-600">
+                      · {date.slice(5).replace('-', '/')} {line}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    data-testid={`shopping-mark-bought-${item.id}`}
+                    onClick={() => onUpdateItem?.(item.id, { isPurchased: true })}
+                    className="shrink-0 rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-black text-white"
+                  >
+                    標記已買
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

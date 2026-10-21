@@ -146,7 +146,17 @@ export const candidateToShoppingItem = (
  * existing row keeps what it already says rather than being overwritten by a
  * reading somebody has not checked.
  */
-const nameKey = (value: string) => value.toLocaleLowerCase().replace(/[\s　]/g, '');
+/**
+ * A product name with nothing in it but the characters.
+ *
+ * Exported because 「is this the same product」 is asked in two places now —
+ * merging two screenshots, and matching a receipt line against the list — and
+ * two ideas of that is how a list comes to disagree with itself.
+ */
+export const shoppingNameKey = (value: string) =>
+  value.toLocaleLowerCase().replace(/[\s　]/g, '');
+
+const nameKey = shoppingNameKey;
 
 export const mergeShoppingItems = (
   current: ShoppingItem[],

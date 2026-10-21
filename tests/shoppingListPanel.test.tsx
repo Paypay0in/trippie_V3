@@ -277,3 +277,45 @@ describe('what it should cost', () => {
     expect(screen.queryByTestId('shopping-amount-sk2')).toBeNull();
   });
 });
+
+/**
+ * 「之後若用戶拍收據的時候 就要自動對比購物清單中的東西是否已經買到」.
+ *
+ * The comparison is automatic; the ticking is not. An unticked row that was
+ * bought costs a glance at the shelf; a ticked row that was not costs the trip
+ * home without the thing.
+ */
+describe('what a receipt says was bought', () => {
+  const receipt = [{
+    id: 'e1', date: '2026-10-21', description: '松本清', twdAmount: 1200,
+    receiptItems: [{ name: 'SK-II 青春露 230ML' }],
+  }] as never;
+
+  it('offers the row rather than ticking it', () => {
+    const { onUpdateItem } = show([item()], { expenses: receipt });
+
+    expect(screen.getByTestId('shopping-bought-offer').textContent).toContain('已經買到了嗎');
+    expect(onUpdateItem).not.toHaveBeenCalled();
+  });
+
+  it('ticks it when the traveller says so', () => {
+    const { onUpdateItem } = show([item()], { expenses: receipt });
+
+    fireEvent.click(screen.getByTestId('shopping-mark-bought-sk2'));
+
+    expect(onUpdateItem).toHaveBeenCalledWith('sk2', { isPurchased: true });
+  });
+
+  it('says nothing when no receipt names anything on the list', () => {
+    show([item({ name: '雪肌精' })], { expenses: receipt });
+
+    expect(screen.queryByTestId('shopping-bought-offer')).toBeNull();
+  });
+
+  /* A panel that cannot save the answer must not appear to ask. */
+  it('does not ask when the caller cannot tick it', () => {
+    show([item()], { expenses: receipt, onUpdateItem: undefined });
+
+    expect(screen.queryByTestId('shopping-bought-offer')).toBeNull();
+  });
+});
