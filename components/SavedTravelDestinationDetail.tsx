@@ -679,6 +679,17 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             he has been to puts his own records above the internet's.
           */
           visited={Boolean(visits && visitOf(open, visits))}
+          /*
+            「若我想加入對這個景點的筆記 怎麼做？」 — written through the same
+            handler 編輯收藏內容 uses, so a note added here and a note added
+            there are one kind of record.
+          */
+          onAddNote={onUpdateNotes ? (text) => onUpdateNotes(open.id, [...open.notes, {
+            id: `note-${Date.now().toString(36)}`,
+            sourceNoteId: '', sourceSliceId: '', sourcePostId: '',
+            sourceCreatorId: open.savedByUserId,
+            type: 'other', text,
+          } as SavedExperienceNote]) : undefined}
           onClose={() => setOpenPlaceId(null)}
         />
       );

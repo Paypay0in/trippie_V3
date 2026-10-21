@@ -48,6 +48,18 @@ interface Props {
    */
   visited?: boolean;
   /**
+   * Writes a note of the reader's own against this place.
+   *
+   * 「若我想加入對這個景點的筆記 怎麼做？」 — 我的備註 could be read here and
+   * only written from the collection list's ⋯ menu, two screens away. The
+   * moment somebody wants to write one is the moment they are looking at the
+   * place.
+   *
+   * Omit and the box is not offered: a card that cannot save a note must not
+   * appear to take one.
+   */
+  onAddNote?: (text: string) => void;
+  /**
    * What was spent here, when the caller has a ledger to read.
    *
    * Passed in rather than looked up: the card is opened from three screens
@@ -57,7 +69,7 @@ interface Props {
   onClose: () => void;
 }
 
-const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], visited = false, onClose }) => {
+const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], visited = false, onAddNote, onClose }) => {
   /*
     A note came from somewhere or the reader wrote it; there is no third case.
     A `sourcePostId` is that somewhere — a community post, or a screenshot of
@@ -122,6 +134,9 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
     and it is the part a traveller actually reads.
   */
   const [reviews, setReviews] = useState<PlaceReview[]>([]);
+  /** What the reader is writing about this place, before they keep it. */
+  const [writing, setWriting] = useState(false);
+  const [draftNote, setDraftNote] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +144,8 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
     setPhotos([]);
     setHighlights(null);
     setReviews([]);
+    setWriting(false);
+    setDraftNote('');
     setLookingUp(false);
     void fetchPlaceBasics(place.placeId).then(found => { if (!cancelled) setBasics(found); });
     if (place.placeId) {
@@ -304,6 +321,69 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
               ))}
             </div>
           )}
+
+          {/*
+            Writing one, from where the place is.
+
+            「若我想加入對這個景點的筆記 怎麼做？」 — the block above could be read
+            here and only written from the collection list's ⋯ menu. The moment
+            somebody wants to write a note is the moment they are looking at
+            the place, not two screens away.
+
+            The note carries no `sourcePostId`, which is exactly what makes it
+            the reader's own rather than a traveller's — the same rule the
+            split above reads, not a second idea of whose a note is.
+          */}
+          {onAddNote && (
+            <div className="mt-2">
+              {!writing ? (
+                <button
+                  type="button"
+                  data-testid="write-note"
+                  onClick={() => { setWriting(true); setDraftNote(''); }}
+                  className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-emerald-200 text-[11px] font-black text-emerald-700"
+                >
+                  <NotebookPen size={12} />寫一則我的備註
+                </button>
+              ) : (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
+                  <textarea
+                    autoFocus
+                    rows={3}
+                    maxLength={300}
+                    value={draftNote}
+                    onChange={event => setDraftNote(event.target.value)}
+                    aria-label="我的備註"
+                    data-testid="note-input"
+                    placeholder="想記住這裡的什麼？"
+                    className="w-full resize-none rounded-xl border border-emerald-200 bg-white px-2.5 py-2 text-xs text-[#11183d] outline-none placeholder:text-slate-300"
+                  />
+                  <div className="mt-1.5 flex gap-2">
+                    <button
+                      type="button"
+                      data-testid="save-note"
+                      disabled={!draftNote.trim()}
+                      onClick={() => {
+                        onAddNote(draftNote.trim());
+                        setWriting(false);
+                        setDraftNote('');
+                      }}
+                      className="flex-1 rounded-xl bg-emerald-600 py-2 text-[11px] font-black text-white disabled:bg-slate-200 disabled:text-slate-400"
+                    >
+                      留下
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setWriting(false); setDraftNote(''); }}
+                      className="px-3 text-[11px] font-black text-slate-500"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {/*
             Somebody else's experience of the place, kept under their own
             heading. 「不是我的備註，是我從旅人筆記的資訊」 — this is the third kind
@@ -465,6 +545,69 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
                   <p className="min-w-0 flex-1 break-words">{note.text}</p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/*
+            Writing one, from where the place is.
+
+            「若我想加入對這個景點的筆記 怎麼做？」 — the block above could be read
+            here and only written from the collection list's ⋯ menu. The moment
+            somebody wants to write a note is the moment they are looking at
+            the place, not two screens away.
+
+            The note carries no `sourcePostId`, which is exactly what makes it
+            the reader's own rather than a traveller's — the same rule the
+            split above reads, not a second idea of whose a note is.
+          */}
+          {onAddNote && (
+            <div className="mt-2">
+              {!writing ? (
+                <button
+                  type="button"
+                  data-testid="write-note"
+                  onClick={() => { setWriting(true); setDraftNote(''); }}
+                  className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-emerald-200 text-[11px] font-black text-emerald-700"
+                >
+                  <NotebookPen size={12} />寫一則我的備註
+                </button>
+              ) : (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
+                  <textarea
+                    autoFocus
+                    rows={3}
+                    maxLength={300}
+                    value={draftNote}
+                    onChange={event => setDraftNote(event.target.value)}
+                    aria-label="我的備註"
+                    data-testid="note-input"
+                    placeholder="想記住這裡的什麼？"
+                    className="w-full resize-none rounded-xl border border-emerald-200 bg-white px-2.5 py-2 text-xs text-[#11183d] outline-none placeholder:text-slate-300"
+                  />
+                  <div className="mt-1.5 flex gap-2">
+                    <button
+                      type="button"
+                      data-testid="save-note"
+                      disabled={!draftNote.trim()}
+                      onClick={() => {
+                        onAddNote(draftNote.trim());
+                        setWriting(false);
+                        setDraftNote('');
+                      }}
+                      className="flex-1 rounded-xl bg-emerald-600 py-2 text-[11px] font-black text-white disabled:bg-slate-200 disabled:text-slate-400"
+                    >
+                      留下
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setWriting(false); setDraftNote(''); }}
+                      className="px-3 text-[11px] font-black text-slate-500"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {/*
