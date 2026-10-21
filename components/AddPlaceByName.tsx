@@ -35,11 +35,25 @@ interface Props {
   onAdd: (resolved: ResolvedCandidate) => void;
   /** 手動新增地點, unless a screen wants to say it differently. */
   label?: string;
+  /**
+   * What to put in the box when it opens.
+   *
+   * A receipt already carries the shop's name and the address it printed;
+   * retyping them to look up the place they describe is work the screen can
+   * do. The list of candidates still appears — a silent binding is what this
+   * component has always refused, and a receipt that resolved to the wrong
+   * shop would be worse than one that resolved to none.
+   */
+  defaultQuery?: string;
+  /** Run the search as soon as it opens, when the query came from a record. */
+  searchOnOpen?: boolean;
 }
 
-const AddPlaceByName: React.FC<Props> = ({ context, onAdd, label = '手動新增地點' }) => {
+const AddPlaceByName: React.FC<Props> = ({
+  context, onAdd, label = '手動新增地點', defaultQuery = '', searchOnOpen = false,
+}) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(defaultQuery);
   const [results, setResults] = useState<PlaceCandidate[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -56,8 +70,8 @@ const AddPlaceByName: React.FC<Props> = ({ context, onAdd, label = '手動新增
     what it changes is that the search is given the place's name and the spot
     it sits on instead of a URL.
   */
-  const runSearch = async () => {
-    const typed = query.trim();
+  const runSearch = async (override?: string) => {
+    const typed = (override ?? query).trim();
     if (!typed) return;
     setBusy(true);
     setError('');
@@ -127,7 +141,11 @@ const AddPlaceByName: React.FC<Props> = ({ context, onAdd, label = '手動新增
       <button
         type="button"
         data-testid="open-add-place"
-        onClick={() => { setOpen(true); setError(''); }}
+        onClick={() => {
+          setOpen(true);
+          setError('');
+          if (searchOnOpen && defaultQuery.trim()) void runSearch(defaultQuery);
+        }}
         className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50/50 px-3 text-xs font-black text-[#5b3df5]"
       >
         <Plus size={14} />{label}

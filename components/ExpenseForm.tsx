@@ -23,6 +23,8 @@ import { localToday } from '../services/localDate';
 import { remainderMemberFor } from '../services/splitRemainderMember';
 import { readAndDownscale } from '../services/postPhotos';
 import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
+import AddPlaceByName from './AddPlaceByName';
+import { ResolvedCandidate } from '../services/placeCandidates';
 
 interface Props {
   currentPhase: Phase;
@@ -137,6 +139,8 @@ const ExpenseForm: React.FC<Props> = ({
   const [lastEditedSplitId, setLastEditedSplitId] = useState<string | undefined>(undefined);
   const [heldRemainderId, setHeldRemainderId] = useState<string | undefined>(undefined);
   const [managingCategories, setManagingCategories] = useState(false);
+  /** A place chosen by hand for a receipt the scan could not pin down. */
+  const [merchantPlace, setMerchantPlace] = useState<ResolvedCandidate | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const phaseCategories = categoriesForPhase(currentPhase, customCategories);
   const ownCategories = customCategories[currentPhase] ?? [];
@@ -843,7 +847,16 @@ const ExpenseForm: React.FC<Props> = ({
     const readFromReceipt = initialData ? {
       ...(initialData.merchant ? { merchant: initialData.merchant } : {}),
       ...(initialData.merchantAddress ? { merchantAddress: initialData.merchantAddress } : {}),
-      ...(initialData.merchantPlaceId ? {
+      /*
+        The place this bill was bound to, whether the scan found it or the
+        traveller did. The chosen one wins: it is the newer answer, and the
+        control that sets it only appears when there was no older one.
+      */
+      ...(merchantPlace ? {
+        merchantPlaceId: merchantPlace.placeId,
+        merchantLatitude: merchantPlace.latitude,
+        merchantLongitude: merchantPlace.longitude,
+      } : initialData.merchantPlaceId ? {
         merchantPlaceId: initialData.merchantPlaceId,
         merchantLatitude: initialData.merchantLatitude,
         merchantLongitude: initialData.merchantLongitude,
@@ -1220,6 +1233,38 @@ const ExpenseForm: React.FC<Props> = ({
                         <MapPin size={10} className="mt-0.5 shrink-0" />
                         <span className="min-w-0 flex-1">{initialData.merchantAddress}</span>
                       </div>
+                    )}
+                    {/*
+                      The address as a place, when the scan could not manage it.
+
+                      `merchantPlaceId` is only written when the place service
+                      returned an address bearing the same street number the
+                      receipt printed, and a restaurant on the fourth floor of
+                      a named building routinely misses that — so the bill looks
+                      fully resolved and carries no id, and nothing on the
+                      collection screen can find it.
+
+                      The search is prefilled from what the till printed and
+                      runs on open, but the candidates are still a list to pick
+                      from. A receipt bound to the wrong shop would be worse
+                      than one bound to none.
+                    */}
+                    {!locked && initialData.merchantAddress && !merchantPlace && !initialData.merchantPlaceId && (
+                      <div className="mt-1.5">
+                        <AddPlaceByName
+                          label="對應到地圖地點"
+                          defaultQuery={[initialData.merchant || initialData.description, initialData.merchantAddress]
+                            .filter(Boolean).join(' ')}
+                          searchOnOpen
+                          context={{}}
+                          onAdd={setMerchantPlace}
+                        />
+                      </div>
+                    )}
+                    {merchantPlace && (
+                      <p data-testid="expense-merchant-linked" className="mt-1.5 text-[10px] font-bold text-emerald-700">
+                        已對應到「{merchantPlace.placeName}」，按下方儲存變更才會寫入。
+                      </p>
                     )}
                   </div>
                   <div className="flex-shrink-0 whitespace-nowrap text-base font-black text-[#11183d]">
