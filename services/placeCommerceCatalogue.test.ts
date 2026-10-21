@@ -221,6 +221,13 @@ describe('server route registration order', () => {
     // rather than letting a fifth route inherit the allowance quietly.
     expect(inline).toEqual([
       '/api/expenses/parse-image',
+      /*
+        /api/shopping/parse-image is the same decision taken a sixth time, for
+        a screenshot of something somebody wants to buy — an Instagram save, a
+        小紅書 post, a chat thread. Identical body to the five beside it, and
+        listed here so the sixth did not inherit the allowance quietly either.
+      */
+      '/api/shopping/parse-image',
       // /api/screenshots/kind carries the same picture as the five beside it and
       // reads none of it — it only says which of them should. Sending it at a
       // smaller limit would reject screenshots those five accept, which is a

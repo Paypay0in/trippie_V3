@@ -162,6 +162,7 @@ import RefundSettlementModal from "./components/RefundSettlementModal";
 import PreTripChecklist from "./components/PreTripChecklist";
 import PostTripChecklist from "./components/PostTripChecklist";
 import ShoppingListPanel from "./components/ShoppingListPanel";
+import { mergeShoppingItems } from "./services/shoppingFromScreenshots";
 import TripSummaryModal from "./components/TripSummaryModal";
 import CompanionsModal from "./components/CompanionsModal";
 import CountrySettingsModal from "./components/CountrySettingsModal";
@@ -3017,6 +3018,26 @@ const App: React.FC = () => {
   const handleUpdateShoppingItem = (id: string, patch: Partial<ShoppingItem>) => {
     setShoppingList((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  };
+
+  /**
+   * Adds rows read out of screenshots, without adding one twice.
+   *
+   * 「自動分類、合併重複商品」 — two screenshots of the same bottle are one
+   * bottle, and an existing row keeps what it already says: a reading nobody
+   * has checked must not overwrite a line the traveller wrote.
+   */
+  const handleAddShoppingFromScreenshots = (items: ShoppingItem[]) => {
+    if (items.length === 0) return;
+    let result = { added: 0, merged: 0 };
+    setShoppingList((prev) => {
+      const outcome = mergeShoppingItems(prev, items);
+      result = { added: outcome.added, merged: outcome.merged };
+      return outcome.items;
+    });
+    showToast(result.merged > 0
+      ? `已加入 ${result.added} 項，${result.merged} 項和清單上已有的合併`
+      : `已加入 ${result.added} 項`);
   };
 
   const handleTogglePreparationItem = (id: string) => {
@@ -9045,6 +9066,9 @@ const App: React.FC = () => {
                 onRemoveItem={handleRemoveShoppingItem}
                 onPurchaseItem={handlePurchaseShoppingItem}
                 onUpdateItem={handleUpdateShoppingItem}
+                onAddFromScreenshots={handleAddShoppingFromScreenshots}
+                phase={currentPhase}
+                makeId={generateId}
               />
             </div>
           </div>

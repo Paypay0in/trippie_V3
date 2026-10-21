@@ -459,6 +459,86 @@ async function startServer() {
     Merging them into one prompt that reads anything was the alternative, and
     it is how each of them quietly gets worse at the one thing it is good at.
   */
+  /**
+   * A screenshot of something somebody wants to buy, read into list rows.
+   *
+   * 「上傳截圖 → AI 辨識整理 → 加入購物清單」. Shopping lists get built in
+   * Instagram saves, 小紅書 posts and chat threads, and the work of moving one
+   * into a trip is retyping — which is the reason it does not get done.
+   *
+   * Every field except the name is optional and every uncertain one is marked
+   * 待確認 by the client, because a model reading a product shot is guessing at
+   * the size and the shop far more often than at the name. A confident 230ml
+   * that was never on the picture sends somebody to a counter for the wrong
+   * bottle.
+   *
+   * No prices. A screenshot's price is whatever that post said on the day it
+   * was written, and `docs/PRODUCT.md` already settles who owns a price: a
+   * figure nobody looked up is 價格需確認, and the cheapest way to honour that
+   * here is not to read one at all.
+   */
+  app.post("/api/shopping/parse-image", express.json({ limit: "12mb" }), async (req, res) => {
+    const base64Data = typeof req.body?.base64Data === "string" ? req.body.base64Data : "";
+    const mimeType = typeof req.body?.mimeType === "string" ? req.body.mimeType : "image/jpeg";
+    if (!base64Data) { res.status(400).json({ error: "請選一張截圖。" }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "截圖辨識尚未設定，請改用手動新增。" }); return; }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
+        contents: [{
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            {
+              text: `把這張截圖裡「想買的東西」讀出來。
+
+規則：
+1. 只讀圖片上看得到的字。看不到就不要填那個欄位，不要推測。
+2. name 是商品名稱，必填；讀不出任何商品就回空陣列。
+3. brand 品牌、spec 規格（容量、尺寸、色號、入數）、shop 在哪買，只有圖上寫了才填。
+4. category 從這幾個挑一個最接近的：美妝保養、服飾、伴手禮、食品、電子、其他。不確定就填「其他」。
+5. 不要讀價格，一個字都不要。
+6. 同一個商品出現多次只回一筆。
+7. 用繁體中文，商品名和品牌保留原文寫法。
+只回傳 JSON。`,
+            },
+          ],
+        }],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              products: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    brand: { type: Type.STRING },
+                    spec: { type: Type.STRING },
+                    shop: { type: Type.STRING },
+                    category: { type: Type.STRING },
+                  },
+                  required: ["name"],
+                },
+              },
+            },
+            required: ["products"],
+          },
+        },
+      }));
+
+      const parsed = JSON.parse(response.text || "{}") as { products?: unknown };
+      res.json({ products: Array.isArray(parsed.products) ? parsed.products : [] });
+    } catch (error) {
+      console.error("Shopping screenshot parse failed:", error);
+      res.status(502).json({ error: "這張截圖現在讀不出來，請稍後再試或手動新增。" });
+    }
+  });
+
   app.post("/api/screenshots/kind", express.json({ limit: "12mb" }), async (req, res) => {
     const { base64Data, mimeType } = req.body ?? {};
     const imageMime = typeof base64Data === "string" && base64Data ? resolveImageMime(mimeType, base64Data) : null;

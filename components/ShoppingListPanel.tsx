@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ShoppingItem } from '../types';
 import { Check, Minus, Plus, ShoppingBag, Trash2, Circle } from 'lucide-react';
+import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
 
 /**
  * 購物清單 — what to buy, where, and how many.
@@ -36,6 +37,15 @@ interface Props {
    * the dead tap this app has spent two days removing.
    */
   onUpdateItem?: (id: string, patch: Partial<ShoppingItem>) => void;
+  /**
+   * Adds rows read out of screenshots.
+   *
+   * 「上傳截圖 → AI 辨識整理 → 加入購物清單」. Omitted and the uploader is not
+   * shown, like every other control on this panel.
+   */
+  onAddFromScreenshots?: (items: ShoppingItem[]) => void;
+  phase?: ShoppingItem['phase'];
+  makeId?: () => string;
 }
 
 /** The chip every list has, whatever is in it. */
@@ -48,6 +58,9 @@ const ShoppingListPanel: React.FC<Props> = ({
   onRemoveItem,
   onPurchaseItem,
   onUpdateItem,
+  onAddFromScreenshots,
+  phase,
+  makeId,
 }) => {
   const [newItemName, setNewItemName] = useState('');
   const [filter, setFilter] = useState(ALL);
@@ -106,6 +119,12 @@ const ShoppingListPanel: React.FC<Props> = ({
                 {label} {count}
               </button>
             ))}
+          </div>
+        )}
+
+        {onAddFromScreenshots && phase && makeId && (
+          <div className="mb-2">
+            <ShoppingScreenshotIntake phase={phase} makeId={makeId} onAdd={onAddFromScreenshots} />
           </div>
         )}
 
