@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ShoppingItem } from '../types';
 import { Check, ChevronDown, ImageIcon, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, Circle } from 'lucide-react';
 import { findProductImage, sourceLabel } from '../services/productImageService';
+import { byRegion, checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
 
 /**
@@ -71,6 +72,22 @@ const ShoppingListPanel: React.FC<Props> = ({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   /** Which row is having a picture looked up. 「在網路上抓圖也很有幫助」 */
   const [findingImage, setFindingImage] = useState<string | null>(null);
+  /*
+    Prices, held for the page and never written onto the item.
+
+    「也要幫忙比價」 — a price read today is a fact about today. Stored on the
+    row it becomes a claim about a day that has passed, which is the reason
+    menu prices are not averaged across years either.
+  */
+  const [prices, setPrices] = useState<Record<string, PriceCheck>>({});
+  const [checking, setChecking] = useState<string | null>(null);
+
+  const comparePrices = (item: ShoppingItem) => {
+    setChecking(item.id);
+    void checkPrices({ name: item.name, brand: item.description })
+      .then(found => setPrices(current => ({ ...current, [item.id]: found })))
+      .finally(() => setChecking(null));
+  };
 
   /*
     A picture from the web, with the page it came from kept beside it.
@@ -344,6 +361,53 @@ const ShoppingListPanel: React.FC<Props> = ({
                       )}
                       {item.shop && (
                         <div className="mt-0.5 text-[11px] text-slate-400">@ {item.shop}</div>
+                      )}
+
+                      {/*
+                        台灣 and 日本 side by side, each quote with the page it
+                        was read from. No 「這邊比較便宜」: that needs a rate, a
+                        tax-refund assumption and a view on baggage, and a
+                        sentence this app wrote would be read as advice.
+                      */}
+                      {!prices[item.id] ? (
+                        <button
+                          type="button"
+                          data-testid={`shopping-compare-${item.id}`}
+                          disabled={checking === item.id}
+                          onClick={() => comparePrices(item)}
+                          className="mt-1 text-[11px] font-black text-[#5b3df5] disabled:opacity-60"
+                        >
+                          {checking === item.id ? '查價中…' : '比一下台／日價格'}
+                        </button>
+                      ) : byRegion(prices[item.id].quotes).length === 0 ? (
+                        <p data-testid={`shopping-prices-empty-${item.id}`} className="mt-1 text-[11px] text-slate-400">
+                          查不到這個商品的售價。
+                        </p>
+                      ) : (
+                        <div data-testid={`shopping-prices-${item.id}`} className="mt-1 space-y-0.5">
+                          {byRegion(prices[item.id].quotes).map(([region, found]) => (
+                            <div key={region} className="flex flex-wrap items-baseline gap-1.5 text-[11px]">
+                              <span className="font-black text-slate-500">{region}</span>
+                              {found.map(quote => (
+                                <a
+                                  key={quote.sourceUrl}
+                                  href={quote.sourceUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-slate-600 underline"
+                                >
+                                  {quote.shop ? `${quote.shop} ` : ''}{quoteLabel(quote)}
+                                </a>
+                              ))}
+                            </div>
+                          ))}
+                          {/* When it was read, so the reader can judge it. */}
+                          {prices[item.id].readAt && (
+                            <p className="text-[10px] text-slate-400">
+                              {prices[item.id].readAt.slice(0, 10).replace(/-/g, '/')} 查到的價格，僅供參考
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

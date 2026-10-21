@@ -2039,6 +2039,82 @@ ${sentence}
    * Nothing is copied or stored server-side. This returns a link; the client
    * renders it and can drop it.
    */
+  /**
+   * What one product costs here and there, looked up.
+   *
+   * 「也要幫忙比價 台灣屈臣氏啊 蝦皮價格 / 日本松本清 或是其他大的美妝店大概是
+   * 什麼價格」 — the question a traveller is actually asking in the aisle is
+   * 「is this worth carrying home」, and that is a comparison, not a price.
+   *
+   * Grounded and sourced, or nothing. §6 of `docs/PRODUCT.md` settles who may
+   * claim a price: a figure nobody looked up is 價格需確認, and a remembered
+   * one is indistinguishable on screen from a checked one. Every row returned
+   * here carries the page it was read from; a row without one is dropped.
+   *
+   * Never stored. A price read today is a fact about today, and a cached one
+   * is a claim about a day that has passed — see the same reasoning in
+   * `docs/PRODUCT.md` about menu prices going stale.
+   */
+  app.post("/api/shopping/price-check", async (req, res) => {
+    const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
+    const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 60) : "";
+    if (!name) { res.status(400).json({ error: "A product is required." }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在查不到價格。" }); return; }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
+        contents: `查這個商品現在在台灣和日本的售價。
+
+商品：${name}
+${brand ? `品牌：${brand}` : ""}
+
+規則：
+1. 一定要搜尋查過才寫，查不到就回空陣列。不要憑印象給價格。
+2. 每一筆都要有 sourceUrl，就是你讀到那個價格的頁面網址。沒有網址的不要回。
+3. 台灣看：屈臣氏、康是美、蝦皮、momo。日本看：松本清、Welcia、唐吉訶德、Amazon JP。
+4. region 只能填「台灣」或「日本」。
+5. amount 填數字，currency 填 TWD 或 JPY。
+6. shop 填店名。
+7. 同一個地區最多回兩筆，挑最有代表性的。
+只回傳 JSON。`,
+        config: { tools: [{ googleSearch: {} }] },
+      }));
+
+      const text = (response.text || "").trim();
+      const start = text.indexOf("[");
+      const end = text.lastIndexOf("]");
+      let prices: Array<Record<string, unknown>> = [];
+      try {
+        const parsed = JSON.parse(start >= 0 && end > start ? text.slice(start, end + 1) : "[]") as unknown;
+        prices = Array.isArray(parsed) ? parsed as Array<Record<string, unknown>> : [];
+      } catch { prices = []; }
+
+      /*
+        A row without a page behind it is a remembered price wearing the same
+        clothes as a looked-up one. Dropped rather than shown unlabelled.
+      */
+      const quotes = prices
+        .filter(row => typeof row.sourceUrl === "string" && /^https:\/\//.test(row.sourceUrl as string))
+        .filter(row => Number.isFinite(Number(row.amount)) && Number(row.amount) > 0)
+        .map(row => ({
+          region: row.region === "日本" ? "日本" : "台灣",
+          shop: typeof row.shop === "string" ? row.shop.trim() : "",
+          amount: Number(row.amount),
+          currency: typeof row.currency === "string" && row.currency.trim() ? row.currency.trim().toUpperCase() : "TWD",
+          sourceUrl: row.sourceUrl as string,
+        }))
+        .slice(0, 4);
+
+      res.json({ quotes, readAt: new Date().toISOString() });
+    } catch (error) {
+      console.error("Price check failed:", error);
+      res.status(502).json({ error: "現在查不到價格。" });
+    }
+  });
+
   app.post("/api/shopping/product-image", async (req, res) => {
     const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
     const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 60) : "";
