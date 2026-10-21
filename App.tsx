@@ -6740,6 +6740,11 @@ const App: React.FC = () => {
         onAddSavedPlace={handleAddSavedPlace}
         onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
         /*
+          「不是我的備註，是我從旅人筆記的資訊，我覺得要區分」 — so the card can
+          tell whose observation each note is.
+        */
+        viewerUserId={userId}
+        /*
           The open trip's bills plus everything already filed, so a place
           visited on a finished trip still shows what it cost.
         */

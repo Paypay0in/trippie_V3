@@ -89,24 +89,57 @@ describe('the photos', () => {
 });
 
 describe('the address', () => {
-  it('is itself a way to the map', () => {
+  /*
+    「在地圖上查看是重複資訊」 — 在 Google 地圖開啟 sits directly beneath it and
+    goes to the same place. Two buttons to one destination is a decision made
+    out of something that has no choice in it.
+  */
+  it('is not also a link, because the button below already is', () => {
     open();
 
-    expect(screen.getByTestId('saved-place-address-link').getAttribute('href')).toContain('google');
+    expect(screen.queryByTestId('saved-place-address-link')).toBeNull();
+    expect(screen.getByTestId('saved-place-maps-link')).toBeTruthy();
   });
 });
 
+/**
+ * 「下面不是我的備註，是我從旅人筆記的資訊，我覺得要區分」.
+ *
+ * Every note carries the id of whoever wrote it, and the card was calling all
+ * of them 我的備註 — which attributes another traveller's observation to the
+ * reader.
+ */
 describe('the notes', () => {
-  /*
-    Labelled by whose they are: the block above is explicitly Google's, and
-    「重點」 did not say who wrote these.
-  */
-  it('says they are yours', () => {
-    open({ notes: [{ id: 'n', text: '蘑菇義大利麵超好吃！', sourcePostId: 'p', sourceCreatorId: 'c' }] });
+  const byMe = { id: 'mine', text: '蘑菇義大利麵超好吃！', sourcePostId: 'p', sourceCreatorId: 'me' };
+  const byThem = { id: 'theirs', text: '低調的二樓小樓，一樓販售可可製品', sourcePostId: 'q', sourceCreatorId: 'ann' };
 
-    const block = screen.getByTestId('saved-place-notes');
-    expect(block.textContent).toContain('我的備註');
-    expect(block.textContent).toContain('蘑菇義大利麵超好吃！');
+  it('keeps another traveller\'s notes under their own heading', () => {
+    open({ notes: [byThem], viewerUserId: 'me' });
+
+    expect(screen.getByTestId('saved-place-traveller-notes').textContent).toContain('旅人筆記');
+    expect(screen.queryByTestId('saved-place-notes')).toBeNull();
+  });
+
+  it('calls the reader\'s own notes theirs', () => {
+    open({ notes: [byMe], viewerUserId: 'me' });
+
+    expect(screen.getByTestId('saved-place-notes').textContent).toContain('我的備註');
+    expect(screen.queryByTestId('saved-place-traveller-notes')).toBeNull();
+  });
+
+  it('splits them when there is one of each', () => {
+    open({ notes: [byMe, byThem], viewerUserId: 'me' });
+
+    expect(screen.getByTestId('saved-place-notes').textContent).toContain('蘑菇義大利麵超好吃！');
+    expect(screen.getByTestId('saved-place-traveller-notes').textContent).toContain('低調的二樓小樓');
+  });
+
+  /* Nothing is claimed as the reader's when there is no reader to claim it. */
+  it('claims nothing when it does not know who is reading', () => {
+    open({ notes: [byMe, byThem] });
+
+    expect(screen.queryByTestId('saved-place-notes')).toBeNull();
+    expect(screen.getByTestId('saved-place-traveller-notes').textContent).toContain('蘑菇義大利麵超好吃！');
   });
 });
 

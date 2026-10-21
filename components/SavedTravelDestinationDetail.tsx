@@ -89,6 +89,11 @@ type Props = {
    */
   expenses?: Expense[];
   /**
+   * Who is reading, so the card that opens a place can tell the reader's own
+   * notes from another traveller's. 「我覺得要區分」.
+   */
+  viewerUserId?: string;
+  /**
    * Binds a bill to this place, by filling in the `merchantPlaceId` the
    * receipt scan could not.
    */
@@ -105,7 +110,8 @@ type Props = {
  */
 const NOTE_PREVIEW = 4;
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], onLinkExpense }) => {
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], onLinkExpense, viewerUserId,
+}) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
@@ -676,6 +682,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             country: open.country,
           }}
           notes={open.notes}
+          viewerUserId={viewerUserId}
           spend={spendAtPlace(open, expenses)}
           onClose={() => setOpenPlaceId(null)}
         />

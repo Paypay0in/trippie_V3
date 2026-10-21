@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Clock3, Copy, ExternalLink, Globe, MapPin, Navigation, NotebookPen, Star, X } from 'lucide-react';
+import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, NotebookPen, Star, Users, X } from 'lucide-react';
 import { SavedExperienceNote } from '../types';
 import { MappablePlace, placeCopyText, placeDirectionsUrl, placeMapsUrl } from '../services/placeLinks';
 import { navigationProviderFor } from '../services/navigationProvider';
@@ -29,6 +29,15 @@ interface Props {
   /** Every point saved with the place. Nothing is collapsed here. */
   notes: SavedExperienceNote[];
   /**
+   * Who is reading, so a note can say whether it is theirs.
+   *
+   * 「下面不是我的備註，是我從旅人筆記的資訊，我覺得要區分」 — every note carries
+   * the id of whoever wrote it, and calling somebody else's observation 「我的
+   * 備註」 misattributes it to the reader. Without a viewer nothing is claimed
+   * as the reader's: 旅人筆記 is what these are by default.
+   */
+  viewerUserId?: string;
+  /**
    * What was spent here, when the caller has a ledger to read.
    *
    * Passed in rather than looked up: the card is opened from three screens
@@ -38,7 +47,11 @@ interface Props {
   onClose: () => void;
 }
 
-const SavedPlaceCard: React.FC<Props> = ({ place, notes, spend = [], onClose }) => {
+const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], onClose }) => {
+  const mine = viewerUserId
+    ? notes.filter(note => note.sourceCreatorId === viewerUserId)
+    : [];
+  const theirs = notes.filter(note => !mine.includes(note));
   const [copied, setCopied] = useState(false);
   /*
     「Allow users to manually choose another supported navigation provider」.
@@ -123,20 +136,6 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, spend = [], onClose }) 
                 {place.formattedAddress || placeWhereLabel(place.city, place.country)}
               </span>
             </p>
-            {/*
-              The address itself opens the map. The buttons below do the same
-              thing and are still the ones to press; this is here because an
-              address reads as a link and somebody will tap it either way.
-            */}
-            <a
-              href={placeMapsUrl(place)}
-              target="_blank"
-              rel="noreferrer"
-              data-testid="saved-place-address-link"
-              className="mt-1 inline-flex items-center gap-1 text-[11px] font-black text-[#5b3df5]"
-            >
-              <ExternalLink size={11} />在地圖上查看
-            </a>
           </div>
           <button
             type="button"
@@ -274,20 +273,34 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, spend = [], onClose }) 
           </div>
         )}
 
-        {notes.length > 0 && (
+        {mine.length > 0 && (
           <div data-testid="saved-place-notes" className="mt-4 space-y-1.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
-            {/*
-              Labelled by whose it is. 「重點」 did not say who wrote it, and the
-              block above is explicitly Google's — the difference between the
-              record and somebody's experience of the place is the whole reason
-              the two are kept apart.
-            */}
             <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800">
               <NotebookPen size={12} />我的備註
             </div>
-            {notes.map(note => (
+            {mine.map(note => (
               <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                <p className="min-w-0 flex-1 break-words">{note.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/*
+          Somebody else's experience of the place, kept under their own
+          heading. 「不是我的備註，是我從旅人筆記的資訊」 — this is the third kind
+          of thing on the card, after Google's record and the reader's own
+          line, and running them together makes all three less trustworthy.
+        */}
+        {theirs.length > 0 && (
+          <div data-testid="saved-place-traveller-notes" className="mt-4 space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
+              <Users size={12} />旅人筆記
+            </div>
+            {theirs.map(note => (
+              <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
                 <p className="min-w-0 flex-1 break-words">{note.text}</p>
               </div>
             ))}
