@@ -33,7 +33,10 @@
  *
  * So the name rule is narrow on purpose: the till's name against the place's
  * name, punctuation and case removed, equal or one wholly inside the other,
- * never fewer than four characters. 「Lawson」 would still match every Lawson
+ * never fewer than four characters. A bill with nothing printed on it at all
+ * — typed by hand, no receipt — is read on its description instead, because
+ * then that is the only name it has and it is the name the traveller chose
+ * for the place they went to. 「Lawson」 would still match every Lawson
  * in Tokyo, which is why the address rule sits beside it rather than under
  * it — a Japanese street number （2-13-13） appearing in both, full-width
  * digits folded, is the shop and not the chain.
@@ -142,7 +145,19 @@ export const spendAtPlace = (
     .map(nameKey)
     .filter(name => name.length >= SHORTEST_NAME);
   const sameName = (expense: Expense): boolean => {
-    const printed = nameKey(expense.merchant);
+    /*
+      The till's name, or the traveller's own when there was no till.
+
+      「這個本來不是可以 match 收藏清單了嗎」 — about 八十八淺草抹茶🍵, typed by
+      hand. A `description` is excluded on a scanned receipt because it is
+      routinely the dish rather than the shop; on a bill with nothing printed
+      on it at all, it is the only name there is, and it is the name the
+      traveller chose for the place they went to.
+
+      So the exclusion holds exactly where its reason holds: a bill that has a
+      `merchant` is judged on the `merchant` alone.
+    */
+    const printed = nameKey(expense.merchant) || nameKey(expense.description);
     if (printed.length < SHORTEST_NAME) return false;
     return savedNames.some(name => name === printed || name.includes(printed) || printed.includes(name));
   };

@@ -141,6 +141,8 @@ const ExpenseForm: React.FC<Props> = ({
   const [managingCategories, setManagingCategories] = useState(false);
   /** A place chosen by hand for a receipt the scan could not pin down. */
   const [merchantPlace, setMerchantPlace] = useState<ResolvedCandidate | null>(null);
+  /** Re-pointing a bill that already has a place. See the block that uses it. */
+  const [rebinding, setRebinding] = useState(false);
   /*
     What to look the shop up by.
 
@@ -1272,15 +1274,38 @@ const ExpenseForm: React.FC<Props> = ({
                       typed bill has no address by definition; it has a name,
                       and a name is what a search takes.
                     */}
-                    {!locked && !merchantPlace && !initialData.merchantPlaceId && placeQuery && (
+                    {!locked && !merchantPlace && placeQuery && (
                       <div className="mt-1.5">
-                        <AddPlaceByName
-                          label="對應到地圖地點"
-                          defaultQuery={placeQuery}
-                          searchOnOpen
-                          context={{}}
-                          onAdd={setMerchantPlace}
-                        />
+                        {/*
+                          Said either way. 「這個本來不是可以 match 收藏清單了
+                          嗎」 — a bill already bound to a place showed nothing
+                          at all, which is exactly what a bill that *cannot* be
+                          bound shows. Two different states, one blank space,
+                          and no way to tell from the screen which one you are
+                          looking at.
+                        */}
+                        {initialData.merchantPlaceId ? (
+                          <div data-testid="expense-place-bound" className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-emerald-700">已對應到地圖地點</span>
+                            <button
+                              type="button"
+                              data-testid="rebind-expense-place"
+                              onClick={() => setRebinding(true)}
+                              className="text-[10px] font-black text-[#5b3df5]"
+                            >
+                              改成別的地點
+                            </button>
+                          </div>
+                        ) : null}
+                        {(!initialData.merchantPlaceId || rebinding) && (
+                          <AddPlaceByName
+                            label="對應到地圖地點"
+                            defaultQuery={placeQuery}
+                            searchOnOpen
+                            context={{}}
+                            onAdd={setMerchantPlace}
+                          />
+                        )}
                       </div>
                     )}
                     {merchantPlace && (

@@ -143,3 +143,34 @@ describe('a bill somebody typed', () => {
     expect(screen.queryByTestId('open-add-place')).toBeNull();
   });
 });
+
+/**
+ * 「這個本來不是可以 match 收藏清單了嗎」.
+ *
+ * A bill already bound to a place showed nothing at all — which is exactly
+ * what a bill that *cannot* be bound shows. Two states, one blank space.
+ */
+describe('a bill that already has a place', () => {
+  const bound = bill({ merchantPlaceId: 'ChIJ-already' });
+
+  it('says so', () => {
+    open(bound);
+
+    expect(screen.getByTestId('expense-place-bound').textContent).toContain('已對應到地圖地點');
+  });
+
+  it('still does not offer the lookup unasked', () => {
+    open(bound);
+
+    expect(screen.queryByTestId('open-add-place')).toBeNull();
+  });
+
+  /* Bound to the wrong shop is a thing that happens, and is correctable. */
+  it('opens the lookup when asked to change it', () => {
+    open(bound);
+
+    fireEvent.click(screen.getByTestId('rebind-expense-place'));
+
+    expect(screen.getByTestId('open-add-place')).toBeTruthy();
+  });
+});

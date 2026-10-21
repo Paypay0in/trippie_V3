@@ -78,13 +78,43 @@ describe('spendAtPlace', () => {
   });
 
   /*
-    The description is a sentence somebody wrote, and routinely names the dish
-    rather than the shop. It is never the thing matched on.
+    A description is a sentence somebody wrote and is routinely the dish
+    rather than the shop, so it never beats anything — it is only read when
+    there is nothing printed, and it still has to name the place.
   */
-  it('ignores a description that happens to read like the place', () => {
-    const receipt = bill({ merchantPlaceId: undefined, merchant: undefined, description: 'Kurofunetei' });
+  it('ignores a description that names the dish', () => {
+    const receipt = bill({
+      merchantPlaceId: undefined, merchant: undefined, description: '蘑菇義大利麵',
+    });
 
     expect(spendAtPlace(saved(), [receipt])).toEqual([]);
+  });
+
+  /*
+    「這個本來不是可以 match 收藏清單了嗎」 — 八十八淺草抹茶🍵, typed by hand with
+    no receipt. The description is the only name such a bill has, and it is
+    the name the traveller chose for the place they went to.
+  */
+  it('matches a typed bill on what the traveller called it', () => {
+    const here = saved({ placeId: 'ChIJ-hachi', placeName: '八十八淺草' });
+    const receipt = bill({
+      merchantPlaceId: undefined, merchant: undefined,
+      description: '八十八淺草抹茶',
+    });
+
+    expect(spendAtPlace(here, [receipt])).toHaveLength(1);
+  });
+
+  /* The exclusion holds exactly where its reason holds. */
+  it('still ignores the description when the till printed a name', () => {
+    const here = saved({ placeId: 'ChIJ-hachi', placeName: '八十八淺草' });
+    const receipt = bill({
+      merchantPlaceId: undefined,
+      merchant: 'LAWSON STORE',
+      description: '八十八淺草抹茶',
+    });
+
+    expect(spendAtPlace(here, [receipt])).toEqual([]);
   });
 
   it('ignores a till name too short to mean anything', () => {
