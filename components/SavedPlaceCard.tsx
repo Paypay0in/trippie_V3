@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, NotebookPen, Star, Users, X } from 'lucide-react';
+import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, NotebookPen, Sparkles, Star, Users, X } from 'lucide-react';
 import { SavedExperienceNote } from '../types';
 import { MappablePlace, placeCopyText, placeDirectionsUrl, placeMapsUrl } from '../services/placeLinks';
 import { navigationProviderFor } from '../services/navigationProvider';
@@ -10,6 +10,7 @@ import { fetchPlacePhotos, PlacePhoto } from '../services/placePhotoService';
 import PlaceGallery from './PlaceGallery';
 import PlaceSpendRecord from './PlaceSpendRecord';
 import { SpendAtPlace } from '../services/spendAtPlace';
+import { fetchPlaceHighlights, PlaceHighlights } from '../services/placeHighlightsService';
 
 /**
  * A saved place, opened.
@@ -90,11 +91,20 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
     them on this request; only the first was ever read.
   */
   const [photos, setPhotos] = useState<PlacePhoto[]>([]);
+  /*
+    「可以讓AI爬文看這間店有名的是什麼嗎？」 — for the places nobody wrote a note
+    about. Behind a button rather than fetched on open: this is a search per
+    place, and a collection opened card by card would be a search per card.
+  */
+  const [highlights, setHighlights] = useState<PlaceHighlights | null>(null);
+  const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setBasics(null);
     setPhotos([]);
+    setHighlights(null);
+    setLookingUp(false);
     void fetchPlaceBasics(place.placeId).then(found => { if (!cancelled) setBasics(found); });
     if (place.placeId) {
       void fetchPlacePhotos(place.placeId).then(found => { if (!cancelled) setPhotos(found); });
@@ -313,6 +323,85 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
                 <p className="min-w-0 flex-1 break-words">{note.text}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/*
+          What the place is known for, when nobody has said anything about it.
+
+          Offered only in the absence of traveller notes: somebody's own
+          account of a restaurant beats a search every time, and running both
+          would put a machine's summary beside a person's experience as though
+          the two were the same kind of thing.
+        */}
+        {theirs.length === 0 && mine.length === 0 && (
+          <div className="mt-4">
+            {!highlights && (
+              <button
+                type="button"
+                data-testid="look-up-highlights"
+                disabled={lookingUp}
+                onClick={() => {
+                  setLookingUp(true);
+                  void fetchPlaceHighlights({
+                    placeId: place.placeId,
+                    placeName: place.placeName,
+                    address: place.formattedAddress,
+                    city: place.city,
+                  })
+                    .then(setHighlights)
+                    .finally(() => setLookingUp(false));
+                }}
+                className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-violet-200 bg-violet-50/50 text-xs font-black text-[#5b3df5] disabled:opacity-60"
+              >
+                <Sparkles size={13} />{lookingUp ? '查詢中…' : '查查這裡有名的是什麼'}
+              </button>
+            )}
+
+            {highlights && (
+              <div data-testid="place-highlights" className="space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
+                  <Sparkles size={12} />AI 查到的重點
+                </div>
+                {highlights.points.length > 0 ? (
+                  <>
+                    {highlights.points.map(point => (
+                      <div key={point} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                        <p className="min-w-0 flex-1 break-words">{point}</p>
+                      </div>
+                    ))}
+                    {/*
+                      The pages it was read off, named. This sits where a
+                      person's notes would sit, so where it came from is the
+                      part that stops it being mistaken for one.
+                    */}
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {highlights.sources.map(source => (
+                        <a
+                          key={source.url}
+                          href={source.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="max-w-full truncate text-[10px] font-bold text-slate-500 underline"
+                        >
+                          {source.title || source.url}
+                        </a>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  /*
+                    Said plainly. The server refuses to answer from memory, so
+                    an empty answer means nothing was found — which is a fact
+                    about this place, not a failure to report.
+                  */
+                  <p data-testid="place-highlights-empty" className="text-xs leading-5 text-slate-500">
+                    查不到這家店的介紹，網路上沒有寫到什麼。
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 

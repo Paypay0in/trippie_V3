@@ -1846,6 +1846,92 @@ ${sentence}
     }
   });
 
+  /**
+   * What a place is known for, when nobody wrote anything about it.
+   *
+   * 「像收藏了這間店 但沒有相關旅行筆記 可以讓AI爬文看這間店有名的是什麼嗎？」 —
+   * a place saved from a map link arrives with an address, a rating and a
+   * category, and nothing a person would actually tell you about it.
+   *
+   * Grounded, and refused outright without grounding. 「有名的是什麼」 is
+   * exactly the question a model answers most confidently from memory and most
+   * often wrongly: a plausible signature dish at a restaurant that has never
+   * served it is indistinguishable on screen from a looked-up one. If the
+   * search tool is unavailable this returns nothing rather than a guess.
+   *
+   * Short points, in the traveller's language, each standing on its own — this
+   * sits where a fellow traveller's notes would sit, and it is labelled as the
+   * machine's work precisely because it is in their place.
+   */
+  app.post("/api/places/highlights", async (req, res) => {
+    const placeName = typeof req.body?.placeName === "string" ? req.body.placeName.trim().slice(0, 120) : "";
+    const address = typeof req.body?.address === "string" ? req.body.address.trim().slice(0, 200) : "";
+    const city = typeof req.body?.city === "string" ? req.body.city.trim().slice(0, 60) : "";
+    if (!placeName) { res.status(400).json({ error: "A place is required." }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在查不到這家店的資料。" }); return; }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
+        contents: `查一下這個地點，告訴旅行者「這裡有名的是什麼」。
+
+地點：${placeName}
+${address ? `地址：${address}` : ""}
+${city ? `城市：${city}` : ""}
+
+規則：
+1. 一定要用搜尋查過才寫。查不到就回空陣列，不要靠印象寫。
+2. 每一點一句話，講具體的事：招牌菜、名物、為什麼有人特地來、什麼時段會排隊、幾樓在賣什麼。
+3. 最多 4 點。沒有 4 點就少寫幾點，不要湊數。
+4. 不要寫價格，不要寫營業時間——那兩樣另外有地方顯示，而且會過期。
+5. 不要寫「值得一試」「氣氛很好」這種放在哪家店都成立的句子。
+6. 用繁體中文。地點、菜名保留原文寫法。
+只回傳 JSON。`,
+        config: {
+          tools: [{ googleSearch: {} }],
+        },
+      }));
+
+      /*
+        Grounded search and `responseSchema` cannot be asked for together, so
+        the JSON is read out of the text and anything unreadable is treated as
+        no answer — which is the same outcome as a search that found nothing,
+        and the right one.
+      */
+      const text = (response.text || "").trim();
+      const start = text.indexOf("[");
+      const end = text.lastIndexOf("]");
+      const body = start >= 0 && end > start ? text.slice(start, end + 1) : "";
+      let points: string[] = [];
+      try {
+        const parsed = JSON.parse(body || "[]") as unknown;
+        if (Array.isArray(parsed)) {
+          points = parsed
+            .map(entry => (typeof entry === "string" ? entry : (entry as { text?: unknown })?.text))
+            .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+            .map(entry => entry.trim())
+            .slice(0, 4);
+        }
+      } catch { points = []; }
+
+      const grounding = (response as { candidates?: Array<{ groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string; title?: string } }> } }> })
+        .candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+      const sources = grounding
+        .map(chunk => ({ title: chunk.web?.title ?? "", url: chunk.web?.uri ?? "" }))
+        .filter(source => source.url)
+        .slice(0, 3);
+
+      // Nothing was read, so nothing is claimed.
+      if (sources.length === 0) { res.json({ points: [], sources: [] }); return; }
+      res.json({ points, sources });
+    } catch (error) {
+      console.error("Place highlights failed:", error);
+      res.status(502).json({ error: "現在查不到這家店的資料。" });
+    }
+  });
+
   app.post("/api/activity-plans", async (req, res) => {
     const intent = typeof req.body?.intent === "string" ? req.body.intent.trim() : "";
     const destination = typeof req.body?.destination === "string" ? req.body.destination.trim() : "";
