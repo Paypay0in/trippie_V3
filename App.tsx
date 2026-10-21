@@ -109,6 +109,7 @@ import {
   detectDestinationFromTripName,
 } from "./services/destinationFromTripName";
 import { deleteTripRow, fetchMyTrips, isSyncAvailable, removeTripMember } from "./services/tripSync";
+import { RecoverableTrip, recoverableTrips } from "./services/recoverableTrips";
 import { IdentityDrift, identityDrift } from "./services/tripIdentityDrift";
 import {
   StatedVisits,
@@ -1953,6 +1954,8 @@ const App: React.FC = () => {
   useEffect(() => { saveEmptiedSlots(emptiedSlotIds); }, [emptiedSlotIds]);
   /** Trips whose name here disagrees with the cloud's. See `identityDrift`. */
   const [identityDrifts, setIdentityDrifts] = useState<IdentityDrift[]>([]);
+  /** Cloud trips this device deleted and therefore will not re-add by itself. */
+  const [recoverableTripList, setRecoverableTripList] = useState<RecoverableTrip[]>([]);
   /** The owner's name as the server stores it, for devices that are not theirs. */
   const [remoteOwnerName, setRemoteOwnerName] = useState<string>("");
   // Latest drafts for the merge below. Comparing inside a setDrafts updater
@@ -1988,6 +1991,16 @@ const App: React.FC = () => {
         them back, and deleting again only started the loop over.
       */
       const forgotten = deletedTripIds();
+      /*
+        「釜山的旅冊怎麼都不見了」 — the refusal below is correct and was
+        silent, which made a trip deleted on this device look exactly like a
+        trip gone for good. Reported, not undone.
+      */
+      setRecoverableTripList(recoverableTrips(
+        result.data,
+        draftsRef.current.map((draft) => draft.id),
+        forgotten,
+      ));
       const missing = withoutDeleted(result.data, forgotten)
         .filter((trip) => !known.has(trip.id))
         .map((trip) => ({
@@ -5220,6 +5233,44 @@ const App: React.FC = () => {
    * screen into `activeDraftId`, so restoring the draft alone would be undone
    * on the next render by the very mechanism that caused this.
    */
+  /**
+   * 「取回」 — somebody asked for a deleted trip back, in as many words.
+   *
+   * Clearing the tombstone is the whole act: the sign-in merge already adds
+   * every cloud trip this device lacks, and it was only this list standing in
+   * the way. The shell draft goes in here too so the trip appears on the
+   * shelf now rather than after a reload, and its contents arrive the moment
+   * it is opened and synced — the same path every merged trip takes.
+   */
+  const handleRecoverTrip = (trip: RecoverableTrip) => {
+    forgetDeletedTrip(trip.id);
+    const now = new Date().toISOString();
+    setDrafts((current) =>
+      current.some((draft) => draft.id === trip.id)
+        ? current
+        : [
+            ...current,
+            {
+              id: trip.id,
+              name: trip.name,
+              destination: trip.destination,
+              startDate: trip.startDate,
+              endDate: trip.endDate,
+              currency: trip.currency,
+              // Never the account doing the recovering: see `fetchMyTrips`.
+              ownerId: trip.ownerId,
+              expenses: [],
+              companions: [],
+              shoppingList: [],
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
+    );
+    setRecoverableTripList((current) => current.filter((entry) => entry.id !== trip.id));
+    showToast(`已取回：${trip.name || '未命名的旅程'}`);
+  };
+
   const handleRestoreTripIdentity = (drift: IdentityDrift) => {
     setDrafts((current) =>
       current.map((draft) =>
@@ -7608,6 +7659,8 @@ const App: React.FC = () => {
         activeSection="trips"
         identityDrifts={identityDrifts}
         onRestoreTripIdentity={handleRestoreTripIdentity}
+        recoverable={recoverableTripList}
+        onRecoverTrip={handleRecoverTrip}
         authStatus={authStatus}
         authenticatedDisplayName={authProfile?.displayName}
         onSectionChange={(section) => {

@@ -36,6 +36,7 @@ import { countryDisplayName, countryKey } from '../services/countryIdentity';
 import { cityDisplayName } from '../services/cityNames';
 import { coverImageQuery, fixtureImageFor } from '../services/destinationCoverImage';
 import { IdentityDrift } from '../services/tripIdentityDrift';
+import { RecoverableTrip, recoverableDates } from '../services/recoverableTrips';
 
 interface Props {
   activeSection: AppSection;
@@ -78,6 +79,16 @@ interface Props {
    */
   identityDrifts?: IdentityDrift[];
   onRestoreTripIdentity?: (drift: IdentityDrift) => void;
+  /**
+   * Trips the cloud still holds that this device deleted and will not re-add.
+   *
+   * 「釜山的旅冊怎麼都不見了」 — and it was neither renamed nor archived. The
+   * refusal to put a deleted trip back is correct and was silent, which made
+   * it indistinguishable from the trip being gone for good. See
+   * `recoverableTrips`.
+   */
+  recoverable?: RecoverableTrip[];
+  onRecoverTrip?: (trip: RecoverableTrip) => void;
 }
 
 type SavedNotesStorageStatus = "device_only" | "account_linked" | "cloud_synced";
@@ -182,6 +193,8 @@ const TravelHome: React.FC<Props> = ({
   onOpenNotice,
   identityDrifts = [],
   onRestoreTripIdentity,
+  recoverable = [],
+  onRecoverTrip,
 }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -496,6 +509,47 @@ const TravelHome: React.FC<Props> = ({
                     className="shrink-0 rounded-full bg-amber-500 px-3.5 py-1.5 text-[11px] font-black text-white"
                   >
                     還原
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {/*
+          Trips this device is refusing to show.
+
+          Above the hero for the same reason the drift banner is: a trip the
+          traveller cannot find is not something to scroll to. It states the
+          refusal and its reason rather than quietly restoring — a trip
+          deleted on purpose coming back by itself is the bug this refusal
+          was built to fix, and it is the worse of the two.
+        */}
+        {recoverable.length > 0 && (
+          <section data-testid="recoverable-trips" className="rounded-[20px] border border-sky-200 bg-sky-50 p-4">
+            <h2 className="text-[13px] font-black text-sky-900">雲端還留著這些旅程</h2>
+            <p className="mt-1 text-[11px] font-bold leading-5 text-sky-700">
+              這台裝置刪過它們，所以不會自己拉回來。雲端的資料還在。
+            </p>
+            <ul className="mt-3 space-y-2">
+              {recoverable.map((trip) => (
+                <li
+                  key={trip.id}
+                  data-testid={`recoverable-trip-${trip.id}`}
+                  className="flex items-center gap-3 rounded-[16px] bg-white px-3 py-2.5"
+                >
+                  <span className="min-w-0 flex-1 text-[12px] font-bold leading-5">
+                    <span className="block truncate text-[13px] font-black text-slate-800">{trip.name || '未命名的旅程'}</span>
+                    {recoverableDates(trip) && (
+                      <span className="block truncate text-slate-400">{recoverableDates(trip)}</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    data-testid={`recoverable-trip-restore-${trip.id}`}
+                    onClick={() => onRecoverTrip?.(trip)}
+                    className="shrink-0 rounded-full bg-sky-600 px-3.5 py-1.5 text-[11px] font-black text-white"
+                  >
+                    取回
                   </button>
                 </li>
               ))}
