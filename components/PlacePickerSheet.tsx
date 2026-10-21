@@ -64,13 +64,23 @@ interface Props {
   /** Offered when something is already in this slot. */
   onClear?: () => void;
   onTypeYourOwn?: () => void;
+  /**
+   * Why the last pick did not go in.
+   *
+   * 「點擊完全沒有反應」 — a tap that neither closes the sheet nor says anything
+   * is the worst state this screen can be in, because there is nothing for
+   * the traveller to report and nothing for anybody to act on. Whatever the
+   * caller knows goes here, including the text of a thrown error: a message
+   * nobody wrote is still better than silence.
+   */
+  error?: string;
 }
 
 /** Two lines of note is enough to recognise a place; the rest is in the card. */
 const NOTE_PREVIEW = 2;
 
 const PlacePickerSheet: React.FC<Props> = ({
-  title, places, onPick, onClose, onClear, onTypeYourOwn, nearby, onPickNearby, onSearchNearby,
+  title, places, onPick, onClose, onClear, onTypeYourOwn, nearby, onPickNearby, onSearchNearby, error,
 }) => {
   const [query, setQuery] = useState('');
   /** What a 更多搜尋 came back with, and whether one is in flight. */
@@ -227,6 +237,15 @@ const PlacePickerSheet: React.FC<Props> = ({
                 </>
               )}
             </section>
+          )}
+
+          {error && (
+            <p
+              data-testid="pick-place-error"
+              className="mb-2 rounded-xl bg-rose-50 px-3 py-2 text-[11px] font-bold leading-4 text-rose-600"
+            >
+              {error}
+            </p>
           )}
 
           {groups.map(group => (

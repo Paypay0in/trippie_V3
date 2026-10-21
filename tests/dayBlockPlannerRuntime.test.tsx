@@ -1350,3 +1350,45 @@ describe('a pick the caller refuses', () => {
     expect(screen.queryByTestId('pick-place-g-working')).toBeNull();
   });
 });
+
+/**
+ * 「點擊完全沒有反應」.
+ *
+ * A tap that neither closes the sheet nor says anything is the worst state
+ * this screen can be in: there is nothing for the traveller to report and
+ * nothing for anybody to act on. An exception inside an onClick is invisible
+ * to the person holding the phone, and the sheet is where they are looking.
+ */
+describe('a pick that goes wrong', () => {
+  it('shows a refusal on the sheet itself', async () => {
+    const user = userEvent.setup();
+    renderPlanner({ onFillBlock: vi.fn(() => false) });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(screen.getByTestId('pick-place-error').textContent).toContain('沒有排進去');
+  });
+
+  it('shows a thrown error in its own words', async () => {
+    const user = userEvent.setup();
+    renderPlanner({
+      onFillBlock: vi.fn(() => { throw new Error('nothing to write into'); }),
+    });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(screen.getByTestId('pick-place-error').textContent).toContain('nothing to write into');
+  });
+
+  it('says nothing when the pick went in', async () => {
+    const user = userEvent.setup();
+    renderPlanner({ onFillBlock: vi.fn(() => true) });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(screen.queryByTestId('pick-place-error')).toBeNull();
+  });
+});

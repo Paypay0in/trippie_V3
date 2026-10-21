@@ -204,6 +204,13 @@ const DayBlockPlanner: React.FC<Props> = ({
   */
   const [pickingAt, setPickingAt] = useState<number | null>(null);
   /*
+    「點擊完全沒有反應」 — a tap that neither closes the sheet nor says anything.
+    Whatever went wrong is shown on the sheet itself, including a thrown
+    error's own words: an exception inside an onClick is invisible to the
+    person holding the phone, and this is the only place they are looking.
+  */
+  const [pickError, setPickError] = useState('');
+  /*
     「或 Google 搜尋結果」 — asked once, when the sheet opens, for the corner it
     is filling. Never on the day itself: a page that fires a lookup per empty
     row spends quota on rows nobody opened.
@@ -1209,9 +1216,19 @@ const DayBlockPlanner: React.FC<Props> = ({
                 vanished, the day was unchanged, and the only difference was a
                 toast behind it.
               */
-              if (replaceInSlot(slot, () => onFillBlock(slot, placeId))) setPickingAt(null);
+              setPickError('');
+              try {
+                if (replaceInSlot(slot, () => onFillBlock(slot, placeId))) {
+                  setPickingAt(null);
+                } else {
+                  setPickError('這個地點沒有排進去，上面的訊息說明了原因。');
+                }
+              } catch (error) {
+                setPickError(`排入時出錯了：${(error as Error)?.message || String(error)}`);
+              }
             }}
-            onClose={() => setPickingAt(null)}
+            error={pickError}
+            onClose={() => { setPickingAt(null); setPickError(''); }}
             onClear={sitting && onClearBlock
               ? () => { setPickingAt(null); onClearBlock(sitting.id); }
               : undefined}
