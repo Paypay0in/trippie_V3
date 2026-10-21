@@ -104,3 +104,59 @@ describe('a saved place you have paid at', () => {
     expect(screen.queryByTestId('spend-at-a')).toBeNull();
   });
 });
+
+/**
+ * 「沒有喔」 — the restaurant was in the collection, the receipt was in the
+ * ledger, and nothing joined them, because the printed address resolved to
+ * nothing and so the scan recorded no `merchantPlaceId`.
+ */
+describe('linking a bill to a place by hand', () => {
+  const unplaced = {
+    id: 'e', date: '2026-10-20', description: '黑船亭 洋食料理', twdAmount: 882,
+    amountOriginal: 4300, currency: 'JPY', exchangeRate: 0.205,
+    category: '餐飲', phase: 'during',
+    merchantAddress: '東京都台東区上野2-13-13',
+  };
+
+  const openMenu = () => fireEvent.click(screen.getByLabelText('Kurofunetei 更多選項'));
+
+  it('offers the link when a bill has no place of its own', () => {
+    mount({
+      items: [saved({ placeName: 'Kurofunetei', placeId: 'ChIJ-k' })],
+      expenses: [unplaced],
+      onLinkExpense: vi.fn(),
+    });
+    openMenu();
+
+    expect(screen.getByTestId('link-expense-a')).toBeTruthy();
+  });
+
+  it('hands back the bill and the place', () => {
+    const onLinkExpense = vi.fn();
+    mount({
+      items: [saved({ placeName: 'Kurofunetei', placeId: 'ChIJ-k' })],
+      expenses: [unplaced],
+      onLinkExpense,
+    });
+    openMenu();
+    fireEvent.click(screen.getByTestId('link-expense-a'));
+    fireEvent.click(screen.getByTestId('link-expense-pick-e'));
+
+    expect(onLinkExpense).toHaveBeenCalledWith('e', expect.objectContaining({ placeId: 'ChIJ-k' }));
+  });
+
+  /*
+    A bill that already resolved is already somewhere; offering to move it
+    would be a different feature with a different risk.
+  */
+  it('does not offer a bill that already has a place', () => {
+    mount({
+      items: [saved({ placeName: 'Kurofunetei', placeId: 'ChIJ-k' })],
+      expenses: [{ ...unplaced, merchantPlaceId: 'ChIJ-somewhere' }],
+      onLinkExpense: vi.fn(),
+    });
+    openMenu();
+
+    expect(screen.queryByTestId('link-expense-a')).toBeNull();
+  });
+});

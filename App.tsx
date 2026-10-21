@@ -6745,6 +6745,23 @@ const App: React.FC = () => {
         */
         expenses={[...expenses, ...tripHistory.flatMap((trip) => trip.expenses || [])]}
         /*
+          Fills in the `merchantPlaceId` a receipt scan could not. The field
+          already exists and is already the join; what was missing was a way to
+          answer it by hand when the printed address resolved to nothing.
+        */
+        onLinkExpense={(expenseId, place) => {
+          setExpenses((current) => current.map((expense) => (expense.id === expenseId
+            ? {
+              ...expense,
+              ...(place.placeId ? { merchantPlaceId: place.placeId } : {}),
+              ...(typeof place.latitude === "number" && typeof place.longitude === "number"
+                ? { merchantLatitude: place.latitude, merchantLongitude: place.longitude }
+                : {}),
+            }
+            : expense)));
+          showToast(`已連結到「${place.placeName}」`);
+        }}
+        /*
           「這在釜山 我無法改」 — a record bound to the wrong place is missing
           nothing, so every repair built around 「what is incomplete」 skipped it.
           The same writer the planner's lookup uses, stamped like any other

@@ -88,6 +88,11 @@ type Props = {
    * `merchantPlaceId` — see `spendAtPlace` for why not on the name.
    */
   expenses?: Expense[];
+  /**
+   * Binds a bill to this place, by filling in the `merchantPlaceId` the
+   * receipt scan could not.
+   */
+  onLinkExpense?: (expenseId: string, place: SavedTravelInspiration) => void;
 };
 
 
@@ -100,7 +105,7 @@ type Props = {
  */
 const NOTE_PREVIEW = 4;
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [] }) => {
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], onLinkExpense }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
@@ -219,6 +224,17 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
   const [image, setImage] = useState<DestinationImage | null>(null);
   const [removeTarget, setRemoveTarget] = useState<SavedTravelInspiration | null>(null);
+  /** Which card is asking 「哪一筆是在這裡花的？」. */
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  /*
+    Only bills with no place of their own. One that already resolved is
+    already somewhere, and offering to move it would be a different feature
+    with a different risk.
+  */
+  const linkableExpenses = useMemo(
+    () => expenses.filter(expense => !expense.merchantPlaceId?.trim()),
+    [expenses],
+  );
   const [attemptedResolution, setAttemptedResolution] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
@@ -435,6 +451,26 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 </span>
               </button>
             )}
+            {/*
+              The bill this place has, when nothing joined them automatically.
+
+              A receipt only records `merchantPlaceId` when the address it
+              read matched the place it found; plenty of receipts print an
+              address that resolves to nothing, and then the ledger and the
+              collection hold the same restaurant and cannot see each other.
+              This fills in the field that was left empty — not a second
+              record of the same fact.
+            */}
+            {onLinkExpense && linkableExpenses.length > 0 && (
+              <button
+                type="button"
+                data-testid={`link-expense-${item.id}`}
+                onClick={() => { setLinkingId(item.id); setMenuItemId(null); }}
+                className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-emerald-50"
+              >
+                連結一筆記帳<span className="mt-0.5 block text-[10px] font-medium text-slate-400">這家店的收據沒對到地圖時用</span>
+              </button>
+            )}
             <button type="button" onClick={() => { setRemoveTarget(item); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">移除這個地點<span className="mt-0.5 block text-[10px] font-medium text-rose-400">從我的旅行筆記移除</span></button>
           </div>}
           {rebinding?.id === item.id && (
@@ -549,6 +585,35 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                     </span>
                   </span>
                 ))}
+              </div>
+            )}
+            {linkingId === item.id && onLinkExpense && (
+              <div data-testid={`link-expense-list-${item.id}`} className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/40 p-2">
+                <span className="block text-[11px] font-black text-emerald-900">哪一筆是在這裡花的？</span>
+                <span className="mt-0.5 block text-[10px] text-emerald-700">只列出還沒對到地圖地點的記帳。</span>
+                <span className="mt-2 block space-y-1">
+                  {linkableExpenses.map(expense => (
+                    <button
+                      key={expense.id}
+                      type="button"
+                      data-testid={`link-expense-pick-${expense.id}`}
+                      onClick={() => { onLinkExpense(expense.id, item); setLinkingId(null); }}
+                      className="block w-full rounded-lg bg-white px-2 py-1.5 text-left"
+                    >
+                      <span className="block truncate text-[11px] font-bold text-[#11183d]">
+                        {expense.date.slice(5).replace('-', '/')}・{expense.description}
+                      </span>
+                      <span className="block text-[10px] text-slate-400">NT$ {Math.round(expense.twdAmount).toLocaleString()}</span>
+                    </button>
+                  ))}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLinkingId(null)}
+                  className="mt-1.5 text-[10px] font-black text-slate-500"
+                >
+                  取消
+                </button>
               </div>
             )}
             {onlyAuthor && (
