@@ -184,6 +184,22 @@ describe('當天消費紀錄', () => {
     expect(screen.queryByTestId('place-spend-record')).toBeNull();
   });
 
+  /*
+    「點擊下去沒有看到我在記帳的帳目中寫的備註」. A block that only appears when
+    it has something in it cannot be told apart from one that lost it.
+  */
+  it('shows the note written on the bill', () => {
+    open({ spend: [bill({ note: '蘑菇義大利麵超好吃！' })] });
+
+    expect(screen.getByTestId('place-spend-note-e').textContent).toContain('蘑菇義大利麵超好吃！');
+  });
+
+  it('says so when the bill carries no note', () => {
+    open({ spend: [bill()] });
+
+    expect(screen.getByTestId('place-spend-note-e').textContent).toContain('沒有寫備註');
+  });
+
   /* A receipt with no lines says so, rather than showing an empty table. */
   it('says when the receipt left no lines', () => {
     open({ spend: [bill({ items: undefined })] });

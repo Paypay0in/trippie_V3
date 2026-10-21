@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CircleDollarSign } from 'lucide-react';
+import { CircleDollarSign, NotebookPen } from 'lucide-react';
 import { SpendAtPlace } from '../services/spendAtPlace';
 import { currencySymbol } from '../services/currencySymbols';
 
@@ -124,12 +124,25 @@ const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
               <p className="px-3 py-2.5 text-[11px] text-slate-400">{NO_LINES}</p>
             )}
 
-            {/* The line the traveller wrote on this bill, kept with it. */}
-            {bill.note && (
-              <p className="border-t border-slate-100 bg-emerald-50/50 px-3 py-2 text-[11px] leading-5 text-emerald-800">
-                {bill.note}
-              </p>
-            )}
+            {/*
+              The line the traveller wrote on this bill, kept with it.
+
+              「點擊下去沒有看到我在記帳的帳目中寫的備註」 — and a block that only
+              appears when there is something in it cannot be told apart from
+              one that lost what it held. Said either way, under its own
+              heading, so 「我沒寫」 and 「寫了但沒出現」 look different.
+            */}
+            <div
+              data-testid={`place-spend-note-${bill.expenseId}`}
+              className="border-t border-slate-100 bg-emerald-50/50 px-3 py-2"
+            >
+              <span className="flex items-center gap-1 text-[10px] font-black text-emerald-700">
+                <NotebookPen size={10} />記帳時寫的備註
+              </span>
+              {bill.note
+                ? <p className="mt-1 text-[11px] leading-5 text-emerald-900">{bill.note}</p>
+                : <p className="mt-1 text-[11px] leading-5 text-slate-400">這筆記帳沒有寫備註。</p>}
+            </div>
 
             {bill.photos?.length ? (
               <div className="flex gap-1.5 overflow-x-auto border-t border-slate-100 px-3 py-2">
