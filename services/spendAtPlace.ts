@@ -105,6 +105,8 @@ export interface SpendAtPlace {
   exchangeRate?: number;
   /** The shop as printed, which is rarely what the collection calls it. */
   merchant?: string;
+  /** What the traveller thought of it, one to five, when they said. */
+  rating?: number;
 }
 
 const clean = (value?: string): string => (value || '').trim();
@@ -198,6 +200,7 @@ export const spendAtPlace = (
       ...(typeof expense.exchangeRate === 'number' && expense.exchangeRate > 0
         ? { exchangeRate: expense.exchangeRate } : {}),
       ...(clean(expense.merchant) ? { merchant: clean(expense.merchant) } : {}),
+      ...(typeof expense.rating === 'number' && expense.rating > 0 ? { rating: expense.rating } : {}),
     }))
     // 「上次在這裡花了多少」 is asked about the last time, not the first.
     .sort((left, right) => right.date.localeCompare(left.date));

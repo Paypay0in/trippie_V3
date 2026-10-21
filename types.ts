@@ -247,6 +247,18 @@ export interface Expense {
    * list shows. This is the sentence that explains it.
    */
   note?: string;
+  /**
+   * What the traveller thought of the place, one to five.
+   *
+   * 「在記帳的帳目中希望就能順便給星等評分（但這是選填）」 — asked at the one
+   * moment somebody reliably opens this app about a place they have just
+   * been to. Anywhere else it is a second errand nobody runs.
+   *
+   * Absent is a real answer, and the common one: most bills are a train
+   * ticket or a konbini and have nothing to say. Undefined is 「not rated」
+   * and is never shown as zero stars.
+   */
+  rating?: number;
   /** The receipt's own lines, when one was photographed. */
   receiptItems?: ReceiptItem[];
   /**

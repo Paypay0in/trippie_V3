@@ -201,6 +201,20 @@ describe('當天消費紀錄', () => {
     expect(screen.getByTestId('place-spend-note-e').textContent).toContain('蘑菇義大利麵超好吃！');
   });
 
+  /* 「也能摘取這些紀錄在收藏」 — the stars given at the till, carried through. */
+  it('shows the rating beside the note', () => {
+    open({ spend: [bill({ rating: 4 })] });
+
+    expect(screen.getByTestId('place-spend-rating-e').textContent).toContain('★★★★');
+  });
+
+  /* No stars means not rated, which is not the same as rated badly. */
+  it('shows no stars for a bill nobody rated', () => {
+    open({ spend: [bill()] });
+
+    expect(screen.queryByTestId('place-spend-rating-e')).toBeNull();
+  });
+
   it('says so when the bill carries no note', () => {
     open({ spend: [bill()] });
 

@@ -136,8 +136,19 @@ const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
               data-testid={`place-spend-note-${bill.expenseId}`}
               className="border-t border-slate-100 bg-emerald-50/50 px-3 py-2"
             >
-              <span className="flex items-center gap-1 text-[10px] font-black text-emerald-700">
+              <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-700">
                 <NotebookPen size={10} />記帳時寫的備註
+                {/*
+                  「也能摘取這些紀錄在收藏或是之後做總覽」 — the rating given at
+                  the till, beside the line written at the same moment.
+                  Printed only when there is one: no stars means not rated,
+                  which is not the same as rated badly.
+                */}
+                {bill.rating ? (
+                  <span data-testid={`place-spend-rating-${bill.expenseId}`} className="text-amber-500">
+                    {'★'.repeat(bill.rating)}<span className="text-slate-300">{'★'.repeat(5 - bill.rating)}</span>
+                  </span>
+                ) : null}
               </span>
               {bill.note
                 ? <p className="mt-1 text-[11px] leading-5 text-emerald-900">{bill.note}</p>

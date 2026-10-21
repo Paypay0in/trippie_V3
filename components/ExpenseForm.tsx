@@ -18,7 +18,7 @@ import {
   selectedPayerIds,
   spreadEvenly,
 } from '../services/payerAllocations';
-import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, MapPin, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle, Check } from 'lucide-react';
+import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, MapPin, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle, Check, Star } from 'lucide-react';
 import { localToday } from '../services/localDate';
 import { remainderMemberFor } from '../services/splitRemainderMember';
 import { readAndDownscale, RECEIPT_PHOTO } from '../services/postPhotos';
@@ -163,6 +163,14 @@ const ExpenseForm: React.FC<Props> = ({
   const [date, setDate] = useState(initialData?.date || localToday());
   /** 「這個欄位不能輸入」: the 備註 box, which until now was decoration. */
   const [note, setNote] = useState(initialData?.note || '');
+  /*
+    「順便給星等評分（但這是選填）」.
+
+    Zero is 「not rated」 here, not 「terrible」 — pressing the star you already
+    chose clears it, because a rating given by accident must be removable and
+    there is nowhere else to remove it from.
+  */
+  const [rating, setRating] = useState(initialData?.rating ?? 0);
   /*
     The refund the till already gave back, by hand.
 
@@ -937,6 +945,9 @@ const ExpenseForm: React.FC<Props> = ({
       // note made of whitespace are the same thing, and only one of them
       // renders as a blank line under the bill.
       ...(note.trim() ? { note: note.trim() } : {}),
+      // Absent rather than 0: 「not rated」 and 「rated nothing」 are different
+      // claims, and most bills are a train ticket with nothing to say.
+      ...(rating > 0 ? { rating } : {}),
       // Absent rather than false: a bill nobody has marked is simply unmarked,
       // and 「not said」 is not the same claim as 「said it can be refunded」.
       ...(refundIneligible ? { taxRefundIneligible: true } : {}),
@@ -2076,6 +2087,35 @@ const ExpenseForm: React.FC<Props> = ({
 
               {!locked && (
                 <div>
+                  {/*
+                    「這樣能讓用戶直接無痛紀錄他經歷的事情」 — the one moment
+                    somebody reliably opens this app about a place they have
+                    just been to is paying for it. Optional, and silent about
+                    itself when nothing is chosen.
+                  */}
+                  <label className="mb-2 block text-sm font-bold text-[#11183d]">評分（選填）</label>
+                  <div data-testid="expense-rating" className="mb-5 flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        type="button"
+                        aria-label={`${star} 星`}
+                        aria-pressed={rating >= star}
+                        data-testid={`expense-rating-${star}`}
+                        onClick={() => setRating(rating === star ? 0 : star)}
+                        className="p-1"
+                      >
+                        <Star
+                          size={24}
+                          className={rating >= star ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}
+                        />
+                      </button>
+                    ))}
+                    {rating > 0 && (
+                      <span className="ml-1 text-[11px] font-bold text-slate-400">再按一次取消</span>
+                    )}
+                  </div>
+
                   <label className="mb-2 block text-sm font-bold text-[#11183d]">備註（選填）</label>
                   <div className="flex items-stretch gap-3">
                     {/*
