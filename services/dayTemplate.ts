@@ -475,14 +475,38 @@ export const buildDayTemplate = ({
       endTime: toClock(entry.from + entry.minutes),
       durationMinutes: entry.minutes,
       occupantId: entry.id,
-      // Said, so the row can explain itself rather than looking like a block
-      // the day offered.
-      pastDayEnd: true,
+      /*
+        Said only when it is true.
+
+        A stop the grid could not reach is not necessarily after the day ends
+        — 八十八淺草 at 16:00 was unreachable because it overlapped a stop
+        already placed, and labelling that 「排在今天的時段之外」 told the
+        traveller something false about a stop sitting in the middle of his
+        afternoon.
+      */
+      ...(entry.from >= limit ? { pastDayEnd: true } : {}),
     });
     index += 1;
   });
 
-  return { slots, ranOutOfDay };
+  /*
+    A day is read down the clock.
+
+    「這個順序還是沒有排列好 覺得要有1234」 — the stranded stops above are
+    appended after the grid, so a 16:00 stop the loop could not reach was
+    drawn below the 19:00 row. Every row carries its own time, so the table
+    was not lying; it was just impossible to read as a day.
+
+    Sorted here rather than at each caller: the order of a day is a property
+    of the day, and two screens sorting it separately is how they come to
+    disagree. Positions are renumbered afterwards so `index` and `id` keep
+    meaning 「where this sits in the day」, which is what they are keyed on.
+  */
+  const ordered = [...slots]
+    .sort((left, right) => toMinutes(left.startTime) - toMinutes(right.startTime))
+    .map((slot, position) => ({ ...slot, index: position, id: `${date}#${position}` }));
+
+  return { slots: ordered, ranOutOfDay };
 };
 
 /** The blocks alone, for callers that do not care whether the day filled up. */

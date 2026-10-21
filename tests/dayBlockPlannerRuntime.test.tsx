@@ -1196,3 +1196,55 @@ describe('a block that is empty on purpose', () => {
     expect(screen.queryByTestId('empty-block-1')).toBeNull();
   });
 });
+
+/**
+ * 「覺得要有1234」.
+ *
+ * Counted over the stops rather than the rows: an empty block is not the third
+ * thing he is doing today, and numbering the gaps would renumber the afternoon
+ * every time one was filled.
+ */
+describe('the stops are numbered', () => {
+  const day = [
+    item('it-a', 'Sensō-ji', '10:00'),
+    item('it-b', '佐藤養助', '14:30', { durationMinutes: 60 }),
+  ];
+
+  it('numbers the filled rows down the day', () => {
+    render(
+      <DayBlockPlanner
+        date={DAY}
+        items={day}
+        places={places}
+        areas={buildTripAreas({ itinerary: day })}
+        onFillBlock={vi.fn()}
+      />,
+    );
+
+    const numbers = screen.getAllByText(/^[0-9]+$/)
+      .filter(node => node.getAttribute('data-testid')?.startsWith('stop-number-'))
+      .map(node => node.textContent);
+
+    expect(numbers).toEqual(['1', '2']);
+  });
+
+  /* A gap is not a stop. */
+  it('gives an empty block no number', () => {
+    render(
+      <DayBlockPlanner
+        date={DAY}
+        items={day}
+        places={places}
+        areas={buildTripAreas({ itinerary: day })}
+        onFillBlock={vi.fn()}
+      />,
+    );
+
+    const empties = screen.queryAllByTestId(/^fill-block-/);
+    expect(empties.length).toBeGreaterThan(0);
+    empties.forEach(button => {
+      const row = button.closest('div');
+      expect(row?.querySelector('[data-testid^="stop-number-"]')).toBeFalsy();
+    });
+  });
+});

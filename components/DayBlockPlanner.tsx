@@ -537,6 +537,19 @@ const DayBlockPlanner: React.FC<Props> = ({
     The suggestions are an answer to 「what could go here」, and that question
     has been answered.
   */
+  /*
+    「覺得要有1234」 — which stop of the day this is.
+
+    Counted over the blocks that hold something, in clock order, so the
+    numbers read 1 2 3 4 down a day with gaps in it. Zero for an empty block:
+    a gap is not a stop, and giving it a number would renumber the afternoon
+    every time one was filled.
+  */
+  const stopNumber = (slot: DaySlot): number =>
+    slot.occupantId
+      ? slots.filter(other => other.occupantId && other.index <= slot.index).length
+      : 0;
+
   const suggestionsFor = (slot: DaySlot) =>
     (emptiedSlotIds.includes(slot.id) ? [] : suggestionsBySlot.get(slot.index)) || [];
 
@@ -845,8 +858,24 @@ const DayBlockPlanner: React.FC<Props> = ({
                     </span>
                   ) : null}
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[11px] font-black text-[#11183d]">
-                      {slot.startTime}–{slot.endTime}
+                    <span className="flex items-center gap-1.5">
+                      {/*
+                        「覺得要有1234」. Counted over the stops, not the rows:
+                        an empty block is not the third thing he is doing
+                        today, and numbering the gaps would make 「第 5 站」
+                        mean nothing once one of them was filled.
+                      */}
+                      {stopNumber(slot) > 0 && (
+                        <span
+                          data-testid={`stop-number-${slot.index}`}
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#5b3df5] text-[9px] font-black text-white"
+                        >
+                          {stopNumber(slot)}
+                        </span>
+                      )}
+                      <span className="block text-[11px] font-black text-[#11183d]">
+                        {slot.startTime}–{slot.endTime}
+                      </span>
                     </span>
                     <span className={`block text-[10px] font-bold ${slot.kind === 'meal' ? 'text-amber-600' : 'text-slate-400'}`}>
                       {slot.label}

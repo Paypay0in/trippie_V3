@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDayTemplate } from './dayTemplate';
+import { buildDayTemplate, buildDaySlots } from './dayTemplate';
 
 /**
  * 「我在行程表下方改行程 上方的行程表不會同步」.
@@ -105,5 +105,48 @@ describe('a stop planned after the day ends', () => {
 
     expect(slots.some(slot => slot.pastDayEnd)).toBe(false);
     expect(slots.filter(slot => slot.occupantId).map(slot => slot.occupantId)).toEqual(['a', 'b']);
+  });
+});
+
+/**
+ * 「這個順序還是沒有排列好 覺得要有1234」.
+ *
+ * A stop the grid could not reach was appended after the grid, so 八十八淺草 at
+ * 16:00 was drawn below the 19:00 row. Every row carried its own time, so the
+ * table was not lying — it was impossible to read as a day.
+ */
+describe('a day reads down the clock', () => {
+  const overlapping = [
+    { id: 'harry', date: DATE, time: '15:00', durationMinutes: 120, title: 'HARRY' },
+    // Inside HARRY's two hours, so the forward walk never reaches it.
+    { id: 'hachi', date: DATE, time: '16:00', durationMinutes: 30, title: '八十八淺草' },
+    { id: 'senso', date: DATE, time: '12:30', durationMinutes: 120, title: 'Sensō-ji' },
+  ];
+
+  const built = () => buildDaySlots({ date: DATE, items: overlapping } as never);
+
+  it('puts every row in time order', () => {
+    const times = built().map(slot => slot.startTime);
+
+    expect(times).toEqual([...times].sort());
+  });
+
+  /*
+    A stop that could not be reached is not necessarily after the day ends.
+    八十八淺草 sits in the middle of the afternoon; saying 排在今天的時段之外
+    told the traveller something false about it.
+  */
+  it('does not call an afternoon stop late', () => {
+    const hachi = built().find(slot => slot.occupantId === 'hachi');
+
+    expect(hachi?.pastDayEnd).toBeUndefined();
+  });
+
+  /* Positions follow the order they are read in. */
+  it('renumbers positions down the day', () => {
+    const slots = built();
+
+    expect(slots.map(slot => slot.index)).toEqual(slots.map((_, position) => position));
+    expect(slots.map(slot => slot.id)).toEqual(slots.map((_, position) => `${DATE}#${position}`));
   });
 });
