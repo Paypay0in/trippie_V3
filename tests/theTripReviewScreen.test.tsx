@@ -344,7 +344,8 @@ describe('我的精選', () => {
         stop({ id: 'diner', title: 'Kurofunetei', type: 'FOOD', latitude: 35.72, longitude: 139.77 }),
       ],
       [
-        bill({ id: 'b1', merchant: 'Sensoji', rating: 5, merchantLatitude: 35.71, merchantLongitude: 139.79 }),
+        /* A sight is paid for under 票券; the ledger is what says so now. */
+        bill({ id: 'b1', merchant: 'Sensoji', rating: 5, category: Category.TICKET, merchantLatitude: 35.71, merchantLongitude: 139.79 }),
         bill({ id: 'b2', merchant: 'Kurofunetei', rating: 4, merchantLatitude: 35.72, merchantLongitude: 139.77 }),
       ],
     );
@@ -352,6 +353,44 @@ describe('我的精選', () => {
 
     expect(screen.getByTestId('recap-pick-place').textContent).toContain('Sensoji');
     expect(screen.getByTestId('recap-pick-meal').textContent).toContain('Kurofunetei');
+  });
+
+  /* 「就要有縮圖」, and their own photograph of the place before anybody's. */
+  it('uses the traveller\'s own photo as the thumbnail when there is one', () => {
+    open(
+      [stop({ id: 'k', title: 'Kurofunetei', latitude: 35.71, longitude: 139.77 })],
+      [bill({
+        merchant: 'Kurofunetei', rating: 5, receiptPhotos: ['till-roll'],
+        merchantLatitude: 35.71, merchantLongitude: 139.77,
+      })],
+    );
+    goToPicks();
+
+    expect(screen.getByTestId('recap-pick-meal-photo').getAttribute('src')).toBe('till-roll');
+  });
+
+  /* 「如果我有筆記都用我的資料」 — the ledger's note, or the stop's own. */
+  it('shows the note written at the till', () => {
+    open(
+      [stop({ id: 'k', title: 'Kurofunetei', latitude: 35.71, longitude: 139.77 })],
+      [bill({
+        merchant: 'Kurofunetei', rating: 5, note: '湯頭很清爽',
+        merchantLatitude: 35.71, merchantLongitude: 139.77,
+      })],
+    );
+    goToPicks();
+
+    expect(screen.getByTestId('recap-pick-meal-note').textContent).toContain('湯頭很清爽');
+  });
+
+  it('falls back to what was written against the stop itself', () => {
+    open(
+      [stop({ id: 'k', title: 'Kurofunetei', notes: '傍晚去人很少', latitude: 35.71, longitude: 139.77 })],
+      [bill({ merchant: 'Kurofunetei', rating: 5, merchantLatitude: 35.71, merchantLongitude: 139.77 })],
+    );
+    goToPicks();
+
+    expect(screen.getByTestId('recap-pick-meal-note').textContent).toContain('傍晚去人很少');
   });
 
   it('says what is missing rather than promoting an unrated stop', () => {

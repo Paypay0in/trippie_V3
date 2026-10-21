@@ -268,10 +268,16 @@ describe('what a stop carries', () => {
 });
 
 describe('旅程亮點', () => {
+  /*
+    The bill's own category is now what settles what kind of place this was,
+    so a sight is paid for under 票券 and a restaurant under 餐飲 — which is
+    how a traveller files them anyway.
+  */
   const rated = (id: string, title: string, rating: number, over: Partial<ItineraryItem> = {}) => ({
     item: stop({ id, title, latitude: 35 + rating / 1000, longitude: 139, ...over }),
     bill: bill({
       id: `b${id}`, merchant: title, rating,
+      category: over.type === 'FOOD' ? Category.FOOD : Category.TICKET,
       merchantLatitude: 35 + rating / 1000, merchantLongitude: 139,
     }),
   });
@@ -313,6 +319,43 @@ describe('旅程亮點', () => {
     const built = recap([ahead.item], [ahead.bill]);
 
     expect(built.highlights).toEqual([]);
+  });
+});
+
+/*
+  「如果我有筆記都用我的資料」 — 最愛景點 was offering Badamaru Jeonbok-juk, a
+  전복죽 restaurant, because no name rule recognises it. The traveller had
+  already said what it was: the bill is filed under 餐飲.
+*/
+describe('the ledger says what kind of place it was', () => {
+  const place = stop({ id: 'b', title: 'Badamaru Jeonbok-juk', latitude: 35.1, longitude: 129.1 });
+  const paid = (category: Category) => bill({
+    merchant: 'Badamaru Jeonbok-juk', category, rating: 5,
+    merchantLatitude: 35.1, merchantLongitude: 129.1,
+  });
+
+  it('calls a stop filed under 餐飲 a meal, whatever its name looks like', () => {
+    const built = recap([place], [paid(Category.FOOD)]);
+
+    expect(built.days[0].stops[0].category).toBe('food');
+    expect(built.favouriteMeal?.title).toBe('Badamaru Jeonbok-juk');
+    expect(built.favouritePlace).toBeUndefined();
+  });
+
+  it('calls a stop filed under 購物 shopping', () => {
+    expect(recap([place], [paid(Category.SHOPPING)]).days[0].stops[0].category).toBe('shop');
+  });
+
+  /* A stated type on the item still wins: it is the more specific statement. */
+  it('lets the item\'s own type overrule the ledger', () => {
+    const built = recap([{ ...place, type: 'FLIGHT' }], [paid(Category.FOOD)]);
+
+    expect(built.days[0].stops[0].category).toBe('transport');
+  });
+
+  /* Nothing filed and nothing in the name is still 「not known」. */
+  it('falls back to the name when no bill says anything', () => {
+    expect(recap([place]).days[0].stops[0].category).toBe('other');
   });
 });
 

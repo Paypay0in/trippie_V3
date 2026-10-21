@@ -24,7 +24,7 @@
  * of its own is the day the review starts attributing the wrong dinner to the
  * wrong evening.
  */
-import { Expense, ItineraryItem, Trip, TripMember } from '../types';
+import { Category, Expense, ItineraryItem, Trip, TripMember } from '../types';
 import { expenseCostToViewer, ownerMemberIdOf } from './viewerSpend';
 import { PlaceCategory, placeCategory } from './placeCategory';
 import { SpendAtPlace, spendAtPlace } from './spendAtPlace';
@@ -133,14 +133,36 @@ const BY_SLICE: Partial<Record<ItineraryItem['type'], PlaceCategory>> = {
 };
 
 /**
+ * What the traveller filed the bill at this stop under.
+ *
+ * 「如果我有筆記都用我的資料」 — 最愛景點 was offering Badamaru Jeonbok-juk, a
+ * 전복죽 restaurant, because no name rule in any language recognises it and
+ * the fallback is 「not food」. The traveller had already answered: the bill is
+ * filed under 餐飲. A stated category beats a guess at a name, every time.
+ */
+const BY_LEDGER: Partial<Record<Category, PlaceCategory>> = {
+  [Category.FOOD]: 'food',
+  [Category.SHOPPING]: 'shop',
+  [Category.SOUVENIR]: 'shop',
+  [Category.COSMETICS]: 'shop',
+  [Category.ELECTRONICS]: 'shop',
+  [Category.FASHION]: 'shop',
+  [Category.ACCESSORIES]: 'shop',
+  [Category.TRANSPORT]: 'transport',
+  [Category.TRANSPORT_AIRPORT]: 'transport',
+  [Category.TRANSPORT_POST]: 'transport',
+  [Category.ACCOMMODATION]: 'stay',
+};
+
+/**
  * What kind of stop this was.
  *
  * The item's own `type` first — it is a stated field — and the name only when
  * that said nothing useful. `ACTIVITY` is the default every item carries, so
  * it is not evidence of anything and is left to the name rules.
  */
-const categoryOf = (item: ItineraryItem): PlaceCategory =>
-  BY_SLICE[item.type] ?? placeCategory({ name: item.title });
+const categoryOf = (item: ItineraryItem, filedAs?: PlaceCategory): PlaceCategory =>
+  BY_SLICE[item.type] ?? filedAs ?? placeCategory({ name: item.title });
 
 /**
  * Getting there, rather than being there.
@@ -199,6 +221,12 @@ export const buildTripRecap = (
     expenseCostToViewer(expense, input.viewerMemberId, ownerMemberId);
   const costById = new Map(input.expenses.map(expense => [expense.id, costToViewer(expense)]));
   const costOf = (expenseId: string) => costById.get(expenseId) ?? 0;
+  /* How the traveller filed the bills at a place, when any of them says. */
+  const ledgerCategory = new Map(
+    input.expenses.map(expense => [expense.id, BY_LEDGER[expense.category]]),
+  );
+  const filedCategory = (bills: SpendAtPlace[]): PlaceCategory | undefined =>
+    bills.map(entry => ledgerCategory.get(entry.expenseId)).find(Boolean);
 
   const stops: RecapStop[] = items.map(item => ({
     itemId: item.id,
@@ -207,7 +235,7 @@ export const buildTripRecap = (
     title: item.title,
     ...(item.location?.trim() ? { location: item.location.trim() } : {}),
     ...(item.notes?.trim() ? { diary: item.notes.trim() } : {}),
-    category: categoryOf(item),
+    category: categoryOf(item, filedCategory(spendAtPlace(asPlace(item), input.expenses))),
     ...(typeof item.latitude === 'number' && typeof item.longitude === 'number'
       && !(item.latitude === 0 && item.longitude === 0)
       ? { latitude: item.latitude, longitude: item.longitude }

@@ -23,6 +23,8 @@ import { ITINERARY_PREFIX, buildTripAreas } from '../services/tripAreas';
 import { dayMapSrc } from '../services/dayMapImage';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import TripCover from './TripCover';
+import { PlaceThumbnail } from './PlaceThumbnail';
+import { SavedTravelInspiration } from '../types';
 
 interface Props {
   trip: Pick<Trip, 'name' | 'itinerary' | 'travelCountry'>;
@@ -535,14 +537,43 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                 <h3 className="font-black text-[#11183d]">{label}</h3>
                 {stop ? (
                   <div data-testid={testId} className="mt-3 flex items-center gap-3">
-                    {stop.photo && <img src={stop.photo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />}
+                    {/*
+                      「就要有縮圖」, and the traveller's own picture first.
+
+                      Their photograph of the place beats anybody's; only when
+                      they took none does this fall to `PlaceThumbnail`, which
+                      is this project's one answer to 「a picture for a place」
+                      and has been rebuilt field by field four times already.
+                    */}
+                    {stop.photo
+                      ? <img data-testid={`${testId}-photo`} src={stop.photo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                      : (
+                        <PlaceThumbnail
+                          saved={{
+                            placeName: stop.title,
+                            latitude: stop.latitude,
+                            longitude: stop.longitude,
+                          } as SavedTravelInspiration}
+                          size={56}
+                          className="shrink-0 rounded-xl"
+                        />
+                      )}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-black text-[#11183d]">{stop.title}</div>
                       <div className="mt-0.5 flex items-center gap-1.5">
                         <Stars stop={stop} testId={`${testId}-stars`} />
                         {stop.location && <span className="truncate text-[11px] font-bold text-slate-400">{stop.location}</span>}
                       </div>
-                      {stop.note && <p className="mt-1 text-[11px] leading-4 text-slate-600">{stop.note}</p>}
+                      {/*
+                        「如果我有筆記都用我的資料」 — what was written at the till
+                        and what was written against the stop are both theirs,
+                        and either is better than a blank card.
+                      */}
+                      {(stop.note || stop.diary) && (
+                        <p data-testid={`${testId}-note`} className="mt-1 text-[11px] leading-4 text-slate-600">
+                          {stop.note || stop.diary}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ) : (
