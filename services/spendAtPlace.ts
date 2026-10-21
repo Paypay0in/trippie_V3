@@ -17,17 +17,64 @@
  * screen about money is worse than showing nothing at all.
  *
  * The position is a second structured answer rather than a softer one. Google
- * hands back different place ids for the same venue often enough —  a shop
- * and the building it is in, a branch re-listed — that an id-only rule finds
+ * hands back different place ids for the same venue often enough — a shop and
+ * the building it is in, a branch re-listed — that an id-only rule finds
  * nothing on a perfectly good pair of records. Sixty metres apart in a city is
- * the same door; it is not 「probably the same kind of place」, which is what a
- * name would have been.
+ * the same door.
+ *
+ * The third rule is the printed name and the printed address, and I argued
+ * against it: 「我的收藏叫 Kurofunetei，收據叫 黑船亭 洋食料理」, and a rule loose
+ * enough to join those would also join two different shops. The Founder's
+ * answer was 「他有給地址跟店名…你應該是配對那個」, and he is right about the
+ * case in front of him — the receipt's own `merchant` field reads
+ * 「KUROFUNE-TEI」, which is the same word as the saved 「Kurofunetei」 once the
+ * hyphen and the case stop counting. A description is a sentence somebody
+ * wrote; a `merchant` is what the till printed.
+ *
+ * So the name rule is narrow on purpose: the till's name against the place's
+ * name, punctuation and case removed, equal or one wholly inside the other,
+ * never fewer than four characters. 「Lawson」 would still match every Lawson
+ * in Tokyo, which is why the address rule sits beside it rather than under
+ * it — a Japanese street number （2-13-13） appearing in both, full-width
+ * digits folded, is the shop and not the chain.
  */
 import { Expense, SavedTravelInspiration } from '../types';
 import { distanceInKm } from './tripInspirationSelection';
 
 /** Closer than this and it is the same door. */
 const SAME_DOOR_KM = 0.06;
+
+/** Shorter than this and a shared name says nothing. */
+const SHORTEST_NAME = 4;
+
+/**
+ * A name with nothing in it but the letters.
+ *
+ * Case, spaces, hyphens, middle dots and full-width punctuation all differ
+ * between a till roll and a map listing for the same shop, and none of them
+ * is part of what the shop is called.
+ */
+const nameKey = (value?: string): string =>
+  (value || '')
+    .toLocaleLowerCase()
+    .replace(/[\s\u3000・·.,'"’“”\-–—_()（）【】\[\]]/g, '');
+
+/** Full-width digits are the same numbers. */
+const digits = (value: string): string =>
+  value.replace(/[０-９]/g, character => String.fromCharCode(character.charCodeAt(0) - 0xfee0));
+
+/**
+ * The street numbers in an address, as they would be read aloud.
+ *
+ * 「2-13-13」 in 東京都台東区上野2-13-13キクヤビル4F, and the same run inside a map
+ * listing's 上野２丁目13−13. The run is what identifies the building; the words
+ * around it are written differently by everybody.
+ */
+const streetNumbers = (value?: string): string[] => {
+  const normalised = digits(value || '').replace(/[−‐‑‒–—]/g, '-');
+  const runs: string[] = normalised.match(/\d+(?:-\d+)+/g) ?? [];
+  return runs.filter(run => run.length >= 4);
+};
 
 export interface SpendAtPlace {
   expenseId: string;
@@ -50,7 +97,7 @@ const clean = (value?: string): string => (value || '').trim();
  * this refuses to do.
  */
 export const spendAtPlace = (
-  place: Pick<SavedTravelInspiration, 'placeId' | 'latitude' | 'longitude'>,
+  place: Pick<SavedTravelInspiration, 'placeId' | 'latitude' | 'longitude' | 'placeName' | 'resolvedPlaceName' | 'formattedAddress'>,
   expenses: Expense[],
 ): SpendAtPlace[] => {
   const placeId = clean(place.placeId);
@@ -58,7 +105,8 @@ export const spendAtPlace = (
     && !(place.latitude === 0 && place.longitude === 0)
     ? { latitude: place.latitude, longitude: place.longitude }
     : undefined;
-  if (!placeId && !here) return [];
+  // Nothing structured and nothing printed is nothing to match on.
+  if (!placeId && !here && !clean(place.placeName) && !clean(place.formattedAddress)) return [];
 
   const sameDoor = (expense: Expense): boolean => {
     if (!here) return false;
@@ -69,8 +117,39 @@ export const spendAtPlace = (
     return distanceInKm(here, { latitude: lat, longitude: lng }) <= SAME_DOOR_KM;
   };
 
+  /*
+    The till's name against the place's name — not the description, which is
+    a sentence somebody wrote and is routinely the dish rather than the shop.
+  */
+  const savedNames = [place.placeName, place.resolvedPlaceName]
+    .map(nameKey)
+    .filter(name => name.length >= SHORTEST_NAME);
+  const sameName = (expense: Expense): boolean => {
+    const printed = nameKey(expense.merchant);
+    if (printed.length < SHORTEST_NAME) return false;
+    return savedNames.some(name => name === printed || name.includes(printed) || printed.includes(name));
+  };
+
+  const savedNumbers = streetNumbers(place.formattedAddress);
+  const sameBuilding = (expense: Expense): boolean => {
+    if (savedNumbers.length === 0) return false;
+    const printed = streetNumbers(expense.merchantAddress);
+    /*
+      One run may carry a block number the other leaves out: a map listing
+      says 上野２丁目13−13 and a receipt says 上野2-13-13, which is 13-13 inside
+      2-13-13. Matched when one run ends with the other, so the finer address
+      is allowed to be more specific than the coarser one without the two
+      being read as different buildings.
+    */
+    return printed.some(run => savedNumbers.some(known =>
+      run === known || run.endsWith(`-${known}`) || known.endsWith(`-${run}`)));
+  };
+
   return expenses
-    .filter(expense => (placeId && clean(expense.merchantPlaceId) === placeId) || sameDoor(expense))
+    .filter(expense => (placeId && clean(expense.merchantPlaceId) === placeId)
+      || sameDoor(expense)
+      || sameName(expense)
+      || sameBuilding(expense))
     .map(expense => ({
       expenseId: expense.id,
       date: expense.date,

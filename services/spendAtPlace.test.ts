@@ -42,13 +42,61 @@ describe('spendAtPlace', () => {
   });
 
   /*
-    The names do not match and never will. A loose name rule would attach the
-    wrong receipt to the wrong shop, which on a screen about money is worse
-    than showing nothing.
+    「他有給地址跟店名…你應該是配對那個」. The till's own name, not the
+    description: 「KUROFUNE-TEI」 is the same word as the saved 「Kurofunetei」
+    once the hyphen and the case stop counting.
   */
-  it('ignores a bill that only shares a name', () => {
-    expect(spendAtPlace(saved(), [bill({ merchantPlaceId: undefined, description: 'Kurofunetei' })]))
-      .toEqual([]);
+  it('matches the name the till printed', () => {
+    const receipt = bill({ merchantPlaceId: undefined, merchant: 'KUROFUNE-TEI' });
+
+    expect(spendAtPlace(saved(), [receipt])).toHaveLength(1);
+  });
+
+  /*
+    The description is a sentence somebody wrote, and routinely names the dish
+    rather than the shop. It is never the thing matched on.
+  */
+  it('ignores a description that happens to read like the place', () => {
+    const receipt = bill({ merchantPlaceId: undefined, merchant: undefined, description: 'Kurofunetei' });
+
+    expect(spendAtPlace(saved(), [receipt])).toEqual([]);
+  });
+
+  it('ignores a till name too short to mean anything', () => {
+    const receipt = bill({ merchantPlaceId: undefined, merchant: '店' });
+
+    expect(spendAtPlace(saved({ placeName: '店' }), [receipt])).toEqual([]);
+  });
+
+  /*
+    The street number is what identifies the building; the words around it are
+    written differently by everybody, and full-width digits are the same
+    numbers.
+  */
+  it('matches the same street number, however it is typed', () => {
+    const here = saved({
+      placeId: 'ChIJ-saved', placeName: '別的寫法',
+      formattedAddress: '日本、〒110-0005 東京都台東区上野２丁目13−13',
+    });
+    const receipt = bill({
+      merchantPlaceId: undefined, merchant: undefined,
+      merchantAddress: '東京都台東区上野2-13-13キクヤビル4F',
+    });
+
+    expect(spendAtPlace(here, [receipt])).toHaveLength(1);
+  });
+
+  it('does not match a different building on the same street', () => {
+    const here = saved({
+      placeId: 'ChIJ-saved', placeName: '別的寫法',
+      formattedAddress: '東京都台東区上野2-13-13',
+    });
+    const receipt = bill({
+      merchantPlaceId: undefined, merchant: undefined,
+      merchantAddress: '東京都台東区上野4-8-21',
+    });
+
+    expect(spendAtPlace(here, [receipt])).toEqual([]);
   });
 
   it('says nothing for a saved place with no id and no position', () => {
