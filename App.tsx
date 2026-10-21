@@ -303,6 +303,7 @@ import TripWorkspaceShell, {
 } from "./components/TripWorkspaceShell";
 import TripPlanOverview from "./components/TripPlanOverview";
 import TripLiveOverview from "./components/TripLiveOverview";
+import TripRecapScreen from "./components/TripRecapScreen";
 import { resolvePlace } from "./services/placeService";
 import {
   fetchPreparationSuggestions,
@@ -847,6 +848,8 @@ const App: React.FC = () => {
   */
   const [planningOnMap, setPlanningOnMap] = useState(false);
   const [shoppingSheetOpen, setShoppingSheetOpen] = useState(false);
+  /** 旅程回顧 — the whole trip read back, opened from the overview. */
+  const [recapOpen, setRecapOpen] = useState(false);
   /*
     The map request is spent once the traveller leaves the plan, so the next
     地圖 tap is a new request rather than a `true` that never changed.
@@ -8689,6 +8692,7 @@ const App: React.FC = () => {
               */
               onOpenMap={() => { setPlanningOnMap(true); setWorkspaceSection("planning"); }}
               onOpenShoppingList={() => setShoppingSheetOpen(true)}
+              onOpenRecap={() => setRecapOpen(true)}
             />
           )}
           {workspaceSection === "overview" && currentPhase === "during" && (
@@ -9032,6 +9036,26 @@ const App: React.FC = () => {
           this workspace replaced. Same panel and the same four handlers, so
           there is one shopping list rather than a second one that drifts.
         */}
+        {/*
+          旅程回顧. Every figure on it is derived in `tripRecap` from the
+          itinerary and the ledger — the rated ledger, so the stars given at
+          the till are the stars the review shows.
+        */}
+        {recapOpen && (
+          <div className={`fixed inset-0 ${OVERLAY.sheet} overflow-y-auto bg-[#f6f7fc]`} data-testid="recap-screen">
+            <TripRecapScreen
+              trip={{
+                name: currentTripName || "這趟旅程",
+                itinerary,
+                travelCountry: tripDestinationDraft?.destinationCountry || travelCountry || "",
+              }}
+              expenses={ratedExpenses}
+              today={new Date().toISOString().split("T")[0]}
+              onBack={() => setRecapOpen(false)}
+              onOpenRecords={() => { setRecapOpen(false); setWorkspaceSection("records"); }}
+            />
+          </div>
+        )}
         {shoppingSheetOpen && (
           <div
             className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-900/40 p-3 sm:items-center`}

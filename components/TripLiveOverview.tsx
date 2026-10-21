@@ -42,6 +42,14 @@ interface Props {
   onOpenShoppingList?: () => void;
   onOpenCompanions?: () => void;
   onOpenMore?: () => void;
+  /**
+   * The full 旅程回顧 screen.
+   *
+   * The strip below is a dozen photographs; the review counts the days, maps
+   * where the trip went and names what was liked best. 查看全部 used to go to
+   * the ledger, which answered a different question.
+   */
+  onOpenRecap?: () => void;
 }
 const timeToMinutes = (value: string) => {
   const match = value.trim().match(/(?:^|\s)(\d{1,2}):(\d{2})(?=\s|$|:)/);
@@ -51,7 +59,7 @@ const timeToMinutes = (value: string) => {
   return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? hours * 60 + minutes : null;
 };
 
-const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, endDate, onQuickAdd, onOpenPlanning, onOpenRecords, destination, destinationCoordinates, destinationCountry, viewerMemberId, members = [], onOpenMap, onOpenShoppingList, onOpenCompanions, onOpenMore }) => {
+const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, endDate, onQuickAdd, onOpenPlanning, onOpenRecords, destination, destinationCoordinates, destinationCountry, viewerMemberId, members = [], onOpenMap, onOpenShoppingList, onOpenCompanions, onOpenMore, onOpenRecap }) => {
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState(false);
@@ -223,15 +231,21 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
 
       So it is their own, newest first, and it says what it is.
     */}
-    {memories.length > 0 && (
+    {(memories.length > 0 || onOpenRecap) && (
       <section data-testid="trip-memories" className="rounded-[1.45rem] border border-slate-100 bg-white p-4 shadow-[0_8px_24px_rgba(66,74,150,.07)]">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
             <h2 className="font-black">旅程回顧</h2>
-            <div className="mt-1 text-[11px] text-slate-400">你在這趟旅行拍下的照片</div>
+            <div className="mt-1 text-[11px] text-slate-400">
+              {memories.length > 0 ? '你在這趟旅行拍下的照片' : '這趟旅程走過的天數、地點與花費'}
+            </div>
           </div>
-          <button onClick={onOpenRecords} className="flex shrink-0 items-center gap-1 text-xs font-black text-violet-700">
-            查看全部<ArrowRight size={13} />
+          <button
+            data-testid="trip-open-recap"
+            onClick={onOpenRecap ?? onOpenRecords}
+            className="flex shrink-0 items-center gap-1 text-xs font-black text-violet-700"
+          >
+            {onOpenRecap ? '查看回顧' : '查看全部'}<ArrowRight size={13} />
           </button>
         </div>
         <div className="flex gap-2 overflow-x-auto">
