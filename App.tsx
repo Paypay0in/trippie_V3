@@ -117,6 +117,7 @@ import {
   toggleStatedVisit,
 } from "./services/statedVisits";
 import { EmptiedSlots, loadEmptiedSlots, saveEmptiedSlots, toggleEmptied } from "./services/emptiedSlots";
+import { StatedRatings, loadStatedRatings, saveStatedRatings, setStatedRating, withStatedRatings } from "./services/statedRatings";
 import { strandedLocalTripEscape } from "./services/strandedLocalTrip";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
@@ -1922,6 +1923,13 @@ const App: React.FC = () => {
   /** Places the traveller has said they went to. See `statedVisits`. */
   const [statedVisits, setStatedVisits] = useState<StatedVisits>(() => loadStatedVisits());
   useEffect(() => { saveStatedVisits(statedVisits); }, [statedVisits]);
+  /*
+    Star ratings, until `expenses.rating` exists. See `statedRatings` — a
+    rating kept only on the expense is wiped by the next cloud read, because
+    the server's row wins and has no rating in it.
+  */
+  const [statedRatings, setStatedRatings] = useState<StatedRatings>(() => loadStatedRatings());
+  useEffect(() => { saveStatedRatings(statedRatings); }, [statedRatings]);
   /** Blocks said to be empty on purpose. See `emptiedSlots`. */
   const [emptiedSlotIds, setEmptiedSlotIds] = useState<EmptiedSlots>(() => loadEmptiedSlots());
   useEffect(() => { saveEmptiedSlots(emptiedSlotIds); }, [emptiedSlotIds]);
@@ -4214,6 +4222,14 @@ const App: React.FC = () => {
         showToast("這筆支出由其他旅伴建立，無法修改。", "error");
         return;
       }
+      /*
+        The stars, kept beside the ledger until the column exists.
+
+        「先記著本機 我在日本沒帶電腦」. On the expense alone a rating would be
+        wiped by the next cloud read — the server's row wins and has none —
+        so it is recorded where a read cannot reach it. See `statedRatings`.
+      */
+      setStatedRatings((current) => setStatedRating(current, editingExpense.id, data.rating));
       setExpenses((prev) =>
         prev.map((e) =>
           e.id === editingExpense.id
@@ -4243,6 +4259,8 @@ const App: React.FC = () => {
           || (viewerResolution.isResolved ? viewerMemberId : undefined),
         linkedShoppingItemId: linkedItemId, // Link expense to shopping item
       };
+      // Kept beside the ledger too; see the editing branch above.
+      setStatedRatings((current) => setStatedRating(current, expense.id, expense.rating));
       setExpenses((prev) => [...prev, expense]);
 
       if (linkedItemId) {
@@ -6841,7 +6859,10 @@ const App: React.FC = () => {
           The open trip's bills plus everything already filed, so a place
           visited on a finished trip still shows what it cost.
         */
-        expenses={[...expenses, ...tripHistory.flatMap((trip) => trip.expenses || [])]}
+        expenses={withStatedRatings(
+          [...expenses, ...tripHistory.flatMap((trip) => trip.expenses || [])],
+          statedRatings,
+        )}
         /*
           Fills in the `merchantPlaceId` a receipt scan could not. The field
           already exists and is already the join; what was missing was a way to
