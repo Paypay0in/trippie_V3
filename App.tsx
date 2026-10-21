@@ -3231,13 +3231,13 @@ const App: React.FC = () => {
    */
   const handleFillDayBlock = ({ date, time, durationMinutes, placeGroupId }: {
     date: string; time: string; durationMinutes: number; placeGroupId: string;
-  }) => {
+  }): boolean => {
     const groups = selectTripInspirationGroups(tripScopedInspirations, tripInspirationContext);
     const group = groups.find((entry) => entry.id === placeGroupId);
     if (!group) {
       // A silent return here is a tap that does nothing and says nothing.
       showToast("這個地點現在找不到，請重新整理再試一次。", "error");
-      return;
+      return false;
     }
 
     const item = {
@@ -3264,9 +3264,10 @@ const App: React.FC = () => {
       showToast(activeDraftId
         ? "行程儲存失敗，這個地點沒有排進去。"
         : "目前沒有開啟中的旅程，請回到旅程列表重新進入再試一次。", "error");
-      return;
+      return false;
     }
     showToast(`已排入 ${time}・${group.placeName}`);
+    return true;
   };
 
   /**

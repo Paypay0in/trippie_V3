@@ -71,7 +71,14 @@ interface Props {
   places: PlaceOption[];
   areas?: TripAreas;
   /** Fills an empty block. The caller writes the item and owns persistence. */
-  onFillBlock: (slot: DaySlot, placeId: string) => void;
+  /**
+   * Fills an empty block. The caller writes the item and owns persistence.
+   *
+   * 「我就是點下去就跳掉啦」 — returning `false` keeps the sheet open. A sheet
+   * that closes is this screen saying 「done」, and it was saying it whatever
+   * happened next.
+   */
+  onFillBlock: (slot: DaySlot, placeId: string) => void | boolean;
   /** Fills a slot with a name the traveller typed, when no saved place fits. */
   onFillBlockManually?: (slot: DaySlot, title: string) => void;
   /** Changes how long a placed item runs; everything after it moves with it. */
@@ -234,10 +241,16 @@ const DayBlockPlanner: React.FC<Props> = ({
     Every way into a slot goes through here, so there is no second path left to
     forget it.
   */
-  const replaceInSlot = (slot: DaySlot, fill: () => void) => {
+  /**
+   * Swaps what is in a block, and says whether the fill went through.
+   *
+   * `false` only when the caller said so: a caller that returns nothing is
+   * one that does not report, and silence is not a refusal.
+   */
+  const replaceInSlot = (slot: DaySlot, fill: () => void | boolean): boolean => {
     const sitting = slot.occupantId ? itemById.get(slot.occupantId) : undefined;
     if (sitting) onClearBlock?.(sitting.id);
-    fill();
+    return fill() !== false;
   };
 
   const commitTyped = (slot: DaySlot) => {
@@ -1183,10 +1196,20 @@ const DayBlockPlanner: React.FC<Props> = ({
             title={`${slot.startTime}–${slot.endTime}・${slot.label}`}
             places={groupedOptionsFor(slot).flatMap(group => group.places)}
             onPick={placeId => {
-              setPickingAt(null);
               /* Re-picking what is already there is 「clear」, not 「clear and re-add」. */
-              if (sitting && sitting.id === placeId) { onClearBlock?.(sitting.id); return; }
-              replaceInSlot(slot, () => onFillBlock(slot, placeId));
+              if (sitting && sitting.id === placeId) {
+                setPickingAt(null);
+                onClearBlock?.(sitting.id);
+                return;
+              }
+              /*
+                Closed only once the stop is in. 「我就是點下去就跳掉啦」 — the
+                sheet used to close first and fill afterwards, so a refusal
+                downstream looked exactly like a successful pick: the list
+                vanished, the day was unchanged, and the only difference was a
+                toast behind it.
+              */
+              if (replaceInSlot(slot, () => onFillBlock(slot, placeId))) setPickingAt(null);
             }}
             onClose={() => setPickingAt(null)}
             onClear={sitting && onClearBlock

@@ -151,7 +151,13 @@ interface Props {
    */
   categoryOf?: (item: ItineraryItem) => string | undefined;
   /** Writes a place into a block. The caller owns the item and its persistence. */
-  onFillBlock?: (input: { date: string; time: string; durationMinutes: number; placeGroupId: string }) => void;
+  /**
+   * Fills a block with a saved place.
+   *
+   * Returns `false` when the stop did not go in, so the picker can stay open
+   * rather than close on a refusal. 「我就是點下去就跳掉啦」.
+   */
+  onFillBlock?: (input: { date: string; time: string; durationMinutes: number; placeGroupId: string }) => void | boolean;
   /** A slot filled with a name the traveller typed, carrying no map location. */
   onFillBlockManually?: (input: { date: string; time: string; durationMinutes: number; title: string }) => void;
   /**
@@ -1314,6 +1320,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           places={savedPlaces}
           areas={areas}
           isFixed={isFixedItem}
+          /* The caller's answer is passed back through: see `replaceInSlot`. */
           onFillBlock={(slot, placeGroupId) => onFillBlock({
             date: activeDate,
             time: slot.startTime,

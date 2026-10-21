@@ -1310,3 +1310,43 @@ describe('picking a place out of the sheet', () => {
     expect(onClearBlock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 「我就是點下去就跳掉啦」.
+ *
+ * The sheet closed first and filled afterwards, so a refusal downstream looked
+ * exactly like a successful pick: the list vanished, the day was unchanged,
+ * and the only difference was a toast behind it.
+ */
+describe('a pick the caller refuses', () => {
+  it('keeps the sheet open', async () => {
+    const user = userEvent.setup();
+    renderPlanner({ onFillBlock: vi.fn(() => false) });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(screen.getByTestId('pick-place-g-working')).toBeTruthy();
+  });
+
+  /* A caller that returns nothing is one that does not report. */
+  it('still closes for a caller that says nothing', async () => {
+    const user = userEvent.setup();
+    renderPlanner({ onFillBlock: vi.fn() });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(screen.queryByTestId('pick-place-g-working')).toBeNull();
+  });
+
+  it('closes when the caller says it went in', async () => {
+    const user = userEvent.setup();
+    renderPlanner({ onFillBlock: vi.fn(() => true) });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(screen.queryByTestId('pick-place-g-working')).toBeNull();
+  });
+});
