@@ -159,6 +159,18 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
     return () => { cancelled = true; };
   }, [destination]);
 
+  /*
+    The photographs this trip holds, newest first.
+
+    Only the traveller's own: receipt photos are what this app has actually
+    been given. A strip of Google's pictures of the same places would be
+    captioning somebody else's photos as their trip.
+  */
+  const memories = [...expenses]
+    .sort((left, right) => (right.date || '').localeCompare(left.date || ''))
+    .flatMap(expense => expense.receiptPhotos ?? [])
+    .slice(0, 12);
+
   /* Only the ways out that actually lead somewhere. */
   const ways: Array<[React.ComponentType<{ size?: number }>, string, () => void]> = [
     [CalendarRange, '行程規劃', onOpenPlanning],
@@ -217,6 +229,42 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
       <div className="mt-3 min-h-[5.25rem] rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_5px_16px_rgba(30,41,90,.06)]">{weatherLoading ? <div className="flex min-h-[3.4rem] items-center gap-3 text-sm font-bold text-slate-500"><CloudSun size={25} className="text-slate-300" />正在取得天氣…</div> : weatherError || !weather ? <div className="flex min-h-[3.4rem] items-center gap-3"><CloudSun size={28} className="text-slate-300" /><div className="flex-1 text-sm font-bold text-slate-500">目前無法取得天氣</div><button onClick={() => setWeatherRetry(value => value + 1)} className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-black text-indigo-700">重試</button></div> : <div className="flex items-center gap-3"><span className="text-3xl">{weather.precipitationProbability >= 50 ? '🌧️' : '☁️'}</span><div><div className="text-2xl font-black">{Math.round(weather.temperature)}°C</div><div className="text-xs font-bold text-slate-500">{weather.condition} · 高 {Math.round(weather.high)}° / 低 {Math.round(weather.low)}°</div></div><div className="ml-auto text-right text-xs font-bold text-slate-500">降雨機率<br /><span className="text-sm text-indigo-700">{weather.precipitationProbability}%</span></div></div>}</div>
     </section>
     <section className="rounded-[1.45rem] border border-slate-100 bg-white p-4 shadow-[0_8px_24px_rgba(66,74,150,.07)]"><div className="mb-2 flex items-center justify-between"><div><h2 className="font-black">今日花費</h2><div className="mt-1 text-[11px] text-slate-400">今日旅行中的已記錄支出</div></div><Receipt size={18} className="text-violet-600" /></div><div className="text-3xl font-black tracking-tight text-[#11183d]">NT$ {Math.round(todayTotal).toLocaleString()}</div><button onClick={onOpenRecords} className="mt-3 flex min-h-10 w-full items-center justify-center gap-1 rounded-xl bg-violet-50 text-xs font-black text-violet-700">查看記錄<ArrowRight size={13} /></button></section>
+    {/*
+      旅程回顧.
+
+      「100%還原」 — and the only photographs this trip actually holds are the
+      ones the traveller took of their own bills. There is no album; inventing
+      one would be a different product, and filling this strip with Google's
+      pictures of the places would be captioning somebody else's photos as
+      their trip.
+
+      So it is their own, newest first, and it says what it is.
+    */}
+    {memories.length > 0 && (
+      <section data-testid="trip-memories" className="rounded-[1.45rem] border border-slate-100 bg-white p-4 shadow-[0_8px_24px_rgba(66,74,150,.07)]">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="font-black">旅程回顧</h2>
+            <div className="mt-1 text-[11px] text-slate-400">你在這趟旅行拍下的照片</div>
+          </div>
+          <button onClick={onOpenRecords} className="flex shrink-0 items-center gap-1 text-xs font-black text-violet-700">
+            查看全部<ArrowRight size={13} />
+          </button>
+        </div>
+        <div className="flex gap-2 overflow-x-auto">
+          {memories.map(photo => (
+            <img
+              key={photo}
+              src={photo}
+              alt=""
+              loading="lazy"
+              className="h-24 w-24 shrink-0 rounded-2xl object-cover"
+            />
+          ))}
+        </div>
+      </section>
+    )}
+
     <section className="rounded-[1.45rem] border border-slate-100 bg-white p-4 shadow-[0_8px_24px_rgba(66,74,150,.07)]"><h2 className="mb-3 font-black">快速記帳</h2><div className="grid grid-cols-4 gap-2">{quickActions.map(([Icon, label, category]) => <button key={label} onClick={() => onQuickAdd(category)} className="flex min-h-[4.25rem] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-100 bg-white text-[11px] font-bold text-slate-600 shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"><Icon size={20} />{label}</button>)}</div></section>
   </div>;
 };

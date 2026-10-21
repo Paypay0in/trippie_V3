@@ -839,6 +839,21 @@ const App: React.FC = () => {
   const [currentPhase, setCurrentPhase] = useState<Phase>("pre");
   const [workspaceSection, setWorkspaceSection] =
     useState<WorkspaceSection>("overview");
+  /*
+    「100%還原」 — the overview's row of ways out needs three doors the
+    workspace did not have: the plan opened on its map, the shopping list as a
+    sheet, and the shell's own 更多 drawer.
+  */
+  const [planningOnMap, setPlanningOnMap] = useState(false);
+  const [shoppingSheetOpen, setShoppingSheetOpen] = useState(false);
+  const [workspaceMoreOpen, setWorkspaceMoreOpen] = useState(false);
+  /*
+    The map request is spent once the traveller leaves the plan, so the next
+    地圖 tap is a new request rather than a `true` that never changed.
+  */
+  useEffect(() => {
+    if (workspaceSection !== "planning") setPlanningOnMap(false);
+  }, [workspaceSection]);
   const [walletPhase, setWalletPhase] = useState<WalletPhase>("pre");
   const [postComments, setPostComments] = useState<PostComment[]>(() => loadPostComments());
 
@@ -8046,6 +8061,12 @@ const App: React.FC = () => {
           </p>
         </div>
         <ItineraryCalendar
+          /*
+            Opened on the map when that is the door the traveller used. The
+            header's toggle owns it from then on; this only says which one it
+            starts on.
+          */
+          initialMapMode={planningOnMap}
           viewerUserId={currentUserId}
           members={itineraryRoster}
           areas={tripAreas}
@@ -8462,6 +8483,9 @@ const App: React.FC = () => {
           onConfirm={handleConfirmRefundSettlement}
         />
         <TripWorkspaceShell
+          /* 「100%還原」 — so the overview's 更多 tile can open this drawer. */
+          moreOpen={workspaceMoreOpen}
+          onMoreOpenChange={setWorkspaceMoreOpen}
           tripName={currentTripName}
           dateRange={tripDateRangeDisplay}
           destination={tripDestination}
@@ -8625,19 +8649,16 @@ const App: React.FC = () => {
               onOpenPlanning={() => setWorkspaceSection("planning")}
               onOpenRecords={() => setWorkspaceSection("records")}
               /*
-                「將總覽改成這樣」 — the row of ways out. Only the ones that lead
-                somewhere are passed: a tile with nowhere to go is a dead tap,
-                and this screen has had enough of those tonight.
-
-                地圖, 購物清單 and 更多 are not here yet, and by inspection
-                rather than by omission: the map is a mode inside the planning
-                screen with no way in from outside it, `ShoppingListPanel` is
-                mounted only on the older phase-tab screen this workspace
-                replaced, and 更多 is a drawer `TripWorkspaceShell` opens from
-                its own state. Each needs plumbing that does not exist, and a
-                tile that leads nowhere is worse than one that is not there.
+                「100%還原」 — all five ways out of the mock, each with a door
+                behind it: the plan, the plan opened on its map, the shopping
+                list as a sheet, the companions sheet, and the shell's own 更多
+                drawer. A tile is still omitted rather than drawn dead when a
+                caller passes no handler; this caller passes all of them.
               */
               onOpenCompanions={() => setIsCompanionsOpen(true)}
+              onOpenMap={() => { setPlanningOnMap(true); setWorkspaceSection("planning"); }}
+              onOpenShoppingList={() => setShoppingSheetOpen(true)}
+              onOpenMore={() => setWorkspaceMoreOpen(true)}
             />
           )}
           {workspaceSection === "overview" && currentPhase === "during" && (
@@ -8973,6 +8994,48 @@ const App: React.FC = () => {
               </div>
             </div>
           )}
+        {/*
+          購物清單, as a sheet over the workspace.
+
+          「100%還原」 — the mock opens it from the overview, and
+          `ShoppingListPanel` was mounted only on the older phase-tab screen
+          this workspace replaced. Same panel and the same four handlers, so
+          there is one shopping list rather than a second one that drifts.
+        */}
+        {shoppingSheetOpen && (
+          <div
+            className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-900/40 p-3 sm:items-center`}
+            onClick={() => setShoppingSheetOpen(false)}
+            data-testid="shopping-sheet-overlay"
+          >
+            <div
+              role="dialog"
+              aria-label="購物清單"
+              data-testid="shopping-sheet"
+              onClick={(event) => event.stopPropagation()}
+              className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-4 shadow-[0_24px_70px_rgba(17,26,74,0.18)]"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-lg font-black text-[#11183d]">購物清單</h2>
+                <button
+                  type="button"
+                  aria-label="關閉"
+                  onClick={() => setShoppingSheetOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-400"
+                >
+                  <span aria-hidden className="text-lg leading-none">×</span>
+                </button>
+              </div>
+              <ShoppingListPanel
+                title={shoppingPanelTitle}
+                shoppingList={shoppingList.filter((item) => item.phase === currentPhase)}
+                onAddItem={handleAddShoppingItem}
+                onRemoveItem={handleRemoveShoppingItem}
+                onPurchaseItem={handlePurchaseShoppingItem}
+              />
+            </div>
+          </div>
+        )}
         </TripWorkspaceShell>
       </>
     );

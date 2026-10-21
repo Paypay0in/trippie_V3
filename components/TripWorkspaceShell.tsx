@@ -36,6 +36,15 @@ interface Props {
   onShare: () => void;
   onSectionChange: (section: WorkspaceSection) => void;
   onQuickAdd: () => void;
+  /**
+   * Opens 更多 from outside, for the overview's row of ways out.
+   *
+   * 「100%還原」 — the mock's 更多 tile has to open this drawer, and the drawer
+   * was state this component kept to itself. Controlled when a caller passes
+   * both, uncontrolled otherwise, so every existing use is unchanged.
+   */
+  moreOpen?: boolean;
+  onMoreOpenChange?: (open: boolean) => void;
 }
 
 const TripWorkspaceShell: React.FC<Props> = ({
@@ -53,10 +62,18 @@ const TripWorkspaceShell: React.FC<Props> = ({
   onShare,
   onSectionChange,
   onQuickAdd,
+  moreOpen: moreOpenProp,
+  onMoreOpenChange,
 }) => {
   const [image, setImage] = useState<DestinationImage | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [ownMoreOpen, setOwnMoreOpen] = useState(false);
+  const controlled = moreOpenProp !== undefined && onMoreOpenChange !== undefined;
+  const moreOpen = controlled ? (moreOpenProp as boolean) : ownMoreOpen;
+  const setMoreOpen = (next: boolean | ((value: boolean) => boolean)) => {
+    const value = typeof next === 'function' ? next(moreOpen) : next;
+    if (controlled) onMoreOpenChange?.(value); else setOwnMoreOpen(value);
+  };
 
   /*
     The picture is found with the words printed on top of it.

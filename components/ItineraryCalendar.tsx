@@ -92,6 +92,8 @@ interface Props {
    * the clocks. 「順序還是錯 第一個怎麼會是四點」.
    */
   onSortByTime?: (date: string) => void;
+  /** Start on the map rather than the list. See `mapMode`. */
+  initialMapMode?: boolean;
   /**
    * Blocks the traveller has said are meant to be empty. See `emptiedSlots`.
    *
@@ -224,7 +226,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, categoryOf, viewerUserId, members = [], emptiedSlotIds, onToggleEmptied, onSortByTime }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, categoryOf, viewerUserId, members = [], emptiedSlotIds, onToggleEmptied, onSortByTime, initialMapMode }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -258,7 +260,19 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
     「行程的地圖模式」. The button for this has existed in the header since before
     this state did — rendered, styled, and wired to nothing at all.
   */
-  const [mapMode, setMapMode] = useState(false);
+  /*
+    「100%還原」 — the overview's 地圖 tile opens this screen already in map
+    mode. The toggle in the header still owns it from then on; this only says
+    which one it starts on.
+  */
+  const [mapMode, setMapMode] = useState(Boolean(initialMapMode));
+  /*
+    A request, not a setting. This screen stays mounted while the sections
+    change, so a prop read only at mount would open the map once and never
+    again. Asked for → shown; the header's toggle owns it from then on, and
+    turning the request off never closes a map the traveller opened.
+  */
+  useEffect(() => { if (initialMapMode) setMapMode(true); }, [initialMapMode]);
   /** The proposal on screen, or null. Nothing is written until it is taken. */
   const [routePlan, setRoutePlan] = useState<RoutePlan | null>(null);
   /** Which day the open plan was asked about, or the whole trip. */

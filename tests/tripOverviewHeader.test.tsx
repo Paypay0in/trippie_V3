@@ -60,6 +60,19 @@ describe('the ways out', () => {
     expect(onOpenCompanions).toHaveBeenCalled();
   });
 
+  it('offers all five when every door is wired', () => {
+    show({
+      onOpenMap: vi.fn(),
+      onOpenShoppingList: vi.fn(),
+      onOpenCompanions: vi.fn(),
+      onOpenMore: vi.fn(),
+    });
+
+    ['行程規劃', '地圖', '購物清單', '旅伴', '更多'].forEach(label => {
+      expect(screen.getByTestId(`trip-way-${label}`)).toBeTruthy();
+    });
+  });
+
   /* The rule this screen has earned the hard way. */
   it('leaves out the tiles with nowhere to go', () => {
     show();
@@ -67,5 +80,36 @@ describe('the ways out', () => {
     expect(screen.queryByTestId('trip-way-旅伴')).toBeNull();
     expect(screen.queryByTestId('trip-way-地圖')).toBeNull();
     expect(screen.queryByTestId('trip-way-購物清單')).toBeNull();
+  });
+});
+
+/**
+ * 旅程回顧 — and the only photographs this trip holds are the traveller's own,
+ * taken of their own bills. Filling the strip with Google's pictures of the
+ * same places would be captioning somebody else's photos as their trip.
+ */
+describe('旅程回顧', () => {
+  const billWithPhoto = (id: string, date: string, photo: string) => ({
+    id, date, description: id, twdAmount: 100, amount: 100, currency: 'TWD',
+    exchangeRate: 1, category: '餐飲', phase: 'during', receiptPhotos: [photo],
+  }) as never;
+
+  it('shows the photos, newest first', () => {
+    show({
+      expenses: [
+        billWithPhoto('old', '2026-10-20', 'older'),
+        billWithPhoto('new', '2026-10-21', 'newest'),
+      ],
+    });
+
+    const shots = screen.getByTestId('trip-memories').querySelectorAll('img');
+    expect(Array.from(shots).map(node => node.getAttribute('src'))).toEqual(['newest', 'older']);
+  });
+
+  /* Nothing photographed is nothing to look back on. */
+  it('is absent when the trip has no photos', () => {
+    show({ expenses: [] });
+
+    expect(screen.queryByTestId('trip-memories')).toBeNull();
   });
 });
