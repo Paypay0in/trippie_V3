@@ -14,10 +14,7 @@ import {
 import { Phase } from '../types';
 import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import AppWordmark from './AppWordmark';
-import {
-  DestinationImage,
-  fetchDestinationImage,
-} from '../services/destinationImageService';
+import TripCover from './TripCover';
 
 export type WorkspaceSection = 'overview' | 'planning' | 'records';
 
@@ -54,8 +51,6 @@ const TripWorkspaceShell: React.FC<Props> = ({
   onSectionChange,
   onQuickAdd,
 }) => {
-  const [image, setImage] = useState<DestinationImage | null>(null);
-  const [imageFailed, setImageFailed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
   /*
@@ -76,16 +71,6 @@ const TripWorkspaceShell: React.FC<Props> = ({
   */
   const imageQuery = (tripName || destination || '').trim();
 
-  useEffect(() => {
-    let active = true;
-    setImage(null);
-    setImageFailed(false);
-    if (!imageQuery) return () => { active = false; };
-    fetchDestinationImage(imageQuery).then(result => {
-      if (active) setImage(result);
-    });
-    return () => { active = false; };
-  }, [imageQuery]);
 
   const actionClass = 'flex min-h-11 min-w-11 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-500 shadow-sm transition-colors hover:text-blue-600';
 
@@ -127,30 +112,12 @@ const TripWorkspaceShell: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="relative min-h-48 overflow-hidden rounded-[1.4rem] bg-gradient-to-br from-blue-700 via-indigo-700 to-violet-700">
-          {image && !imageFailed && (
-            <img
-              className="absolute inset-0 h-full w-full object-cover"
-              src={image.imageUrl}
-              alt={`${image.destinationQuery} destination scenery`}
-              onError={() => setImageFailed(true)}
-            />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#101638]/90 via-[#101638]/20 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-            <div className="mb-1 truncate text-3xl font-black tracking-tight">{imageQuery || '我的旅程'}</div>
-            {dateRange && <div className="text-sm font-semibold text-white/90">{dateRange}</div>}
-            {currentSection !== 'records' && <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-indigo-700 backdrop-blur">
-              <span className={`h-2 w-2 rounded-full ${currentPhase === 'during' ? 'bg-emerald-500' : 'bg-violet-500'}`} />
-              {currentSection === 'records' ? '旅費管理' : currentPhase === 'during' ? 'TRIP 旅行中' : currentPhase === 'pre' ? 'PLAN 旅行前' : currentPhase === 'post' ? 'RETURN 返程中' : 'RECAP 回顧紀錄'}
-            </div>}
-          </div>
-          {image && !imageFailed && image.attributionRequired && (
-            <div className="absolute right-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[9px] text-white backdrop-blur">
-              Photo by <a className="underline" href={image.photographerUrl} target="_blank" rel="noreferrer">{image.photographer}</a> on <a className="underline" href={image.sourceUrl} target="_blank" rel="noreferrer">Pexels</a>
-            </div>
-          )}
-        </div>
+        <TripCover query={imageQuery} dateRange={dateRange}>
+          {currentSection !== 'records' && <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-indigo-700 backdrop-blur">
+            <span className={`h-2 w-2 rounded-full ${currentPhase === 'during' ? 'bg-emerald-500' : 'bg-violet-500'}`} />
+            {currentPhase === 'during' ? 'TRIP 旅行中' : currentPhase === 'pre' ? 'PLAN 旅行前' : currentPhase === 'post' ? 'RETURN 返程中' : 'RECAP 回顧紀錄'}
+          </div>}
+        </TripCover>
         {/* No phase tabs on the overview. The trip has dates, so asking the
             traveller to pick 行前/旅行中/返程 is asking them to tell the app
             something it already knows; the ledger keeps its own tabs because

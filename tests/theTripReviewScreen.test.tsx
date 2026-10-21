@@ -102,19 +102,19 @@ describe('總覽', () => {
   });
 });
 
+/*
+  The cover is the trip's own, shared with the header. 「目前是這樣喔」 — the
+  app already pictures a trip, with a credited photograph, so a review that
+  pictured it some other way would be the same thing done twice.
+*/
 describe('the cover', () => {
-  it('uses the traveller\'s own newest photo', () => {
-    open([stop()], [bill({ receiptPhotos: ['till-roll'] })]);
+  it('wears the trip name and its dates', () => {
+    open([stop({ date: '2026-10-18' }), stop({ id: 'b', date: '2026-10-20' })]);
 
-    expect(screen.getByTestId('recap-cover').querySelector('img')?.getAttribute('src')).toBe('till-roll');
-  });
-
-  /* No album means no photograph, not somebody else's photograph. */
-  it('shows no picture when the trip holds none', () => {
-    open([stop()]);
-
-    expect(screen.getByTestId('recap-cover').querySelector('img')).toBeNull();
-    expect(screen.getByTestId('recap-cover').textContent).toContain('東京之旅');
+    const cover = screen.getByTestId('recap-cover');
+    expect(cover.textContent).toContain('東京之旅');
+    expect(cover.textContent).toContain('10/18');
+    expect(cover.textContent).toContain('10/20');
   });
 });
 

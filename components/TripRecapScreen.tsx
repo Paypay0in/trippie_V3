@@ -5,12 +5,12 @@
  * time, 我的精選 names what was liked best. Everything on all three comes out
  * of `buildTripRecap`, which is the only place any of it is worked out.
  *
- * Two things the mock shows that this deliberately does not invent:
+ * The cover is `TripCover` — the same credited photograph the trip already
+ * wears on every other screen, not a second idea of what this trip looks
+ * like.
  *
- * - A cover photograph. There is no album; the cover is the traveller's own
- *   newest bill photo when they took one, and a gradient when they did not.
- *   Google's picture of the same skyline would be a stranger's photograph
- *   presented as a memory.
+ * What the mock shows that this deliberately does not invent:
+ *
  * - A rating for a stop with no bill. Stars come from the till, so a stop
  *   nobody rated shows none — and a section with nothing rated in it says so
  *   rather than ranking the stops by something else and calling them 亮點.
@@ -22,6 +22,7 @@ import { RecapStop, buildTripRecap, starsFor } from '../services/tripRecap';
 import { buildTripAreas } from '../services/tripAreas';
 import { dayMapSrc } from '../services/dayMapImage';
 import { CATEGORY_LABELS } from '../services/placeCategory';
+import TripCover from './TripCover';
 
 interface Props {
   trip: Pick<Trip, 'name' | 'itinerary' | 'travelCountry'>;
@@ -81,11 +82,6 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, onBack, onOpe
     [trip.itinerary, trip.travelCountry],
   );
 
-  /* The traveller's own newest photo, which is the only cover there is. */
-  const cover = useMemo(() => [...expenses]
-    .sort((left, right) => (right.date || '').localeCompare(left.date || ''))
-    .flatMap(expense => expense.receiptPhotos ?? [])[0], [expenses]);
-
   const dates = recap.days.length > 0
     ? `${dayLabel(recap.days[0].date)} – ${dayLabel(recap.days[recap.days.length - 1].date)}`
     : '尚未安排日期';
@@ -135,18 +131,22 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, onBack, onOpe
       </header>
 
       <div className="space-y-3 px-3 pt-3">
-        {/* The cover: their own photograph, or a gradient that claims nothing. */}
-        <section
-          data-testid="recap-cover"
-          className="relative overflow-hidden rounded-[1.6rem] shadow-[0_10px_28px_rgba(66,74,150,.12)]"
-        >
-          {cover
-            ? <img src={cover} alt="" className="h-44 w-full object-cover" />
-            : <div className="h-44 w-full bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600" />}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
-            <h2 className="text-2xl font-black tracking-tight text-white">{trip.name}</h2>
-            <p className="mt-1 text-xs font-bold text-white/80">{dates}</p>
-          </div>
+        {/*
+          The same cover the trip already wears, not a second one.
+
+          I had built this out of the traveller's own newest receipt photo,
+          reasoning that the app holds no album — but the app does picture a
+          trip, with a credited Pexels photograph, and has since long before
+          this screen existed. A review that pictured the trip differently
+          from every other screen would be this project's recurring defect in
+          its purest form: one thing, two implementations.
+        */}
+        <section data-testid="recap-cover">
+          <TripCover query={trip.name} dateRange={dates} minHeight="min-h-44">
+            <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-indigo-700 backdrop-blur">
+              <span className="h-2 w-2 rounded-full bg-violet-500" />RECAP 旅程回顧
+            </span>
+          </TripCover>
         </section>
 
         <nav className="flex gap-1 rounded-2xl border border-slate-100 bg-white p-1 shadow-sm">
