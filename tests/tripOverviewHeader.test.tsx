@@ -10,11 +10,19 @@
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TripLiveOverview from '../components/TripLiveOverview';
 
+const weather = {
+  temperature: 24, condition: '多雲', high: 29, low: 19, precipitationProbability: 8,
+  tomorrow: { high: 29, low: 19, precipitationProbability: 55, condition: '陣雨' },
+};
+
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+    ok: true,
+    json: async () => (String(url).includes('/api/weather') ? weather : {}),
+  })));
 });
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -118,5 +126,35 @@ describe('旅程回顧', () => {
     show({ expenses: [] });
 
     expect(screen.queryByTestId('trip-memories')).toBeNull();
+  });
+});
+
+
+/**
+ * 「少一個明天衣著建議！」 — under the weather card, derived from the forecast
+ * printed above it.
+ */
+describe('明天穿什麼', () => {
+  it('reads tomorrow and says what to wear', async () => {
+    show({ destinationCoordinates: { latitude: 35.68, longitude: 139.76 } });
+
+    await waitFor(() => expect(screen.getByTestId('what-to-wear')).toBeTruthy());
+    const block = screen.getByTestId('what-to-wear');
+    expect(block.textContent).toContain('明天 29° / 19°・陣雨');
+    expect(block.textContent).toContain('帶把傘');
+  });
+
+  /* A forecast nobody returned is not a forecast. */
+  it('says nothing when the provider gave no second day', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => (String(url).includes('/api/weather')
+        ? { ...weather, tomorrow: undefined }
+        : {}),
+    })));
+    show({ destinationCoordinates: { latitude: 35.68, longitude: 139.76 } });
+
+    await waitFor(() => expect(screen.getByTestId('trip-quick-ways')).toBeTruthy());
+    expect(screen.queryByTestId('what-to-wear')).toBeNull();
   });
 });

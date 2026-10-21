@@ -3357,22 +3357,46 @@ ${MODE_RULES[mode]}
       weatherUrl.searchParams.set("latitude", String(weatherLatitude));
       weatherUrl.searchParams.set("longitude", String(weatherLongitude));
       weatherUrl.searchParams.set("current", "temperature_2m,weather_code");
-      weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,precipitation_probability_max");
-      weatherUrl.searchParams.set("forecast_days", "1");
+      weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code");
+      /*
+        Two days, for 「少一個明天衣著建議」.
+
+        What to wear is a question about tomorrow morning, asked tonight —
+        today's numbers cannot answer it, and the second day costs the same
+        request.
+      */
+      weatherUrl.searchParams.set("forecast_days", "2");
       weatherUrl.searchParams.set("timezone", "auto");
       const weatherResponse = await fetch(weatherUrl, { signal: AbortSignal.timeout(5_000) });
       if (!weatherResponse.ok) throw new Error("Weather provider failed");
       const weather = await weatherResponse.json() as {
         current?: { temperature_2m?: number; weather_code?: number };
-        daily?: { temperature_2m_max?: number[]; temperature_2m_min?: number[]; precipitation_probability_max?: number[] };
+        daily?: { temperature_2m_max?: number[]; temperature_2m_min?: number[]; precipitation_probability_max?: number[]; weather_code?: number[] };
       };
       const current = weather.current;
       const daily = weather.daily;
       if (typeof current?.temperature_2m !== "number" || typeof current.weather_code !== "number" || typeof daily?.temperature_2m_max?.[0] !== "number" || typeof daily.temperature_2m_min?.[0] !== "number" || typeof daily.precipitation_probability_max?.[0] !== "number") {
         throw new Error("Incomplete weather response");
       }
-      const condition = current.weather_code === 0 ? "晴朗" : current.weather_code <= 3 ? "多雲" : current.weather_code <= 48 ? "有霧" : current.weather_code <= 67 ? "有雨" : current.weather_code <= 77 ? "有雪" : current.weather_code <= 82 ? "陣雨" : "雷雨";
-      res.json({ temperature: current.temperature_2m, condition, high: daily.temperature_2m_max[0], low: daily.temperature_2m_min[0], precipitationProbability: daily.precipitation_probability_max[0] });
+      const describe = (code: number) => code === 0 ? "晴朗" : code <= 3 ? "多雲" : code <= 48 ? "有霧" : code <= 67 ? "有雨" : code <= 77 ? "有雪" : code <= 82 ? "陣雨" : "雷雨";
+      const condition = describe(current.weather_code);
+      /*
+        Tomorrow, when the provider gave a second day. Omitted rather than
+        guessed from today: a forecast nobody returned is not a forecast, and
+        a clothing line built on today's numbers would be confidently wrong
+        on the morning it is read.
+      */
+      const tomorrow = typeof daily.temperature_2m_max?.[1] === "number"
+        && typeof daily.temperature_2m_min?.[1] === "number"
+        && typeof daily.precipitation_probability_max?.[1] === "number"
+        ? {
+            high: daily.temperature_2m_max[1],
+            low: daily.temperature_2m_min[1],
+            precipitationProbability: daily.precipitation_probability_max[1],
+            condition: typeof daily.weather_code?.[1] === "number" ? describe(daily.weather_code[1]) : "",
+          }
+        : undefined;
+      res.json({ temperature: current.temperature_2m, condition, high: daily.temperature_2m_max[0], low: daily.temperature_2m_min[0], precipitationProbability: daily.precipitation_probability_max[0], ...(tomorrow ? { tomorrow } : {}) });
     } catch (error) {
       console.error("Weather request failed:", error);
       res.status(502).json({ error: "Weather provider is unavailable." });
