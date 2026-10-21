@@ -90,23 +90,30 @@ describe('a saved place you have paid at', () => {
     note: '蘑菇義大利麵很好吃', receiptPhotos: ['photo-1'],
   };
 
-  it('says what it cost, with the note written on the bill', () => {
+  /*
+    「我覺得好像不需要有縮圖 可以有按鈕『查看記錄』」 — the list says what it
+    cost and offers the way in; the receipt itself is drawn properly on the
+    place's own card, one tap away.
+  */
+  it('says what it cost and offers the record, without reprinting it', () => {
     mount({ items: [saved({ placeId: 'ChIJ-k' })], expenses: [bill] });
 
     const block = screen.getByTestId('spend-at-a');
     expect(block.textContent).toContain('NT$ 882');
-    expect(block.textContent).toContain('蘑菇義大利麵很好吃');
+    expect(block.textContent).toContain('查看記錄');
+    expect(block.textContent).not.toContain('蘑菇義大利麵很好吃');
+    expect(block.querySelector('img')).toBeNull();
   });
 
   /*
     「我預期點擊下去應該是這樣」 — the row opens the place's own card, which is
     where the gallery, the note and 當天消費紀錄 live. The list stays a list.
   */
-  it('opens the place card when the spend row is tapped', () => {
+  it('opens the place card from 查看記錄', () => {
     mount({ items: [saved({ placeId: 'ChIJ-k' })], expenses: [bill] });
 
     expect(screen.queryByTestId('saved-place-card')).toBeNull();
-    fireEvent.click(screen.getByTestId('spend-row-e'));
+    fireEvent.click(screen.getByTestId('spend-open-a'));
 
     expect(screen.getByTestId('saved-place-card')).toBeTruthy();
     expect(screen.getByTestId('place-spend-record').textContent).toContain('當天消費紀錄');

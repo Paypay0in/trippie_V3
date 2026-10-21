@@ -565,39 +565,29 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
               `spendAtPlace`.
             */}
             {spend.length > 0 && (
-              <div data-testid={`spend-at-${item.id}`} className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2">
-                <span className="flex items-center gap-1 text-[11px] font-black text-emerald-800">
-                  <Receipt size={11} />你在這裡花過 {spendSummary(spend)}
+              <div data-testid={`spend-at-${item.id}`} className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 px-2.5 py-2">
+                {/*
+                  What it cost, and a way to the rest of it.
+
+                  「我覺得好像不需要有縮圖 可以有按鈕『查看記錄』」. This used to
+                  print a thumbnail and a truncated line per bill, which is the
+                  card the place's own screen already draws properly —
+                  photographs, the receipt's lines, 合計, 當日匯率. A squeezed
+                  copy of a thing one tap away earns none of the room it takes
+                  in a list somebody is scrolling.
+                */}
+                <span className="flex min-w-0 items-center gap-1 text-[11px] font-black text-emerald-800">
+                  <Receipt size={11} className="shrink-0" />
+                  <span className="truncate">你在這裡花過 {spendSummary(spend)}</span>
                 </span>
-                {spend.map(entry => (
-                  <button
-                    key={entry.expenseId}
-                    type="button"
-                    data-testid={`spend-row-${entry.expenseId}`}
-                    onClick={() => setOpenPlaceId(item.id)}
-                    className="mt-1.5 flex w-full items-start gap-2 text-left"
-                  >
-                    {entry.photo && (
-                      <img
-                        src={entry.photo}
-                        alt=""
-                        loading="lazy"
-                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                      />
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[11px] font-bold text-emerald-900">
-                        {entry.date.slice(5).replace('-', '/')}・{entry.description}
-                      </span>
-                      {/* The line the traveller wrote, which is the part of a
-                          bill nobody else could have written. */}
-                      {entry.note && (
-                        <span className="mt-0.5 block text-[10px] leading-4 text-emerald-700">{entry.note}</span>
-                      )}
-                    </span>
-                    <ChevronRight size={12} className="mt-0.5 shrink-0 text-emerald-600" />
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  data-testid={`spend-open-${item.id}`}
+                  onClick={() => setOpenPlaceId(item.id)}
+                  className="flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1 text-[11px] font-black text-emerald-700"
+                >
+                  查看記錄<ChevronRight size={11} />
+                </button>
               </div>
             )}
             {linkingId === item.id && onLinkExpense && (
