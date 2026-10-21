@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, CalendarRange, CloudSun, Coffee, Map, MapPin, MoreHorizontal, Navigation, Plus, Receipt, ShoppingBag, TrainFront, Users } from 'lucide-react';
-import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { Category, Expense, ItineraryItem, TripMember } from '../types';
 import { WeatherSnapshot } from '../services/weatherService';
 import { estimateRoute, RouteEstimate } from '../services/routesService';
@@ -51,12 +50,6 @@ const timeToMinutes = (value: string) => {
 };
 
 const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, endDate, onQuickAdd, onOpenPlanning, onOpenRecords, destination, destinationCoordinates, destinationCountry, viewerMemberId, members = [], onOpenMap, onOpenShoppingList, onOpenCompanions, onOpenMore }) => {
-  /*
-    The place, as a picture. 「將總覽改成這樣」 — the overview opened on a
-    gradient, and the one thing a traveller recognises their own trip by is
-    where it is. The same service the collection headers use.
-  */
-  const [heroImage, setHeroImage] = useState<DestinationImage | null>(null);
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState(false);
@@ -150,15 +143,6 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
     return () => { cancelled = true; };
   }, [selectedDestination, selectedCountry, selectedCoordinates?.latitude, selectedCoordinates?.longitude, weatherRetry, nextStop?.id, nextStop?.latitude, nextStop?.longitude, nextStop?.location, nextStop?.address, todayCoordinateItem?.id, todayTextItem?.id]);
   const quickActions = [[Coffee, '餐飲', Category.FOOD], [TrainFront, '交通', Category.TRANSPORT], [ShoppingBag, '購物', Category.SHOPPING], [Plus, '其他', Category.OTHER]] as const;
-  useEffect(() => {
-    let cancelled = false;
-    setHeroImage(null);
-    if (!destination) return;
-    void fetchDestinationImage(destination)
-      .then(found => { if (!cancelled) setHeroImage(found); });
-    return () => { cancelled = true; };
-  }, [destination]);
-
   /*
     The photographs this trip holds, newest first.
 
@@ -181,32 +165,6 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
   ];
 
   return <div className="space-y-3 pb-4">
-    {/*
-      Where this trip is, and when. 「將總覽改成這樣」.
-
-      The dates and the stage were already on the card below as a pill; they
-      belong on the thing the traveller recognises the trip by.
-    */}
-    <section data-testid="trip-hero" className="overflow-hidden rounded-[1.6rem] shadow-[0_10px_28px_rgba(66,74,150,.12)]">
-      <div className="relative h-40 bg-gradient-to-br from-[#2F5BFF] to-[#8B3DFF]">
-        {heroImage?.imageUrl && (
-          <img src={heroImage.imageUrl} alt={destination} className="h-full w-full object-cover" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/15 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-4">
-          <h1 className="text-2xl font-black leading-7 text-white">{destination || '這趟旅行'}</h1>
-          {(startDate || endDate) && (
-            <p className="mt-0.5 text-xs font-bold text-white/85">
-              {[startDate, endDate].filter(Boolean).map(date => (date as string).replace(/-/g, '/')).join(' - ')}
-            </p>
-          )}
-          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-black text-emerald-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />旅行中
-          </span>
-        </div>
-      </div>
-    </section>
-
     {/* The ways out, as a row. */}
     <section data-testid="trip-quick-ways" className="grid gap-2 rounded-[1.45rem] border border-slate-100 bg-white p-3 shadow-[0_8px_24px_rgba(66,74,150,.07)]" style={{ gridTemplateColumns: `repeat(${ways.length}, minmax(0, 1fr))` }}>
       {ways.map(([Icon, label, go]) => (

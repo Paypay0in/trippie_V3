@@ -33,14 +33,21 @@ const show = (over: Record<string, unknown> = {}) => render(
   />,
 );
 
+/**
+ * 「為何出現兩個」 — because I drew a second one.
+ *
+ * `TripWorkspaceShell` has drawn the destination, the dates and 旅行中 above
+ * this screen since before it existed. Adding the same card here made the
+ * overview open on two of them, one saying Tokyo and one saying 日本.
+ *
+ * Two places drawing one fact is the defect this codebase keeps producing,
+ * and the fix is always to delete the second rather than reconcile it.
+ */
 describe('the overview header', () => {
-  it('names the place and the dates', () => {
+  it('does not draw a second one', () => {
     show();
 
-    const hero = screen.getByTestId('trip-hero');
-    expect(hero.textContent).toContain('Tokyo');
-    expect(hero.textContent).toContain('2026/10/20 - 2026/10/24');
-    expect(hero.textContent).toContain('旅行中');
+    expect(screen.queryByTestId('trip-hero')).toBeNull();
   });
 });
 
