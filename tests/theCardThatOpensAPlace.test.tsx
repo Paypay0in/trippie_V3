@@ -110,17 +110,24 @@ describe('the address', () => {
  * reader.
  */
 describe('the notes', () => {
-  const byMe = { id: 'mine', text: '蘑菇義大利麵超好吃！', sourcePostId: 'p', sourceCreatorId: 'me' };
-  const byThem = { id: 'theirs', text: '低調的二樓小樓，一樓販售可可製品', sourcePostId: 'q', sourceCreatorId: 'ann' };
+  const byMe = { id: 'mine', text: '蘑菇義大利麵超好吃！', sourcePostId: '', sourceCreatorId: 'me' };
+  const saved = { id: 'theirs', text: '低調的二樓小樓，一樓販售可可製品', sourcePostId: 'q', sourceCreatorId: 'me' };
 
-  it('keeps another traveller\'s notes under their own heading', () => {
-    open({ notes: [byThem], viewerUserId: 'me' });
+  /*
+    「這是我收藏的其他人的旅行筆記 不是我寫的備註」. The creator id on a saved
+    note is the person who saved it as often as the person who wrote it — the
+    collection screen resolves authorship from `sourcePostId` for exactly that
+    reason — so comparing it against the reader put Ann's sentence under 我的
+    備註.
+  */
+  it('keeps a note that came from a post under 旅人筆記, whoever saved it', () => {
+    open({ notes: [saved], viewerUserId: 'me' });
 
     expect(screen.getByTestId('saved-place-traveller-notes').textContent).toContain('旅人筆記');
     expect(screen.queryByTestId('saved-place-notes')).toBeNull();
   });
 
-  it('calls the reader\'s own notes theirs', () => {
+  it('calls an unsourced note the reader\'s own', () => {
     open({ notes: [byMe], viewerUserId: 'me' });
 
     expect(screen.getByTestId('saved-place-notes').textContent).toContain('我的備註');
@@ -128,18 +135,18 @@ describe('the notes', () => {
   });
 
   it('splits them when there is one of each', () => {
-    open({ notes: [byMe, byThem], viewerUserId: 'me' });
+    open({ notes: [byMe, saved], viewerUserId: 'me' });
 
     expect(screen.getByTestId('saved-place-notes').textContent).toContain('蘑菇義大利麵超好吃！');
     expect(screen.getByTestId('saved-place-traveller-notes').textContent).toContain('低調的二樓小樓');
   });
 
-  /* Nothing is claimed as the reader's when there is no reader to claim it. */
-  it('claims nothing when it does not know who is reading', () => {
-    open({ notes: [byMe, byThem] });
+  /* The split does not depend on knowing who is reading. */
+  it('splits the same way with no viewer', () => {
+    open({ notes: [byMe, saved] });
 
-    expect(screen.queryByTestId('saved-place-notes')).toBeNull();
-    expect(screen.getByTestId('saved-place-traveller-notes').textContent).toContain('蘑菇義大利麵超好吃！');
+    expect(screen.getByTestId('saved-place-notes').textContent).toContain('蘑菇義大利麵超好吃！');
+    expect(screen.getByTestId('saved-place-traveller-notes').textContent).toContain('低調的二樓小樓');
   });
 });
 

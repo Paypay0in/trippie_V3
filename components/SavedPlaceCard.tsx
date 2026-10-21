@@ -29,12 +29,13 @@ interface Props {
   /** Every point saved with the place. Nothing is collapsed here. */
   notes: SavedExperienceNote[];
   /**
-   * Who is reading, so a note can say whether it is theirs.
+   * Who is reading. Kept for callers; the split below does not need it.
    *
-   * 「下面不是我的備註，是我從旅人筆記的資訊，我覺得要區分」 — every note carries
-   * the id of whoever wrote it, and calling somebody else's observation 「我的
-   * 備註」 misattributes it to the reader. Without a viewer nothing is claimed
-   * as the reader's: 旅人筆記 is what these are by default.
+   * 「這是我收藏的其他人的旅行筆記 不是我寫的備註」 — the first attempt compared
+   * `sourceCreatorId` against the reader, and that id does not mean what it
+   * reads like: the collection screen resolves a note's author from its
+   * `sourcePostId` precisely because the creator id on a saved note is the
+   * person who saved it as often as the person who wrote it.
    */
   viewerUserId?: string;
   /**
@@ -48,10 +49,18 @@ interface Props {
 }
 
 const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], onClose }) => {
-  const mine = viewerUserId
-    ? notes.filter(note => note.sourceCreatorId === viewerUserId)
-    : [];
-  const theirs = notes.filter(note => !mine.includes(note));
+  /*
+    A note came from somewhere or the reader wrote it; there is no third case.
+    A `sourcePostId` is that somewhere — a community post, or a screenshot of
+    somebody's blog — so a note carrying one is another traveller's, and only
+    a note with no source at all is the reader's own.
+
+    This is the direction that cannot misattribute: an unsourced note of
+    Ann's does not exist, while a sourced note of his reads as hers, which is
+    a smaller error than putting her words in his mouth.
+  */
+  const theirs = notes.filter(note => Boolean(note.sourcePostId?.trim()));
+  const mine = notes.filter(note => !theirs.includes(note));
   const [copied, setCopied] = useState(false);
   /*
     「Allow users to manually choose another supported navigation provider」.
