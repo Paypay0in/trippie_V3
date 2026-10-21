@@ -290,8 +290,35 @@ export const buildDayTemplate = ({
   };
 
   const MAX_BLOCKS = 12;
-  while (index < MAX_BLOCKS && cursor < limit) {
+  /*
+    The grid stops offering empty blocks at the day's end — and keeps walking
+    while there are still planned stops out there.
+
+    These are two different limits and they were one. A stop at exactly 21:00
+    failed `cursor < limit` on the first turn, so the loop never reached it:
+    it fell out as 「排在今天的時段之外」 while an empty 21:00–23:00 row was
+    offered on top of it. Two rows for the same half of the evening, one of
+    them claiming the time the other one is already using.
+
+    `limit` still governs what is *offered*, which is the rule that keeps
+    nobody's evening filled with blocks they did not ask for. Reaching a stop
+    that exists is not an offer.
+  */
+  const stillPlanned = (from: number): boolean =>
+    planned.some(entry => !used.has(entry.id) && entry.from + entry.minutes > from);
+
+  while (index < MAX_BLOCKS && (cursor < limit || stillPlanned(cursor))) {
     const next = planned.find(entry => !used.has(entry.id) && entry.from + entry.minutes > cursor);
+
+    /*
+      Past the day's end with something still to come: walk to it rather than
+      cutting the gap into blocks. Free time after the day has ended is not
+      free time anybody asked to fill.
+    */
+    if (cursor >= limit && next && next.from > cursor) {
+      cursor = next.from;
+      continue;
+    }
 
     if (next && next.from <= cursor) {
       // Standing in it now. Reported exactly as the itinerary holds it, even
@@ -308,6 +335,8 @@ export const buildDayTemplate = ({
         endTime: toClock(next.from + next.minutes),
         durationMinutes: next.minutes,
         occupantId: next.id,
+        // Reached, but still outside the day the grid offers.
+        ...(next.from >= limit ? { pastDayEnd: true } : {}),
       });
       cursor = Math.max(cursor, next.from + next.minutes);
       index += 1;
@@ -435,6 +464,8 @@ export const buildDayTemplate = ({
     .filter(entry => !used.has(entry.id))
     .sort((left, right) => left.from - right.from);
   stranded.forEach(entry => {
+    // Only a stop the grid genuinely could not reach is marked; the loop above
+    // now walks to everything else.
     slots.push({
       id: `${date}#${index}`,
       index,

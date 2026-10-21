@@ -456,8 +456,19 @@ describe('derived flight items are not editable on the itinerary', () => {
 
   it('still lets an ordinary item have its date changed', async () => {
     await openDay();
-    const card = screen.getByText('晚餐').closest('[class*="rounded-[20px]"]') as HTMLElement;
-    const input = within(card).getByDisplayValue(DAY_6);
+    /*
+      By the place, not by the title.
+
+      This item is called 晚餐 and sits in the day planner's 晚餐 block, so the
+      title alone matches twice — and it used to match once only because the
+      planner was hiding stops it could not fit in its grid, which is the bug
+      fixed in `dayTemplate`. The card is the one naming the restaurant.
+    */
+    const card = screen.getAllByText('札嘎其市場')
+      .map(match => match.closest('[class*="rounded-[20px]"]'))
+      .find((candidate): candidate is HTMLElement =>
+        Boolean(candidate) && Boolean(within(candidate as HTMLElement).queryByDisplayValue(DAY_6)));
+    const input = within(card as HTMLElement).getByDisplayValue(DAY_6);
     expect((input as HTMLInputElement).type).toBe('date');
   });
 

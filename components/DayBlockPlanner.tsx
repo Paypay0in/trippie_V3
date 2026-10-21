@@ -482,15 +482,40 @@ const DayBlockPlanner: React.FC<Props> = ({
     The stops either side of the slot are what make a gap a gap, so they are
     what a suggestion is measured against.
   */
-  const suggestionsFor = (slot: DaySlot) => {
-    if (slot.occupantId) return [];
+  /*
+    A place is offered in one gap, not in every gap.
+
+    「一直出現」 — each empty row asked independently, and three gaps in one
+    evening all got the same three names, because the same collection ranked
+    the same way three times. Read down the day it looks like the app has
+    three ideas and is repeating them, which is exactly what it was doing.
+
+    Walked in clock order and claimed as it goes: the earliest gap a place
+    suits gets it, and the next gap gets the next best thing. A day with more
+    gaps than saved places then shows fewer chips lower down, which is true —
+    there is nothing left to put there.
+  */
+  const suggestionsBySlot = useMemo(() => {
     const filled = slots
       .filter(candidate => candidate.occupantId)
       .map(candidate => ({ index: candidate.index, item: itemById.get(candidate.occupantId as string) }));
-    const before = filled.filter(entry => entry.index < slot.index).pop()?.item;
-    const after = filled.find(entry => entry.index > slot.index)?.item;
-    return suggestionsForSlot(slot.kind, before, after, places);
-  };
+    const claimed = new Set<string>();
+    const bySlot = new Map<number, ReturnType<typeof suggestionsForSlot>>();
+
+    slots.forEach(slot => {
+      if (slot.occupantId) return;
+      const before = filled.filter(entry => entry.index < slot.index).pop()?.item;
+      const after = filled.find(entry => entry.index > slot.index)?.item;
+      const picked = suggestionsForSlot(slot.kind, before, after, places)
+        .filter(suggestion => !claimed.has(suggestion.id));
+      picked.forEach(suggestion => claimed.add(suggestion.id));
+      bySlot.set(slot.index, picked);
+    });
+
+    return bySlot;
+  }, [slots, itemById, places]);
+
+  const suggestionsFor = (slot: DaySlot) => suggestionsBySlot.get(slot.index) || [];
 
   /*
     The corner the open sheet is filling, as two numbers.

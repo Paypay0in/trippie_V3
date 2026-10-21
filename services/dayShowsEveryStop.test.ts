@@ -61,6 +61,42 @@ describe('a stop planned after the day ends', () => {
     expect(slots.filter(slot => slot.occupantId === 'late')).toHaveLength(1);
   });
 
+  /*
+    「一直出現」 — a stop at exactly 21:00 fell out of the loop on its first
+    turn, so it was listed as stranded *and* an empty 21:00–23:00 row was
+    offered on top of it. Two rows for the same half of the evening.
+  */
+  it('does not offer an empty block over a stop that is already there', () => {
+    const { slots } = buildDayTemplate({
+      date: DATE,
+      occupants: [stop('evening', '21:00', 60)],
+    });
+
+    const minutes = (clock: string) => Number(clock.slice(0, 2)) * 60 + Number(clock.slice(3));
+    const taken = slots.filter(slot => slot.occupantId);
+    const empties = slots.filter(slot => !slot.occupantId);
+
+    // An empty row offering time a stop is already standing in is the thing
+    // that was on screen twice: 21:00–23:00 over a stop that began at 21:00.
+    empties.forEach(empty => {
+      taken.forEach(busy => {
+        const clash = minutes(empty.startTime) < minutes(busy.endTime)
+          && minutes(busy.startTime) < minutes(empty.endTime);
+        expect(clash, `${empty.startTime}–${empty.endTime} overlaps ${busy.startTime}–${busy.endTime}`).toBe(false);
+      });
+    });
+  });
+
+  it('keeps the stops in clock order, late ones included', () => {
+    const { slots } = buildDayTemplate({
+      date: DATE,
+      occupants: [stop('late', '22:00', 60), stop('noon', '12:00', 60)],
+    });
+
+    const occupied = slots.filter(slot => slot.occupantId).map(slot => slot.occupantId);
+    expect(occupied).toEqual(['noon', 'late']);
+  });
+
   it('changes nothing about a day that fits', () => {
     const { slots } = buildDayTemplate({
       date: DATE,
