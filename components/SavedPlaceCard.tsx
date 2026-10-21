@@ -11,6 +11,7 @@ import PlaceGallery from './PlaceGallery';
 import PlaceSpendRecord from './PlaceSpendRecord';
 import { SpendAtPlace } from '../services/spendAtPlace';
 import { fetchPlaceHighlights, PlaceHighlights } from '../services/placeHighlightsService';
+import { fetchPlaceReviews, PlaceReview } from '../services/placeReviewsService';
 
 /**
  * A saved place, opened.
@@ -98,16 +99,24 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
   */
   const [highlights, setHighlights] = useState<PlaceHighlights | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  /*
+    What people wrote on the map. Fetched with the card, unlike the search:
+    this is one field on a Details call for a place already being looked up,
+    and it is the part a traveller actually reads.
+  */
+  const [reviews, setReviews] = useState<PlaceReview[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     setBasics(null);
     setPhotos([]);
     setHighlights(null);
+    setReviews([]);
     setLookingUp(false);
     void fetchPlaceBasics(place.placeId).then(found => { if (!cancelled) setBasics(found); });
     if (place.placeId) {
       void fetchPlacePhotos(place.placeId).then(found => { if (!cancelled) setPhotos(found); });
+      void fetchPlaceReviews(place.placeId).then(found => { if (!cancelled) setReviews(found); });
     }
     return () => { cancelled = true; };
   }, [place.placeId]);
@@ -334,6 +343,43 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
           would put a machine's summary beside a person's experience as though
           the two were the same kind of thing.
         */}
+        {/*
+          The map's own reviews, quoted.
+
+          「沒辦法觸發Google map上的評論」 — these are first-party, attributed,
+          and written by people who went, which is why they are quoted whole
+          rather than summarised. A summary of five reviews is a sentence
+          nobody said; a review with a name on it is somebody's own.
+
+          Shown whatever else the card holds: a traveller's note and a
+          stranger's review answer different questions, and neither replaces
+          the other.
+        */}
+        {reviews.length > 0 && (
+          <div data-testid="place-reviews" className="mt-4 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500">
+              <Star size={12} className="text-amber-500" />Google 評論
+            </div>
+            {reviews.map(review => (
+              <div key={`${review.authorName}-${review.when}-${review.text.slice(0, 12)}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-2.5">
+                <div className="flex items-center gap-1.5">
+                  {review.authorPhoto && (
+                    <img src={review.authorPhoto} alt="" loading="lazy" className="h-5 w-5 rounded-full object-cover" />
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-black text-[#11183d]">
+                    {review.authorName || '旅客'}
+                  </span>
+                  {review.rating !== undefined && (
+                    <span className="shrink-0 text-[11px] font-black text-amber-600">★ {review.rating}</span>
+                  )}
+                  {review.when && <span className="shrink-0 text-[10px] text-slate-400">{review.when}</span>}
+                </div>
+                <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-700">{review.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
         {theirs.length === 0 && mine.length === 0 && (
           <div className="mt-4">
             {!highlights && (

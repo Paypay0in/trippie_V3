@@ -86,6 +86,8 @@ async function startServer() {
   // In a real app, this would be a database
   const sharedTrips: Record<string, any> = {};
   const placePhotoCache = new Map<string, { expiresAt: number; value: unknown }>();
+  /** Reviews are quoted, never stored: five minutes, same as the photos. */
+  const placeReviewsCache = new Map<string, { expiresAt: number; value: unknown[] }>();
   /** Google's own facts about a place, cached like its photo is. */
   const placeBasicsCache = new Map<string, { expiresAt: number; value: unknown }>();
 
@@ -1863,6 +1865,64 @@ ${sentence}
    * sits where a fellow traveller's notes would sit, and it is labelled as the
    * machine's work precisely because it is in their place.
    */
+  /**
+   * What people wrote on the map about a place.
+   *
+   * 「沒辦法觸發Google map上的評論 或是 小紅書上的內容嗎」 — and the map's own
+   * reviews are the answer that can actually be given. They are first-party
+   * data on a Details call this app already makes, written by people who went,
+   * and they arrive attributed, which is the difference between quoting
+   * somebody and summarising them.
+   *
+   * 小紅書 has no API and its terms forbid scraping; there is no version of
+   * that which is not somebody else's content taken without permission.
+   *
+   * Cached for five minutes, like the photos. Google's terms do not allow
+   * reviews to be stored, and a cache that outlives the session is storage.
+   */
+  app.post("/api/places/reviews", async (req, res) => {
+    const placeId = typeof req.body?.placeId === "string" ? req.body.placeId.trim() : "";
+    if (!placeId || !process.env.GOOGLE_MAPS_API_KEY) { res.json({ reviews: [] }); return; }
+    const cached = placeReviewsCache.get(placeId);
+    if (cached && cached.expiresAt > Date.now()) { res.json({ reviews: cached.value }); return; }
+    try {
+      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=zh-TW`, {
+        headers: {
+          "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask": "reviews",
+        },
+        signal: AbortSignal.timeout(6_000),
+      });
+      if (!response.ok) { res.json({ reviews: [] }); return; }
+      const details = await response.json() as {
+        reviews?: Array<{
+          rating?: number;
+          relativePublishTimeDescription?: string;
+          text?: { text?: string };
+          originalText?: { text?: string };
+          authorAttribution?: { displayName?: string; photoUri?: string; uri?: string };
+        }>;
+      };
+      const reviews = (details.reviews ?? [])
+        .map(review => ({
+          rating: typeof review.rating === "number" ? review.rating : undefined,
+          when: review.relativePublishTimeDescription ?? "",
+          // The translated text when Google has one, the original otherwise:
+          // a review nobody can read is not a review.
+          text: (review.text?.text || review.originalText?.text || "").trim(),
+          authorName: review.authorAttribution?.displayName ?? "",
+          authorPhoto: review.authorAttribution?.photoUri ?? "",
+          authorUrl: review.authorAttribution?.uri ?? "",
+        }))
+        .filter(review => review.text)
+        .slice(0, 5);
+      placeReviewsCache.set(placeId, { expiresAt: Date.now() + 5 * 60_000, value: reviews });
+      res.json({ reviews });
+    } catch {
+      res.json({ reviews: [] });
+    }
+  });
+
   app.post("/api/places/highlights", async (req, res) => {
     const placeName = typeof req.body?.placeName === "string" ? req.body.placeName.trim().slice(0, 120) : "";
     const address = typeof req.body?.address === "string" ? req.body.address.trim().slice(0, 200) : "";
