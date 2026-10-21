@@ -6803,7 +6803,18 @@ const App: React.FC = () => {
     }, 300);
   };
 
-  const filteredExpenses = expenses.filter((e) => e.phase === currentPhase);
+  /*
+    The ledger with its stars on.
+
+    「星等放在這」 — one place puts them back, so every screen that reads a
+    bill reads the same bill. See `statedRatings` for why they are not on the
+    expense itself yet.
+  */
+  const ratedExpenses = useMemo(
+    () => withStatedRatings(expenses, statedRatings),
+    [expenses, statedRatings],
+  );
+  const filteredExpenses = ratedExpenses.filter((e) => e.phase === currentPhase);
 
   // Dynamic Title for Shopping Panel
   let shoppingPanelTitle = "🛒 待買清單";
@@ -6859,10 +6870,7 @@ const App: React.FC = () => {
           The open trip's bills plus everything already filed, so a place
           visited on a finished trip still shows what it cost.
         */
-        expenses={withStatedRatings(
-          [...expenses, ...tripHistory.flatMap((trip) => trip.expenses || [])],
-          statedRatings,
-        )}
+        expenses={[...ratedExpenses, ...tripHistory.flatMap((trip) => trip.expenses || [])]}
         /*
           Fills in the `merchantPlaceId` a receipt scan could not. The field
           already exists and is already the join; what was missing was a way to
@@ -8210,8 +8218,8 @@ const App: React.FC = () => {
             ? "post"
             : undefined;
     const walletExpenses = walletExpensePhase
-      ? expenses.filter((expense) => expense.phase === walletExpensePhase)
-      : expenses;
+      ? ratedExpenses.filter((expense) => expense.phase === walletExpensePhase)
+      : ratedExpenses;
     const recordsContent = (
       <div className="space-y-5 pb-4">
         <WalletPhaseSelector

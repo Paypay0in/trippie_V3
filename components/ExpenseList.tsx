@@ -366,6 +366,24 @@ const ExpenseList: React.FC<Props> = ({
                               the row is a list entry, and the whole note is one
                               tap away.
                             */}
+                            {/*
+                              The stars, where the bill is read.
+
+                              「星等放在這」 — on the row rather than only inside
+                              the edit sheet, for the same reason the note is:
+                              a record nobody can see from the list is one
+                              nobody keeps up.
+
+                              Absent when unrated. No stars means 「not rated」,
+                              which is a different thing from 「rated badly」 and
+                              must not be drawn as five empty ones.
+                            */}
+                            {item.rating ? (
+                                <p data-testid={`expense-rating-row-${item.id}`} className="mt-1 text-[11px] leading-4 text-amber-500">
+                                    {'★'.repeat(item.rating)}<span className="text-slate-300">{'★'.repeat(5 - item.rating)}</span>
+                                </p>
+                            ) : null}
+
                             {item.note && (
                                 <p data-testid={`expense-note-${item.id}`} className="mt-1.5 line-clamp-2 text-[11px] leading-4 text-slate-500">
                                     {item.note}

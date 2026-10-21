@@ -123,3 +123,26 @@ describe('備註 across two phones', () => {
     expect(fromExpenseRow({ note: '   ' } as never).note).toBeUndefined();
   });
 });
+
+/**
+ * 「星等放在這」 — on the ledger row, where a bill is actually read.
+ *
+ * The same reason the note is here: a record nobody can see from the list is
+ * one nobody keeps up.
+ */
+describe('the rating on a ledger row', () => {
+  it('shows the stars that were given', () => {
+    render(<ExpenseList expenses={[{ ...dinner(), rating: 4 }]} onDelete={vi.fn()} onEdit={vi.fn()} />);
+
+    const stars = screen.getByTestId(`expense-rating-row-${dinner().id}`);
+    expect(stars.textContent).toBe('★★★★★');
+    expect(stars.querySelector('span')?.textContent).toBe('★');
+  });
+
+  /* No stars means not rated, which is not 「rated badly」. */
+  it('shows none for a bill nobody rated', () => {
+    render(<ExpenseList expenses={[dinner()]} onDelete={vi.fn()} onEdit={vi.fn()} />);
+
+    expect(screen.queryByTestId(`expense-rating-row-${dinner().id}`)).toBeNull();
+  });
+});
