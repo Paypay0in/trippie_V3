@@ -10,13 +10,24 @@
  * that joins them already exists: a receipt scan records `merchantPlaceId`
  * when the address it read matched the place it found.
  *
- * Matched on that id and on nothing else. Names are not enough and would be
- * actively wrong here: the collection calls this restaurant 「Kurofunetei」 and
- * the receipt calls it 「黑船亭 洋食料理」, so a name rule finds nothing — and a
+ * Matched on that id, or on the two of them standing in the same spot. Never
+ * on the name: the collection calls this restaurant 「Kurofunetei」 and the
+ * receipt calls it 「黑船亭 洋食料理」, so a name rule finds nothing here — and a
  * loose one would attach the wrong receipt to the wrong shop, which on a
  * screen about money is worse than showing nothing at all.
+ *
+ * The position is a second structured answer rather than a softer one. Google
+ * hands back different place ids for the same venue often enough —  a shop
+ * and the building it is in, a branch re-listed — that an id-only rule finds
+ * nothing on a perfectly good pair of records. Sixty metres apart in a city is
+ * the same door; it is not 「probably the same kind of place」, which is what a
+ * name would have been.
  */
 import { Expense, SavedTravelInspiration } from '../types';
+import { distanceInKm } from './tripInspirationSelection';
+
+/** Closer than this and it is the same door. */
+const SAME_DOOR_KM = 0.06;
 
 export interface SpendAtPlace {
   expenseId: string;
@@ -34,18 +45,32 @@ const clean = (value?: string): string => (value || '').trim();
 /**
  * Every bill recorded at this place, most recent first.
  *
- * Empty when the saved place was never resolved, because then there is no id
- * to match on and matching by name is the thing this refuses to do.
+ * Empty when the saved place has neither an id nor a position, because then
+ * there is nothing structured to match on — and matching by name is the thing
+ * this refuses to do.
  */
 export const spendAtPlace = (
-  place: Pick<SavedTravelInspiration, 'placeId'>,
+  place: Pick<SavedTravelInspiration, 'placeId' | 'latitude' | 'longitude'>,
   expenses: Expense[],
 ): SpendAtPlace[] => {
   const placeId = clean(place.placeId);
-  if (!placeId) return [];
+  const here = typeof place.latitude === 'number' && typeof place.longitude === 'number'
+    && !(place.latitude === 0 && place.longitude === 0)
+    ? { latitude: place.latitude, longitude: place.longitude }
+    : undefined;
+  if (!placeId && !here) return [];
+
+  const sameDoor = (expense: Expense): boolean => {
+    if (!here) return false;
+    const lat = expense.merchantLatitude;
+    const lng = expense.merchantLongitude;
+    if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+    if (lat === 0 && lng === 0) return false;
+    return distanceInKm(here, { latitude: lat, longitude: lng }) <= SAME_DOOR_KM;
+  };
 
   return expenses
-    .filter(expense => clean(expense.merchantPlaceId) === placeId)
+    .filter(expense => (placeId && clean(expense.merchantPlaceId) === placeId) || sameDoor(expense))
     .map(expense => ({
       expenseId: expense.id,
       date: expense.date,

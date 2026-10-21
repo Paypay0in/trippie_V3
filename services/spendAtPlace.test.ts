@@ -51,8 +51,41 @@ describe('spendAtPlace', () => {
       .toEqual([]);
   });
 
-  it('says nothing for a saved place that was never resolved', () => {
+  it('says nothing for a saved place with no id and no position', () => {
     expect(spendAtPlace(saved({ placeId: undefined }), [bill()])).toEqual([]);
+  });
+
+  /*
+    Google hands back different place ids for the same venue often enough — a
+    shop and the building it is in, a branch re-listed — that an id-only rule
+    finds nothing on a perfectly good pair of records. Sixty metres apart in a
+    city is the same door.
+  */
+  it('matches a bill standing in the same spot under another id', () => {
+    const here = saved({ placeId: 'ChIJ-saved', latitude: 35.7108, longitude: 139.7753 });
+    const receipt = bill({
+      merchantPlaceId: 'ChIJ-different',
+      merchantLatitude: 35.71082, merchantLongitude: 139.77534,
+    });
+
+    expect(spendAtPlace(here, [receipt])).toHaveLength(1);
+  });
+
+  it('does not reach the shop down the street', () => {
+    const here = saved({ placeId: 'ChIJ-saved', latitude: 35.7108, longitude: 139.7753 });
+    const receipt = bill({
+      merchantPlaceId: 'ChIJ-different',
+      // About 400 metres away.
+      merchantLatitude: 35.7144, merchantLongitude: 139.7753,
+    });
+
+    expect(spendAtPlace(here, [receipt])).toEqual([]);
+  });
+
+  it('ignores a bill with no position at all', () => {
+    const here = saved({ placeId: undefined, latitude: 35.7108, longitude: 139.7753 });
+
+    expect(spendAtPlace(here, [bill({ merchantPlaceId: undefined })])).toEqual([]);
   });
 
   it('ignores somebody else\'s shop', () => {
