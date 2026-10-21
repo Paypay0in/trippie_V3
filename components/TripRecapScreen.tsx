@@ -16,7 +16,7 @@
  *   rather than ranking the stops by something else and calling them 亮點.
  */
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarRange, MapPin, NotebookPen, Receipt, ShoppingBag, Sparkles, Star, UtensilsCrossed, Wallet } from 'lucide-react';
+import { ArrowLeft, CalendarRange, MapPin, NotebookPen, Plus, Receipt, ShoppingBag, Sparkles, Star, UtensilsCrossed, Wallet } from 'lucide-react';
 import { Expense, Trip, TripMember } from '../types';
 import { RecapStop, buildTripRecap, isGettingThere, starsFor } from '../services/tripRecap';
 import { ITINERARY_PREFIX, buildTripAreas } from '../services/tripAreas';
@@ -47,6 +47,13 @@ interface Props {
    * store, which is the shape that cost this morning.
    */
   onWriteDiary?: (itemId: string, text: string) => void;
+  /**
+   * 編輯這一天 / 新增行程, both landing on the planner with that day in hand.
+   *
+   * 「這個呢」 — the design ends each day with a way to add to it, which is the
+   * difference between a review you read and one you keep.
+   */
+  onPlanDay?: (date: string) => void;
 }
 
 type Tab = 'overview' | 'days' | 'picks';
@@ -80,7 +87,7 @@ const Stars: React.FC<{ stop: RecapStop; testId: string }> = ({ stop, testId }) 
   );
 };
 
-const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords, onWriteDiary }) => {
+const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords, onWriteDiary, onPlanDay }) => {
   const [tab, setTab] = useState<Tab>('overview');
   const recap = useMemo(
     () => buildTripRecap({ trip, expenses, today, viewerMemberId, members }),
@@ -163,6 +170,8 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
   ];
 
   const current = recap.days[Math.min(day, Math.max(0, recap.days.length - 1))];
+  /* A photograph from the day itself, or none. */
+  const dayPhoto = current?.stops.map(stop => stop.photo).find(Boolean);
 
   return (
     <div className="min-h-full bg-[#f6f7fc] pb-8">
@@ -188,7 +197,10 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-lg font-black tracking-tight text-[#11183d]">旅程回顧</h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-black leading-5 tracking-tight text-[#11183d]">旅程回顧</h1>
+          <p className="truncate text-[11px] font-bold text-slate-400">{trip.name} · {dates}</p>
+        </div>
       </header>
 
       <div className="space-y-3 px-3 pt-3">
@@ -365,6 +377,37 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                   ))}
                 </div>
                 <section className={CARD} data-testid="recap-day">
+                  {/*
+                    The day, over a photograph taken on it.
+
+                    Their own, as everywhere else on this screen — and the
+                    gradient when they took none, rather than a stock picture
+                    of a city standing in for a Tuesday they actually had.
+                  */}
+                  <div
+                    data-testid="recap-day-hero"
+                    className="relative mb-3 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-700 via-indigo-700 to-violet-700"
+                  >
+                    {dayPhoto && <img src={dayPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#101638]/85 to-[#101638]/30" />
+                    <div className="relative flex items-end justify-between gap-3 p-4 pt-10">
+                      <div className="min-w-0">
+                        <div className="text-lg font-black text-white">
+                          Day {current.index} · {dayLabel(current.date)}
+                        </div>
+                      </div>
+                      {onPlanDay && (
+                        <button
+                          type="button"
+                          data-testid="recap-edit-day"
+                          onClick={() => onPlanDay(current.date)}
+                          className="flex shrink-0 items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-[11px] font-black text-indigo-700"
+                        >
+                          <NotebookPen size={12} />編輯這一天
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <h3 className="font-black text-[#11183d]">
                     第 {current.index} 天 · {dayLabel(current.date)}
                   </h3>
@@ -521,6 +564,16 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                       </li>
                     ))}
                   </ol>
+                  {onPlanDay && (
+                    <button
+                      type="button"
+                      data-testid="recap-add-to-day"
+                      onClick={() => onPlanDay(current.date)}
+                      className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-violet-200 text-xs font-black text-violet-700"
+                    >
+                      <Plus size={14} />新增行程 / 記錄
+                    </button>
+                  )}
                 </section>
               </>
             )}

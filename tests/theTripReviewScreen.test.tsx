@@ -326,6 +326,47 @@ describe('每日行程', () => {
     expect(grid.textContent).toContain('+2');
   });
 
+  /*
+    「這個呢」 — the design ends a day with a way to add to it, which is the
+    difference between a review you read and one you keep.
+  */
+  it('opens the planner on the day being looked at', () => {
+    const onPlanDay = vi.fn();
+    render(
+      <TripRecapScreen
+        trip={{ name: '東京之旅', itinerary: [stop({ date: '2026-10-18' })], travelCountry: '日本' }}
+        expenses={[]}
+        today={TODAY}
+        onBack={vi.fn()}
+        onPlanDay={onPlanDay}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+    fireEvent.click(screen.getByTestId('recap-edit-day'));
+    expect(onPlanDay).toHaveBeenCalledWith('2026-10-18');
+
+    fireEvent.click(screen.getByTestId('recap-add-to-day'));
+    expect(onPlanDay).toHaveBeenCalledTimes(2);
+  });
+
+  /* The day wears a photo taken on it, or the gradient. Never a stock city. */
+  it('heads the day with a photo from that day', () => {
+    open(
+      [stop({ id: 'k', title: 'Kurofunetei', latitude: 35.71, longitude: 139.77 })],
+      [bill({ merchant: 'Kurofunetei', receiptPhotos: ['till-roll'], merchantLatitude: 35.71, merchantLongitude: 139.77 })],
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    expect(screen.getByTestId('recap-day-hero').querySelector('img')?.getAttribute('src')).toBe('till-roll');
+  });
+
+  it('heads a day nobody photographed with no picture at all', () => {
+    open([stop()]);
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    expect(screen.getByTestId('recap-day-hero').querySelector('img')).toBeNull();
+  });
+
   it('says so when nothing was ever scheduled', () => {
     open([]);
     goToDays();

@@ -9148,6 +9148,17 @@ const App: React.FC = () => {
               onWriteDiary={(itemId, text) =>
                 handleUpdateItineraryItem(itemId, { notes: text })
               }
+              /*
+                編輯這一天 / 新增行程, with that day already in hand — the form
+                takes an `initialDate`, so the day being looked at is the day
+                that opens rather than whatever the planner last had.
+              */
+              onPlanDay={(date) => {
+                setRecapOpen(false);
+                setWorkspaceSection("planning");
+                setItineraryFormDate(date);
+                setItineraryFormItem(null);
+              }}
             />
           </div>
         )}
