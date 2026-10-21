@@ -40,6 +40,16 @@ export interface DaySlot {
   durationMinutes: number;
   /** The itinerary item in this block, where there is one. */
   occupantId?: string;
+  /**
+   * This stop starts after the day's grid ends.
+   *
+   * 「我在行程表下方改行程 上方的行程表不會同步」 — the calendar showed a stop at
+   * 22:43 and the planner showed a day ending at 20:15, because the grid stops
+   * at 21:00 and never reached it. It is listed now, marked, because a table
+   * that cannot draw a stop cannot manage it and the reader is looking at a
+   * day that is not the day.
+   */
+  pastDayEnd?: boolean;
 }
 
 /** 「一個行程都預設抓 2 小時」, meals included — until the traveller says otherwise. */
@@ -402,6 +412,44 @@ export const buildDayTemplate = ({
       });
     }
   }
+
+  /*
+    Anything planned that the grid never reached.
+
+    「我在行程表下方改行程 上方的行程表不會同步」 — the calendar showed 寶可夢中心
+    at 22:43 and the planner showed a clean day ending at 20:15, because the
+    loop above stops at the day's end （21:00） and an item starting after it
+    is never visited. No slot, no `occupantId`, so `replaceInSlot` could not
+    see it either: filling the 12:15 row added a *second* copy of the place
+    and left the 22:43 one exactly where it was.
+
+    A table that cannot draw a stop cannot manage it, and the traveller is
+    reading a day that is not the day. These are appended rather than folded
+    into the grid: they are outside it, which is the fact worth seeing, and
+    the one that explains why the calendar above disagrees.
+
+    Not capped by `MAX_BLOCKS`. That cap limits how many empty blocks the day
+    *offers*; hiding a stop that exists is a different thing entirely.
+  */
+  const stranded = planned
+    .filter(entry => !used.has(entry.id))
+    .sort((left, right) => left.from - right.from);
+  stranded.forEach(entry => {
+    slots.push({
+      id: `${date}#${index}`,
+      index,
+      kind: 'activity',
+      label: activityLabel(entry.from),
+      startTime: toClock(entry.from),
+      endTime: toClock(entry.from + entry.minutes),
+      durationMinutes: entry.minutes,
+      occupantId: entry.id,
+      // Said, so the row can explain itself rather than looking like a block
+      // the day offered.
+      pastDayEnd: true,
+    });
+    index += 1;
+  });
 
   return { slots, ranOutOfDay };
 };

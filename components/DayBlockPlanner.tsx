@@ -803,6 +803,19 @@ const DayBlockPlanner: React.FC<Props> = ({
                     <span className={`block text-[10px] font-bold ${slot.kind === 'meal' ? 'text-amber-600' : 'text-slate-400'}`}>
                       {slot.label}
                     </span>
+                    {/*
+                      Why this row is below the day rather than inside it.
+
+                      「上方的行程表不會同步」 — the calendar had a stop at 22:43
+                      and this table ended at 20:15, because the grid stops at
+                      21:00. It is listed now; this line is what keeps it from
+                      reading as an ordinary evening block.
+                    */}
+                    {slot.pastDayEnd && (
+                      <span data-testid={`past-day-end-${slot.id}`} className="mt-0.5 block text-[10px] font-bold text-amber-600">
+                        排在今天的時段之外
+                      </span>
+                    )}
                   </span>
                 </span>
 

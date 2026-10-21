@@ -3214,7 +3214,20 @@ const App: React.FC = () => {
       time,
       durationMinutes,
     };
-    setItinerary((current) => [...current, item]);
+    /*
+      Committed, not just shown.
+
+      「我在行程表下方改行程 上方的行程表不會同步」. This was `setItinerary`
+      alone — React state and nothing else — while every other itinerary
+      change in this file goes through `commitItinerary`. The stop appeared,
+      the toast said 已排入, and the next time the itinerary was re-seeded from
+      the draft （opening the trip, a cloud reconcile, a reload） it was gone.
+      A write nobody persisted is a write that only existed on the way past.
+    */
+    if (!commitItinerary([...itinerary, item])) {
+      showToast("行程儲存失敗，這個地點沒有排進去。", "error");
+      return;
+    }
     showToast(`已排入 ${time}・${group.placeName}`);
   };
 
@@ -3231,7 +3244,8 @@ const App: React.FC = () => {
   const handleFillDayBlockManually = ({ date, time, durationMinutes, title }: {
     date: string; time: string; durationMinutes: number; title: string;
   }) => {
-    setItinerary((current) => [...current, {
+    // Persisted like the one above, and for the same reason.
+    const committed = commitItinerary([...itinerary, {
       id: generateId(),
       date,
       time,
@@ -3241,6 +3255,10 @@ const App: React.FC = () => {
       notes: "",
       type: "ACTIVITY" as const,
     }]);
+    if (!committed) {
+      showToast("行程儲存失敗，這個地點沒有排進去。", "error");
+      return;
+    }
     showToast(`已排入 ${time}・${title}`);
   };
 
