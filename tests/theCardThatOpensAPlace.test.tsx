@@ -61,15 +61,20 @@ describe('the photos', () => {
   it('shows the gallery with how many there are', async () => {
     open();
 
-    await waitFor(() => expect(screen.getByTestId('place-gallery')).toBeTruthy());
-    expect(screen.getByTestId('place-gallery-count').textContent).toBe('1 / 6');
+    await waitFor(() => expect(screen.getByTestId('place-gallery-count').textContent).toBe('1 / 6'));
     expect(screen.getByTestId('place-gallery-main').getAttribute('src')).toBe('pasta');
   });
 
   it('changes the big picture when a thumbnail is pressed', async () => {
     open();
 
-    await waitFor(() => expect(screen.getByTestId('place-gallery')).toBeTruthy());
+    /*
+      Waited on the counter rather than the gallery: the gallery renders as
+      soon as one photo arrives, and clicking a thumbnail before the rest land
+      reads the wrong list. This failed twice under a full run and never on
+      its own, which is what that looks like.
+    */
+    await waitFor(() => expect(screen.getByTestId('place-gallery-count').textContent).toBe('1 / 6'));
     fireEvent.click(screen.getByTestId('place-gallery-thumb-2'));
 
     expect(screen.getByTestId('place-gallery-main').getAttribute('src')).toBe('steak');
@@ -80,7 +85,7 @@ describe('the photos', () => {
   it('opens the fifth photo from the +2', async () => {
     open();
 
-    await waitFor(() => expect(screen.getByTestId('place-gallery')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('place-gallery-count').textContent).toBe('1 / 6'));
     expect(screen.getByTestId('place-gallery-more').textContent).toContain('+2');
     fireEvent.click(screen.getByTestId('place-gallery-more'));
 

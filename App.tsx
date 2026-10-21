@@ -3007,6 +3007,18 @@ const App: React.FC = () => {
     setShoppingList((prev) => prev.filter((item) => item.id !== id));
   };
 
+  /**
+   * Changes one field on one shopping item — quantity, 必買／想買, category.
+   *
+   * 「購物清單是最需要的」. One handler for every field rather than one per
+   * control: a second way to edit the same list is a second answer to 「how
+   * many」.
+   */
+  const handleUpdateShoppingItem = (id: string, patch: Partial<ShoppingItem>) => {
+    setShoppingList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  };
+
   const handleTogglePreparationItem = (id: string) => {
     setShoppingList((prev) =>
       prev.map((item) =>
@@ -9032,6 +9044,7 @@ const App: React.FC = () => {
                 onAddItem={handleAddShoppingItem}
                 onRemoveItem={handleRemoveShoppingItem}
                 onPurchaseItem={handlePurchaseShoppingItem}
+                onUpdateItem={handleUpdateShoppingItem}
               />
             </div>
           </div>
@@ -9403,6 +9416,7 @@ const App: React.FC = () => {
                         onAddItem={handleAddShoppingItem}
                         onRemoveItem={handleRemoveShoppingItem}
                         onPurchaseItem={handlePurchaseShoppingItem}
+                        onUpdateItem={handleUpdateShoppingItem}
                       />
                     </div>
                   </div>

@@ -77,6 +77,19 @@ export interface ShoppingItem {
     url: string;
     publisher?: string;
   };
+  /**
+   * How badly it is wanted. 「必買 / 想買」.
+   *
+   * Absent means nobody said, which is most of a list. Never defaulted to
+   * 必買: a 想買 that reads as 必買 is a shop somebody makes a detour for.
+   */
+  priority?: 'must' | 'want';
+  /** 美妝保養 / 服飾 / 伴手禮 — the traveller's own grouping, not a fixed set. */
+  category?: string;
+  /** Where to buy it: 「松本清 / 其他藥妝」, 「機場 / 車站」. */
+  shop?: string;
+  /** How many. Absent is one; this is a shopping list, not a warehouse. */
+  quantity?: number;
   sourceType?: 'travel_rules';
   travelRuleActionType?: EntryActionType;
   travelRuleNecessity?: EntryNecessity;
