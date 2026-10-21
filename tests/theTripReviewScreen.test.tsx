@@ -184,7 +184,8 @@ describe('每日行程', () => {
     ]);
     goToDays();
 
-    const titles = [...screen.getByTestId('recap-day').querySelectorAll('[data-testid^="recap-stop-"]')]
+    /* The rows themselves — the chips inside them share the prefix. */
+    const titles = [...screen.getByTestId('recap-day').querySelectorAll('li[data-testid^="recap-stop-"]')]
       .map(node => node.getAttribute('data-testid'));
     expect(titles).toEqual(['recap-stop-early', 'recap-stop-late']);
   });
@@ -277,6 +278,52 @@ describe('每日行程', () => {
     fireEvent.click(screen.getByTestId('recap-tab-days'));
 
     expect(screen.queryByTestId('recap-diary-open-i1')).toBeNull();
+  });
+
+  /*
+    The row of figures above a day, from the new design. Counts of what is
+    on the day — no weather, because nobody recorded the weather of a day
+    that has already happened, and no written summary, because nobody wrote
+    one.
+  */
+  it('counts what the day was made of', () => {
+    open(
+      [
+        stop({ id: 's', title: '淺草寺' }),
+        stop({ id: 'f', title: '一蘭拉麵', type: 'FOOD', latitude: 35.71, longitude: 139.77 }),
+        stop({ id: 'p', title: '唐吉訶德 淺草店' }),
+      ],
+      [bill({ merchant: '一蘭拉麵', merchantLatitude: 35.71, merchantLongitude: 139.77 })],
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    const stats = screen.getByTestId('recap-day-stats').textContent || '';
+    expect(stats).toContain('個景點');
+    expect(stats).toContain('家餐廳');
+    expect(stats).toContain('NT$ 946');
+  });
+
+  /* The ward, from the same grouping the areas on 總覽 are built from. */
+  it('tags a stop with the area it is in', () => {
+    open([stop({ id: 'a', address: '東京都台東区上野2-13-13' })]);
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    expect(screen.getByTestId('recap-stop-area-a')).toBeTruthy();
+  });
+
+  it('shows the photos taken at a stop, and how many more there are', () => {
+    open(
+      [stop({ id: 'k', title: 'Kurofunetei', latitude: 35.71, longitude: 139.77 })],
+      [bill({
+        merchant: 'Kurofunetei', merchantLatitude: 35.71, merchantLongitude: 139.77,
+        receiptPhotos: ['a', 'b', 'c', 'd', 'e'],
+      })],
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    const grid = screen.getByTestId('recap-stop-photos-k');
+    expect(grid.querySelectorAll('img')).toHaveLength(3);
+    expect(grid.textContent).toContain('+2');
   });
 
   it('says so when nothing was ever scheduled', () => {

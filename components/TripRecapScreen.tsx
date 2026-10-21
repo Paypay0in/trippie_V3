@@ -16,7 +16,7 @@
  *   rather than ranking the stops by something else and calling them 亮點.
  */
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarRange, MapPin, NotebookPen, Receipt, Sparkles, Star, UtensilsCrossed } from 'lucide-react';
+import { ArrowLeft, CalendarRange, MapPin, NotebookPen, Receipt, ShoppingBag, Sparkles, Star, UtensilsCrossed, Wallet } from 'lucide-react';
 import { Expense, Trip, TripMember } from '../types';
 import { RecapStop, buildTripRecap, isGettingThere, starsFor } from '../services/tripRecap';
 import { ITINERARY_PREFIX, buildTripAreas } from '../services/tripAreas';
@@ -102,6 +102,14 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
     is a count of this trip's stops in that ward, not of everything saved
     there — the review is about where this trip went.
   */
+  const areaOf = useMemo(
+    () => buildTripAreas({
+      itinerary: (trip.itinerary || []).filter(item => !isGettingThere(item)),
+      country: trip.travelCountry,
+    }).areaOfItem,
+    [trip.itinerary, trip.travelCountry],
+  );
+
   const areas = useMemo(
     () => buildTripAreas({
       // 「這都能去掉機場」 — 桃園 一帶 is not an area of a trip to Tokyo.
@@ -343,13 +351,14 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                       data-testid={`recap-day-chip-${entry.index}`}
                       onClick={() => setDay(index)}
                       aria-selected={current?.date === entry.date}
-                      className={`min-h-10 shrink-0 rounded-xl px-3 text-[11px] font-black transition-colors ${
+                      className={`shrink-0 rounded-2xl px-3 py-2 text-center text-[11px] font-black leading-4 transition-colors ${
                         current?.date === entry.date
                           ? 'bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-sm'
                           : 'border border-slate-100 bg-white text-slate-500'
                       }`}
                     >
-                      第 {entry.index} 天 · {dayLabel(entry.date)}
+                      <span className="block">第 {entry.index} 天</span>
+                      <span className="block opacity-80">{dayLabel(entry.date)}</span>
                     </button>
                   ))}
                 </div>
@@ -357,27 +366,56 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                   <h3 className="font-black text-[#11183d]">
                     第 {current.index} 天 · {dayLabel(current.date)}
                   </h3>
+                  {/*
+                    What the day was made of. Counts of what is actually on it
+                    — no weather, because nobody recorded the weather of a day
+                    that has already happened, and no written summary, because
+                    nobody wrote one.
+                  */}
+                  <div data-testid="recap-day-stats" className="mt-3 grid grid-cols-4 gap-1.5">
+                    {[
+                      [MapPin, current.stats.sights, '個景點'],
+                      [UtensilsCrossed, current.stats.food, '家餐廳'],
+                      [ShoppingBag, current.stats.shopping, '個購物'],
+                      [Wallet, money(current.stats.twdAmount), '當日花費'],
+                    ].map(([Icon, value, label]) => (
+                      <div key={label as string} className="rounded-2xl border border-slate-100 bg-[#f8f9ff] px-2 py-2 text-center">
+                        {React.createElement(Icon as React.ElementType, { size: 14, className: 'mx-auto text-violet-600' })}
+                        <div className="mt-1 truncate text-[12px] font-black text-[#11183d]">{value as string}</div>
+                        <div className="text-[10px] font-bold text-slate-400">{label as string}</div>
+                      </div>
+                    ))}
+                  </div>
                   <ol className="mt-3 space-y-2">
                     {current.stops.map(stop => (
                       <li
                         key={stop.itemId}
                         data-testid={`recap-stop-${stop.itemId}`}
-                        className="flex gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm"
+                        /* The rail: a day is a sequence, and the line says so. */
+                        className="relative flex gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 pl-6 shadow-sm before:absolute before:left-3 before:top-5 before:h-2 before:w-2 before:-translate-x-1/2 before:rounded-full before:bg-violet-500 after:absolute after:left-3 after:top-7 after:bottom-0 after:w-px after:-translate-x-1/2 after:bg-violet-100 last:after:hidden"
                       >
-                        {stop.photo
-                          ? <img src={stop.photo} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
-                          : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-300"><MapPin size={18} /></span>}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline gap-2">
                             <span className="shrink-0 rounded-lg bg-indigo-50 px-1.5 py-0.5 text-[11px] font-black text-indigo-800">{stop.time}</span>
                             <span className="truncate text-sm font-black text-[#11183d]">{stop.title}</span>
                             <Stars stop={stop} testId={`recap-stop-stars-${stop.itemId}`} />
                           </div>
-                          {stop.category !== 'other' && (
-                            <span className="mt-1 inline-flex rounded-lg bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">
-                              {CATEGORY_LABELS[stop.category]}
-                            </span>
-                          )}
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
+                            {stop.category !== 'other' && (
+                              <span className="inline-flex rounded-lg bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">
+                                {CATEGORY_LABELS[stop.category]}
+                              </span>
+                            )}
+                            {/* The ward, from the same grouping the areas above use. */}
+                            {areaOf(stop.itemId) && (
+                              <span
+                                data-testid={`recap-stop-area-${stop.itemId}`}
+                                className="inline-flex rounded-lg bg-violet-50 px-1.5 py-0.5 text-[10px] font-black text-violet-600"
+                              >
+                                {areaOf(stop.itemId)?.label}
+                              </span>
+                            )}
+                          </div>
                           {stop.note && (
                             <p data-testid={`recap-stop-note-${stop.itemId}`} className="mt-1 text-[11px] leading-4 text-slate-600">
                               {stop.note}
@@ -385,6 +423,27 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                           )}
                           {typeof stop.twdAmount === 'number' && (
                             <div className="mt-1 text-[11px] font-bold text-slate-400">{money(stop.twdAmount)}</div>
+                          )}
+                          {/*
+                            The traveller's own photographs of this stop.
+
+                            Only theirs: these are the pictures taken of the
+                            bills so far, and a place photo column is written
+                            and unrun （`0029_itinerary_item_photos`）. Google's
+                            picture of the same door would be a stranger's
+                            photograph presented as a memory.
+                          */}
+                          {stop.photos && stop.photos.length > 0 && (
+                            <div data-testid={`recap-stop-photos-${stop.itemId}`} className="mt-2 flex gap-1.5">
+                              {stop.photos.slice(0, 3).map(shot => (
+                                <img key={shot} src={shot} alt="" loading="lazy" className="h-16 w-16 rounded-xl object-cover" />
+                              ))}
+                              {stop.photos.length > 3 && (
+                                <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-slate-100 text-[11px] font-black text-slate-500">
+                                  +{stop.photos.length - 3}
+                                </span>
+                              )}
+                            </div>
                           )}
                           {/*
                             The diary for a stop that cost nothing.

@@ -44,6 +44,8 @@ export interface RecapStop {
   rating?: number;
   /** The traveller's own photo of their bill, when there is one. */
   photo?: string;
+  /** Every photo recorded at this stop, for the grid on the day. */
+  photos?: string[];
   /** What was spent here, in TWD, across every bill matched to it. */
   twdAmount?: number;
   /** What they wrote on the bill afterwards, when they wrote anything. */
@@ -58,11 +60,21 @@ export interface RecapStop {
   diary?: string;
 }
 
+/** What one day was made of, for the row of figures above its timeline. */
+export interface RecapDayStats {
+  sights: number;
+  food: number;
+  shopping: number;
+  /** What the day cost the person reading, in TWD. */
+  twdAmount: number;
+}
+
 export interface RecapDay {
   date: string;
   /** 1-based, as the day chips print it. */
   index: number;
   stops: RecapStop[];
+  stats: RecapDayStats;
 }
 
 export interface RecapStats {
@@ -152,12 +164,13 @@ const hasHappened = (item: ItineraryItem, today: string): boolean =>
 /** The best rating among the bills at a place, and the first photo there is. */
 const fromBills = (bills: SpendAtPlace[], costOf: (expenseId: string) => number) => {
   const rated = bills.map(bill => bill.rating).filter((value): value is number => typeof value === 'number');
-  const photo = bills.flatMap(bill => bill.photos ?? (bill.photo ? [bill.photo] : []))[0];
+  const shots = bills.flatMap(bill => bill.photos ?? (bill.photo ? [bill.photo] : []));
+  const photo = shots[0];
   const note = bills.map(bill => bill.note?.trim()).find(Boolean);
   const spent = bills.reduce((sum, bill) => sum + costOf(bill.expenseId), 0);
   return {
     ...(rated.length > 0 ? { rating: Math.max(...rated) } : {}),
-    ...(photo ? { photo } : {}),
+    ...(photo ? { photo, photos: shots } : {}),
     ...(note ? { note } : {}),
     ...(spent > 0 ? { twdAmount: spent } : {}),
   };
@@ -206,13 +219,27 @@ export const buildTripRecap = (
   const visited = stops.filter(stop => happened.has(stop.itemId));
 
   const dates = [...new Set(stops.map(stop => stop.date))].sort();
-  const days: RecapDay[] = dates.map((date, index) => ({
-    date,
-    index: index + 1,
-    stops: stops
+  const days: RecapDay[] = dates.map((date, index) => {
+    const onThisDay = stops
       .filter(stop => stop.date === date)
-      .sort((left, right) => left.time.localeCompare(right.time)),
-  }));
+      .sort((left, right) => left.time.localeCompare(right.time));
+    const count = (category: PlaceCategory) =>
+      onThisDay.filter(stop => stop.category === category).length;
+    return {
+      date,
+      index: index + 1,
+      stops: onThisDay,
+      stats: {
+        // 景點 is the sights, not 「everything that was not a meal」: a hotel
+        // and a station are neither, and counting them would inflate a figure
+        // somebody reads as 「how much did I see」.
+        sights: count('sight'),
+        food: count('food') + count('cafe'),
+        shopping: count('shop'),
+        twdAmount: onThisDay.reduce((sum, stop) => sum + (stop.twdAmount ?? 0), 0),
+      },
+    };
+  });
 
   /*
     Best first, and ties broken by what was spent rather than left to the
