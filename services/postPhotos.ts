@@ -13,6 +13,24 @@ const DEFAULT_MAX_EDGE = 1280;
 const DEFAULT_QUALITY = 0.72;
 
 /**
+ * What a receipt kept as evidence is worth storing at.
+ *
+ * 「這台裝置的儲存空間可能滿了」 — four of these per bill at the gallery defaults
+ * is what filled a phone and stopped a stop being added to tomorrow. A
+ * receipt is kept so somebody can check a number against the paper, which
+ * wants legibility, not a photograph.
+ *
+ * Nothing is lost by reading: the scan sends the *original file* to the
+ * parser （see `ExpenseForm`'s `readAsDataURL` of `file`）, so what is stored
+ * has never been what is recognised. The only tradeoff I thought this had
+ * does not exist.
+ *
+ * Roughly a third of the bytes: half the pixels at a lower quality. A receipt
+ * is high-contrast black on white, which is what JPEG compresses best.
+ */
+export const RECEIPT_PHOTO = { maxEdge: 900, quality: 0.6 } as const;
+
+/**
  * What a receipt is downscaled to before it is read.
  *
  * Larger than a photo meant for a screen: the labels that matter — 즉시환급,

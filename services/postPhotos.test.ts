@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest';
-import { MAX_POST_PHOTOS, addPhotos, readForUpload, removePhoto, uploadBytes } from './postPhotos';
+import { MAX_POST_PHOTOS, RECEIPT_PHOTO, addPhotos, readForUpload, removePhoto, uploadBytes } from './postPhotos';
 
 const photo = (n: number) => `data:image/jpeg;base64,${n}`;
 
@@ -89,5 +89,26 @@ describe('a picture too big to send', () => {
     const small = new File(['x'], 'small.png', { type: 'image/png' });
 
     expect((await readForUpload(small)).data.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * 「這台裝置的儲存空間可能滿了」.
+ *
+ * Four gallery-sized receipts a bill is what filled the phone. A receipt is
+ * kept so somebody can check a number against the paper, which wants
+ * legibility rather than a photograph — and the scan sends the original file
+ * to the parser, so nothing stored here was ever what was recognised.
+ */
+describe('RECEIPT_PHOTO', () => {
+  it('is smaller than a photo somebody looks at', () => {
+    expect(RECEIPT_PHOTO.maxEdge).toBeLessThan(1280);
+    expect(RECEIPT_PHOTO.quality).toBeLessThan(0.72);
+  });
+
+  /* Still a receipt, not a thumbnail: a 900px long edge reads a till roll. */
+  it('stays large enough to read', () => {
+    expect(RECEIPT_PHOTO.maxEdge).toBeGreaterThanOrEqual(800);
+    expect(RECEIPT_PHOTO.quality).toBeGreaterThanOrEqual(0.55);
   });
 });

@@ -21,7 +21,7 @@ import {
 import { Sparkles, Loader2, Plus, X, Save, Info, Users, Divide, DollarSign, Percent, Tag, Camera, MapPin, Image as ImageIcon, CalendarDays, FileText, ChevronDown, AlertTriangle, Check } from 'lucide-react';
 import { localToday } from '../services/localDate';
 import { remainderMemberFor } from '../services/splitRemainderMember';
-import { readAndDownscale } from '../services/postPhotos';
+import { readAndDownscale, RECEIPT_PHOTO } from '../services/postPhotos';
 import { expenseNetAmount, refundReceivedInTwd } from '../services/viewerSpend';
 import AddPlaceByName from './AddPlaceByName';
 import { ResolvedCandidate } from '../services/placeCandidates';
@@ -305,7 +305,11 @@ const ExpenseForm: React.FC<Props> = ({
     }
     const chosen = Array.from(files).slice(0, room);
     try {
-      const downscaled = await Promise.all(chosen.map(readAndDownscale));
+      /*
+        Stored smaller than a gallery photo. The parser reads the original
+        file, so this costs nothing in recognition — see `RECEIPT_PHOTO`.
+      */
+      const downscaled = await Promise.all(chosen.map(file => readAndDownscale(file, RECEIPT_PHOTO)));
       setReceiptPhotos(current => [...current, ...downscaled]);
       if (files.length > room) setReceiptError(`最多 ${MAX_RECEIPTS} 張，其餘未加入`);
     } catch {
