@@ -1151,10 +1151,30 @@ async function startServer() {
       const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": "routes.distanceMeters,routes.duration" },
-        body: JSON.stringify({ origin: { location: { latLng: { latitude: currentLatitude, longitude: currentLongitude } } }, destination: { location: { latLng: { latitude: destinationLatitude, longitude: destinationLongitude } } }, travelMode: "DRIVE", routingPreference: "TRAFFIC_AWARE", departureTime: new Date().toISOString() }),
+        /*
+          No `departureTime`. 「為什麼沒有辦法定位」 — the location was fine;
+          this call had never once succeeded.
+
+          It sent `new Date().toISOString()`, which is in the past by the time
+          Google reads it, and Routes answers 「Timestamp must be set to a
+          future time」 with a 400. Leaving it out means 「now」, which is what
+          an estimate from where the traveller is standing means.
+
+          `/api/routes/leg` already learned this — it has a `future` guard that
+          drops a departure time that has passed. This endpoint never did, and
+          that is the same shape as every other defect this week: one rule,
+          honoured on one path.
+        */
+        body: JSON.stringify({ origin: { location: { latLng: { latitude: currentLatitude, longitude: currentLongitude } } }, destination: { location: { latLng: { latitude: destinationLatitude, longitude: destinationLongitude } } }, travelMode: "DRIVE", routingPreference: "TRAFFIC_AWARE" }),
         signal: AbortSignal.timeout(10_000),
       });
-      if (!response.ok) { res.status(502).json({ error: "Routing provider unavailable." }); return; }
+      if (!response.ok) {
+        // Logged, because the client is told only 「暫時無法計算路線」 and that
+        // sentence hid a deterministic 400 for as long as this has existed.
+        console.error("Routes estimate rejected:", response.status, await response.text().catch(() => ""));
+        res.status(502).json({ error: "Routing provider unavailable." });
+        return;
+      }
       const data = await response.json() as { routes?: Array<{ distanceMeters?: number; duration?: string }> };
       const route = data.routes?.[0];
       const durationSeconds = route?.duration ? Number(route.duration.replace(/s$/, "")) : NaN;
