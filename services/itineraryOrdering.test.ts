@@ -4,6 +4,7 @@ import {
   hasTimeOrderConflict,
   itemsForDay,
   moveItemToDay,
+  placeNewStopByTime,
   orderItemsForDay,
   reorderWithinDay,
   timeConflictItemIds,
@@ -222,5 +223,65 @@ describe('hasTimeOrderConflict', () => {
   it('is false for a day with a single timed item', () => {
     expect(hasTimeOrderConflict([day6()[0]])).toBe(false);
     expect(hasTimeOrderConflict([])).toBe(false);
+  });
+});
+
+/**
+ * 「但下方行程表沒有照時間順序」.
+ *
+ * A day dragged by hand carries `sortOrder`, and anything added afterwards is
+ * deliberately placed after the arranged items — right for a stop with no time
+ * of its own, wrong for one the planner just put in the 10:00 block.
+ */
+describe('placeNewStopByTime', () => {
+  const DAY = '2026-10-22';
+  const stop = (id: string, time: string, sortOrder?: number) => ({
+    id, date: DAY, time, title: id, location: id, notes: '', type: 'ACTIVITY',
+    ...(sortOrder === undefined ? {} : { sortOrder }),
+  } as unknown as ItineraryItem);
+
+  const arranged = [stop('cafe', '13:00', 0), stop('tower', '20:00', 1)];
+
+  it('puts the new stop where its clock says', () => {
+    const next = placeNewStopByTime([...arranged, stop('imahan', '10:00')], 'imahan');
+
+    expect(orderItemsForDay(itemsForDay(next, DAY)).map(item => item.id))
+      .toEqual(['imahan', 'cafe', 'tower']);
+  });
+
+  it('puts a late one last', () => {
+    const next = placeNewStopByTime([...arranged, stop('bar', '22:00')], 'bar');
+
+    expect(orderItemsForDay(itemsForDay(next, DAY)).map(item => item.id))
+      .toEqual(['cafe', 'tower', 'bar']);
+  });
+
+  /* The arrangement is preserved; one stop is inserted into it. */
+  it('does not reshuffle the hand-made order around it', () => {
+    const crossed = [stop('late', '20:00', 0), stop('early', '13:00', 1)];
+
+    const next = placeNewStopByTime([...crossed, stop('imahan', '10:00')], 'imahan');
+
+    expect(orderItemsForDay(itemsForDay(next, DAY)).map(item => item.id))
+      .toEqual(['imahan', 'late', 'early']);
+  });
+
+  /* A day nobody arranged already sorts by time; nothing to stamp. */
+  it('leaves an unarranged day alone', () => {
+    const loose = [stop('cafe', '13:00'), stop('imahan', '10:00')];
+
+    expect(placeNewStopByTime(loose, 'imahan')).toBe(loose);
+  });
+
+  it('does nothing for an id that is not there', () => {
+    expect(placeNewStopByTime(arranged, 'nope')).toBe(arranged);
+  });
+
+  /* Another day's arrangement is not this day's business. */
+  it('does not touch other days', () => {
+    const other = { ...stop('other', '09:00', 0), date: '2026-10-23' } as ItineraryItem;
+    const next = placeNewStopByTime([...arranged, other, stop('imahan', '10:00')], 'imahan');
+
+    expect(next.find(item => item.id === 'other')?.sortOrder).toBe(0);
   });
 });

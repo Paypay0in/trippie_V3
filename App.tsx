@@ -331,6 +331,7 @@ import {
   itemsForDay,
   moveItemToDay,
   orderItemsForDay,
+  placeNewStopByTime,
   reorderWithinDay,
 } from "./services/itineraryOrdering";
 import { applyDurationChange, rescheduleFromItem, resequenceDayTimes } from "./services/itineraryTimeline";
@@ -3272,7 +3273,13 @@ const App: React.FC = () => {
       the draft （opening the trip, a cloud reconcile, a reload） it was gone.
       A write nobody persisted is a write that only existed on the way past.
     */
-    if (!commitItinerary([...itinerary, item])) {
+    /*
+      「但下方行程表沒有照時間順序」 — on a day already arranged by hand, a new
+      item with no `sortOrder` is deliberately placed after the arranged ones.
+      Right for a stop with no time; wrong for one the planner just put in the
+      10:00 block, where the time is the thing that was chosen.
+    */
+    if (!commitItinerary(placeNewStopByTime([...itinerary, item], item.id))) {
       /*
         Two different problems wore the same sentence. 「依然無法」 — the stop
         did not go in, twice, with nothing on screen distinguishing 「this
@@ -3302,8 +3309,9 @@ const App: React.FC = () => {
     date: string; time: string; durationMinutes: number; title: string;
   }) => {
     // Persisted like the one above, and for the same reason.
-    const committed = commitItinerary([...itinerary, {
-      id: generateId(),
+    const typedId = generateId();
+    const committed = commitItinerary(placeNewStopByTime([...itinerary, {
+      id: typedId,
       date,
       time,
       durationMinutes,
@@ -3311,7 +3319,7 @@ const App: React.FC = () => {
       location: title,
       notes: "",
       type: "ACTIVITY" as const,
-    }]);
+    }], typedId));
     if (!committed) {
       showToast(activeDraftId
         ? "行程儲存失敗，這個地點沒有排進去。"

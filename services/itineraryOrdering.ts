@@ -71,6 +71,48 @@ export const orderItemsForDay = (items: ItineraryItem[]): ItineraryItem[] => {
     .map(entry => entry.item);
 };
 
+/**
+ * Puts a newly added stop where its clock says, in a day already arranged.
+ *
+ * 「但下方行程表沒有照時間順序」 — a day the traveller has dragged carries
+ * `sortOrder`, and anything added afterwards is deliberately placed *after*
+ * the arranged items so a later addition never jumps into the middle of a
+ * hand-made plan. That rule is right for a stop with no time of its own.
+ *
+ * It is wrong for one the planner just placed in the 10:00 block: the time is
+ * not incidental to it, it is the thing that was chosen. So the new stop takes
+ * the position its time earns among that day's stops, and the day is
+ * re-stamped around it. Nothing else moves relative to anything else — the
+ * arranged order is preserved, with one stop inserted into it.
+ *
+ * A day nobody has arranged needs none of this: it already sorts by time.
+ */
+export const placeNewStopByTime = (
+  itinerary: ItineraryItem[],
+  newItemId: string,
+): ItineraryItem[] => {
+  const added = itinerary.find(item => item.id === newItemId);
+  if (!added) return itinerary;
+
+  const day = itemsForDay(itinerary, added.date);
+  if (!day.some(item => typeof item.sortOrder === 'number')) return itinerary;
+
+  /*
+    The arranged day as it reads now, with the new stop lifted out, then put
+    back at the first position whose stop starts later than it does.
+  */
+  const without = orderItemsForDay(day).filter(item => item.id !== newItemId);
+  const at = without.findIndex(item => timeKey(item).localeCompare(timeKey(added)) > 0);
+  const resequenced = at < 0
+    ? [...without, added]
+    : [...without.slice(0, at), added, ...without.slice(at)];
+
+  const order = new Map(resequenced.map((item, index) => [item.id, index]));
+  return itinerary.map(item => (order.has(item.id)
+    ? { ...item, sortOrder: order.get(item.id) as number }
+    : item));
+};
+
 /** Stamps 0..n-1 onto a day, making the arrangement explicit and gap-free. */
 const withSequentialOrder = (ordered: ItineraryItem[]): ItineraryItem[] =>
   ordered.map((item, index) => (item.sortOrder === index ? item : { ...item, sortOrder: index }));
