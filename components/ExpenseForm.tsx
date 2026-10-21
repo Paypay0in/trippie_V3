@@ -141,6 +141,19 @@ const ExpenseForm: React.FC<Props> = ({
   const [managingCategories, setManagingCategories] = useState(false);
   /** A place chosen by hand for a receipt the scan could not pin down. */
   const [merchantPlace, setMerchantPlace] = useState<ResolvedCandidate | null>(null);
+  /*
+    What to look the shop up by.
+
+    The till's own name and the printed address when there is a receipt; the
+    line the traveller typed when there is not. Emoji are stripped — 「八十八淺
+    草抹茶🍵」 is a name somebody wrote for themselves, and the 🍵 is decoration
+    that a place search can only be confused by.
+  */
+  const placeQuery = [initialData?.merchant || initialData?.description, initialData?.merchantAddress]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+    .trim();
   const [newCategoryName, setNewCategoryName] = useState('');
   const phaseCategories = categoriesForPhase(currentPhase, customCategories);
   const ownCategories = customCategories[currentPhase] ?? [];
@@ -1244,17 +1257,22 @@ const ExpenseForm: React.FC<Props> = ({
                       fully resolved and carries no id, and nothing on the
                       collection screen can find it.
 
-                      The search is prefilled from what the till printed and
+                      The search is prefilled from whatever the bill has and
                       runs on open, but the candidates are still a list to pick
                       from. A receipt bound to the wrong shop would be worse
                       than one bound to none.
+
+                      「這間店在收藏中有 但沒給收據 在記帳中就無法出現地址讓AI配對
+                      收藏的店家」 — this used to require a printed address, so a
+                      bill typed by hand could never be bound to anything. A
+                      typed bill has no address by definition; it has a name,
+                      and a name is what a search takes.
                     */}
-                    {!locked && initialData.merchantAddress && !merchantPlace && !initialData.merchantPlaceId && (
+                    {!locked && !merchantPlace && !initialData.merchantPlaceId && placeQuery && (
                       <div className="mt-1.5">
                         <AddPlaceByName
                           label="對應到地圖地點"
-                          defaultQuery={[initialData.merchant || initialData.description, initialData.merchantAddress]
-                            .filter(Boolean).join(' ')}
+                          defaultQuery={placeQuery}
                           searchOnOpen
                           context={{}}
                           onAdd={setMerchantPlace}

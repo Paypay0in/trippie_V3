@@ -103,3 +103,43 @@ describe('a bill whose address resolved to nothing', () => {
     expect(screen.queryByTestId('open-add-place')).toBeNull();
   });
 });
+
+/**
+ * 「這間店在收藏中有 但沒給收據 在記帳中就無法出現地址讓AI配對收藏的店家」.
+ *
+ * The lookup used to require a printed address, so a bill typed by hand could
+ * never be bound to anything. A typed bill has no address by definition — it
+ * has a name, and a name is what a search takes.
+ */
+describe('a bill somebody typed', () => {
+  const typed = bill({
+    merchant: undefined,
+    merchantAddress: undefined,
+    description: '八十八淺草抹茶🍵',
+  });
+
+  it('offers the lookup anyway', () => {
+    open(typed);
+
+    expect(screen.getByTestId('open-add-place')).toBeTruthy();
+  });
+
+  it('searches on what the traveller called it, without the emoji', async () => {
+    findPlaceCandidates.mockResolvedValue([]);
+    open(typed);
+
+    fireEvent.click(screen.getByTestId('open-add-place'));
+
+    await waitFor(() => expect(findPlaceCandidates).toHaveBeenCalled());
+    const [query] = findPlaceCandidates.mock.calls[0];
+    expect(query).toContain('八十八淺草抹茶');
+    expect(query).not.toContain('🍵');
+  });
+
+  /* Nothing to search with is nothing to offer. */
+  it('does not offer it when the bill has no name at all', () => {
+    open(bill({ merchant: undefined, merchantAddress: undefined, description: '' }));
+
+    expect(screen.queryByTestId('open-add-place')).toBeNull();
+  });
+});
