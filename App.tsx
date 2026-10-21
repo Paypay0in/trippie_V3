@@ -8624,6 +8624,20 @@ const App: React.FC = () => {
               onQuickAdd={handleWorkspaceQuickAdd}
               onOpenPlanning={() => setWorkspaceSection("planning")}
               onOpenRecords={() => setWorkspaceSection("records")}
+              /*
+                「將總覽改成這樣」 — the row of ways out. Only the ones that lead
+                somewhere are passed: a tile with nowhere to go is a dead tap,
+                and this screen has had enough of those tonight.
+
+                地圖, 購物清單 and 更多 are not here yet, and by inspection
+                rather than by omission: the map is a mode inside the planning
+                screen with no way in from outside it, `ShoppingListPanel` is
+                mounted only on the older phase-tab screen this workspace
+                replaced, and 更多 is a drawer `TripWorkspaceShell` opens from
+                its own state. Each needs plumbing that does not exist, and a
+                tile that leads nowhere is worse than one that is not there.
+              */
+              onOpenCompanions={() => setIsCompanionsOpen(true)}
             />
           )}
           {workspaceSection === "overview" && currentPhase === "during" && (

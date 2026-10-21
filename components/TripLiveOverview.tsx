@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, ArrowRight, CloudSun, Coffee, MapPin, Navigation, Plus, Receipt, ShoppingBag, TrainFront } from 'lucide-react';
+import { AlertCircle, ArrowRight, CalendarRange, CloudSun, Coffee, Map, MapPin, MoreHorizontal, Navigation, Plus, Receipt, ShoppingBag, TrainFront, Users } from 'lucide-react';
+import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { Category, Expense, ItineraryItem, TripMember } from '../types';
 import { WeatherSnapshot } from '../services/weatherService';
 import { estimateRoute, RouteEstimate } from '../services/routesService';
@@ -29,6 +30,17 @@ interface Props {
    */
   viewerMemberId?: string;
   members?: TripMember[];
+  /**
+   * 「將總覽改成這樣」 — the row of ways out of this screen.
+   *
+   * Each is omitted rather than disabled when the caller has nowhere to send
+   * it: a tile that cannot go anywhere is the fourth kind of dead tap this
+   * screen has had tonight.
+   */
+  onOpenMap?: () => void;
+  onOpenShoppingList?: () => void;
+  onOpenCompanions?: () => void;
+  onOpenMore?: () => void;
 }
 const timeToMinutes = (value: string) => {
   const match = value.trim().match(/(?:^|\s)(\d{1,2}):(\d{2})(?=\s|$|:)/);
@@ -38,7 +50,13 @@ const timeToMinutes = (value: string) => {
   return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? hours * 60 + minutes : null;
 };
 
-const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, endDate, onQuickAdd, onOpenPlanning, onOpenRecords, destination, destinationCoordinates, destinationCountry, viewerMemberId, members = [] }) => {
+const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, endDate, onQuickAdd, onOpenPlanning, onOpenRecords, destination, destinationCoordinates, destinationCountry, viewerMemberId, members = [], onOpenMap, onOpenShoppingList, onOpenCompanions, onOpenMore }) => {
+  /*
+    The place, as a picture. 「將總覽改成這樣」 — the overview opened on a
+    gradient, and the one thing a traveller recognises their own trip by is
+    where it is. The same service the collection headers use.
+  */
+  const [heroImage, setHeroImage] = useState<DestinationImage | null>(null);
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState(false);
@@ -132,7 +150,65 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
     return () => { cancelled = true; };
   }, [selectedDestination, selectedCountry, selectedCoordinates?.latitude, selectedCoordinates?.longitude, weatherRetry, nextStop?.id, nextStop?.latitude, nextStop?.longitude, nextStop?.location, nextStop?.address, todayCoordinateItem?.id, todayTextItem?.id]);
   const quickActions = [[Coffee, '餐飲', Category.FOOD], [TrainFront, '交通', Category.TRANSPORT], [ShoppingBag, '購物', Category.SHOPPING], [Plus, '其他', Category.OTHER]] as const;
+  useEffect(() => {
+    let cancelled = false;
+    setHeroImage(null);
+    if (!destination) return;
+    void fetchDestinationImage(destination)
+      .then(found => { if (!cancelled) setHeroImage(found); });
+    return () => { cancelled = true; };
+  }, [destination]);
+
+  /* Only the ways out that actually lead somewhere. */
+  const ways: Array<[React.ComponentType<{ size?: number }>, string, () => void]> = [
+    [CalendarRange, '行程規劃', onOpenPlanning],
+    ...(onOpenMap ? [[Map, '地圖', onOpenMap] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
+    ...(onOpenShoppingList ? [[ShoppingBag, '購物清單', onOpenShoppingList] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
+    ...(onOpenCompanions ? [[Users, '旅伴', onOpenCompanions] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
+    ...(onOpenMore ? [[MoreHorizontal, '更多', onOpenMore] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
+  ];
+
   return <div className="space-y-3 pb-4">
+    {/*
+      Where this trip is, and when. 「將總覽改成這樣」.
+
+      The dates and the stage were already on the card below as a pill; they
+      belong on the thing the traveller recognises the trip by.
+    */}
+    <section data-testid="trip-hero" className="overflow-hidden rounded-[1.6rem] shadow-[0_10px_28px_rgba(66,74,150,.12)]">
+      <div className="relative h-40 bg-gradient-to-br from-[#2F5BFF] to-[#8B3DFF]">
+        {heroImage?.imageUrl && (
+          <img src={heroImage.imageUrl} alt={destination} className="h-full w-full object-cover" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/15 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 p-4">
+          <h1 className="text-2xl font-black leading-7 text-white">{destination || '這趟旅行'}</h1>
+          {(startDate || endDate) && (
+            <p className="mt-0.5 text-xs font-bold text-white/85">
+              {[startDate, endDate].filter(Boolean).map(date => (date as string).replace(/-/g, '/')).join(' - ')}
+            </p>
+          )}
+          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-black text-emerald-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />旅行中
+          </span>
+        </div>
+      </div>
+    </section>
+
+    {/* The ways out, as a row. */}
+    <section data-testid="trip-quick-ways" className="grid gap-2 rounded-[1.45rem] border border-slate-100 bg-white p-3 shadow-[0_8px_24px_rgba(66,74,150,.07)]" style={{ gridTemplateColumns: `repeat(${ways.length}, minmax(0, 1fr))` }}>
+      {ways.map(([Icon, label, go]) => (
+        <button
+          key={label}
+          type="button"
+          data-testid={`trip-way-${label}`}
+          onClick={go}
+          className="flex min-h-[4.25rem] flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-100 bg-white text-[11px] font-black text-slate-600 shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+        >
+          <Icon size={20} />{label}
+        </button>
+      ))}
+    </section>
     <section className="rounded-[1.6rem] border border-indigo-100 bg-gradient-to-br from-[#eef1ff] via-white to-[#f8f7ff] p-4 shadow-[0_10px_28px_rgba(66,74,150,.10)]">
       <div className="mb-4 flex items-start justify-between"><div><span className="inline-flex rounded-full bg-gradient-to-r from-blue-600 to-violet-600 px-3 py-1 text-[11px] font-black text-white shadow-sm">進行中</span><h1 className="mt-2 text-2xl font-black tracking-tight text-[#11183d]">旅程現況</h1></div><span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm" aria-hidden="true">♧</span></div>
       <div className="mb-2 flex items-center justify-between"><div className="text-base font-black">下一站</div><span className="text-[10px] font-bold text-slate-400">LIVE</span></div>
