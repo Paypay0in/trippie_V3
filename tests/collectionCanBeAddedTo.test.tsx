@@ -99,39 +99,17 @@ describe('a saved place you have paid at', () => {
   });
 
   /*
-    「點擊下去要有小卡片：照片與當初記帳的備註，還有實際的結帳細目！」
+    「我預期點擊下去應該是這樣」 — the row opens the place's own card, which is
+    where the gallery, the note and 當天消費紀錄 live. The list stays a list.
   */
-  it('opens the bill itself when the row is tapped', () => {
-    mount({
-      items: [saved({ placeId: 'ChIJ-k' })],
-      expenses: [{
-        ...bill,
-        merchant: 'KUROFUNE-TEI',
-        amount: 4300,
-        receiptItems: [
-          { name: 'ハヤシライス', quantity: 2, amount: 3000 },
-          { name: 'コーヒー', amount: 1300 },
-        ],
-      }],
-    });
-
-    expect(screen.queryByTestId('spend-detail-e')).toBeNull();
-    fireEvent.click(screen.getByTestId('spend-row-e'));
-
-    const card = screen.getByTestId('spend-detail-e');
-    expect(card.textContent).toContain('ハヤシライス');
-    expect(card.textContent).toContain('×2');
-    expect(card.textContent).toContain('コーヒー');
-    expect(card.textContent).toContain('蘑菇義大利麵很好吃');
-    expect(card.querySelectorAll('img').length).toBe(1);
-  });
-
-  /* A receipt with no lines says so, rather than showing an empty table. */
-  it('says when there were no printed lines', () => {
+  it('opens the place card when the spend row is tapped', () => {
     mount({ items: [saved({ placeId: 'ChIJ-k' })], expenses: [bill] });
+
+    expect(screen.queryByTestId('saved-place-card')).toBeNull();
     fireEvent.click(screen.getByTestId('spend-row-e'));
 
-    expect(screen.getByTestId('spend-detail-e').textContent).toContain('沒有留下結帳細目');
+    expect(screen.getByTestId('saved-place-card')).toBeTruthy();
+    expect(screen.getByTestId('place-spend-record').textContent).toContain('當天消費紀錄');
   });
 
   it('shows nothing for a place no bill was recorded at', () => {

@@ -1305,21 +1305,42 @@ async function startServer() {
     const placeId = typeof req.body?.placeId === "string" ? req.body.placeId.trim() : "";
     if (!placeId || !process.env.GOOGLE_MAPS_API_KEY) { res.json({ photo: null }); return; }
     const cached = placePhotoCache.get(placeId);
-    if (cached && cached.expiresAt > Date.now()) { res.json({ photo: cached.value }); return; }
+    // Cached as the whole gallery; `photo` stays the first of it.
+    if (cached && cached.expiresAt > Date.now()) {
+      const photos = Array.isArray(cached.value) ? cached.value : [];
+      res.json({ photo: photos[0] ?? null, photos });
+      return;
+    }
     try {
       const detailsResponse = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "id,photos" }, signal: AbortSignal.timeout(5_000) });
       if (!detailsResponse.ok) { res.json({ photo: null }); return; }
       const details = await detailsResponse.json() as { photos?: Array<{ name?: string; authorAttributions?: Array<{ displayName?: string; uri?: string }> }> };
-      const selected = details.photos?.find(photo => typeof photo.name === "string" && photo.name);
-      if (!selected?.name) { placePhotoCache.set(placeId, { expiresAt: Date.now() + 60_000, value: null }); res.json({ photo: null }); return; }
-      const mediaResponse = await fetch(`https://places.googleapis.com/v1/${selected.name}/media?maxWidthPx=720&maxHeightPx=720&skipHttpRedirect=true`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY }, signal: AbortSignal.timeout(5_000) });
-      if (!mediaResponse.ok) { res.json({ photo: null }); return; }
-      const media = await mediaResponse.json() as { photoUri?: string };
-      if (!media.photoUri) { res.json({ photo: null }); return; }
-      const value = { imageUrl: media.photoUri, attribution: selected.authorAttributions?.[0] ? { displayName: selected.authorAttributions[0].displayName, uri: selected.authorAttributions[0].uri } : undefined };
-      placePhotoCache.set(placeId, { expiresAt: Date.now() + 5 * 60_000, value });
-      res.json({ photo: value });
-    } catch { placePhotoCache.set(placeId, { expiresAt: Date.now() + 60_000, value: null }); res.json({ photo: null }); }
+      /*
+        Up to six, because the card that opens a place shows a gallery.
+
+        This Details call has always asked for `photos` — plural, every one
+        Google holds — and then thrown all but the first away. The extra cost
+        is the media lookups, one per photo, so it is capped rather than
+        unbounded, and the list screens that only ever draw a thumbnail still
+        read `photo` and pay for exactly what they did before.
+      */
+      const selected = (details.photos ?? [])
+        .filter((photo): photo is { name: string; authorAttributions?: Array<{ displayName?: string; uri?: string }> } =>
+          typeof photo.name === "string" && Boolean(photo.name))
+        .slice(0, 6);
+      if (selected.length === 0) { placePhotoCache.set(placeId, { expiresAt: Date.now() + 60_000, value: [] }); res.json({ photo: null, photos: [] }); return; }
+      const resolved = await Promise.all(selected.map(async photo => {
+        const mediaResponse = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=720&maxHeightPx=720&skipHttpRedirect=true`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY as string }, signal: AbortSignal.timeout(5_000) });
+        if (!mediaResponse.ok) return null;
+        const media = await mediaResponse.json() as { photoUri?: string };
+        if (!media.photoUri) return null;
+        return { imageUrl: media.photoUri, attribution: photo.authorAttributions?.[0] ? { displayName: photo.authorAttributions[0].displayName, uri: photo.authorAttributions[0].uri } : undefined };
+      }));
+      const photos = resolved.filter(photo => photo !== null);
+      if (photos.length === 0) { res.json({ photo: null, photos: [] }); return; }
+      placePhotoCache.set(placeId, { expiresAt: Date.now() + 5 * 60_000, value: photos });
+      res.json({ photo: photos[0], photos });
+    } catch { placePhotoCache.set(placeId, { expiresAt: Date.now() + 60_000, value: [] }); res.json({ photo: null, photos: [] }); }
   });
 
   app.post("/api/places/resolve", async (req, res) => {

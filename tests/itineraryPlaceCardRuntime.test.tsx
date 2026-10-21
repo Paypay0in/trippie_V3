@@ -15,7 +15,11 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import type { ItineraryItem } from '../types';
 import ItineraryCalendar from '../components/ItineraryCalendar';
 
-vi.mock('../services/placePhotoService', () => ({ fetchPlacePhoto: () => Promise.resolve(null) }));
+vi.mock('../services/placePhotoService', () => ({
+  fetchPlacePhoto: () => Promise.resolve(null),
+  fetchPlacePhotos: () => Promise.resolve([]),
+  clearPlacePhotoCache: () => {},
+}));
 vi.mock('../services/placeCommerceService', () => ({
   fetchPlaceCommerce: () => Promise.resolve(null),
   hasDisplayableCommerce: () => false,

@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, Star, X } from 'lucide-react';
+import { AlertTriangle, Clock3, Copy, ExternalLink, Globe, MapPin, Navigation, NotebookPen, Star, X } from 'lucide-react';
 import { SavedExperienceNote } from '../types';
 import { MappablePlace, placeCopyText, placeDirectionsUrl, placeMapsUrl } from '../services/placeLinks';
 import { navigationProviderFor } from '../services/navigationProvider';
 import { naverPlaceUrl } from '../services/naverMapLinks';
 import { fetchPlaceBasics, hoursForToday, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { placeWhereLabel } from '../services/placeWhereLabel';
+import { fetchPlacePhotos, PlacePhoto } from '../services/placePhotoService';
+import PlaceGallery from './PlaceGallery';
+import PlaceSpendRecord from './PlaceSpendRecord';
+import { SpendAtPlace } from '../services/spendAtPlace';
 
 /**
  * A saved place, opened.
@@ -24,10 +28,17 @@ interface Props {
   place: MappablePlace;
   /** Every point saved with the place. Nothing is collapsed here. */
   notes: SavedExperienceNote[];
+  /**
+   * What was spent here, when the caller has a ledger to read.
+   *
+   * Passed in rather than looked up: the card is opened from three screens
+   * and only one of them is inside a trip with bills.
+   */
+  spend?: SpendAtPlace[];
   onClose: () => void;
 }
 
-const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
+const SavedPlaceCard: React.FC<Props> = ({ place, notes, spend = [], onClose }) => {
   const [copied, setCopied] = useState(false);
   /*
     「Allow users to manually choose another supported navigation provider」.
@@ -51,11 +62,21 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
     may never be tapped is somebody else's API bill and a slower list.
   */
   const [basics, setBasics] = useState<PlaceBasics | null>(null);
+  /*
+    The pictures, on the same terms as the facts above: fetched when the card
+    opens, never when the list renders. Google was always asked for all of
+    them on this request; only the first was ever read.
+  */
+  const [photos, setPhotos] = useState<PlacePhoto[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     setBasics(null);
+    setPhotos([]);
     void fetchPlaceBasics(place.placeId).then(found => { if (!cancelled) setBasics(found); });
+    if (place.placeId) {
+      void fetchPlacePhotos(place.placeId).then(found => { if (!cancelled) setPhotos(found); });
+    }
     return () => { cancelled = true; };
   }, [place.placeId]);
 
@@ -85,8 +106,14 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
         aria-label={place.placeName}
         data-testid="saved-place-card"
         onClick={event => event.stopPropagation()}
-        className="w-full max-w-md rounded-[28px] border border-slate-100 bg-white p-4 shadow-[0_24px_70px_rgba(17,26,74,0.18)]"
+        className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[28px] border border-slate-100 bg-white p-4 shadow-[0_24px_70px_rgba(17,26,74,0.18)]"
       >
+        {photos.length > 0 && (
+          <div className="mb-3">
+            <PlaceGallery photos={photos} placeName={place.placeName} />
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-lg font-black leading-6 text-[#11183d]">{place.placeName}</h3>
@@ -96,6 +123,20 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
                 {place.formattedAddress || placeWhereLabel(place.city, place.country)}
               </span>
             </p>
+            {/*
+              The address itself opens the map. The buttons below do the same
+              thing and are still the ones to press; this is here because an
+              address reads as a link and somebody will tap it either way.
+            */}
+            <a
+              href={placeMapsUrl(place)}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="saved-place-address-link"
+              className="mt-1 inline-flex items-center gap-1 text-[11px] font-black text-[#5b3df5]"
+            >
+              <ExternalLink size={11} />在地圖上查看
+            </a>
           </div>
           <button
             type="button"
@@ -234,16 +275,26 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, onClose }) => {
         )}
 
         {notes.length > 0 && (
-          <div className="mt-4 space-y-1.5">
-            <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">重點</div>
+          <div data-testid="saved-place-notes" className="mt-4 space-y-1.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
+            {/*
+              Labelled by whose it is. 「重點」 did not say who wrote it, and the
+              block above is explicitly Google's — the difference between the
+              record and somebody's experience of the place is the whole reason
+              the two are kept apart.
+            */}
+            <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800">
+              <NotebookPen size={12} />我的備註
+            </div>
             {notes.map(note => (
-              <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-violet-50/75 px-2 py-1.5 text-xs leading-5 text-slate-700">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+              <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
                 <p className="min-w-0 flex-1 break-words">{note.text}</p>
               </div>
             ))}
           </div>
         )}
+
+        <PlaceSpendRecord spend={spend} />
       </div>
     </div>
   );

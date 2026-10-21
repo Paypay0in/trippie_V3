@@ -98,6 +98,8 @@ export interface SpendAtPlace {
   /** What the till charged, in the money it charged in. */
   amountOriginal?: number;
   currency?: string;
+  /** The rate that day, so a printed line can be read in both monies. */
+  exchangeRate?: number;
   /** The shop as printed, which is rarely what the collection calls it. */
   merchant?: string;
 }
@@ -178,6 +180,8 @@ export const spendAtPlace = (
       // converted. There is no separate original-amount field.
       ...(typeof expense.amount === 'number' ? { amountOriginal: expense.amount } : {}),
       ...(clean(expense.currency) ? { currency: clean(expense.currency) } : {}),
+      ...(typeof expense.exchangeRate === 'number' && expense.exchangeRate > 0
+        ? { exchangeRate: expense.exchangeRate } : {}),
       ...(clean(expense.merchant) ? { merchant: clean(expense.merchant) } : {}),
     }))
     // 「上次在這裡花了多少」 is asked about the last time, not the first.

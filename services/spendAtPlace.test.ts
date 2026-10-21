@@ -30,7 +30,7 @@ describe('spendAtPlace', () => {
   it('finds the bill recorded at that place', () => {
     expect(spendAtPlace(saved(), [bill()])).toEqual([{
       expenseId: 'e', date: '2026-10-20', description: '黑船亭 洋食料理', twdAmount: 882,
-      amountOriginal: 4300, currency: 'JPY',
+      amountOriginal: 4300, currency: 'JPY', exchangeRate: 0.205,
     }]);
   });
 

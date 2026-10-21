@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
-import { ChevronDown, Ellipsis, MapPin, Plus, Receipt } from 'lucide-react';
+import { ChevronRight, Ellipsis, MapPin, Plus, Receipt } from 'lucide-react';
 import { CommunityPost, Expense, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { clusterSavedPlaces } from '../services/placeClusters';
@@ -226,12 +226,6 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
   const [removeTarget, setRemoveTarget] = useState<SavedTravelInspiration | null>(null);
   /** Which card is asking 「哪一筆是在這裡花的？」. */
   const [linkingId, setLinkingId] = useState<string | null>(null);
-  /*
-    「點擊下去要有小卡片：照片與當初記帳的備註，還有實際的結帳細目！」 — which
-    bill is open, by expense id. One at a time: this sits inside a card in a
-    list, and two open receipts would push the next place off the screen.
-  */
-  const [openBillId, setOpenBillId] = useState<string | null>(null);
   /*
     Only bills with no place of their own. One that already resolved is
     already somewhere, and offering to move it would be a different feature
@@ -570,107 +564,33 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   <Receipt size={11} />你在這裡花過 {spendSummary(spend)}
                 </span>
                 {spend.map(entry => (
-                  <span key={entry.expenseId} className="block">
-                    <button
-                      type="button"
-                      data-testid={`spend-row-${entry.expenseId}`}
-                      aria-expanded={openBillId === entry.expenseId}
-                      onClick={() => setOpenBillId(
-                        openBillId === entry.expenseId ? null : entry.expenseId,
-                      )}
-                      className="mt-1.5 flex w-full items-start gap-2 text-left"
-                    >
-                      {entry.photo && (
-                        <img
-                          src={entry.photo}
-                          alt=""
-                          loading="lazy"
-                          className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                        />
-                      )}
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[11px] font-bold text-emerald-900">
-                          {entry.date.slice(5).replace('-', '/')}・{entry.description}
-                        </span>
-                        {/* The line the traveller wrote, which is the part of a
-                            bill nobody else could have written. */}
-                        {entry.note && (
-                          <span className="mt-0.5 block text-[10px] leading-4 text-emerald-700">{entry.note}</span>
-                        )}
-                      </span>
-                      <ChevronDown
-                        size={12}
-                        className={`mt-0.5 shrink-0 text-emerald-600 transition-transform ${openBillId === entry.expenseId ? 'rotate-180' : ''}`}
+                  <button
+                    key={entry.expenseId}
+                    type="button"
+                    data-testid={`spend-row-${entry.expenseId}`}
+                    onClick={() => setOpenPlaceId(item.id)}
+                    className="mt-1.5 flex w-full items-start gap-2 text-left"
+                  >
+                    {entry.photo && (
+                      <img
+                        src={entry.photo}
+                        alt=""
+                        loading="lazy"
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
                       />
-                    </button>
-                    {/*
-                      The bill itself. 「照片與當初記帳的備註，還有實際的結帳細目」
-                      — nothing here is recomputed or summarised: the lines are
-                      the ones read off the paper, in the money the till
-                      charged, and a receipt with no lines says so rather than
-                      showing an empty table.
-                    */}
-                    {openBillId === entry.expenseId && (
-                      <span
-                        data-testid={`spend-detail-${entry.expenseId}`}
-                        className="mt-1.5 block rounded-xl border border-emerald-100 bg-white p-2"
-                      >
-                        <span className="flex items-baseline justify-between gap-2">
-                          <span className="min-w-0 truncate text-[11px] font-black text-[#11183d]">
-                            {entry.merchant || entry.description}
-                          </span>
-                          <span className="shrink-0 text-[11px] font-black text-emerald-700">
-                            NT$ {Math.round(entry.twdAmount).toLocaleString()}
-                          </span>
-                        </span>
-                        {typeof entry.amountOriginal === 'number' && entry.currency && entry.currency !== 'TWD' && (
-                          <span className="block text-[10px] text-slate-500">
-                            {entry.currency} {entry.amountOriginal.toLocaleString()}
-                          </span>
-                        )}
-
-                        {entry.note && (
-                          <span className="mt-1.5 block rounded-lg bg-emerald-50/60 px-2 py-1 text-[10px] leading-4 text-emerald-800">
-                            {entry.note}
-                          </span>
-                        )}
-
-                        {entry.items?.length ? (
-                          <span className="mt-1.5 block space-y-0.5">
-                            {entry.items.map((line, index) => (
-                              <span key={`${entry.expenseId}-${index}`} className="flex items-baseline justify-between gap-2">
-                                <span className="min-w-0 flex-1 truncate text-[10px] text-slate-700">
-                                  {line.translatedName || line.name}
-                                  {line.quantity && line.quantity > 1 ? ` ×${line.quantity}` : ''}
-                                </span>
-                                {typeof line.amount === 'number' && (
-                                  <span className="shrink-0 text-[10px] font-bold text-slate-600">
-                                    {line.amount.toLocaleString()}
-                                  </span>
-                                )}
-                              </span>
-                            ))}
-                          </span>
-                        ) : (
-                          <span className="mt-1.5 block text-[10px] text-slate-400">這筆沒有留下結帳細目。</span>
-                        )}
-
-                        {entry.photos?.length ? (
-                          <span className="mt-1.5 flex gap-1.5 overflow-x-auto">
-                            {entry.photos.map((photo, index) => (
-                              <img
-                                key={`${entry.expenseId}-photo-${index}`}
-                                src={photo}
-                                alt=""
-                                loading="lazy"
-                                className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                              />
-                            ))}
-                          </span>
-                        ) : null}
-                      </span>
                     )}
-                  </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[11px] font-bold text-emerald-900">
+                        {entry.date.slice(5).replace('-', '/')}・{entry.description}
+                      </span>
+                      {/* The line the traveller wrote, which is the part of a
+                          bill nobody else could have written. */}
+                      {entry.note && (
+                        <span className="mt-0.5 block text-[10px] leading-4 text-emerald-700">{entry.note}</span>
+                      )}
+                    </span>
+                    <ChevronRight size={12} className="mt-0.5 shrink-0 text-emerald-600" />
+                  </button>
                 ))}
               </div>
             )}
@@ -756,6 +676,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             country: open.country,
           }}
           notes={open.notes}
+          spend={spendAtPlace(open, expenses)}
           onClose={() => setOpenPlaceId(null)}
         />
       );
