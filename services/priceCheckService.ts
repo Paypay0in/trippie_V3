@@ -26,6 +26,15 @@ export interface PriceCheck {
   quotes: PriceQuote[];
   /** When it was read, so the reader can judge how old 「now」 is. */
   readAt: string;
+  /**
+   * Why there are none, when the reason is not 「there are none」.
+   *
+   * 「價格一定找得到 別騙我」 — he was right. The lookup was answering 查不到這
+   * 個商品的售價 while the actual failure was the project's search allowance
+   * being spent. Those two ask opposite things of the reader: one says stop
+   * looking, the other says try tomorrow.
+   */
+  error?: string;
 }
 
 const cache = new Map<string, PriceCheck>();
@@ -48,15 +57,28 @@ export const checkPrices = (product: { name: string; brand?: string }): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: product.name, brand: product.brand }),
   })
-    .then(async response => (response.ok ? await response.json() as Record<string, unknown> : {}))
+    .then(async response => {
+      const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+      // The server's own sentence, kept: it knows whether this is worth
+      // retrying today and a generic one here would hide that.
+      if (!response.ok) {
+        return { quotes: [], readAt: '', error: typeof payload.error === 'string' ? payload.error : '現在查不到價格。' };
+      }
+      return payload;
+    })
     .then(payload => ({
       quotes: Array.isArray(payload.quotes)
         ? (payload.quotes as PriceQuote[]).filter(quote => quote?.sourceUrl && quote.amount > 0)
         : [],
       readAt: typeof payload.readAt === 'string' ? payload.readAt : '',
+      ...(typeof payload.error === 'string' ? { error: payload.error } : {}),
     }))
-    .catch(() => EMPTY)
-    .then(result => { cache.set(key, result); pending.delete(key); return result; });
+    .catch(() => ({ ...EMPTY, error: '現在查不到價格。' }))
+    /*
+      A failure is not cached. 「今天用完了」 becomes false tomorrow, and a
+      cached refusal would outlive the thing that caused it.
+    */
+    .then(result => { if (!result.error) cache.set(key, result); pending.delete(key); return result; });
 
   pending.set(key, request);
   return request;

@@ -430,8 +430,14 @@ const ShoppingListPanel: React.FC<Props> = ({
                           {checking === item.id ? '查價中…' : '比一下台／日價格'}
                         </button>
                       ) : byRegion(prices[item.id].quotes).length === 0 ? (
+                        /*
+                          The server's own sentence when it has one. 「查不到這
+                          個商品的售價」 says stop looking; 「今天的查詢次數用完
+                          了」 says try tomorrow, and for weeks only the first
+                          was ever shown.
+                        */
                         <p data-testid={`shopping-prices-empty-${item.id}`} className="mt-1 text-[11px] text-slate-400">
-                          查不到這個商品的售價。
+                          {prices[item.id].error || '查不到這個商品的售價。'}
                         </p>
                       ) : (
                         <div data-testid={`shopping-prices-${item.id}`} className="mt-1 space-y-0.5">

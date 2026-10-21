@@ -167,6 +167,28 @@ async function startServer() {
   */
   const ladder = createModelLadder();
 
+  /**
+   * Whether a failure is the search allowance being spent, not the thing
+   * being unfindable.
+   *
+   * 「價格一定找得到 別騙我」 — and he was right to say so. Every grounded call
+   * on this project's key answers 429: measured across all four models, plain
+   * calls succeed and grounded ones do not. Google Search grounding is one
+   * allowance for the whole project, which is already written down above the
+   * ladder.
+   *
+   * Told apart because the two failures ask for opposite things from the
+   * reader. 「查不到這個商品的售價」 says stop looking; 「今天的查詢次數用完了」
+   * says try tomorrow, and only one of them is true.
+   */
+  const isSearchQuotaError = (error: unknown): boolean => {
+    const value = error as { status?: number; code?: unknown; message?: unknown; response?: { status?: number } };
+    return (value?.status ?? value?.response?.status) === 429
+      || value?.code === 429
+      || value?.code === "RESOURCE_EXHAUSTED"
+      || /RESOURCE_EXHAUSTED|429|quota/i.test(String(value?.message || ""));
+  };
+
   const withRetry = async <T>(call: () => Promise<T>, attempts = 3): Promise<T> => {
     let lastError: unknown;
     for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -2111,7 +2133,11 @@ ${brand ? `品牌：${brand}` : ""}
       res.json({ quotes, readAt: new Date().toISOString() });
     } catch (error) {
       console.error("Price check failed:", error);
-      res.status(502).json({ error: "現在查不到價格。" });
+      res.status(isSearchQuotaError(error) ? 429 : 502).json({
+        error: isSearchQuotaError(error)
+          ? "今天的網路查詢次數用完了，明天再試。"
+          : "現在查不到價格。",
+      });
     }
   });
 
@@ -2159,7 +2185,11 @@ ${brand ? `品牌：${brand}` : ""}
       res.json({ imageUrl, pageUrl: /^https:\/\//.test(pageUrl) ? pageUrl : "" });
     } catch (error) {
       console.error("Product image lookup failed:", error);
-      res.status(502).json({ error: "現在找不到商品圖片。" });
+      res.status(isSearchQuotaError(error) ? 429 : 502).json({
+        error: isSearchQuotaError(error)
+          ? "今天的網路查詢次數用完了，明天再試。"
+          : "現在找不到商品圖片。",
+      });
     }
   });
 
@@ -2228,7 +2258,11 @@ ${city ? `城市：${city}` : ""}
       res.json({ points, sources });
     } catch (error) {
       console.error("Place highlights failed:", error);
-      res.status(502).json({ error: "現在查不到這家店的資料。" });
+      res.status(isSearchQuotaError(error) ? 429 : 502).json({
+        error: isSearchQuotaError(error)
+          ? "今天的網路查詢次數用完了，明天再試。"
+          : "現在查不到這家店的資料。",
+      });
     }
   });
 

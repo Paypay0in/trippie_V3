@@ -51,6 +51,31 @@ describe('checkPrices', () => {
     expect(answer).toHaveBeenCalledTimes(1);
   });
 
+  /*
+    「價格一定找得到 別騙我」 — and he was right: the lookup was saying 查不到
+    這個商品的售價 while the real failure was the search allowance being
+    spent. One says stop looking, the other says try tomorrow.
+  */
+  it('keeps the server\'s reason rather than blaming the product', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      json: async () => ({ error: '今天的網路查詢次數用完了，明天再試。' }),
+    })));
+
+    expect((await checkPrices({ name: 'x' })).error).toContain('查詢次數用完');
+  });
+
+  /* 「today」 stops being true tomorrow, so a refusal is not cached. */
+  it('does not cache a failure', async () => {
+    const failing = vi.fn(async () => ({ ok: false, json: async () => ({ error: 'nope' }) }));
+    vi.stubGlobal('fetch', failing);
+
+    await checkPrices({ name: 'x' });
+    await checkPrices({ name: 'x' });
+
+    expect(failing).toHaveBeenCalledTimes(2);
+  });
+
   it('survives the lookup failing', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
 
