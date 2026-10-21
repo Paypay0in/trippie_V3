@@ -1862,11 +1862,19 @@ const App: React.FC = () => {
   }, []);
 
   // Persistance
+  /*
+    Guarded for the same reason as the draft store above: a full device must
+    not be able to unmount the app from inside an effect.
+  */
   useEffect(() => {
-    localStorage.setItem("trippie_profile", JSON.stringify(userProfile));
+    try {
+      localStorage.setItem("trippie_profile", JSON.stringify(userProfile));
+    } catch (error) { console.error('Profile write failed:', error); }
   }, [userProfile]);
   useEffect(() => {
-    localStorage.setItem("trippie_history", JSON.stringify(tripHistory));
+    try {
+      localStorage.setItem("trippie_history", JSON.stringify(tripHistory));
+    } catch (error) { console.error('History write failed:', error); }
   }, [tripHistory]);
   useEffect(() => {
     saveCommunityPosts(communityPosts);
@@ -2127,7 +2135,21 @@ const App: React.FC = () => {
   }, [selectedCommunityPostId, authUser?.id]);
 
   useEffect(() => {
-    writeDraftStore(drafts, activeDraftId);
+    /*
+      「加入圖片 結果不能儲存 會變成全白」. This used to throw inside the commit
+      when the device was full — receipt photos live in the draft as base64 —
+      and a throw here unmounts the tree. Said instead, because the traveller
+      can act on 「空間滿了」 and cannot act on a white screen.
+    */
+    const result = writeDraftStore(drafts, activeDraftId);
+    if (result.saved === false) {
+      setToast({
+        msg: result.reason === 'quota'
+          ? '這台裝置的儲存空間滿了，剛剛的變更沒存進來。刪掉幾張收據照片再試一次。'
+          : '剛剛的變更沒有存進這台裝置，請再試一次。',
+        type: 'error',
+      });
+    }
   }, [drafts, activeDraftId]);
   useEffect(() => {
     if (
@@ -3699,11 +3721,9 @@ const App: React.FC = () => {
       return { ok: false, error: "找不到目前的旅程草稿，無法安全寫入。" };
     }
 
-    try {
-      // Persist before changing the visible state so a storage failure leaves the
-      // proposal available for retry and never reports a false success.
-      writeDraftStore(nextDrafts, activeDraftId);
-    } catch {
+    // Persist before changing the visible state so a storage failure leaves the
+    // proposal available for retry and never reports a false success.
+    if (writeDraftStore(nextDrafts, activeDraftId).saved === false) {
       return { ok: false, error: "行程儲存失敗，提案仍保留，請再試一次。" };
     }
 
@@ -3804,9 +3824,7 @@ const App: React.FC = () => {
       return { ok: false, error: "找不到目前的旅程草稿，無法安全寫入。" };
     }
 
-    try {
-      writeDraftStore(nextDrafts, activeDraftId);
-    } catch {
+    if (writeDraftStore(nextDrafts, activeDraftId).saved === false) {
       return { ok: false, error: "行程儲存失敗，你的行程沒有被更動，請再試一次。" };
     }
 
@@ -3968,13 +3986,10 @@ const App: React.FC = () => {
       : draft);
     if (!nextDrafts.some((draft) => draft.id === activeDraftId)) return false;
 
-    try {
-      // Persist before the visible state moves, so a storage failure leaves both
-      // the screen and the disk exactly as they were.
-      writeDraftStore(nextDrafts, activeDraftId);
-    } catch {
-      return false;
-    }
+    // Persist before the visible state moves, so a storage failure leaves both
+    // the screen and the disk exactly as they were. Reported, not thrown: see
+    // `writeDraftStore`.
+    if (writeDraftStore(nextDrafts, activeDraftId).saved === false) return false;
 
     setItinerary(nextItinerary);
     setDrafts(nextDrafts);
@@ -5582,14 +5597,15 @@ const App: React.FC = () => {
     const previousDrafts = drafts;
     const previousActiveDraftId = activeDraftId;
 
-    try {
-      writeDraftStore(plan.remainingDrafts, plan.nextActiveDraftId);
-    } catch {
-      try {
-        writeDraftStore(previousDrafts, previousActiveDraftId);
-      } catch {
-        // The restore failed too; state below is untouched either way.
-      }
+    /*
+      `writeDraftStore` reports rather than throws — see its own comment — so
+      the rollback is driven by the result. It used to be driven by the throw,
+      which is also what turned a full device into a white screen somewhere
+      else entirely.
+    */
+    if (writeDraftStore(plan.remainingDrafts, plan.nextActiveDraftId).saved === false) {
+      // The restore may fail too; state below is untouched either way.
+      writeDraftStore(previousDrafts, previousActiveDraftId);
       showToast("旅程刪除失敗，這趟旅程沒有被移除，請再試一次。", "error");
       return false;
     }

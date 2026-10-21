@@ -469,11 +469,46 @@ export const readDraftStore = (): DraftStore => {
   return { drafts, activeDraftId: migratedDraft?.id || null };
 };
 
-export const writeDraftStore = (drafts: TripDraft[], activeDraftId: string | null) => {
-  localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
-  if (activeDraftId && drafts.some((draft) => draft.id === activeDraftId)) {
-    localStorage.setItem(ACTIVE_DRAFT_STORAGE_KEY, activeDraftId);
-  } else {
-    localStorage.removeItem(ACTIVE_DRAFT_STORAGE_KEY);
+/**
+ * Why a write did not happen, when it did not happen.
+ *
+ * 'quota' is the device being full, which on this app means receipt photos:
+ * they are base64 inside the draft, and a handful of them is megabytes.
+ */
+export type DraftWriteResult = { saved: true } | { saved: false; reason: 'quota' | 'unknown' };
+
+/**
+ * Writes the drafts, and never throws doing it.
+ *
+ * 「我剛剛在記帳的介面上要加入圖片 結果不能儲存 會變成全白」 — this runs inside an
+ * effect, so a `QuotaExceededError` here was thrown during React's commit and
+ * took the whole tree down with it. A white screen is the worst possible way
+ * to say 「the device is full」: it loses the unsaved bill as well, and tells
+ * the traveller nothing about either.
+ *
+ * The result is returned rather than swallowed. A failed save that reports
+ * success is the shape this file has been bitten by before — the caller needs
+ * to be able to say so.
+ */
+export const writeDraftStore = (drafts: TripDraft[], activeDraftId: string | null): DraftWriteResult => {
+  try {
+    localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
+    if (activeDraftId && drafts.some((draft) => draft.id === activeDraftId)) {
+      localStorage.setItem(ACTIVE_DRAFT_STORAGE_KEY, activeDraftId);
+    } else {
+      localStorage.removeItem(ACTIVE_DRAFT_STORAGE_KEY);
+    }
+    return { saved: true };
+  } catch (error) {
+    /*
+      `QuotaExceededError` is named differently across browsers and Safari in
+      private mode throws a plain error with code 22, so the name is checked
+      loosely and anything unrecognised is still reported as a failure.
+    */
+    const name = (error as { name?: string })?.name ?? '';
+    const code = (error as { code?: number })?.code;
+    const quota = /quota/i.test(name) || code === 22 || code === 1014;
+    console.error('Draft store write failed:', error);
+    return { saved: false, reason: quota ? 'quota' : 'unknown' };
   }
 };
