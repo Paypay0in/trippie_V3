@@ -248,6 +248,7 @@ import {
 } from "./services/airportTransfer";
 import type { ItinerarySlice } from "./services/itineraryImageSlices";
 import {
+  alreadySaved,
   mergeScreenshotInspirations,
   slicesToSavedInspirations,
 } from "./services/screenshotInspiration";
@@ -3233,7 +3234,11 @@ const App: React.FC = () => {
   }) => {
     const groups = selectTripInspirationGroups(tripScopedInspirations, tripInspirationContext);
     const group = groups.find((entry) => entry.id === placeGroupId);
-    if (!group) return;
+    if (!group) {
+      // A silent return here is a tap that does nothing and says nothing.
+      showToast("這個地點現在找不到，請重新整理再試一次。", "error");
+      return;
+    }
 
     const item = {
       ...inspirationGroupToItineraryItem(group, generateId, date),
@@ -3385,9 +3390,20 @@ const App: React.FC = () => {
       makeId: generateId,
     });
 
+    /*
+      Said as it happened.
+
+      「我剛剛加入 今半別館 無法加入」 — a place already in the collection merges
+      into the record that is there, which is right, and the screen said 已加入
+      收藏 anyway. Nothing appeared, so from where he was sitting the add had
+      failed. Two outcomes, two sentences.
+    */
+    const held = alreadySaved(savedTravelInspirations, saved);
     setSavedTravelInspirations((current) =>
       mergeScreenshotInspirations(current, [saved]));
-    showToast(`已加入收藏：${resolved.placeName}`);
+    showToast(held
+      ? `${resolved.placeName} 已經在收藏裡了`
+      : `已加入收藏：${resolved.placeName}`);
   };
 
   const handleRemoveInspirations = (inspirationIds: string[]) => {

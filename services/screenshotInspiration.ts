@@ -138,6 +138,27 @@ export const slicesToSavedInspirations = (
  * already in the collection should gain whatever the second screenshot said
  * about it rather than appear again beneath it.
  */
+/**
+ * Whether a collection already holds this place, for this traveller.
+ *
+ * 「我剛剛加入 今半別館 無法加入」 — adding a place that was already saved merges
+ * into the existing record, which is right, and then the screen said 已加入收藏
+ * and nothing appeared to change. Exported so the caller can tell the two
+ * outcomes apart rather than reimplementing the comparison and getting a
+ * different answer from the merge.
+ */
+export const alreadySaved = (
+  current: SavedTravelInspiration[],
+  entry: Pick<SavedTravelInspiration, 'savedByUserId' | 'placeId' | 'placeName'>,
+): boolean => {
+  const key = entry.placeName.trim().toLocaleLowerCase();
+  return current.some(saved =>
+    saved.savedByUserId === entry.savedByUserId
+    && (saved.placeId && entry.placeId
+      ? saved.placeId === entry.placeId
+      : saved.placeName.trim().toLocaleLowerCase() === key));
+};
+
 export const mergeScreenshotInspirations = (
   current: SavedTravelInspiration[],
   incoming: SavedTravelInspiration[],

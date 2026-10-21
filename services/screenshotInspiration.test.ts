@@ -9,7 +9,7 @@
  * a second dedupe rule, and a second place for a plan to hide.
  */
 import { describe, expect, it } from 'vitest';
-import { isFromScreenshot, mergeScreenshotInspirations, slicesToSavedInspirations } from './screenshotInspiration';
+import { alreadySaved, isFromScreenshot, mergeScreenshotInspirations, slicesToSavedInspirations } from './screenshotInspiration';
 import { ItinerarySlice } from './itineraryImageSlices';
 import { SavedTravelInspiration } from '../types';
 
@@ -217,5 +217,48 @@ describe('where a saved note says it is', () => {
     );
 
     expect(saved.map(entry => entry.city)).toEqual(['台東区', '渋谷区']);
+  });
+});
+
+/**
+ * 「我剛剛加入 今半別館 無法加入」.
+ *
+ * Adding a place already in the collection merges into the record that is
+ * there, which is right — and the screen said 已加入收藏 anyway, so from where
+ * the traveller was sitting the add had failed.
+ */
+describe('alreadySaved', () => {
+  const held = {
+    id: 'i', savedByUserId: 'me', placeId: 'ChIJ-imahan', placeName: '今半別館',
+    notes: [], sourceNoteIds: [],
+  } as unknown as SavedTravelInspiration;
+
+  it('knows the place is already there, by id', () => {
+    expect(alreadySaved([held], { savedByUserId: 'me', placeId: 'ChIJ-imahan', placeName: '別的寫法' }))
+      .toBe(true);
+  });
+
+  /* A place with no id is still the same place by name. */
+  it('falls back to the name when there is no id', () => {
+    expect(alreadySaved([held], { savedByUserId: 'me', placeId: '', placeName: ' 今半別館 ' }))
+      .toBe(true);
+  });
+
+  it('says no for a place nobody saved', () => {
+    expect(alreadySaved([held], { savedByUserId: 'me', placeId: 'ChIJ-other', placeName: '佐藤養助' }))
+      .toBe(false);
+  });
+
+  /* Somebody else's collection is not this traveller's. */
+  it('does not count another traveller\'s save', () => {
+    expect(alreadySaved([held], { savedByUserId: 'ann', placeId: 'ChIJ-imahan', placeName: '今半別館' }))
+      .toBe(false);
+  });
+
+  /* The answer has to agree with what the merge then does. */
+  it('agrees with the merge', () => {
+    const entry = { ...held, id: 'new' };
+    expect(alreadySaved([held], entry)).toBe(true);
+    expect(mergeScreenshotInspirations([held], [entry])).toHaveLength(1);
   });
 });
