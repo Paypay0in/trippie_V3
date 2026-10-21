@@ -19,6 +19,10 @@
  */
 import { ItineraryItem } from '../types';
 import { durationOf, isTimedItem, minutesToTime, timeToMinutes } from './itineraryTimeline';
+import { LATEST_EXTENSION } from './dayTemplate';
+
+/** The latest a stop may be pushed to start. See `dayTemplate`. */
+const LATEST_START_MINUTES = timeToMinutes(LATEST_EXTENSION) ?? 23 * 60;
 import { earliestFreeStartByDate, fixedAnchorSchedule, TRANSFER_ID_PREFIX } from './itineraryDayFloor';
 
 const isFixed = (item: ItineraryItem): boolean =>
@@ -156,8 +160,18 @@ export const separateOverlaps = (
           wrapping an evening into the small hours is worse than an overlap the
           traveller can see and fix.
         */
+        /*
+          Not past the end of the day, which is `LATEST_EXTENSION` and not
+          midnight.
+
+          This asked only whether the stop would finish before 00:00, so an
+          overlap at seven in the evening could push a museum to 22:43 — late
+          enough for the calendar above to warn 「排的時間可能超過打烊」, and
+          nowhere near late enough to be refused. Judged on when it would
+          *start*, because that is the part somebody has to be there for.
+        */
         const pushed = freeFrom;
-        if (pushed + length < 24 * 60) {
+        if (pushed <= LATEST_START_MINUTES) {
           moved.set(item.id, minutesToTime(pushed));
           freeFrom = pushed + length;
           return;

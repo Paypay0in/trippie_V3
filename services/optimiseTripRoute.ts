@@ -22,7 +22,7 @@ import { ItineraryItem } from '../types';
 import { clusterSavedPlaces } from './placeClusters';
 import { stopsOnTheGround } from './dayMapImage';
 import { durationOf, isTimedItem, minutesToTime, timeToMinutes } from './itineraryTimeline';
-import { MEAL_WINDOWS } from './dayTemplate';
+import { LATEST_EXTENSION, MEAL_WINDOWS } from './dayTemplate';
 import { transitMinutesBetween } from './itineraryScheduling';
 import { separateOverlaps } from './separateOverlaps';
 import { earliestFreeStartByDate, fixedAnchorSchedule, latestFreeStartByDate, TRANSFER_ID_PREFIX } from './itineraryDayFloor';
@@ -521,7 +521,21 @@ export const optimiseTripRoute = (
 
   const requestedStart = timeToMinutes(options.dayStart || '10:00') ?? 600;
   /** Midnight, for a day with no flight home to end it. */
-  const END_OF_DAY_MINUTES = 24 * 60;
+  /*
+    When a day stops being a day.
+
+    This was midnight, and `dayTemplate` — the grid the traveller actually
+    reads — has said 21:00, extendable to 23:00, all along. Two modules, two
+    answers to 「幾點算今天結束」, and the one nobody looks at is the one that
+    writes the times: 「排的時間可能超過打烊」 on a museum at 22:43, pushed there
+    by a cursor that only stopped at midnight.
+
+    The same constant now. A stop that will not fit before it keeps its own
+    time and is reported as `unplaced`, which is what the code below already
+    does and the honest answer either way — 23:00 is late, and a plan that
+    writes 23:40 is a plan nobody is going to follow.
+  */
+  const END_OF_DAY_MINUTES = timeToMinutes(LATEST_EXTENSION) ?? 23 * 60;
   /*
     A day cannot begin before the traveller is in the country.
 
