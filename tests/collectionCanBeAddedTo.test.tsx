@@ -85,7 +85,7 @@ describe('the collection screen', () => {
 describe('a saved place you have paid at', () => {
   const bill = {
     id: 'e', date: '2026-10-20', description: '黑船亭 洋食料理', twdAmount: 882,
-    amountOriginal: 4300, currency: 'JPY', exchangeRate: 0.205,
+    amount: 4300, currency: 'JPY', exchangeRate: 0.205,
     category: '餐飲', phase: 'during', merchantPlaceId: 'ChIJ-k',
     note: '蘑菇義大利麵很好吃', receiptPhotos: ['photo-1'],
   };
@@ -96,6 +96,42 @@ describe('a saved place you have paid at', () => {
     const block = screen.getByTestId('spend-at-a');
     expect(block.textContent).toContain('NT$ 882');
     expect(block.textContent).toContain('蘑菇義大利麵很好吃');
+  });
+
+  /*
+    「點擊下去要有小卡片：照片與當初記帳的備註，還有實際的結帳細目！」
+  */
+  it('opens the bill itself when the row is tapped', () => {
+    mount({
+      items: [saved({ placeId: 'ChIJ-k' })],
+      expenses: [{
+        ...bill,
+        merchant: 'KUROFUNE-TEI',
+        amount: 4300,
+        receiptItems: [
+          { name: 'ハヤシライス', quantity: 2, amount: 3000 },
+          { name: 'コーヒー', amount: 1300 },
+        ],
+      }],
+    });
+
+    expect(screen.queryByTestId('spend-detail-e')).toBeNull();
+    fireEvent.click(screen.getByTestId('spend-row-e'));
+
+    const card = screen.getByTestId('spend-detail-e');
+    expect(card.textContent).toContain('ハヤシライス');
+    expect(card.textContent).toContain('×2');
+    expect(card.textContent).toContain('コーヒー');
+    expect(card.textContent).toContain('蘑菇義大利麵很好吃');
+    expect(card.querySelectorAll('img').length).toBe(1);
+  });
+
+  /* A receipt with no lines says so, rather than showing an empty table. */
+  it('says when there were no printed lines', () => {
+    mount({ items: [saved({ placeId: 'ChIJ-k' })], expenses: [bill] });
+    fireEvent.click(screen.getByTestId('spend-row-e'));
+
+    expect(screen.getByTestId('spend-detail-e').textContent).toContain('沒有留下結帳細目');
   });
 
   it('shows nothing for a place no bill was recorded at', () => {
@@ -113,7 +149,7 @@ describe('a saved place you have paid at', () => {
 describe('linking a bill to a place by hand', () => {
   const unplaced = {
     id: 'e', date: '2026-10-20', description: '黑船亭 洋食料理', twdAmount: 882,
-    amountOriginal: 4300, currency: 'JPY', exchangeRate: 0.205,
+    amount: 4300, currency: 'JPY', exchangeRate: 0.205,
     category: '餐飲', phase: 'during',
     merchantAddress: '東京都台東区上野2-13-13',
   };

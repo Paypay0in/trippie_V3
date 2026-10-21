@@ -38,7 +38,7 @@
  * it — a Japanese street number （2-13-13） appearing in both, full-width
  * digits folded, is the shop and not the chain.
  */
-import { Expense, SavedTravelInspiration } from '../types';
+import { Expense, ReceiptItem, SavedTravelInspiration } from '../types';
 import { distanceInKm } from './tripInspirationSelection';
 
 /** Closer than this and it is the same door. */
@@ -85,6 +85,21 @@ export interface SpendAtPlace {
   note?: string;
   /** The first receipt photo, for the thumbnail on the card. */
   photo?: string;
+  /**
+   * Every receipt photo, for the card that opens when the row is tapped.
+   *
+   * 「點擊下去要有小卡片：照片與當初記帳的備註，還有實際的結帳細目！」 — the
+   * thumbnail answers 「did I go」; opening it answers 「what did I actually
+   * order」, which is the question somebody asks a year later.
+   */
+  photos?: string[];
+  /** The receipt's own lines, exactly as they were read off the paper. */
+  items?: ReceiptItem[];
+  /** What the till charged, in the money it charged in. */
+  amountOriginal?: number;
+  currency?: string;
+  /** The shop as printed, which is rarely what the collection calls it. */
+  merchant?: string;
 }
 
 const clean = (value?: string): string => (value || '').trim();
@@ -157,6 +172,13 @@ export const spendAtPlace = (
       twdAmount: expense.twdAmount,
       ...(clean(expense.note) ? { note: clean(expense.note) } : {}),
       ...(expense.receiptPhotos?.[0] ? { photo: expense.receiptPhotos[0] } : {}),
+      ...(expense.receiptPhotos?.length ? { photos: expense.receiptPhotos } : {}),
+      ...(expense.receiptItems?.length ? { items: expense.receiptItems } : {}),
+      // `amount` is what the till charged, in `currency`; `twdAmount` is that
+      // converted. There is no separate original-amount field.
+      ...(typeof expense.amount === 'number' ? { amountOriginal: expense.amount } : {}),
+      ...(clean(expense.currency) ? { currency: clean(expense.currency) } : {}),
+      ...(clean(expense.merchant) ? { merchant: clean(expense.merchant) } : {}),
     }))
     // 「上次在這裡花了多少」 is asked about the last time, not the first.
     .sort((left, right) => right.date.localeCompare(left.date));

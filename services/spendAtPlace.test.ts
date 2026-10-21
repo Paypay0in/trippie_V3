@@ -21,7 +21,7 @@ const saved = (over: Partial<SavedTravelInspiration> = {}): SavedTravelInspirati
 
 const bill = (over: Partial<Expense> = {}): Expense => ({
   id: 'e', date: '2026-10-20', description: '黑船亭 洋食料理',
-  twdAmount: 882, amountOriginal: 4300, currency: 'JPY', exchangeRate: 0.205,
+  twdAmount: 882, amount: 4300, currency: 'JPY', exchangeRate: 0.205,
   category: '餐飲', phase: 'during', merchantPlaceId: PLACE,
   ...over,
 } as Expense);
@@ -30,6 +30,7 @@ describe('spendAtPlace', () => {
   it('finds the bill recorded at that place', () => {
     expect(spendAtPlace(saved(), [bill()])).toEqual([{
       expenseId: 'e', date: '2026-10-20', description: '黑船亭 洋食料理', twdAmount: 882,
+      amountOriginal: 4300, currency: 'JPY',
     }]);
   });
 
@@ -39,6 +40,30 @@ describe('spendAtPlace', () => {
     })]);
 
     expect(found).toMatchObject({ note: '蘑菇義大利麵很好吃', photo: 'data:image/jpeg;base64,xxx' });
+  });
+
+  /* 「還有實際的結帳細目！」 — carried through, never recomputed. */
+  it('carries every photo, the printed lines and the money the till charged', () => {
+    const [found] = spendAtPlace(saved(), [bill({
+      receiptPhotos: ['one', 'two'],
+      receiptItems: [{ name: 'ハヤシライス', quantity: 2, amount: 3000 }],
+      merchant: 'KUROFUNE-TEI',
+    })]);
+
+    expect(found).toMatchObject({
+      photos: ['one', 'two'],
+      items: [{ name: 'ハヤシライス', quantity: 2, amount: 3000 }],
+      amountOriginal: 4300,
+      currency: 'JPY',
+      merchant: 'KUROFUNE-TEI',
+    });
+  });
+
+  it('leaves the detail fields off a bill that has none', () => {
+    const [found] = spendAtPlace(saved(), [bill()]);
+
+    expect(found.items).toBeUndefined();
+    expect(found.photos).toBeUndefined();
   });
 
   /*

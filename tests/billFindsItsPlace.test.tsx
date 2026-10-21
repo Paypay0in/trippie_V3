@@ -35,7 +35,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 const bill = (over: Partial<Expense> = {}): Expense => ({
   id: 'e', date: '2026-10-20', description: '黑船亭 洋食料理', twdAmount: 882,
-  amount: 4300, amountOriginal: 4300, currency: 'JPY', exchangeRate: 0.205,
+  amount: 4300, currency: 'JPY', exchangeRate: 0.205,
   category: '餐飲', phase: 'during',
   merchant: 'KUROFUNE-TEI',
   merchantAddress: '東京都台東区上野2-13-13キクヤビル4F',
