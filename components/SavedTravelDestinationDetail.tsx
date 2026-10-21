@@ -674,6 +674,11 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
           notes={open.notes}
           viewerUserId={viewerUserId}
           spend={spendAtPlace(open, expenses)}
+          /*
+            「若點選我去過的紀錄的話 我希望主要看到的都是自己的紀錄」 — a place
+            he has been to puts his own records above the internet's.
+          */
+          visited={Boolean(visits && visitOf(open, visits))}
           onClose={() => setOpenPlaceId(null)}
         />
       );

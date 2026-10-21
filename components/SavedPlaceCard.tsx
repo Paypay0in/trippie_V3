@@ -41,6 +41,13 @@ interface Props {
    */
   viewerUserId?: string;
   /**
+   * Whether the traveller has been here.
+   *
+   * 「我希望主要看到的都是自己的紀錄 不是跟看收藏一樣都是網路搜尋的結果」 — the
+   * card holds the same blocks either way and puts his own first.
+   */
+  visited?: boolean;
+  /**
    * What was spent here, when the caller has a ledger to read.
    *
    * Passed in rather than looked up: the card is opened from three screens
@@ -50,7 +57,7 @@ interface Props {
   onClose: () => void;
 }
 
-const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], onClose }) => {
+const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], visited = false, onClose }) => {
   /*
     A note came from somewhere or the reader wrote it; there is no third case.
     A `sourcePostId` is that somewhere — a community post, or a screenshot of
@@ -63,6 +70,16 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
   */
   const theirs = notes.filter(note => Boolean(note.sourcePostId?.trim()));
   const mine = notes.filter(note => !theirs.includes(note));
+
+  /*
+    「若點選我去過的紀錄的話 我希望主要看到的都是自己的紀錄」.
+
+    Asked of the place rather than passed in: a bill recorded here, or a line
+    he wrote himself, is evidence he went. `visited` is accepted too, because
+    a place can be marked 已訪 by hand with nothing else attached to it — see
+    `statedVisits`, which exists for exactly that case.
+  */
+  const mineFirst = visited || spend.length > 0 || mine.length > 0;
   const [copied, setCopied] = useState(false);
   /*
     「Allow users to manually choose another supported navigation provider」.
@@ -260,198 +277,333 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
         </button>
 
         {/*
-          Google's own facts, kept visibly separate from what a person wrote.
+          Whose record comes first.
 
-          Labelled as coming from Google because that is the difference that
-          matters: a note is somebody's experience of the place, this is the
-          record. Mixing them would make both less trustworthy.
+          「若點選我去過的紀錄的話 我希望主要看到的都是自己的紀錄 不是跟看收藏一
+          樣都是網路搜尋的結果」 — a place he has been to is a different screen
+          from a place he is deciding about. Deciding wants Google's record
+          and strangers' reviews at the top; remembering wants his own bill,
+          his own line, his own photographs, and the internet underneath.
+
+          Same blocks either way, in the other order. Nothing is hidden from
+          either reading — a visited place still has opening hours, and a
+          place he has not been to still has whatever he wrote about it.
         */}
-        {(basicsLine || basics?.summary || todayHours || basics?.website) && (
-          <div data-testid="place-basics" className="mt-4 space-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5">
-            <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Google 基本資料</div>
-            {basics?.summary && <p className="text-xs leading-5 text-slate-700">{basics.summary}</p>}
-            {basicsLine && (
-              <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
-                <Star size={11} className="shrink-0 text-amber-500" />{basicsLine}
-              </p>
-            )}
-            {todayHours && (
-              <p className="flex items-start gap-1.5 text-[11px] font-medium text-slate-600">
-                <Clock3 size={11} className="mt-0.5 shrink-0 text-slate-400" />
-                <span className="min-w-0 flex-1">
-                  今日 {todayHours}
-                  {basics?.openNow !== undefined && (
-                    <span className={`ml-1.5 font-black ${basics.openNow ? 'text-emerald-600' : 'text-rose-500'}`}>
-                      {basics.openNow ? '營業中' : '休息中'}
-                    </span>
-                  )}
-                </span>
-              </p>
-            )}
-            {basics?.website && (
-              <a
-                href={basics.website}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 text-[11px] font-black text-[#5b3df5]"
-              >
-                <Globe size={11} />官方網站
-              </a>
-            )}
-          </div>
-        )}
-
-        {mine.length > 0 && (
-          <div data-testid="saved-place-notes" className="mt-4 space-y-1.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800">
-              <NotebookPen size={12} />我的備註
-            </div>
-            {mine.map(note => (
-              <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                <p className="min-w-0 flex-1 break-words">{note.text}</p>
+        {mineFirst ? (
+          <>
+          {mine.length > 0 && (
+            <div data-testid="saved-place-notes" className="mt-4 space-y-1.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800">
+                <NotebookPen size={12} />我的備註
               </div>
-            ))}
-          </div>
-        )}
-
-        {/*
-          Somebody else's experience of the place, kept under their own
-          heading. 「不是我的備註，是我從旅人筆記的資訊」 — this is the third kind
-          of thing on the card, after Google's record and the reader's own
-          line, and running them together makes all three less trustworthy.
-        */}
-        {theirs.length > 0 && (
-          <div data-testid="saved-place-traveller-notes" className="mt-4 space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
-              <Users size={12} />旅人筆記
+              {mine.map(note => (
+                <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                  <p className="min-w-0 flex-1 break-words">{note.text}</p>
+                </div>
+              ))}
             </div>
-            {theirs.map(note => (
-              <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
-                <p className="min-w-0 flex-1 break-words">{note.text}</p>
+          )}
+          {/*
+            Somebody else's experience of the place, kept under their own
+            heading. 「不是我的備註，是我從旅人筆記的資訊」 — this is the third kind
+            of thing on the card, after Google's record and the reader's own
+            line, and running them together makes all three less trustworthy.
+          */}
+          {theirs.length > 0 && (
+            <div data-testid="saved-place-traveller-notes" className="mt-4 space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
+                <Users size={12} />旅人筆記
               </div>
-            ))}
-          </div>
-        )}
-
-        {/*
-          What the place is known for, when nobody has said anything about it.
-
-          Offered only in the absence of traveller notes: somebody's own
-          account of a restaurant beats a search every time, and running both
-          would put a machine's summary beside a person's experience as though
-          the two were the same kind of thing.
-        */}
-        {/*
-          The map's own reviews, quoted.
-
-          「沒辦法觸發Google map上的評論」 — these are first-party, attributed,
-          and written by people who went, which is why they are quoted whole
-          rather than summarised. A summary of five reviews is a sentence
-          nobody said; a review with a name on it is somebody's own.
-
-          Shown whatever else the card holds: a traveller's note and a
-          stranger's review answer different questions, and neither replaces
-          the other.
-        */}
-        {reviews.length > 0 && (
-          <div data-testid="place-reviews" className="mt-4 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500">
-              <Star size={12} className="text-amber-500" />Google 評論
+              {theirs.map(note => (
+                <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                  <p className="min-w-0 flex-1 break-words">{note.text}</p>
+                </div>
+              ))}
             </div>
-            {reviews.map(review => (
-              <div key={`${review.authorName}-${review.when}-${review.text.slice(0, 12)}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-2.5">
-                <div className="flex items-center gap-1.5">
-                  {review.authorPhoto && (
-                    <img src={review.authorPhoto} alt="" loading="lazy" className="h-5 w-5 rounded-full object-cover" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-[11px] font-black text-[#11183d]">
-                    {review.authorName || '旅客'}
+          )}
+
+          {/*
+            What the place is known for, when nobody has said anything about it.
+
+            Offered only in the absence of traveller notes: somebody's own
+            account of a restaurant beats a search every time, and running both
+            would put a machine's summary beside a person's experience as though
+            the two were the same kind of thing.
+          */}
+          <PlaceSpendRecord spend={spend} />
+          {/*
+            Google's own facts, kept visibly separate from what a person wrote.
+
+            Labelled as coming from Google because that is the difference that
+            matters: a note is somebody's experience of the place, this is the
+            record. Mixing them would make both less trustworthy.
+          */}
+          {(basicsLine || basics?.summary || todayHours || basics?.website) && (
+            <div data-testid="place-basics" className="mt-4 space-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5">
+              <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Google 基本資料</div>
+              {basics?.summary && <p className="text-xs leading-5 text-slate-700">{basics.summary}</p>}
+              {basicsLine && (
+                <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                  <Star size={11} className="shrink-0 text-amber-500" />{basicsLine}
+                </p>
+              )}
+              {todayHours && (
+                <p className="flex items-start gap-1.5 text-[11px] font-medium text-slate-600">
+                  <Clock3 size={11} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span className="min-w-0 flex-1">
+                    今日 {todayHours}
+                    {basics?.openNow !== undefined && (
+                      <span className={`ml-1.5 font-black ${basics.openNow ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {basics.openNow ? '營業中' : '休息中'}
+                      </span>
+                    )}
                   </span>
-                  {review.rating !== undefined && (
-                    <span className="shrink-0 text-[11px] font-black text-amber-600">★ {review.rating}</span>
-                  )}
-                  {review.when && <span className="shrink-0 text-[10px] text-slate-400">{review.when}</span>}
-                </div>
-                <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-700">{review.text}</p>
+                </p>
+              )}
+              {basics?.website && (
+                <a
+                  href={basics.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 text-[11px] font-black text-[#5b3df5]"
+                >
+                  <Globe size={11} />官方網站
+                </a>
+              )}
+            </div>
+          )}
+          {/*
+            The map's own reviews, quoted.
+
+            「沒辦法觸發Google map上的評論」 — these are first-party, attributed,
+            and written by people who went, which is why they are quoted whole
+            rather than summarised. A summary of five reviews is a sentence
+            nobody said; a review with a name on it is somebody's own.
+
+            Shown whatever else the card holds: a traveller's note and a
+            stranger's review answer different questions, and neither replaces
+            the other.
+          */}
+          {reviews.length > 0 && (
+            <div data-testid="place-reviews" className="mt-4 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500">
+                <Star size={12} className="text-amber-500" />Google 評論
               </div>
-            ))}
-          </div>
-        )}
-
-        {theirs.length === 0 && mine.length === 0 && (
-          <div className="mt-4">
-            {!highlights && (
-              <button
-                type="button"
-                data-testid="look-up-highlights"
-                disabled={lookingUp}
-                onClick={() => {
-                  setLookingUp(true);
-                  void fetchPlaceHighlights({
-                    placeId: place.placeId,
-                    placeName: place.placeName,
-                    address: place.formattedAddress,
-                    city: place.city,
-                  })
-                    .then(setHighlights)
-                    .finally(() => setLookingUp(false));
-                }}
-                className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-violet-200 bg-violet-50/50 text-xs font-black text-[#5b3df5] disabled:opacity-60"
-              >
-                <Sparkles size={13} />{lookingUp ? '查詢中…' : '查查這裡有名的是什麼'}
-              </button>
-            )}
-
-            {highlights && (
-              <div data-testid="place-highlights" className="space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
-                <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
-                  <Sparkles size={12} />AI 查到的重點
+              {reviews.map(review => (
+                <div key={`${review.authorName}-${review.when}-${review.text.slice(0, 12)}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-2.5">
+                  <div className="flex items-center gap-1.5">
+                    {review.authorPhoto && (
+                      <img src={review.authorPhoto} alt="" loading="lazy" className="h-5 w-5 rounded-full object-cover" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-black text-[#11183d]">
+                      {review.authorName || '旅客'}
+                    </span>
+                    {review.rating !== undefined && (
+                      <span className="shrink-0 text-[11px] font-black text-amber-600">★ {review.rating}</span>
+                    )}
+                    {review.when && <span className="shrink-0 text-[10px] text-slate-400">{review.when}</span>}
+                  </div>
+                  <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-700">{review.text}</p>
                 </div>
-                {highlights.points.length > 0 ? (
-                  <>
-                    {highlights.points.map(point => (
-                      <div key={point} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
-                        <p className="min-w-0 flex-1 break-words">{point}</p>
-                      </div>
-                    ))}
-                    {/*
-                      The pages it was read off, named. This sits where a
-                      person's notes would sit, so where it came from is the
-                      part that stops it being mistaken for one.
-                    */}
-                    <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      {highlights.sources.map(source => (
-                        <a
-                          key={source.url}
-                          href={source.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="max-w-full truncate text-[10px] font-bold text-slate-500 underline"
-                        >
-                          {source.title || source.url}
-                        </a>
+              ))}
+            </div>
+          )}
+          </>
+        ) : (
+          <>
+          {/*
+            Google's own facts, kept visibly separate from what a person wrote.
+
+            Labelled as coming from Google because that is the difference that
+            matters: a note is somebody's experience of the place, this is the
+            record. Mixing them would make both less trustworthy.
+          */}
+          {(basicsLine || basics?.summary || todayHours || basics?.website) && (
+            <div data-testid="place-basics" className="mt-4 space-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5">
+              <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Google 基本資料</div>
+              {basics?.summary && <p className="text-xs leading-5 text-slate-700">{basics.summary}</p>}
+              {basicsLine && (
+                <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                  <Star size={11} className="shrink-0 text-amber-500" />{basicsLine}
+                </p>
+              )}
+              {todayHours && (
+                <p className="flex items-start gap-1.5 text-[11px] font-medium text-slate-600">
+                  <Clock3 size={11} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span className="min-w-0 flex-1">
+                    今日 {todayHours}
+                    {basics?.openNow !== undefined && (
+                      <span className={`ml-1.5 font-black ${basics.openNow ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {basics.openNow ? '營業中' : '休息中'}
+                      </span>
+                    )}
+                  </span>
+                </p>
+              )}
+              {basics?.website && (
+                <a
+                  href={basics.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 text-[11px] font-black text-[#5b3df5]"
+                >
+                  <Globe size={11} />官方網站
+                </a>
+              )}
+            </div>
+          )}
+          {mine.length > 0 && (
+            <div data-testid="saved-place-notes" className="mt-4 space-y-1.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800">
+                <NotebookPen size={12} />我的備註
+              </div>
+              {mine.map(note => (
+                <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                  <p className="min-w-0 flex-1 break-words">{note.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {/*
+            Somebody else's experience of the place, kept under their own
+            heading. 「不是我的備註，是我從旅人筆記的資訊」 — this is the third kind
+            of thing on the card, after Google's record and the reader's own
+            line, and running them together makes all three less trustworthy.
+          */}
+          {theirs.length > 0 && (
+            <div data-testid="saved-place-traveller-notes" className="mt-4 space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
+                <Users size={12} />旅人筆記
+              </div>
+              {theirs.map(note => (
+                <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                  <p className="min-w-0 flex-1 break-words">{note.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/*
+            What the place is known for, when nobody has said anything about it.
+
+            Offered only in the absence of traveller notes: somebody's own
+            account of a restaurant beats a search every time, and running both
+            would put a machine's summary beside a person's experience as though
+            the two were the same kind of thing.
+          */}
+          {/*
+            The map's own reviews, quoted.
+
+            「沒辦法觸發Google map上的評論」 — these are first-party, attributed,
+            and written by people who went, which is why they are quoted whole
+            rather than summarised. A summary of five reviews is a sentence
+            nobody said; a review with a name on it is somebody's own.
+
+            Shown whatever else the card holds: a traveller's note and a
+            stranger's review answer different questions, and neither replaces
+            the other.
+          */}
+          {reviews.length > 0 && (
+            <div data-testid="place-reviews" className="mt-4 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500">
+                <Star size={12} className="text-amber-500" />Google 評論
+              </div>
+              {reviews.map(review => (
+                <div key={`${review.authorName}-${review.when}-${review.text.slice(0, 12)}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-2.5">
+                  <div className="flex items-center gap-1.5">
+                    {review.authorPhoto && (
+                      <img src={review.authorPhoto} alt="" loading="lazy" className="h-5 w-5 rounded-full object-cover" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-black text-[#11183d]">
+                      {review.authorName || '旅客'}
+                    </span>
+                    {review.rating !== undefined && (
+                      <span className="shrink-0 text-[11px] font-black text-amber-600">★ {review.rating}</span>
+                    )}
+                    {review.when && <span className="shrink-0 text-[10px] text-slate-400">{review.when}</span>}
+                  </div>
+                  <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-700">{review.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {theirs.length === 0 && mine.length === 0 && (
+            <div className="mt-4">
+              {!highlights && (
+                <button
+                  type="button"
+                  data-testid="look-up-highlights"
+                  disabled={lookingUp}
+                  onClick={() => {
+                    setLookingUp(true);
+                    void fetchPlaceHighlights({
+                      placeId: place.placeId,
+                      placeName: place.placeName,
+                      address: place.formattedAddress,
+                      city: place.city,
+                    })
+                      .then(setHighlights)
+                      .finally(() => setLookingUp(false));
+                  }}
+                  className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-violet-200 bg-violet-50/50 text-xs font-black text-[#5b3df5] disabled:opacity-60"
+                >
+                  <Sparkles size={13} />{lookingUp ? '查詢中…' : '查查這裡有名的是什麼'}
+                </button>
+              )}
+
+              {highlights && (
+                <div data-testid="place-highlights" className="space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
+                  <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
+                    <Sparkles size={12} />AI 查到的重點
+                  </div>
+                  {highlights.points.length > 0 ? (
+                    <>
+                      {highlights.points.map(point => (
+                        <div key={point} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                          <p className="min-w-0 flex-1 break-words">{point}</p>
+                        </div>
                       ))}
-                    </div>
-                  </>
-                ) : (
-                  /*
-                    Said plainly. The server refuses to answer from memory, so
-                    an empty answer means nothing was found — which is a fact
-                    about this place, not a failure to report.
-                  */
-                  <p data-testid="place-highlights-empty" className="text-xs leading-5 text-slate-500">
-                    查不到這家店的介紹，網路上沒有寫到什麼。
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+                      {/*
+                        The pages it was read off, named. This sits where a
+                        person's notes would sit, so where it came from is the
+                        part that stops it being mistaken for one.
+                      */}
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {highlights.sources.map(source => (
+                          <a
+                            key={source.url}
+                            href={source.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="max-w-full truncate text-[10px] font-bold text-slate-500 underline"
+                          >
+                            {source.title || source.url}
+                          </a>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    /*
+                      Said plainly. The server refuses to answer from memory, so
+                      an empty answer means nothing was found — which is a fact
+                      about this place, not a failure to report.
+                    */
+                    <p data-testid="place-highlights-empty" className="text-xs leading-5 text-slate-500">
+                      查不到這家店的介紹，網路上沒有寫到什麼。
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <PlaceSpendRecord spend={spend} />
+          </>
         )}
-
-        <PlaceSpendRecord spend={spend} />
       </div>
     </div>
   );
