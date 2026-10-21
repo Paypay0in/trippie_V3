@@ -364,6 +364,20 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                 placeholder="這裡發生了什麼？"
                                 className="w-full rounded-xl border border-slate-200 p-2 text-[12px] leading-5 text-slate-700 outline-none focus:border-violet-400"
                               />
+                              {/*
+                                「日記只給自己看」 — and this is not that yet.
+
+                                It writes the trip's own note on the stop,
+                                which everybody on the trip reads. The private
+                                journal needs a table of its own （see
+                                `0030_itinerary_journals`）; until that exists,
+                                the honest thing is to say whose eyes this is
+                                in front of rather than let somebody write
+                                something personal into it.
+                              */}
+                              <p data-testid={`recap-diary-shared-${stop.itemId}`} className="mt-1 text-[10px] leading-4 text-amber-600">
+                                這則目前是行程備註，同行的人也看得到。私人日記還在等資料表建立。
+                              </p>
                               <div className="mt-1.5 flex gap-2">
                                 <button
                                   type="button"
@@ -396,7 +410,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                   onClick={() => { setDraft(stop.diary ?? ''); setEditing(stop.itemId); }}
                                   className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-black text-violet-700"
                                 >
-                                  <NotebookPen size={12} />{stop.diary ? '編輯日記' : '寫下日記'}
+                                  <NotebookPen size={12} />{stop.diary ? '編輯備註' : '寫下備註'}
                                 </button>
                               )}
                             </>

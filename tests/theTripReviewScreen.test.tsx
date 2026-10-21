@@ -193,6 +193,28 @@ describe('每日行程', () => {
     expect(onWriteDiary).toHaveBeenCalledWith('i1', '雷門比想像中大');
   });
 
+  /*
+    「日記只給自己看」 — and this is not that yet: it writes the trip's own
+    note, which everybody on the trip reads. Saying so is the minimum until
+    `0030_itinerary_journals` exists; a private-looking box that is not
+    private is worse than no box.
+  */
+  it('says who else can read it, while it is still the shared note', () => {
+    render(
+      <TripRecapScreen
+        trip={{ name: '東京之旅', itinerary: [stop()], travelCountry: '日本' }}
+        expenses={[]}
+        today={TODAY}
+        onBack={vi.fn()}
+        onWriteDiary={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+    fireEvent.click(screen.getByTestId('recap-diary-open-i1'));
+
+    expect(screen.getByTestId('recap-diary-shared-i1').textContent).toContain('同行的人也看得到');
+  });
+
   /* What was already written shows, and opens with that text in hand. */
   it('shows the diary already written against a stop', () => {
     render(
@@ -207,7 +229,7 @@ describe('每日行程', () => {
     fireEvent.click(screen.getByTestId('recap-tab-days'));
 
     expect(screen.getByTestId('recap-stop-diary-i1').textContent).toContain('雷門比想像中大');
-    expect(screen.getByTestId('recap-diary-open-i1').textContent).toContain('編輯日記');
+    expect(screen.getByTestId('recap-diary-open-i1').textContent).toContain('編輯備註');
   });
 
   /* No way to write means no button offering to. */
