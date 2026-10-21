@@ -3087,14 +3087,20 @@ const App: React.FC = () => {
     inspirationIds: string[],
     resolved: ResolvedPlaceFields,
     options?: { silent?: boolean },
-  ) => {
+  ): boolean => {
     const wanted = new Set(inspirationIds);
-    if (wanted.size === 0 || !resolved.placeId) return;
+    /*
+      Reported rather than returned silently. 「我剛剛按下去 沒有儲存成功成筆
+      記」 — a refusal here closed the picker and changed nothing, which reads
+      exactly like having worked.
+    */
+    if (wanted.size === 0 || !resolved.placeId) return false;
     setSavedTravelInspirations((current) =>
       current.map((inspiration) =>
         wanted.has(inspiration.id) ? applyResolvedPlace(inspiration, resolved) : inspiration));
     // A backfill of twenty places would otherwise raise twenty toasts.
     if (!options?.silent) showToast(`已連結到「${resolved.placeName}」`);
+    return true;
   };
 
   /**

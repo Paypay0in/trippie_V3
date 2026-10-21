@@ -136,6 +136,12 @@ interface Props {
   knownCountries?: string[];
   /** Puts saved places back to never having been looked up. See the handler. */
   onUnbindInspirationPlaces?: (inspirationIds: string[]) => void;
+  /**
+   * Binds saved places to a map place. Returns `false` when it did not take.
+   *
+   * 「我剛剛按下去 沒有儲存成功成筆記」 — a handler that returns nothing and
+   * refuses silently is indistinguishable from one that worked.
+   */
   onResolveInspirationPlace?: (
     inspirationIds: string[],
     resolved: {
@@ -150,7 +156,7 @@ interface Props {
     },
     /** Set while backfilling, so twenty corrections do not raise twenty toasts. */
     options?: { silent?: boolean },
-  ) => void;
+  ) => void | boolean;
   /**
    * The trip's areas, computed from the plan and this list together.
    *
@@ -427,16 +433,36 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     group: { id: string; inspirationIds: string[] },
     candidate: PlaceCandidate,
   ) => {
-    if (!onResolveInspirationPlace) return;
+    /*
+      「我剛剛按下去 沒有儲存成功成筆記」.
+
+      Every exit from this function used to be able to leave the panel exactly
+      as it was with nothing said — no handler, no `placeId` on what came
+      back, a thrown error. A tap that changes nothing and explains nothing is
+      the one state the traveller cannot act on or report.
+    */
+    if (!onResolveInspirationPlace) {
+      setLookupError('這個畫面現在不能儲存地點，請重新整理再試一次。');
+      return;
+    }
     setLookupBusy(true);
+    setLookupError('');
     try {
       const resolved = await resolveCandidate(candidate);
       if (!resolved) { setLookupError('這個地點的資料讀不到，換一個試試。'); return; }
-      onResolveInspirationPlace(group.inspirationIds, resolved);
+      /*
+        The handler says whether it took. Without a `placeId` there is nothing
+        to bind to, and it used to return silently — so the panel closed and
+        the record was unchanged, which reads exactly like success.
+      */
+      if (onResolveInspirationPlace(group.inspirationIds, resolved) === false) {
+        setLookupError('這個地點少了地圖編號，存不起來，換一個試試。');
+        return;
+      }
       setLookupGroupId(null);
       setLookupResults([]);
-    } catch {
-      setLookupError('這個地點的資料讀不到，換一個試試。');
+    } catch (error) {
+      setLookupError(`存不起來：${(error as Error)?.message || '這個地點的資料讀不到，換一個試試。'}`);
     } finally {
       setLookupBusy(false);
     }

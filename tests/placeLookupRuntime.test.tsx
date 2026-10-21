@@ -66,8 +66,9 @@ const unresolved = (over: Record<string, unknown> = {}) => ({
   ...over,
 }) as never;
 
-const renderPlanner = () => {
-  const onResolveInspirationPlace = vi.fn();
+const renderPlanner = (
+  onResolveInspirationPlace: (...args: never[]) => void | boolean = vi.fn(),
+) => {
   render(
     <TripInspirationPlanner
       inspirations={[unresolved()]}
@@ -176,5 +177,52 @@ describe('a saved place with no map identity', () => {
       ['insp-dagok'],
       expect.objectContaining({ placeId: 'g-dangol-2', latitude: 35.0982, longitude: 129.0292 }),
     ));
+  });
+});
+
+/**
+ * 「我剛剛按下去 沒有儲存成功成筆記」.
+ *
+ * Every exit from the pick could leave the panel exactly as it was with
+ * nothing said: no handler wired, nothing bindable in what came back, a thrown
+ * error. A tap that changes nothing and explains nothing is the one state the
+ * traveller can neither act on nor report.
+ */
+describe('a pick that does not take', () => {
+  const pick = async (user: ReturnType<typeof userEvent.setup>) => {
+    const id = await openLookup(user);
+    const input = screen.getByTestId(`lookup-input-${id}`);
+    await user.clear(input);
+    await user.type(input, '단골손님');
+    await user.click(screen.getByTestId(`lookup-search-${id}`));
+    await user.click(await screen.findByTestId('lookup-pick-g-dangol-1'));
+  };
+
+  it('says so when the handler refuses', async () => {
+    const user = userEvent.setup();
+    renderPlanner(vi.fn(() => false));
+
+    await pick(user);
+
+    await waitFor(() => expect(screen.getByText(/存不起來|少了地圖編號/)).toBeTruthy());
+  });
+
+  it('closes the panel when it did take', async () => {
+    const user = userEvent.setup();
+    renderPlanner(vi.fn(() => true));
+
+    await pick(user);
+
+    await waitFor(() => expect(screen.queryByTestId('lookup-pick-g-dangol-1')).toBeNull());
+  });
+
+  /* A handler that reports nothing is one that does not report. */
+  it('still closes for a handler that says nothing', async () => {
+    const user = userEvent.setup();
+    renderPlanner(vi.fn());
+
+    await pick(user);
+
+    await waitFor(() => expect(screen.queryByTestId('lookup-pick-g-dangol-1')).toBeNull());
   });
 });
