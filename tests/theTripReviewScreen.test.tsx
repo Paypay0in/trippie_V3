@@ -367,6 +367,68 @@ describe('每日行程', () => {
     expect(screen.getByTestId('recap-day-hero').querySelector('img')).toBeNull();
   });
 
+  /*
+    「如何給淺草寺評價」 — a temple is free, so the till could never ask. The
+    stars are given here instead, against the stop itself.
+  */
+  it('rates a stop that never had a bill', () => {
+    const onRateStop = vi.fn();
+    render(
+      <TripRecapScreen
+        trip={{ name: '東京之旅', itinerary: [stop()], travelCountry: '日本' }}
+        expenses={[]}
+        today={TODAY}
+        onBack={vi.fn()}
+        onRateStop={onRateStop}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+    fireEvent.click(screen.getByTestId('recap-rate-i1-4'));
+
+    expect(onRateStop).toHaveBeenCalledWith('i1', 4);
+  });
+
+  /* 「not rated」 has to be reachable again, or a mis-tap is permanent. */
+  it('clears the rating when the star already given is pressed', () => {
+    const onRateStop = vi.fn();
+    render(
+      <TripRecapScreen
+        trip={{ name: '東京之旅', itinerary: [stop({ rating: 4 })], travelCountry: '日本' }}
+        expenses={[]}
+        today={TODAY}
+        onBack={vi.fn()}
+        onRateStop={onRateStop}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+    fireEvent.click(screen.getByTestId('recap-rate-i1-4'));
+
+    expect(onRateStop).toHaveBeenCalledWith('i1', 0);
+  });
+
+  /* The star given looking back is the later, more deliberate statement. */
+  it('shows the stop\'s own star over the till\'s', () => {
+    open(
+      [stop({ id: 'k', title: 'Kurofunetei', rating: 2, latitude: 35.71, longitude: 139.77 })],
+      [bill({ merchant: 'Kurofunetei', rating: 5, merchantLatitude: 35.71, merchantLongitude: 139.77 })],
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    expect(screen.getByTestId('recap-stop-stars-k').textContent).toBe('★★');
+  });
+
+  it('leads with the stop\'s own photographs', () => {
+    open(
+      [stop({ id: 'k', title: 'Kurofunetei', photos: ['mine'], latitude: 35.71, longitude: 139.77 })],
+      [bill({ merchant: 'Kurofunetei', receiptPhotos: ['till-roll'], merchantLatitude: 35.71, merchantLongitude: 139.77 })],
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    const shots = [...screen.getByTestId('recap-stop-photos-k').querySelectorAll('img')]
+      .map(node => node.getAttribute('src'));
+    expect(shots).toEqual(['mine', 'till-roll']);
+  });
+
   it('says so when nothing was ever scheduled', () => {
     open([]);
     goToDays();

@@ -16,7 +16,8 @@
  *   rather than ranking the stops by something else and calling them 亮點.
  */
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarRange, MapPin, NotebookPen, Plus, Receipt, ShoppingBag, Sparkles, Star, UtensilsCrossed, Wallet } from 'lucide-react';
+import { ArrowLeft, CalendarRange, ImagePlus, MapPin, NotebookPen, Plus, Receipt, ShoppingBag, Sparkles, Star, UtensilsCrossed, Wallet } from 'lucide-react';
+import { RECEIPT_PHOTO, readAndDownscale } from '../services/postPhotos';
 import { Expense, Trip, TripMember } from '../types';
 import { RecapStop, buildTripRecap, isGettingThere, starsFor } from '../services/tripRecap';
 import { ITINERARY_PREFIX, buildTripAreas } from '../services/tripAreas';
@@ -54,6 +55,14 @@ interface Props {
    * difference between a review you read and one you keep.
    */
   onPlanDay?: (date: string) => void;
+  /**
+   * The star given while looking back, and the photographs of the stop.
+   *
+   * 「如何給淺草寺評價」 — the till can only ask about places that charged for
+   * something, which leaves out most of what a traveller remembers.
+   */
+  onRateStop?: (itemId: string, rating: number) => void;
+  onAddStopPhotos?: (itemId: string, photos: string[]) => void;
 }
 
 type Tab = 'overview' | 'days' | 'picks';
@@ -87,7 +96,7 @@ const Stars: React.FC<{ stop: RecapStop; testId: string }> = ({ stop, testId }) 
   );
 };
 
-const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords, onWriteDiary, onPlanDay }) => {
+const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords, onWriteDiary, onPlanDay, onRateStop, onAddStopPhotos }) => {
   const [tab, setTab] = useState<Tab>('overview');
   const recap = useMemo(
     () => buildTripRecap({ trip, expenses, today, viewerMemberId, members }),
@@ -445,6 +454,31 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                             <span className="truncate text-sm font-black text-[#11183d]">{stop.title}</span>
                             <Stars stop={stop} testId={`recap-stop-stars-${stop.itemId}`} />
                           </div>
+                          {/*
+                            The stars, given here rather than at a till.
+
+                            Pressing the star you already gave clears it:
+                            「not rated」 has to be reachable again, or a
+                            mis-tap is permanent.
+                          */}
+                          {onRateStop && (
+                            <div data-testid={`recap-rate-${stop.itemId}`} className="mt-1 flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map(value => (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  aria-label={`${value} 星`}
+                                  data-testid={`recap-rate-${stop.itemId}-${value}`}
+                                  onClick={() => onRateStop(stop.itemId, stop.rating === value ? 0 : value)}
+                                  className={`text-base leading-none ${
+                                    (stop.rating ?? 0) >= value ? 'text-amber-500' : 'text-slate-200'
+                                  }`}
+                                >
+                                  ★
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           <div className="mt-1 flex flex-wrap items-center gap-1">
                             {stop.category !== 'other' && (
                               <span className="inline-flex rounded-lg bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">
@@ -547,6 +581,29 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                 <p data-testid={`recap-stop-diary-${stop.itemId}`} className="mt-1 text-[11px] leading-4 text-slate-700">
                                   {stop.diary}
                                 </p>
+                              )}
+                              {onAddStopPhotos && (
+                                <label
+                                  data-testid={`recap-add-photo-${stop.itemId}`}
+                                  className="mt-1.5 mr-3 inline-flex cursor-pointer items-center gap-1 text-[11px] font-black text-violet-700"
+                                >
+                                  <ImagePlus size={12} />加照片
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    onChange={async event => {
+                                      const files = [...(event.target.files ?? [])];
+                                      event.target.value = '';
+                                      if (files.length === 0) return;
+                                      const shots = await Promise.all(
+                                        files.map(file => readAndDownscale(file, RECEIPT_PHOTO)),
+                                      );
+                                      onAddStopPhotos(stop.itemId, shots);
+                                    }}
+                                  />
+                                </label>
                               )}
                               {onWriteDiary && (
                                 <button

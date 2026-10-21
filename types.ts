@@ -885,6 +885,20 @@ export interface ItineraryItem {
    * constraint — a flight, a train, a booked table — which Trippie may never
    * reschedule on the user's behalf.
    */
+  /**
+   * The traveller's own photographs of this stop, as downscaled data URLs.
+   *
+   * 「淺草寺啊啥的 應該要讓我點擊可以寫下日記與放照片」. Absent means none were
+   * taken, which is ordinary, and must never be filled with a stock picture.
+   */
+  photos?: string[];
+  /**
+   * What they thought of it, 1–5, given while looking back.
+   *
+   * 「如何給淺草寺評價」 — the till could only ask about places that charged
+   * for something, which excluded most of what a traveller remembers.
+   */
+  rating?: number;
   scheduleFlexibility?: ScheduleFlexibility;
   /**
    * User-pinned. The AI planner may never move, retime, relocate or remove a

@@ -45,6 +45,8 @@ export interface ExpenseRow {
   linked_shopping_item_id: string | null;
   /** Receipts, as downscaled data URLs, the same shape community posts use. */
   receipt_photos?: unknown;
+  /** 1–5, or null for 「not rated」. Never 0: see `0028_expense_rating`. */
+  rating?: number | null;
   /** The receipt's own lines, both languages, as the model read them. */
   receipt_items?: unknown;
   /** The shop as printed, untranslated. */
@@ -103,6 +105,12 @@ export const toExpenseRow = (expense: Expense, tripId: string): ExpenseRow => ({
   needs_review: Boolean(expense.needsReview),
   linked_shopping_item_id: expense.linkedShoppingItemId ?? null,
   receipt_photos: expense.receiptPhotos ?? [],
+  /*
+    The star given at the till. Absent is a real answer — most bills are a
+    train ticket and have nothing to say — so null rather than 0, which would
+    read as 「rated worst」.
+  */
+  rating: typeof expense.rating === 'number' ? expense.rating : null,
   receipt_items: expense.receiptItems ?? [],
   merchant: expense.merchant?.trim() || null,
   merchant_address: expense.merchantAddress?.trim() || null,
@@ -204,6 +212,7 @@ export const fromExpenseRow = (row: ExpenseRow): Expense => ({
   taxRefundChannel: row.tax_refund_channel === 'at_till' || row.tax_refund_channel === 'airport'
     ? row.tax_refund_channel
     : undefined,
+  ...(typeof row.rating === 'number' ? { rating: row.rating } : {}),
   receiptPhotos: Array.isArray(row.receipt_photos)
     ? (row.receipt_photos as unknown[]).filter((photo): photo is string => typeof photo === 'string')
     : [],
@@ -265,6 +274,10 @@ export interface ItineraryItemRow {
   derived_from_flight_anchor_id: string | null;
   source_inspiration_ids: unknown;
   saved_travel_notes: unknown;
+  /** The traveller's own photographs of the stop. See `0029`. */
+  photos?: unknown;
+  /** What they thought of it, 1–5, given while looking back. */
+  rating?: number | null;
   /** 共同 or 個人; null means shared, as every pre-existing row is. */
   visibility: string | null;
   /** Whose item it is, when it is personal. */
@@ -309,6 +322,12 @@ export const toItineraryRow = (item: ItineraryItem, tripId: string): ItineraryIt
   owner_user_id: item.visibility === 'personal' ? item.ownerUserId ?? null : null,
   // 「並且像代辦清單 要可以打勾的」, shared rather than remembered by one phone.
   ticket_bought: item.ticketBought === true,
+  photos: item.photos ?? [],
+  /*
+    「如何給淺草寺評價」 — a temple is free, so it has no bill and the till
+    could never ask. Null is 「not rated」, which most stops are.
+  */
+  rating: typeof item.rating === 'number' ? item.rating : null,
 });
 
 export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
@@ -344,6 +363,10 @@ export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
   ownerUserId: row.visibility === 'personal' ? row.owner_user_id ?? undefined : undefined,
   // Absent rather than false, so an item nobody ticked reads as it always did.
   ...(row.ticket_bought === true ? { ticketBought: true } : {}),
+  ...(Array.isArray(row.photos)
+    ? { photos: (row.photos as unknown[]).filter((shot): shot is string => typeof shot === 'string') }
+    : {}),
+  ...(typeof row.rating === 'number' ? { rating: row.rating } : {}),
 });
 
 export interface FlightAnchorRow {

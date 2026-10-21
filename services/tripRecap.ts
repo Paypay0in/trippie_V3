@@ -228,20 +228,36 @@ export const buildTripRecap = (
   const filedCategory = (bills: SpendAtPlace[]): PlaceCategory | undefined =>
     bills.map(entry => ledgerCategory.get(entry.expenseId)).find(Boolean);
 
-  const stops: RecapStop[] = items.map(item => ({
+  const stops: RecapStop[] = items.map(item => {
+  const bills = spendAtPlace(asPlace(item), input.expenses);
+  const fromLedger = fromBills(bills, costOf);
+  const ownPhotos = item.photos ?? [];
+  return {
     itemId: item.id,
     date: item.date as string,
     time: item.time,
     title: item.title,
     ...(item.location?.trim() ? { location: item.location.trim() } : {}),
     ...(item.notes?.trim() ? { diary: item.notes.trim() } : {}),
-    category: categoryOf(item, filedCategory(spendAtPlace(asPlace(item), input.expenses))),
+    category: categoryOf(item, filedCategory(bills)),
     ...(typeof item.latitude === 'number' && typeof item.longitude === 'number'
       && !(item.latitude === 0 && item.longitude === 0)
       ? { latitude: item.latitude, longitude: item.longitude }
       : {}),
-    ...fromBills(spendAtPlace(asPlace(item), input.expenses), costOf),
-  }));
+    ...fromLedger,
+    /*
+      The stop's own star wins over the till's.
+
+      Both are the traveller's, and this is the later and more deliberate of
+      the two: the till's was given while paying, this one while looking back
+      at the day. Its own photographs lead, with the bills' behind them.
+    */
+    ...(typeof item.rating === 'number' ? { rating: item.rating } : {}),
+    ...(ownPhotos.length > 0
+      ? { photo: ownPhotos[0], photos: [...ownPhotos, ...(fromLedger.photos ?? [])] }
+      : {}),
+  };
+  });
 
   const happened = new Set(items.filter(item => hasHappened(item, input.today)).map(item => item.id));
   const visited = stops.filter(stop => happened.has(stop.itemId));

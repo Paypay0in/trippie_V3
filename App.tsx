@@ -3578,7 +3578,7 @@ const App: React.FC = () => {
       with no bill had nowhere to hold what happened there, and the field it
       belongs in already existed and already syncs.
     */
-    updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time" | "durationMinutes" | "notes">>,
+    updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time" | "durationMinutes" | "notes" | "rating" | "photos">>,
   ) => {
     setItinerary((current) => {
       const nextItinerary = current.map((item) =>
@@ -4561,6 +4561,20 @@ const App: React.FC = () => {
   );
   // Shared storage for the open trip. Off entirely when Supabase is not
   // configured or nobody is signed in, so the offline local ledger is unchanged.
+  /*
+    The ledger with its stars on, and the list sync actually publishes.
+
+    「星等放在這」 put them in a device-local store because the column did not
+    exist. It does now, and `withStatedRatings` defers to any value already on
+    the bill — so handing this list to sync uploads what this phone has been
+    holding, once, and then quietly stops being the source. See
+    `statedRatings`.
+  */
+  const ratedExpenses = useMemo(
+    () => withStatedRatings(expenses, statedRatings),
+    [expenses, statedRatings],
+  );
+
   const tripSyncState = useTripSync({
     // The same trip id the rest of the screen uses. A trip opened from history
     // has no draft id, and keying sync on the draft alone left those trips
@@ -4574,7 +4588,7 @@ const App: React.FC = () => {
     endDate: tripEndDate,
     currency: tripCurrency || undefined,
     members: settlementMembers,
-    expenses,
+    expenses: ratedExpenses,
     itinerary,
     flightAnchors,
     // The want-to-go list, now shared: 「跟朋友會先把想去的地方列一個表單」. Only
@@ -6931,10 +6945,6 @@ const App: React.FC = () => {
     bill reads the same bill. See `statedRatings` for why they are not on the
     expense itself yet.
   */
-  const ratedExpenses = useMemo(
-    () => withStatedRatings(expenses, statedRatings),
-    [expenses, statedRatings],
-  );
   const filteredExpenses = ratedExpenses.filter((e) => e.phase === currentPhase);
 
   // Dynamic Title for Shopping Panel
@@ -9153,6 +9163,24 @@ const App: React.FC = () => {
                 takes an `initialDate`, so the day being looked at is the day
                 that opens rather than whatever the planner last had.
               */
+              /*
+                「如何給淺草寺評價」 — a star given while looking back, and the
+                stop's own photographs. Both are columns on the item now, so
+                both travel with the trip rather than with this phone.
+              */
+              onRateStop={(itemId, rating) =>
+                handleUpdateItineraryItem(itemId, {
+                  rating: rating > 0 ? rating : undefined,
+                })
+              }
+              onAddStopPhotos={(itemId, shots) =>
+                handleUpdateItineraryItem(itemId, {
+                  photos: [
+                    ...(itinerary.find((item) => item.id === itemId)?.photos ?? []),
+                    ...shots,
+                  ],
+                })
+              }
               onPlanDay={(date) => {
                 setRecapOpen(false);
                 setWorkspaceSection("planning");
