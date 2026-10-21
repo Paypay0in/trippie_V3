@@ -19,7 +19,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeft, CalendarRange, MapPin, NotebookPen, Receipt, Sparkles, Star, UtensilsCrossed } from 'lucide-react';
 import { Expense, Trip, TripMember } from '../types';
 import { RecapStop, buildTripRecap, isGettingThere, starsFor } from '../services/tripRecap';
-import { buildTripAreas } from '../services/tripAreas';
+import { ITINERARY_PREFIX, buildTripAreas } from '../services/tripAreas';
 import { dayMapSrc } from '../services/dayMapImage';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import TripCover from './TripCover';
@@ -88,6 +88,14 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
   /** The stop whose diary is open, and what has been typed into it. */
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  /**
+   * The area the map is showing, or the whole trip.
+   *
+   * 「應該點哪一區就要換那一區的地圖」 — the footprint of a whole trip is a
+   * country at a time, which answers 「did I go to Japan」 and nothing else.
+   * 13 個地點 in Taito City is a walk, and that is the map worth drawing.
+   */
+  const [area, setArea] = useState<string | null>(null);
 
   /*
     The areas, from the same grouping the collection screen uses. 新宿區 4個景點
@@ -113,9 +121,15 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
     took, in the order the itinerary happens to be stored in.
   */
   /* The places, not the airports they were reached through. */
-  const pins = recap.visited.filter(
+  const everywhere = recap.visited.filter(
     stop => typeof stop.latitude === 'number' && stop.category !== 'transport',
   );
+  /* The stops of the chosen area, by the ids that area was clustered from. */
+  const chosen = areas.find(cluster => cluster.id === area);
+  const inArea = chosen
+    ? new Set(chosen.places.map(place => place.id.replace(ITINERARY_PREFIX, '')))
+    : undefined;
+  const pins = inArea ? everywhere.filter(stop => inArea.has(stop.itemId)) : everywhere;
   const footprint = pins.length > 0
     ? dayMapSrc({
       stops: pins.map((stop, index) => ({
@@ -220,7 +234,22 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
             </section>
 
             <section className={CARD}>
-              <h3 className="font-black text-[#11183d]">旅程足跡地圖</h3>
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="font-black text-[#11183d]">旅程足跡地圖</h3>
+                {chosen && (
+                  <button
+                    type="button"
+                    data-testid="recap-area-clear"
+                    onClick={() => setArea(null)}
+                    className="shrink-0 text-[11px] font-black text-violet-700"
+                  >
+                    看整趟
+                  </button>
+                )}
+              </div>
+              <div data-testid="recap-map-scope" className="mt-1 text-[11px] font-bold text-slate-400">
+                {chosen ? chosen.label : '整趟旅程'}
+              </div>
               {footprint ? (
                 <img
                   data-testid="recap-footprint"
@@ -237,11 +266,23 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
               )}
               {areas.length > 0 && (
                 <div data-testid="recap-areas" className="mt-3 grid grid-cols-2 gap-2">
-                  {areas.map(area => (
-                    <div key={area.id} className="rounded-2xl border border-slate-100 bg-[#f8f9ff] px-3 py-2.5">
-                      <div className="truncate text-xs font-black text-[#11183d]">{area.label}</div>
-                      <div className="mt-0.5 text-[11px] font-bold text-slate-400">{area.places.length} 個地點</div>
-                    </div>
+                  {areas.map(cluster => (
+                    <button
+                      key={cluster.id}
+                      type="button"
+                      data-testid={`recap-area-${cluster.id}`}
+                      aria-pressed={area === cluster.id}
+                      /* Pressing the chosen one again goes back to the whole trip. */
+                      onClick={() => setArea(current => (current === cluster.id ? null : cluster.id))}
+                      className={`rounded-2xl border px-3 py-2.5 text-left transition-colors ${
+                        area === cluster.id
+                          ? 'border-violet-300 bg-violet-50'
+                          : 'border-slate-100 bg-[#f8f9ff]'
+                      }`}
+                    >
+                      <div className="truncate text-xs font-black text-[#11183d]">{cluster.label}</div>
+                      <div className="mt-0.5 text-[11px] font-bold text-slate-400">{cluster.places.length} 個地點</div>
+                    </button>
                   ))}
                 </div>
               )}

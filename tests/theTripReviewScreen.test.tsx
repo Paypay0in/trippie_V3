@@ -78,6 +78,45 @@ describe('總覽', () => {
     expect(screen.getByTestId('recap-areas').textContent).toContain('個地點');
   });
 
+  /*
+    「應該點哪一區就要換那一區的地圖」 — the footprint of a whole trip is a
+    country at a time, which answers 「did I go to Japan」 and nothing else.
+  */
+  describe('一區一張地圖', () => {
+    const twoAreas = () => open([
+      stop({ id: 'ueno', title: '上野', address: '東京都台東区上野2-13-13', latitude: 35.71, longitude: 139.77 }),
+      stop({ id: 'shinjuku', title: '新宿御苑', address: '東京都新宿区内藤町11', latitude: 35.685, longitude: 139.71 }),
+    ]);
+
+    it('starts on the whole trip', () => {
+      twoAreas();
+
+      expect(screen.getByTestId('recap-map-scope').textContent).toBe('整趟旅程');
+      expect(screen.queryByTestId('recap-area-clear')).toBeNull();
+    });
+
+    it('redraws the map for the area that was pressed', () => {
+      twoAreas();
+      const before = screen.getByTestId('recap-footprint').getAttribute('src');
+      const [first] = [...screen.getByTestId('recap-areas').querySelectorAll('button')];
+      fireEvent.click(first);
+
+      expect(screen.getByTestId('recap-footprint').getAttribute('src')).not.toBe(before);
+      expect(screen.getByTestId('recap-map-scope').textContent).not.toBe('整趟旅程');
+      expect(first.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    /* Pressing the chosen one again is how you get back out of it. */
+    it('goes back to the whole trip', () => {
+      twoAreas();
+      const [first] = [...screen.getByTestId('recap-areas').querySelectorAll('button')];
+      fireEvent.click(first);
+      fireEvent.click(screen.getByTestId('recap-area-clear'));
+
+      expect(screen.getByTestId('recap-map-scope').textContent).toBe('整趟旅程');
+    });
+  });
+
   it('ranks the rated stops as 旅程亮點', () => {
     const rated = stop({ id: 'k', title: 'Kurofunetei', latitude: 35.71, longitude: 139.77 });
     open([rated], [bill({
