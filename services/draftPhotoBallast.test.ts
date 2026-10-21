@@ -1,0 +1,72 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * 「行程儲存失敗…這台裝置的儲存空間可能滿了」 — a stop could not be added to
+ * tomorrow because of a receipt photographed last week.
+ *
+ * A photo on a synced trip is already on the server, and a read puts the
+ * server's row back over the local one. So the local copy of a *confirmed*
+ * photo is a cache. Confirmed is the whole of the safety: a photo taken five
+ * minutes ago with no signal is never touched.
+ */
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { withoutCloudHeldPhotos } from './draftPhotoBallast';
+import { saveEverSeen } from './everSeenRemoteIds';
+import { TripDraft } from './tripPersistence';
+
+const draft = (expenses: Array<Record<string, unknown>>): TripDraft[] => ([{
+  id: 'trip-1', name: '東京', expenses,
+}] as unknown as TripDraft[]);
+
+const bill = (id: string, photos?: string[]) => ({
+  id, description: '黑船亭', twdAmount: 882,
+  ...(photos ? { receiptPhotos: photos } : {}),
+});
+
+beforeEach(() => localStorage.clear());
+afterEach(() => localStorage.clear());
+
+describe('withoutCloudHeldPhotos', () => {
+  it('drops the local copy of a photo the server has confirmed', () => {
+    saveEverSeen('trip-1', { expenses: ['e1'] });
+
+    const { drafts, dropped } = withoutCloudHeldPhotos(draft([bill('e1', ['a', 'b'])]));
+
+    expect(dropped).toBe(2);
+    expect(drafts[0].expenses?.[0]).not.toHaveProperty('receiptPhotos');
+  });
+
+  /* The one that must never be touched. */
+  it('keeps a photo the server has not acknowledged', () => {
+    saveEverSeen('trip-1', { expenses: ['e1'] });
+
+    const { drafts, dropped } = withoutCloudHeldPhotos(draft([bill('e2', ['fresh'])]));
+
+    expect(dropped).toBe(0);
+    expect(drafts[0].expenses?.[0]).toHaveProperty('receiptPhotos');
+  });
+
+  /* A trip that has never synced has nothing confirmed, so nothing goes. */
+  it('touches nothing on a trip that never synced', () => {
+    const original = draft([bill('e1', ['a'])]);
+
+    const { drafts, dropped } = withoutCloudHeldPhotos(original);
+
+    expect(dropped).toBe(0);
+    expect(drafts).toBe(original);
+  });
+
+  it('leaves the rest of the bill alone', () => {
+    saveEverSeen('trip-1', { expenses: ['e1'] });
+
+    const { drafts } = withoutCloudHeldPhotos(draft([bill('e1', ['a'])]));
+
+    expect(drafts[0].expenses?.[0]).toMatchObject({ id: 'e1', description: '黑船亭', twdAmount: 882 });
+  });
+
+  it('says nothing was freed when there were no photos', () => {
+    saveEverSeen('trip-1', { expenses: ['e1'] });
+
+    expect(withoutCloudHeldPhotos(draft([bill('e1')])).dropped).toBe(0);
+  });
+});

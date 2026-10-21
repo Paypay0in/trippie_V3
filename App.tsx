@@ -2143,6 +2143,17 @@ const App: React.FC = () => {
       can act on 「空間滿了」 and cannot act on a white screen.
     */
     const result = writeDraftStore(drafts, activeDraftId);
+    /*
+      Said when the device had to be cleared to fit. The photos are still in
+      the cloud and come back on the next read, but the traveller should know
+      their phone is full rather than find out by something else failing.
+    */
+    if (result.saved === true && result.lightened) {
+      setToast({
+        msg: `這台裝置空間不足，已清掉 ${result.lightened} 張本機收據照片（雲端仍保留，之後會自動讀回）。`,
+        type: 'success',
+      });
+    }
     if (result.saved === false) {
       setToast({
         msg: result.reason === 'quota'

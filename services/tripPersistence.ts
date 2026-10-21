@@ -1,3 +1,4 @@
+import { withoutCloudHeldPhotos } from './draftPhotoBallast';
 import { TripPlanBrief } from './tripPlanBrief';
 import { ParsedRental } from './rentalIntake';
 import {
@@ -475,7 +476,10 @@ export const readDraftStore = (): DraftStore => {
  * 'quota' is the device being full, which on this app means receipt photos:
  * they are base64 inside the draft, and a handful of them is megabytes.
  */
-export type DraftWriteResult = { saved: true } | { saved: false; reason: 'quota' | 'unknown' };
+export type DraftWriteResult =
+  /** `lightened` counts photos dropped from the local copy to make room. */
+  | { saved: true; lightened?: number }
+  | { saved: false; reason: 'quota' | 'unknown' };
 
 /**
  * Writes the drafts, and never throws doing it.
@@ -491,13 +495,17 @@ export type DraftWriteResult = { saved: true } | { saved: false; reason: 'quota'
  * to be able to say so.
  */
 export const writeDraftStore = (drafts: TripDraft[], activeDraftId: string | null): DraftWriteResult => {
-  try {
-    localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
+  const writeActive = () => {
     if (activeDraftId && drafts.some((draft) => draft.id === activeDraftId)) {
       localStorage.setItem(ACTIVE_DRAFT_STORAGE_KEY, activeDraftId);
     } else {
       localStorage.removeItem(ACTIVE_DRAFT_STORAGE_KEY);
     }
+  };
+
+  try {
+    localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
+    writeActive();
     return { saved: true };
   } catch (error) {
     /*
@@ -509,6 +517,29 @@ export const writeDraftStore = (drafts: TripDraft[], activeDraftId: string | nul
     const code = (error as { code?: number })?.code;
     const quota = /quota/i.test(name) || code === 22 || code === 1014;
     console.error('Draft store write failed:', error);
+
+    /*
+      One retry, without the local copy of photos the cloud already holds.
+
+      A full device used to stop everything — a stop added to tomorrow could
+      not be saved because of a receipt photographed last week. The photos are
+      on the server for any trip that has synced, and a read puts them back,
+      so the copy here is a cache. Nothing unconfirmed is touched; see
+      `draftPhotoBallast`.
+    */
+    if (quota) {
+      const lightened = withoutCloudHeldPhotos(drafts);
+      if (lightened.dropped > 0) {
+        try {
+          localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(lightened.drafts));
+          writeActive();
+          return { saved: true, lightened: lightened.dropped };
+        } catch (retryError) {
+          console.error('Draft store write failed after freeing photos:', retryError);
+        }
+      }
+    }
+
     return { saved: false, reason: quota ? 'quota' : 'unknown' };
   }
 };

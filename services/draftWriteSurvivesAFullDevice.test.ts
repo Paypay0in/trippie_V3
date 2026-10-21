@@ -11,6 +11,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { writeDraftStore, DRAFTS_STORAGE_KEY } from './tripPersistence';
+import { saveEverSeen } from './everSeenRemoteIds';
 
 afterEach(() => { vi.restoreAllMocks(); localStorage.clear(); });
 
@@ -53,5 +54,45 @@ describe('writing the drafts when the device is full', () => {
   it('says so plainly when it worked', () => {
     expect(writeDraftStore([draft], 'd1')).toEqual({ saved: true });
     expect(localStorage.getItem(DRAFTS_STORAGE_KEY)).toContain('東京');
+  });
+});
+
+/**
+ * 「行程儲存失敗…這台裝置的儲存空間可能滿了」.
+ *
+ * A full device used to stop everything: a stop added to tomorrow could not be
+ * saved because of a receipt photographed last week. The photos are on the
+ * server for any trip that has synced, so the local copy is a cache — and a
+ * cache is the right thing to drop when the shelf is full.
+ */
+describe('a full device with photos the cloud already holds', () => {
+  const quota = () => Object.assign(new Error('full'), { name: 'QuotaExceededError' });
+
+  const withPhotos = [{
+    id: 'trip-1', name: '東京',
+    expenses: [{ id: 'e1', description: '黑船亭', receiptPhotos: ['a', 'b'] }],
+  }] as never;
+
+  it('frees them and saves', () => {
+    saveEverSeen('trip-1', { expenses: ['e1'] });
+    let attempt = 0;
+    const real = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key: string, value: string) {
+      attempt += 1;
+      // The first write is the one with the photos in it.
+      if (attempt === 1) throw quota();
+      real.call(this, key, value);
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(writeDraftStore(withPhotos, 'trip-1')).toEqual({ saved: true, lightened: 2 });
+  });
+
+  /* Nothing confirmed means nothing safe to drop, so it still reports. */
+  it('still fails when there is nothing safe to free', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw quota(); });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(writeDraftStore(withPhotos, 'trip-1')).toEqual({ saved: false, reason: 'quota' });
   });
 });
