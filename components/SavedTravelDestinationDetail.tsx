@@ -12,6 +12,9 @@ import { PlaceVisit, visitLabel, visitOf } from '../services/visitedPlaces';
 import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import SavedPlaceCard from './SavedPlaceCard';
+import AddPlaceByName from './AddPlaceByName';
+import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
+import type { ItinerarySlice } from '../services/itineraryImageSlices';
 import PlaceThumbnail from './PlaceThumbnail';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { dayMapSrc } from '../services/dayMapImage';
@@ -68,6 +71,15 @@ type Props = {
    * year. See `statedVisits` and `PlaceVisit.stated`.
    */
   onToggleVisited?: (place: SavedTravelInspiration) => void;
+  /**
+   * 「這裡也要可以手動與讀取截圖來加入旅行靈感」.
+   *
+   * The same two entry points the trip planner has, wired to the same
+   * components. A collection you cannot add to from the collection screen is
+   * a shelf with the door on another floor.
+   */
+  onAddSavedPlace?: (resolved: ResolvedCandidate) => void;
+  onSaveScreenshotPlaces?: (slices: ItinerarySlice[]) => Promise<number> | number;
 };
 
 
@@ -80,7 +92,7 @@ type Props = {
  */
 const NOTE_PREVIEW = 4;
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited }) => {
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
@@ -279,6 +291,39 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
         <Plus size={17} strokeWidth={3} />建立{cityDisplayName(city)}旅行
       </button>
       <p className="mt-2 text-center text-[11px] text-slate-400">建立後可在行程規劃中挑選這裡的收藏靈感</p>
+
+      {/*
+        「這裡也要可以手動與讀取截圖來加入旅行靈感」.
+
+        Both of these existed on the trip's planning screen and nowhere else —
+        so the collection, the screen whose whole job is holding saved places,
+        had no way to add one. They are the same two components, not second
+        copies: adding a place has one idea of what a Google Maps link means,
+        and reading a screenshot has one idea of what a card is.
+      */}
+      {onAddSavedPlace && (
+        <div className="mt-3">
+          <AddPlaceByName
+            context={{ city: cityDisplayName(city), country: countryDisplayName(country) }}
+            onAdd={onAddSavedPlace}
+          />
+        </div>
+      )}
+      {onSaveScreenshotPlaces && (
+        <div className="mt-3">
+          {/*
+            No `onAddItems`: there is no open day here to put a card on. The
+            intake already handles that — 「直接加到行程」 is omitted and the
+            cards go to the collection, which is the screen being looked at.
+          */}
+          <ScreenshotItineraryIntake
+            dates={[]}
+            destination={cityDisplayName(city)}
+            destinationCountry={countryDisplayName(country)}
+            onSaveToCollection={onSaveScreenshotPlaces}
+          />
+        </div>
+      )}
     </section>
     <section className="space-y-3 p-4">
       {ordered.map((item, index) => {

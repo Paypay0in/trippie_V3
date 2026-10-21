@@ -6734,6 +6734,12 @@ const App: React.FC = () => {
           setStatedVisits((current) =>
             toggleStatedVisit(place, current, new Date().toISOString().slice(0, 10)))}
         /*
+          「這裡也要可以手動與讀取截圖來加入旅行靈感」 — the same two handlers the
+          planner uses, so a place added here is a place added anywhere.
+        */
+        onAddSavedPlace={handleAddSavedPlace}
+        onSaveScreenshotPlaces={handleSaveScreenshotPlaces}
+        /*
           「這在釜山 我無法改」 — a record bound to the wrong place is missing
           nothing, so every repair built around 「what is incomplete」 skipped it.
           The same writer the planner's lookup uses, stamped like any other

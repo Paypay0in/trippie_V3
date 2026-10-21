@@ -35,8 +35,8 @@ import {
 import { ItineraryAcceptanceMode } from '../services/itineraryAcceptance';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { localToday } from '../services/localDate';
-import { expandMapsShortLink, findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
-import { readMapsInput } from '../services/mapsLinkInput';
+import { findPlaceCandidates, PlaceCandidate, ResolvedCandidate, resolveCandidate } from '../services/placeCandidates';
+import AddPlaceByName from './AddPlaceByName';
 import { knowsWhereItIs, placesNeedingBackfill } from '../services/inspirationBackfill';
 import { resolvePlace } from '../services/placeService';
 import { placeWhereLabel } from '../services/placeWhereLabel';
@@ -270,92 +270,6 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     「which place is this saved row really」 and 「what else do I want to add」 —
     and sharing one box would make opening the second close the first.
   */
-  const [addOpen, setAddOpen] = useState(false);
-  const [addQuery, setAddQuery] = useState('');
-  const [addResults, setAddResults] = useState<PlaceCandidate[]>([]);
-  const [addBusy, setAddBusy] = useState(false);
-  const [addError, setAddError] = useState('');
-
-  /*
-    A name, an address, or a link somebody shared.
-
-    「我希望他可以即使輸入地址或是 google map 連結都可以帶入」 — and a link is how
-    places are actually passed between people. This box used to send whatever
-    it was given to autocomplete as a shop name, so a pasted
-    `https://maps.app.goo.gl/…` searched for that literal string and found
-    nothing at all.
-
-    The results are still a list to choose from rather than a silent binding:
-    `placeCandidates` explains why, and a link changes nothing about that —
-    what it changes is that the search is given the place's name and the spot
-    it sits on instead of a URL.
-  */
-  const runAddSearch = async () => {
-    const typed = addQuery.trim();
-    if (!typed) return;
-    setAddBusy(true);
-    setAddError('');
-    try {
-      const pasted = readMapsInput(typed);
-      // Only the server can follow a short link; see `expandMapsShortLink`.
-      const input = pasted.kind === 'shortLink'
-        ? readMapsInput(await expandMapsShortLink(pasted.url))
-        : pasted;
-
-      if (input.kind === 'shortLink') {
-        // Expanded into another short link, i.e. it did not expand at all.
-        setAddResults([]);
-        setAddError('這個連結展不開，請改貼完整網址或直接打店名。');
-        return;
-      }
-
-      if (input.kind === 'position') {
-        // A pin with no name. Nothing to search for, and a guessed name would
-        // be worse than saying so.
-        setAddResults([]);
-        setAddError('這個連結只有座標沒有店名，請加上店名再搜尋。');
-        return;
-      }
-
-      const found = await findPlaceCandidates(input.query, {
-        city: trip.destination,
-        country: trip.destinationCountry || trip.travelCountry,
-        // The link's own spot wins over the trip's centre: a shared pin is
-        // exactly where the place is, and the trip's centre is a whole city.
-        latitude: input.kind === 'link' && input.latitude !== undefined
-          ? input.latitude : trip.destinationLatitude,
-        longitude: input.kind === 'link' && input.longitude !== undefined
-          ? input.longitude : trip.destinationLongitude,
-      });
-      setAddResults(found);
-      if (found.length === 0) {
-        setAddError(input.kind === 'link'
-          ? '這個連結讀得到店名，但查不到對應的地點，換個說法試試。'
-          : '找不到這個地點，換個說法試試。');
-      }
-    } catch {
-      setAddError('現在查不到，請稍後再試。');
-    } finally {
-      setAddBusy(false);
-    }
-  };
-
-  const addChosen = async (candidate: PlaceCandidate) => {
-    if (!onAddSavedPlace) return;
-    setAddBusy(true);
-    try {
-      const resolved = await resolveCandidate(candidate);
-      if (!resolved) { setAddError('這個地點的資料讀不到，換一個試試。'); return; }
-      onAddSavedPlace(resolved);
-      setAddOpen(false);
-      setAddQuery('');
-      setAddResults([]);
-    } catch {
-      setAddError('這個地點的資料讀不到，換一個試試。');
-    } finally {
-      setAddBusy(false);
-    }
-  };
 
   /*
     Saved places with no address or no real city. See `inspirationBackfill`.
@@ -1050,64 +964,15 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       */}
       {onAddSavedPlace && (
         <div className="mt-3">
-          {!addOpen ? (
-            <button
-              type="button"
-              data-testid="open-add-place"
-              onClick={() => { setAddOpen(true); setAddError(''); }}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50/50 px-3 text-xs font-black text-[#5b3df5]"
-            >
-              <Plus size={14} />手動新增地點
-            </button>
-          ) : (
-            <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
-              <div className="flex gap-1.5">
-                <input
-                  autoFocus
-                  value={addQuery}
-                  onChange={event => setAddQuery(event.target.value)}
-                  onKeyDown={event => { if (event.key === 'Enter') void runAddSearch(); }}
-                  placeholder="店名、地址，或貼上 Google 地圖連結"
-                  aria-label="手動新增地點"
-                  data-testid="add-place-input"
-                  className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-2.5 py-1.5 text-xs font-bold text-[#11183d] outline-none"
-                />
-                <button
-                  type="button"
-                  data-testid="add-place-search"
-                  onClick={() => void runAddSearch()}
-                  disabled={addBusy}
-                  className="shrink-0 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
-                >
-                  {addBusy ? '搜尋中' : '搜尋'}
-                </button>
-              </div>
-              {addError && <p className="mt-1.5 text-[11px] font-bold text-amber-600">{addError}</p>}
-              {addResults.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {addResults.map(candidate => (
-                    <button
-                      type="button"
-                      key={candidate.placeId}
-                      data-testid={`add-place-pick-${candidate.placeId}`}
-                      onClick={() => void addChosen(candidate)}
-                      className="block w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-left"
-                    >
-                      <span className="block text-xs font-black text-[#11183d]">{candidate.name}</span>
-                      {candidate.detail && <span className="mt-0.5 block text-[10px] text-slate-500">{candidate.detail}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => { setAddOpen(false); setAddResults([]); setAddError(''); }}
-                className="mt-2 text-[11px] font-black text-slate-500"
-              >
-                取消
-              </button>
-            </div>
-          )}
+          <AddPlaceByName
+            context={{
+              city: trip.destination,
+              country: trip.destinationCountry || trip.travelCountry,
+              latitude: trip.destinationLatitude,
+              longitude: trip.destinationLongitude,
+            }}
+            onAdd={onAddSavedPlace}
+          />
         </div>
       )}
 
