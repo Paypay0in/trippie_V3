@@ -55,7 +55,7 @@ describe('總覽', () => {
     expect(screen.getByTestId('recap-stat-旅行天數').textContent).toBe('2');
     expect(screen.getByTestId('recap-stat-造訪景點').textContent).toBe('1');
     expect(screen.getByTestId('recap-stat-餐廳美食').textContent).toBe('1');
-    expect(screen.getByTestId('recap-stat-總花費').textContent).toBe('NT$ 2,146');
+    expect(screen.getByTestId('recap-stat-我的花費').textContent).toBe('NT$ 2,146');
   });
 
   it('draws the footprint from the stops that have a position', () => {

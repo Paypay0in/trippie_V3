@@ -9135,6 +9135,9 @@ const App: React.FC = () => {
               }}
               expenses={ratedExpenses}
               today={new Date().toISOString().split("T")[0]}
+              /* 「只需要算我自己」 — the reader's share, not the trip's total. */
+              viewerMemberId={viewerMemberId}
+              members={settlementMembers}
               onBack={() => setRecapOpen(false)}
               onOpenRecords={() => { setRecapOpen(false); setWorkspaceSection("records"); }}
             />

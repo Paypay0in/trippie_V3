@@ -74,10 +74,37 @@ describe('the four counts', () => {
     expect(built.stats.places).toBe(1);
   });
 
-  it('totals every bill on the trip', () => {
+  it('totals every bill on a ledger with nobody to apportion to', () => {
     const built = recap([stop()], [bill(), bill({ id: 'e2', twdAmount: 1200 })]);
 
     expect(built.stats.totalTwd).toBe(2146);
+  });
+
+  /*
+    「釜山總花費是錯的 只需要算我自己」. It summed `twdAmount` — every bill
+    whole, including the half a companion carries — so a shared trip reported
+    a number the traveller had never spent. One rule for 「what did this cost
+    me」, shared with the ledger, the day card and the closing report.
+  */
+  it('counts only the reader\'s share of a shared bill', () => {
+    const shared = bill({
+      twdAmount: 1000,
+      beneficiaries: ['me', 'sherry'],
+      splitMethod: 'EXACT',
+      splitAllocations: { me: 400, sherry: 600 },
+    });
+    const built = buildTripRecap({
+      trip: { itinerary: [stop()] },
+      expenses: [shared],
+      today: TODAY,
+      viewerMemberId: 'me',
+      members: [
+        { id: 'me', name: '我', type: 'owner' },
+        { id: 'sherry', name: 'Sherry', type: 'companion' },
+      ] as never,
+    });
+
+    expect(built.stats.totalTwd).toBe(400);
   });
 });
 
@@ -150,6 +177,28 @@ describe('what a stop carries', () => {
 
     expect(entry.rating).toBeUndefined();
     expect(entry.twdAmount).toBeUndefined();
+  });
+
+  /* A stop's spend is the same question: what it cost the person reading. */
+  it('shows the reader\'s share of what was spent at a place', () => {
+    const built = buildTripRecap({
+      trip: { itinerary: [kurofune] },
+      expenses: [{
+        ...atKurofune,
+        twdAmount: 1000,
+        beneficiaries: ['me', 'sherry'],
+        splitMethod: 'EXACT',
+        splitAllocations: { me: 400, sherry: 600 },
+      }],
+      today: TODAY,
+      viewerMemberId: 'me',
+      members: [
+        { id: 'me', name: '我', type: 'owner' },
+        { id: 'sherry', name: 'Sherry', type: 'companion' },
+      ] as never,
+    });
+
+    expect(built.days[0].stops[0].twdAmount).toBe(400);
   });
 
   it('adds up two bills at the same place', () => {

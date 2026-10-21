@@ -24,7 +24,8 @@
  * of its own is the day the review starts attributing the wrong dinner to the
  * wrong evening.
  */
-import { Expense, ItineraryItem, Trip } from '../types';
+import { Expense, ItineraryItem, Trip, TripMember } from '../types';
+import { expenseCostToViewer, ownerMemberIdOf } from './viewerSpend';
 import { PlaceCategory, placeCategory } from './placeCategory';
 import { SpendAtPlace, spendAtPlace } from './spendAtPlace';
 
@@ -62,7 +63,15 @@ export interface RecapStats {
   places: number;
   /** Visited stops that were. */
   meals: number;
-  /** Every bill on the trip, in TWD. */
+  /**
+   * What the trip cost *this* traveller, in TWD.
+   *
+   * 「釜山總花費是錯的 只需要算我自己」 — it was summing `twdAmount`, every bill
+   * whole, including the half a companion carries and the bills they paid for
+   * themselves. `expenseCostToViewer` is the one place that answers 「what did
+   * this cost me」 and four other screens already used it; the review had
+   * quietly written a fifth answer.
+   */
   totalTwd: number;
 }
 
@@ -108,11 +117,11 @@ const hasHappened = (item: ItineraryItem, today: string): boolean =>
   item.isCompleted === true || Boolean(item.date && item.date < today);
 
 /** The best rating among the bills at a place, and the first photo there is. */
-const fromBills = (bills: SpendAtPlace[]) => {
+const fromBills = (bills: SpendAtPlace[], costOf: (expenseId: string) => number) => {
   const rated = bills.map(bill => bill.rating).filter((value): value is number => typeof value === 'number');
   const photo = bills.flatMap(bill => bill.photos ?? (bill.photo ? [bill.photo] : []))[0];
   const note = bills.map(bill => bill.note?.trim()).find(Boolean);
-  const spent = bills.reduce((sum, bill) => sum + (bill.twdAmount || 0), 0);
+  const spent = bills.reduce((sum, bill) => sum + costOf(bill.expenseId), 0);
   return {
     ...(rated.length > 0 ? { rating: Math.max(...rated) } : {}),
     ...(photo ? { photo } : {}),
@@ -127,9 +136,23 @@ export const buildTripRecap = (
     /** Already carrying any device-held ratings; see `withStatedRatings`. */
     expenses: Expense[];
     today: string;
+    /**
+     * Who is reading, and the roster their share is worked out against.
+     *
+     * Absent on a solo ledger, where the whole amount is the honest answer:
+     * there is nobody to apportion to.
+     */
+    viewerMemberId?: string;
+    members?: TripMember[];
   },
 ): TripRecap => {
   const items = (input.trip.itinerary || []).filter(item => Boolean(item.date));
+  const ownerMemberId = ownerMemberIdOf(input.members);
+  /* One rule for 「what did this cost me」, shared with the ledger and the day card. */
+  const costToViewer = (expense: Expense) =>
+    expenseCostToViewer(expense, input.viewerMemberId, ownerMemberId);
+  const costById = new Map(input.expenses.map(expense => [expense.id, costToViewer(expense)]));
+  const costOf = (expenseId: string) => costById.get(expenseId) ?? 0;
 
   const stops: RecapStop[] = items.map(item => ({
     itemId: item.id,
@@ -142,7 +165,7 @@ export const buildTripRecap = (
       && !(item.latitude === 0 && item.longitude === 0)
       ? { latitude: item.latitude, longitude: item.longitude }
       : {}),
-    ...fromBills(spendAtPlace(asPlace(item), input.expenses)),
+    ...fromBills(spendAtPlace(asPlace(item), input.expenses), costOf),
   }));
 
   const happened = new Set(items.filter(item => hasHappened(item, input.today)).map(item => item.id));
@@ -174,7 +197,7 @@ export const buildTripRecap = (
       days: dates.length,
       places: visited.filter(stop => stop.category !== 'food').length,
       meals: visited.filter(stop => stop.category === 'food').length,
-      totalTwd: input.expenses.reduce((sum, expense) => sum + (expense.twdAmount || 0), 0),
+      totalTwd: input.expenses.reduce((sum, expense) => sum + costToViewer(expense), 0),
     },
     days,
     visited,

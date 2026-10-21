@@ -17,7 +17,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { ArrowLeft, CalendarRange, MapPin, Receipt, Sparkles, Star, UtensilsCrossed } from 'lucide-react';
-import { Expense, Trip } from '../types';
+import { Expense, Trip, TripMember } from '../types';
 import { RecapStop, buildTripRecap, starsFor } from '../services/tripRecap';
 import { buildTripAreas } from '../services/tripAreas';
 import { dayMapSrc } from '../services/dayMapImage';
@@ -28,6 +28,12 @@ interface Props {
   trip: Pick<Trip, 'name' | 'itinerary' | 'travelCountry'>;
   expenses: Expense[];
   today: string;
+  /**
+   * Who is reading. 「總花費是錯的 只需要算我自己」 — the figure is this
+   * traveller's share, never the whole trip's.
+   */
+  viewerMemberId?: string;
+  members?: TripMember[];
   onBack: () => void;
   /** Opens the ledger, for a figure somebody wants to question. */
   onOpenRecords?: () => void;
@@ -64,11 +70,11 @@ const Stars: React.FC<{ stop: RecapStop; testId: string }> = ({ stop, testId }) 
   );
 };
 
-const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, onBack, onOpenRecords }) => {
+const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords }) => {
   const [tab, setTab] = useState<Tab>('overview');
   const recap = useMemo(
-    () => buildTripRecap({ trip, expenses, today }),
-    [trip, expenses, today],
+    () => buildTripRecap({ trip, expenses, today, viewerMemberId, members }),
+    [trip, expenses, today, viewerMemberId, members],
   );
   const [day, setDay] = useState(0);
 
@@ -110,7 +116,8 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, onBack, onOpe
     [CalendarRange, '旅行天數', String(recap.stats.days), 'text-blue-600'],
     [MapPin, '造訪景點', String(recap.stats.places), 'text-violet-600'],
     [UtensilsCrossed, '餐廳美食', String(recap.stats.meals), 'text-amber-500'],
-    [Receipt, '總花費', money(recap.stats.totalTwd), 'text-emerald-600'],
+    /* 我的花費, because it is: the reader's share, not the trip's total. */
+    [Receipt, '我的花費', money(recap.stats.totalTwd), 'text-emerald-600'],
   ];
 
   const current = recap.days[Math.min(day, Math.max(0, recap.days.length - 1))];
@@ -359,7 +366,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, onBack, onOpe
               */}
               <p data-testid="recap-summary" className="mt-2 text-xs leading-6 text-slate-600">
                 {recap.stats.days} 天的旅程，走過 {recap.stats.places} 個地點、吃了 {recap.stats.meals} 餐，
-                總共記下 {money(recap.stats.totalTwd)} 的花費。
+                你自己花了 {money(recap.stats.totalTwd)}。
                 {recap.highlights.length > 0 && `最喜歡的是 ${recap.highlights[0].title}。`}
               </p>
               {onOpenRecords && (
