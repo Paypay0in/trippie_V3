@@ -5,6 +5,7 @@ import { suggestionsForSlot } from '../services/suggestionsForSlot';
 import { fetchNearbyRestaurants, LookingFor, NearbyRestaurant } from '../services/nearbyRestaurantsService';
 import { ItineraryItem, PlaceCategory } from '../types';
 import { CATEGORY_LABELS } from '../services/placeCategory';
+import { slotLabelFor } from '../services/slotLabel';
 import { AREA_COLORS } from '../constants/areaColors';
 import { cleanManualTitle, MAX_TITLE } from '../services/manualBlockEntry';
 
@@ -771,9 +772,20 @@ const DayBlockPlanner: React.FC<Props> = ({
               not a reason to query someone's dinner.
             */
             const tag = occupant && categoryOf ? categoryOf(occupant) : undefined;
-            const askAboutTheMeal = slot.kind === 'meal' && occupant && tag && tag !== 'food'
-              ? `這格是${slot.label}，但「${occupant.location || occupant.title}」是${CATEGORY_LABELS[tag as PlaceCategory] || tag}。確定嗎？`
-              : undefined;
+            /*
+              「午餐的標注要以地點標籤判斷 不是用時間判斷」.
+
+              A filled row is named after what is in it; only an empty one
+              keeps the clock's guess, which is what makes it suggest
+              restaurants at noon.
+
+              This replaces the question that used to live here — 「這格是晚
+              餐，但『八十八淺草』是咖啡。確定嗎？」. The screen only ever had to
+              ask because it had just asserted something it could see was
+              untrue: a label that describes its contents cannot disagree with
+              them.
+            */
+            const rowLabel = slotLabelFor({ label: slot.label, kind: slot.kind, category: tag });
 
             return (
               <React.Fragment key={slot.id}>
@@ -877,8 +889,8 @@ const DayBlockPlanner: React.FC<Props> = ({
                         {slot.startTime}–{slot.endTime}
                       </span>
                     </span>
-                    <span className={`block text-[10px] font-bold ${slot.kind === 'meal' ? 'text-amber-600' : 'text-slate-400'}`}>
-                      {slot.label}
+                    <span className={`block text-[10px] font-bold ${slot.kind === 'meal' && !occupant ? 'text-amber-600' : 'text-slate-400'}`}>
+                      {rowLabel}
                     </span>
                     {/*
                       Why this row is below the day rather than inside it.
@@ -1114,14 +1126,6 @@ const DayBlockPlanner: React.FC<Props> = ({
                 ) : null}
               </div>
               </div>
-              {askAboutTheMeal && (
-                <p
-                  data-testid={`meal-check-${slot.index}`}
-                  className="ml-2.5 mt-0.5 text-[10px] font-bold leading-4 text-amber-600"
-                >
-                  {askAboutTheMeal}
-                </p>
-              )}
               </React.Fragment>
             );
           })}

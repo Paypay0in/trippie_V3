@@ -585,7 +585,14 @@ describe('取消固定', () => {
  * move a restaurant into a free meal window; what they cannot do is notice a
  * window ended up with a café in it.
  */
-describe('這一餐真的是這個嗎', () => {
+/**
+ * 「午餐的標注要以地點標籤判斷 不是用時間判斷」.
+ *
+ * This row used to be named 晚餐 for sitting at 18:30 and then ask 「這格是晚
+ * 餐，但『Leaves Coffee Roasters』是咖啡。確定嗎？」 — a question the screen only
+ * had to ask because it had just asserted something it could see was untrue.
+ */
+describe('a row is named after what is in it', () => {
   const dinner = [
     item('it-coffee', 'Leaves Coffee Roasters', '18:30', {
       latitude: 35.7142, longitude: 139.7967, address: 'Sumida City, Tokyo',
@@ -598,23 +605,30 @@ describe('這一餐真的是這個嗎', () => {
     categoryOf: () => tag,
   });
 
-  it('asks when a café is sitting in a meal slot', () => {
+  it('calls a café row 咖啡, not 晚餐', () => {
     renderDinner('cafe');
 
-    const asked = document.querySelector('[data-testid^="meal-check-"]');
-    expect(asked?.textContent).toContain('Leaves Coffee Roasters');
-    expect(asked?.textContent).toContain('咖啡');
+    expect(screen.getByText('咖啡')).toBeTruthy();
+    expect(screen.queryByText('晚餐')).toBeNull();
   });
 
-  it('says nothing when the slot holds a restaurant', () => {
+  /* 餐廳 at seven is dinner; the two names do not disagree. */
+  it('leaves a restaurant row called 晚餐', () => {
     renderDinner('food');
 
-    expect(document.querySelector('[data-testid^="meal-check-"]')).toBeNull();
+    expect(screen.getByText('晚餐')).toBeTruthy();
   });
 
-  /* 「I cannot tell what this is」 is not a reason to query someone's dinner. */
-  it('says nothing when the tag is unknown', () => {
+  /* 「I cannot tell what this is」 is not a reason to rename somebody's day. */
+  it('keeps the clock when the tag is unknown', () => {
     renderDinner(undefined);
+
+    expect(screen.getByText('晚餐')).toBeTruthy();
+  });
+
+  /* The question it used to ask has nothing left to ask about. */
+  it('no longer queries the meal', () => {
+    renderDinner('cafe');
 
     expect(document.querySelector('[data-testid^="meal-check-"]')).toBeNull();
   });
