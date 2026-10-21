@@ -16,7 +16,7 @@
  *   rather than ranking the stops by something else and calling them 亮點.
  */
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarRange, MapPin, Receipt, Sparkles, Star, UtensilsCrossed } from 'lucide-react';
+import { ArrowLeft, CalendarRange, MapPin, NotebookPen, Receipt, Sparkles, Star, UtensilsCrossed } from 'lucide-react';
 import { Expense, Trip, TripMember } from '../types';
 import { RecapStop, buildTripRecap, starsFor } from '../services/tripRecap';
 import { buildTripAreas } from '../services/tripAreas';
@@ -37,6 +37,14 @@ interface Props {
   onBack: () => void;
   /** Opens the ledger, for a figure somebody wants to question. */
   onOpenRecords?: () => void;
+  /**
+   * Writes the traveller's own account of a stop.
+   *
+   * Saved onto the itinerary item's `notes`, so it travels with the trip and
+   * is readable by whoever else is on it — rather than into a device-local
+   * store, which is the shape that cost this morning.
+   */
+  onWriteDiary?: (itemId: string, text: string) => void;
 }
 
 type Tab = 'overview' | 'days' | 'picks';
@@ -70,13 +78,16 @@ const Stars: React.FC<{ stop: RecapStop; testId: string }> = ({ stop, testId }) 
   );
 };
 
-const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords }) => {
+const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords, onWriteDiary }) => {
   const [tab, setTab] = useState<Tab>('overview');
   const recap = useMemo(
     () => buildTripRecap({ trip, expenses, today, viewerMemberId, members }),
     [trip, expenses, today, viewerMemberId, members],
   );
   const [day, setDay] = useState(0);
+  /** The stop whose diary is open, and what has been typed into it. */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
 
   /*
     The areas, from the same grouping the collection screen uses. 新宿區 4個景點
@@ -314,6 +325,62 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                           )}
                           {typeof stop.twdAmount === 'number' && (
                             <div className="mt-1 text-[11px] font-bold text-slate-400">{money(stop.twdAmount)}</div>
+                          )}
+                          {/*
+                            The diary for a stop that cost nothing.
+
+                            「淺草寺啊啥的 應該要讓我點擊可以寫下日記」 — a temple
+                            has no bill, so it had a grey pin and its name and
+                            nothing else. Written against the item's own
+                            `notes`, which has always synced.
+                          */}
+                          {onWriteDiary && editing === stop.itemId ? (
+                            <div className="mt-2">
+                              <textarea
+                                data-testid={`recap-diary-input-${stop.itemId}`}
+                                value={draft}
+                                onChange={event => setDraft(event.target.value)}
+                                rows={3}
+                                autoFocus
+                                placeholder="這裡發生了什麼？"
+                                className="w-full rounded-xl border border-slate-200 p-2 text-[12px] leading-5 text-slate-700 outline-none focus:border-violet-400"
+                              />
+                              <div className="mt-1.5 flex gap-2">
+                                <button
+                                  type="button"
+                                  data-testid={`recap-diary-save-${stop.itemId}`}
+                                  onClick={() => { onWriteDiary(stop.itemId, draft.trim()); setEditing(null); }}
+                                  className="rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 py-1.5 text-[11px] font-black text-white"
+                                >
+                                  儲存
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditing(null)}
+                                  className="rounded-xl bg-slate-100 px-3 py-1.5 text-[11px] font-black text-slate-500"
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {stop.diary && (
+                                <p data-testid={`recap-stop-diary-${stop.itemId}`} className="mt-1 text-[11px] leading-4 text-slate-700">
+                                  {stop.diary}
+                                </p>
+                              )}
+                              {onWriteDiary && (
+                                <button
+                                  type="button"
+                                  data-testid={`recap-diary-open-${stop.itemId}`}
+                                  onClick={() => { setDraft(stop.diary ?? ''); setEditing(stop.itemId); }}
+                                  className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-black text-violet-700"
+                                >
+                                  <NotebookPen size={12} />{stop.diary ? '編輯日記' : '寫下日記'}
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       </li>

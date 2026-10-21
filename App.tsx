@@ -3573,7 +3573,12 @@ const App: React.FC = () => {
 
   const handleUpdateItineraryItem = (
     id: string,
-    updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time" | "durationMinutes">>,
+    /*
+      `notes` is here because 「淺草寺啊啥的 應該要讓我點擊可以寫下日記」 — a stop
+      with no bill had nowhere to hold what happened there, and the field it
+      belongs in already existed and already syncs.
+    */
+    updates: Partial<Pick<ItineraryItem, "date" | "isCompleted" | "time" | "durationMinutes" | "notes">>,
   ) => {
     setItinerary((current) => {
       const nextItinerary = current.map((item) =>
@@ -9140,6 +9145,9 @@ const App: React.FC = () => {
               members={settlementMembers}
               onBack={() => setRecapOpen(false)}
               onOpenRecords={() => { setRecapOpen(false); setWorkspaceSection("records"); }}
+              onWriteDiary={(itemId, text) =>
+                handleUpdateItineraryItem(itemId, { notes: text })
+              }
             />
           </div>
         )}

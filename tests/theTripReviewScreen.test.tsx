@@ -170,6 +170,54 @@ describe('每日行程', () => {
     expect(screen.queryByTestId('recap-stop-stars-i1')).toBeNull();
   });
 
+  /*
+    「淺草寺啊啥的 應該要讓我點擊可以寫下日記」 — a stop that costs nothing has
+    no bill, so it had a grey pin and its name and nothing else.
+  */
+  it('lets a stop with no bill be written about', () => {
+    const onWriteDiary = vi.fn();
+    render(
+      <TripRecapScreen
+        trip={{ name: '東京之旅', itinerary: [stop()], travelCountry: '日本' }}
+        expenses={[]}
+        today={TODAY}
+        onBack={vi.fn()}
+        onWriteDiary={onWriteDiary}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+    fireEvent.click(screen.getByTestId('recap-diary-open-i1'));
+    fireEvent.change(screen.getByTestId('recap-diary-input-i1'), { target: { value: '雷門比想像中大' } });
+    fireEvent.click(screen.getByTestId('recap-diary-save-i1'));
+
+    expect(onWriteDiary).toHaveBeenCalledWith('i1', '雷門比想像中大');
+  });
+
+  /* What was already written shows, and opens with that text in hand. */
+  it('shows the diary already written against a stop', () => {
+    render(
+      <TripRecapScreen
+        trip={{ name: '東京之旅', itinerary: [stop({ notes: '雷門比想像中大' })], travelCountry: '日本' }}
+        expenses={[]}
+        today={TODAY}
+        onBack={vi.fn()}
+        onWriteDiary={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    expect(screen.getByTestId('recap-stop-diary-i1').textContent).toContain('雷門比想像中大');
+    expect(screen.getByTestId('recap-diary-open-i1').textContent).toContain('編輯日記');
+  });
+
+  /* No way to write means no button offering to. */
+  it('offers no diary when the caller cannot save one', () => {
+    open([stop()]);
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+
+    expect(screen.queryByTestId('recap-diary-open-i1')).toBeNull();
+  });
+
   it('says so when nothing was ever scheduled', () => {
     open([]);
     goToDays();

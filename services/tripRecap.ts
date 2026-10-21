@@ -48,6 +48,14 @@ export interface RecapStop {
   twdAmount?: number;
   /** What they wrote on the bill afterwards, when they wrote anything. */
   note?: string;
+  /**
+   * The diary written against the stop itself.
+   *
+   * 「淺草寺啊啥的 應該要讓我點擊可以寫下日記」 — a temple costs nothing, so it
+   * has no bill and had nowhere to hold what happened there. This is the
+   * item's own `notes`, which has always existed and always synced.
+   */
+  diary?: string;
 }
 
 export interface RecapDay {
@@ -160,6 +168,7 @@ export const buildTripRecap = (
     time: item.time,
     title: item.title,
     ...(item.location?.trim() ? { location: item.location.trim() } : {}),
+    ...(item.notes?.trim() ? { diary: item.notes.trim() } : {}),
     category: categoryOf(item),
     ...(typeof item.latitude === 'number' && typeof item.longitude === 'number'
       && !(item.latitude === 0 && item.longitude === 0)
