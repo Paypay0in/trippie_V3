@@ -133,6 +133,36 @@ describe('how many', () => {
  * 「要找圖片」 — the screenshot the row was read out of.
  */
 describe('the picture', () => {
+  /* 「在網路上抓圖也很有幫助」 — offered on a row that has none. */
+  it('offers to find one', () => {
+    show([item()]);
+
+    expect(screen.getByTestId('shopping-find-photo-sk2')).toBeTruthy();
+  });
+
+  it('does not offer it on a row that has one', () => {
+    show([item({ photo: 'thumb' })]);
+
+    expect(screen.queryByTestId('shopping-find-photo-sk2')).toBeNull();
+  });
+
+  /*
+    A product shot nobody can place is believed because it looks like a
+    product shot. The page it came from is shown under it.
+  */
+  it('says where a web picture came from', () => {
+    show([item({ photo: 'https://img.example.com/a.jpg', photoSource: 'https://www.muji.com/p/1' })]);
+
+    expect(screen.getByTestId('shopping-photo-source-sk2').textContent).toBe('muji.com');
+  });
+
+  /* His own screenshot has no page, and is not labelled as if it had one. */
+  it('says nothing under his own screenshot', () => {
+    show([item({ photo: 'data:image/jpeg;base64,thumb' })]);
+
+    expect(screen.queryByTestId('shopping-photo-source-sk2')).toBeNull();
+  });
+
   it('shows the one the row carries', () => {
     show([item({ photo: 'data:image/jpeg;base64,thumb' })]);
 

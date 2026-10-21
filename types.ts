@@ -101,6 +101,14 @@ export interface ShoppingItem {
    * draft in localStorage, which a full device has already proven is not free.
    */
   photo?: string;
+  /**
+   * Where `photo` came from, when it was not the traveller's own screenshot.
+   *
+   * 「在網路上抓圖也很有幫助」 — so a row can say where its picture is from. A
+   * product shot nobody can place is trusted because it looks like a product
+   * shot; one with a page behind it can be recognised as wrong.
+   */
+  photoSource?: string;
   sourceType?: 'travel_rules';
   travelRuleActionType?: EntryActionType;
   travelRuleNecessity?: EntryNecessity;

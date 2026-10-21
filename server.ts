@@ -2023,6 +2023,70 @@ ${sentence}
     }
   });
 
+  /**
+   * A picture of a product, found on the web.
+   *
+   * 「不 我覺得在網路上抓圖也很有幫助」 — asked for after I had refused it, and
+   * it is his call. What I keep is the part that makes it honest: the page it
+   * came from travels with the image, so a row can say where its picture is
+   * from, and a wrong picture can be recognised as a wrong picture rather than
+   * trusted because it looks like a product shot.
+   *
+   * Grounded, and empty without grounding, for the same reason as the place
+   * lookup: an image URL a model remembers is a URL that 404s or belongs to
+   * something else entirely.
+   *
+   * Nothing is copied or stored server-side. This returns a link; the client
+   * renders it and can drop it.
+   */
+  app.post("/api/shopping/product-image", async (req, res) => {
+    const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
+    const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 60) : "";
+    if (!name) { res.status(400).json({ error: "A product is required." }); return; }
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) { res.status(503).json({ error: "現在找不到商品圖片。" }); return; }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await withModelFallback(model => ai.models.generateContent({
+        model,
+        contents: `幫這個商品找一張商品圖片的直接網址。
+
+商品：${name}
+${brand ? `品牌：${brand}` : ""}
+
+規則：
+1. 一定要用搜尋查過，不要憑印象寫網址。
+2. imageUrl 必須是 https 開頭、而且是圖片檔本身（.jpg / .jpeg / .png / .webp）。
+3. pageUrl 是那張圖所在的網頁。
+4. 優先用品牌官網或正式電商頁面的商品圖。
+5. 找不到就兩個欄位都回空字串，不要編。
+只回傳 JSON，格式：{"imageUrl":"...","pageUrl":"..."}`,
+        config: { tools: [{ googleSearch: {} }] },
+      }));
+
+      const text = (response.text || "").trim();
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
+      let imageUrl = "";
+      let pageUrl = "";
+      try {
+        const parsed = JSON.parse(start >= 0 && end > start ? text.slice(start, end + 1) : "{}") as Record<string, unknown>;
+        imageUrl = typeof parsed.imageUrl === "string" ? parsed.imageUrl.trim() : "";
+        pageUrl = typeof parsed.pageUrl === "string" ? parsed.pageUrl.trim() : "";
+      } catch { imageUrl = ""; }
+
+      // Checked rather than trusted: a model asked for an image URL will
+      // happily return a search page, and that renders as a broken square.
+      const looksLikeAnImage = /^https:\/\/\S+\.(jpe?g|png|webp)(\?\S*)?$/i.test(imageUrl);
+      if (!looksLikeAnImage) { res.json({ imageUrl: "", pageUrl: "" }); return; }
+      res.json({ imageUrl, pageUrl: /^https:\/\//.test(pageUrl) ? pageUrl : "" });
+    } catch (error) {
+      console.error("Product image lookup failed:", error);
+      res.status(502).json({ error: "現在找不到商品圖片。" });
+    }
+  });
+
   app.post("/api/places/highlights", async (req, res) => {
     const placeName = typeof req.body?.placeName === "string" ? req.body.placeName.trim().slice(0, 120) : "";
     const address = typeof req.body?.address === "string" ? req.body.address.trim().slice(0, 200) : "";

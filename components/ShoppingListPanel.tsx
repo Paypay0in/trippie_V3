@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ShoppingItem } from '../types';
-import { Check, ChevronDown, Minus, Plus, Search, ShoppingBag, Trash2, Circle } from 'lucide-react';
+import { Check, ChevronDown, ImageIcon, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, Circle } from 'lucide-react';
+import { findProductImage, sourceLabel } from '../services/productImageService';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
 
 /**
@@ -68,6 +69,25 @@ const ShoppingListPanel: React.FC<Props> = ({
   const [query, setQuery] = useState('');
   /** Category headings the traveller has folded away. */
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  /** Which row is having a picture looked up. 「在網路上抓圖也很有幫助」 */
+  const [findingImage, setFindingImage] = useState<string | null>(null);
+
+  /*
+    A picture from the web, with the page it came from kept beside it.
+
+    Asked for one row at a time rather than for the list: it is a search per
+    product, and a list of twenty would be twenty searches to fill squares
+    nobody asked to see.
+  */
+  const lookUpImage = (item: ShoppingItem) => {
+    if (!onUpdateItem) return;
+    setFindingImage(item.id);
+    void findProductImage({ name: item.name, brand: item.description })
+      .then(found => {
+        if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
+      })
+      .finally(() => setFindingImage(null));
+  };
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,15 +274,46 @@ const ShoppingListPanel: React.FC<Props> = ({
                       is the only picture of a wanted thing this app can
                       honestly show.
                     */}
-                    {item.photo && (
-                      <img
-                        src={item.photo}
-                        alt=""
-                        loading="lazy"
-                        data-testid={`shopping-photo-${item.id}`}
-                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                      />
-                    )}
+                    {item.photo ? (
+                      <span className="shrink-0">
+                        <img
+                          src={item.photo}
+                          alt=""
+                          loading="lazy"
+                          data-testid={`shopping-photo-${item.id}`}
+                          className="h-10 w-10 rounded-lg object-cover"
+                        />
+                        {/*
+                          Where the picture is from, when it is not his own
+                          screenshot. A product shot nobody can place is
+                          believed because it looks like a product shot.
+                        */}
+                        {item.photoSource && sourceLabel(item.photoSource) && (
+                          <a
+                            href={item.photoSource}
+                            target="_blank"
+                            rel="noreferrer"
+                            data-testid={`shopping-photo-source-${item.id}`}
+                            className="mt-0.5 block max-w-[2.5rem] truncate text-[9px] text-slate-400 underline"
+                          >
+                            {sourceLabel(item.photoSource)}
+                          </a>
+                        )}
+                      </span>
+                    ) : onUpdateItem ? (
+                      <button
+                        type="button"
+                        aria-label={`幫 ${item.name} 找商品圖片`}
+                        data-testid={`shopping-find-photo-${item.id}`}
+                        disabled={findingImage === item.id}
+                        onClick={() => lookUpImage(item)}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-200 text-slate-400"
+                      >
+                        {findingImage === item.id
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <ImageIcon size={14} />}
+                      </button>
+                    ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium text-gray-800">{item.name}</span>
