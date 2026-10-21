@@ -1956,6 +1956,11 @@ const App: React.FC = () => {
   const [identityDrifts, setIdentityDrifts] = useState<IdentityDrift[]>([]);
   /** Cloud trips this device deleted and therefore will not re-add by itself. */
   const [recoverableTripList, setRecoverableTripList] = useState<RecoverableTrip[]>([]);
+  /**
+   * The trip ids the account holds. `undefined` until the fetch has answered,
+   * which is what keeps 「not uploaded」 off every card on a cold start.
+   */
+  const [cloudTripIds, setCloudTripIds] = useState<ReadonlySet<string> | undefined>(undefined);
   /** The owner's name as the server stores it, for devices that are not theirs. */
   const [remoteOwnerName, setRemoteOwnerName] = useState<string>("");
   // Latest drafts for the merge below. Comparing inside a setDrafts updater
@@ -1967,6 +1972,8 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!authUser?.id || !isSyncAvailable()) {
       setCloudTripNote("");
+      // Unknown again, not 「empty」: every card would otherwise read 未上傳.
+      setCloudTripIds(undefined);
       return;
     }
     let cancelled = false;
@@ -1990,6 +1997,7 @@ const App: React.FC = () => {
         exact description of a trip that was just deleted. Every sign-in put
         them back, and deleting again only started the loop over.
       */
+      setCloudTripIds(new Set(result.data.map((trip) => trip.id)));
       const forgotten = deletedTripIds();
       /*
         「釜山的旅冊怎麼都不見了」 — the refusal below is correct and was
@@ -7661,6 +7669,8 @@ const App: React.FC = () => {
         onRestoreTripIdentity={handleRestoreTripIdentity}
         recoverable={recoverableTripList}
         onRecoverTrip={handleRecoverTrip}
+        cloudTripIds={cloudTripIds}
+        signedIn={Boolean(authUser?.id)}
         authStatus={authStatus}
         authenticatedDisplayName={authProfile?.displayName}
         onSectionChange={(section) => {

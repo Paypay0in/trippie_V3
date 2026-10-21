@@ -37,6 +37,7 @@ import { cityDisplayName } from '../services/cityNames';
 import { coverImageQuery, fixtureImageFor } from '../services/destinationCoverImage';
 import { IdentityDrift } from '../services/tripIdentityDrift';
 import { RecoverableTrip, recoverableDates } from '../services/recoverableTrips';
+import { CloudTripIds, cloudPresenceSummary, isOnlyOnThisDevice } from '../services/tripCloudPresence';
 
 interface Props {
   activeSection: AppSection;
@@ -89,6 +90,14 @@ interface Props {
    */
   recoverable?: RecoverableTrip[];
   onRecoverTrip?: (trip: RecoverableTrip) => void;
+  /**
+   * The trip ids the account holds, once they are known.
+   *
+   * `undefined` until the fetch returns, which is the difference between
+   * 「not uploaded」 and 「not asked yet」 — see `tripCloudPresence`.
+   */
+  cloudTripIds?: CloudTripIds;
+  signedIn?: boolean;
 }
 
 type SavedNotesStorageStatus = "device_only" | "account_linked" | "cloud_synced";
@@ -195,6 +204,8 @@ const TravelHome: React.FC<Props> = ({
   onRestoreTripIdentity,
   recoverable = [],
   onRecoverTrip,
+  cloudTripIds,
+  signedIn = false,
 }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -782,7 +793,24 @@ const TravelHome: React.FC<Props> = ({
         </section>
         {visibleOtherDrafts.length > 0 && (
           <section>
-            <h2 className="mb-4 text-xl font-black">編輯中的旅行</h2>
+            <div className="mb-4 flex items-baseline justify-between gap-2">
+              <h2 className="text-xl font-black">編輯中的旅行</h2>
+              {/*
+                The two counts, when they disagree.
+
+                「本機的還是沒有」 — a trip sat on one browser, absent from the
+                account, and nothing anywhere said so. The numbers existed
+                behind `?sync=1`, which is a thing a developer types.
+              */}
+              {cloudPresenceSummary(drafts.map(draft => draft.id), cloudTripIds, signedIn).text && (
+                <span
+                  data-testid="cloud-presence-summary"
+                  className="shrink-0 text-[11px] font-bold text-amber-600"
+                >
+                  {cloudPresenceSummary(drafts.map(draft => draft.id), cloudTripIds, signedIn).text}
+                </span>
+              )}
+            </div>
             <div className="flex gap-4 overflow-x-auto pb-2">
               {visibleOtherDrafts.map((draft) => (
                 <div
@@ -837,6 +865,21 @@ const TravelHome: React.FC<Props> = ({
                   >
                     <Ellipsis size={19} />
                   </button>
+                  {/*
+                    A trip the account has never been told about.
+
+                    A trip publishes when it is opened while signed in, so one
+                    that was made and never reopened lives on this device only
+                    — and looked identical to every other card.
+                  */}
+                  {isOnlyOnThisDevice(draft.id, cloudTripIds, signedIn) && (
+                    <span
+                      data-testid={`trip-not-uploaded-${draft.id}`}
+                      className="absolute left-2 top-2 z-20 flex items-center gap-1 rounded-full bg-amber-500/95 px-2 py-0.5 text-[10px] font-black text-white shadow-sm"
+                    >
+                      <CloudOff size={11} />未上傳
+                    </span>
+                  )}
                   {renderTripMenu(draft)}
                 </div>
               ))}
