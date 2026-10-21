@@ -3256,7 +3256,14 @@ const App: React.FC = () => {
       A write nobody persisted is a write that only existed on the way past.
     */
     if (!commitItinerary([...itinerary, item])) {
-      showToast("行程儲存失敗，這個地點沒有排進去。", "error");
+      /*
+        Two different problems wore the same sentence. 「依然無法」 — the stop
+        did not go in, twice, with nothing on screen distinguishing 「this
+        device is full」 from 「this screen is not editing a trip」.
+      */
+      showToast(activeDraftId
+        ? "行程儲存失敗，這個地點沒有排進去。"
+        : "目前沒有開啟中的旅程，請回到旅程列表重新進入再試一次。", "error");
       return;
     }
     showToast(`已排入 ${time}・${group.placeName}`);
@@ -3287,7 +3294,9 @@ const App: React.FC = () => {
       type: "ACTIVITY" as const,
     }]);
     if (!committed) {
-      showToast("行程儲存失敗，這個地點沒有排進去。", "error");
+      showToast(activeDraftId
+        ? "行程儲存失敗，這個地點沒有排進去。"
+        : "目前沒有開啟中的旅程，請回到旅程列表重新進入再試一次。", "error");
       return;
     }
     showToast(`已排入 ${time}・${title}`);
@@ -3996,7 +4005,16 @@ const App: React.FC = () => {
    */
   /** Persists an itinerary change through the canonical draft path. */
   const commitItinerary = (nextItinerary: ItineraryItem[]): boolean => {
-    if (!activeDraftId) return false;
+    /*
+      No open draft means there is nothing to write into, and every caller
+      here reported that as 「行程儲存失敗」 — which names the wrong problem.
+      Storage is fine; the screen is looking at a trip that is not the one
+      being edited. Logged so the two can be told apart from a console.
+    */
+    if (!activeDraftId) {
+      console.error('commitItinerary: no active draft to write into.');
+      return false;
+    }
     const nextDrafts = drafts.map((draft) => draft.id === activeDraftId
       ? { ...draft, itinerary: nextItinerary, updatedAt: new Date().toISOString() }
       : draft);

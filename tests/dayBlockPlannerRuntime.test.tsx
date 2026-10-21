@@ -1262,3 +1262,51 @@ describe('the stops are numbered', () => {
     });
   });
 });
+
+/**
+ * 「我按下去但無法加入」 — 今半別館, from the picker, into an empty morning.
+ *
+ * Walked end to end rather than reasoned about: the tap, the sheet closing,
+ * and the id the planner hands back are three separate things, and the one in
+ * the middle succeeding is what made this look like nothing happening.
+ */
+describe('picking a place out of the sheet', () => {
+  it('hands the block and the place back to the caller', async () => {
+    const user = userEvent.setup();
+    const { onFillBlock } = renderPlanner();
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(onFillBlock).toHaveBeenCalledTimes(1);
+    const [slot, placeId] = onFillBlock.mock.calls[0];
+    expect(placeId).toBe('g-working');
+    expect(slot.startTime).toBeTruthy();
+    expect(slot.durationMinutes).toBeGreaterThan(0);
+  });
+
+  it('closes the sheet once something is chosen', async () => {
+    const user = userEvent.setup();
+    renderPlanner();
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(screen.queryByTestId('pick-place-g-working')).toBeNull();
+  });
+
+  /*
+    An empty block has nothing to clear, so filling one must not ask the
+    caller to delete something first.
+  */
+  it('does not try to clear an empty block on the way', async () => {
+    const user = userEvent.setup();
+    const onClearBlock = vi.fn();
+    renderPlanner({ onClearBlock });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(onClearBlock).not.toHaveBeenCalled();
+  });
+});
