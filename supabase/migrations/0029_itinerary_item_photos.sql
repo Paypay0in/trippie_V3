@@ -16,3 +16,28 @@
 -- must never be filled in with somebody else's picture of the same place.
 alter table public.itinerary_items
   add column if not exists photos text[];
+
+-- 「如何給淺草寺評價」.
+--
+-- Ratings were asked for at the till, which is the one moment somebody
+-- reliably opens this app about a place they have just been to. It is also
+-- why a temple could not be rated: 淺草寺 is free, so it has no bill, and the
+-- stops worth the most to a traveller are routinely the ones that cost
+-- nothing — a view, a walk, a park.
+--
+-- So a stop carries its own. Where both exist the stop's is the later and
+-- more deliberate statement: the till's star was given while paying, this one
+-- while looking back.
+alter table public.itinerary_items
+  add column if not exists rating smallint;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'itinerary_items_rating_range'
+  ) then
+    alter table public.itinerary_items
+      add constraint itinerary_items_rating_range
+      check (rating is null or (rating >= 1 and rating <= 5));
+  end if;
+end $$;
