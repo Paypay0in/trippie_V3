@@ -26,9 +26,17 @@ const finishedOverview = (() => {
 })();
 
 describe('the overview of a trip that is over', () => {
-  it('offers 旅程回顧', () => {
-    expect(finishedOverview).toContain('finished-trip-open-recap');
+  /*
+    「釜山的總覽應該跟這個一樣」 — the same row of tiles a trip in progress
+    draws, from the same component. A second row written for this screen is
+    the defect this project keeps repeating: one that disagrees with the
+    other the first time a tile is added to either.
+  */
+  it('draws the same row of ways, including 旅程回顧', () => {
+    expect(finishedOverview).toContain('<TripWays');
     expect(finishedOverview).toContain('setRecapOpen(true)');
+    expect(finishedOverview).toContain('onOpenPlanning');
+    expect(finishedOverview).toContain('onOpenShoppingList');
   });
 
   /*

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import TripWays from './TripWays';
 import { AlertCircle, ArrowRight, CalendarRange, CloudSun, Coffee, Images, Map, MapPin, MoreHorizontal, Navigation, Plus, Receipt, ShoppingBag, TrainFront, Users } from 'lucide-react';
 import { Category, Expense, ItineraryItem, TripMember } from '../types';
 import { WeatherSnapshot } from '../services/weatherService';
@@ -165,31 +166,16 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
     .flatMap(expense => expense.receiptPhotos ?? [])
     .slice(0, 12);
 
-  /* Only the ways out that actually lead somewhere. */
-  const ways: Array<[React.ComponentType<{ size?: number }>, string, () => void]> = [
-    [CalendarRange, '行程規劃', onOpenPlanning],
-    ...(onOpenMap ? [[Map, '地圖', onOpenMap] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
-    ...(onOpenShoppingList ? [[ShoppingBag, '購物清單', onOpenShoppingList] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
-    ...(onOpenRecap ? [[Images, '旅程回顧', onOpenRecap] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
-    ...(onOpenCompanions ? [[Users, '旅伴', onOpenCompanions] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
-    ...(onOpenMore ? [[MoreHorizontal, '更多', onOpenMore] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
-  ];
-
   return <div className="space-y-3 pb-4">
-    {/* The ways out, as a row. */}
-    <section data-testid="trip-quick-ways" className="grid gap-2 rounded-[1.45rem] border border-slate-100 bg-white p-3 shadow-[0_8px_24px_rgba(66,74,150,.07)]" style={{ gridTemplateColumns: `repeat(${ways.length}, minmax(0, 1fr))` }}>
-      {ways.map(([Icon, label, go]) => (
-        <button
-          key={label}
-          type="button"
-          data-testid={`trip-way-${label}`}
-          onClick={go}
-          className="flex min-h-[4.25rem] flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-100 bg-white text-[11px] font-black text-slate-600 shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
-        >
-          <Icon size={20} />{label}
-        </button>
-      ))}
-    </section>
+    {/* The ways out, as a row. One row, shared with a finished trip. */}
+    <TripWays
+      onOpenPlanning={onOpenPlanning}
+      onOpenMap={onOpenMap}
+      onOpenShoppingList={onOpenShoppingList}
+      onOpenRecap={onOpenRecap}
+      onOpenCompanions={onOpenCompanions}
+      onOpenMore={onOpenMore}
+    />
     <section className="rounded-[1.6rem] border border-indigo-100 bg-gradient-to-br from-[#eef1ff] via-white to-[#f8f7ff] p-4 shadow-[0_10px_28px_rgba(66,74,150,.10)]">
       <div className="mb-4 flex items-start justify-between"><div><span className="inline-flex rounded-full bg-gradient-to-r from-blue-600 to-violet-600 px-3 py-1 text-[11px] font-black text-white shadow-sm">進行中</span><h1 className="mt-2 text-2xl font-black tracking-tight text-[#11183d]">旅程現況</h1></div><span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-slate-500 shadow-sm" aria-hidden="true">♧</span></div>
       <div className="mb-2 flex items-center justify-between"><div className="text-base font-black">下一站</div><span className="text-[10px] font-bold text-slate-400">LIVE</span></div>

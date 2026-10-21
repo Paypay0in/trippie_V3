@@ -285,8 +285,6 @@ import {
   Sparkles,
   Receipt,
   Share2,
-  Images,
-  ArrowRight,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import QRShareModal from "./components/QRShareModal";
@@ -307,6 +305,7 @@ import TripWorkspaceShell, {
 import TripPlanOverview from "./components/TripPlanOverview";
 import TripLiveOverview from "./components/TripLiveOverview";
 import TripRecapScreen from "./components/TripRecapScreen";
+import TripWays from "./components/TripWays";
 import { resolvePlace } from "./services/placeService";
 import {
   fetchPreparationSuggestions,
@@ -8723,23 +8722,14 @@ const App: React.FC = () => {
                 was is the days and the places; what it cost is the detail
                 underneath, and the report itself is untouched.
               */}
-              <button
-                type="button"
-                data-testid="finished-trip-open-recap"
-                onClick={() => setRecapOpen(true)}
-                className="flex w-full items-center gap-3 rounded-[1.45rem] border border-slate-100 bg-white p-4 text-left shadow-[0_8px_24px_rgba(66,74,150,.07)]"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-white">
-                  <Images size={20} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-black text-[#11183d]">旅程回顧</span>
-                  <span className="mt-0.5 block text-[11px] text-slate-400">
-                    走過的天數、地點、亮點與花費
-                  </span>
-                </span>
-                <ArrowRight size={16} className="shrink-0 text-violet-600" />
-              </button>
+              <div data-testid="finished-trip-open-recap">
+                <TripWays
+                  onOpenPlanning={() => setWorkspaceSection("planning")}
+                  onOpenMap={() => { setPlanningOnMap(true); setWorkspaceSection("planning"); }}
+                  onOpenShoppingList={() => setShoppingSheetOpen(true)}
+                  onOpenRecap={() => setRecapOpen(true)}
+                />
+              </div>
               <TripSummaryModal
                 expenses={expenses}
                 onArchive={handleArchiveTrip}
