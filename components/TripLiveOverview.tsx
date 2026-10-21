@@ -31,11 +31,12 @@ interface Props {
   viewerMemberId?: string;
   members?: TripMember[];
   /**
-   * 「將總覽改成這樣」 — the row of ways out of this screen.
+   * The row of ways out of this screen.
    *
    * Each is omitted rather than disabled when the caller has nowhere to send
-   * it: a tile that cannot go anywhere is the fourth kind of dead tap this
-   * screen has had tonight.
+   * it — and omitting the handler is also how a tile is removed. 「拿掉這個」
+   * took 旅伴 and 更多 off the row, both of which are already in the bar at
+   * the bottom of every screen; the row simply draws what it is given.
    */
   onOpenMap?: () => void;
   onOpenShoppingList?: () => void;

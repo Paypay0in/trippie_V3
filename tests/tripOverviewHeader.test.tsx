@@ -75,17 +75,18 @@ describe('the ways out', () => {
     expect(onOpenCompanions).toHaveBeenCalled();
   });
 
-  it('offers all five when every door is wired', () => {
-    show({
-      onOpenMap: vi.fn(),
-      onOpenShoppingList: vi.fn(),
-      onOpenCompanions: vi.fn(),
-      onOpenMore: vi.fn(),
-    });
+  it('draws exactly the doors it was given', () => {
+    show({ onOpenMap: vi.fn(), onOpenShoppingList: vi.fn() });
 
-    ['行程規劃', '地圖', '購物清單', '旅伴', '更多'].forEach(label => {
+    ['行程規劃', '地圖', '購物清單'].forEach(label => {
       expect(screen.getByTestId(`trip-way-${label}`)).toBeTruthy();
     });
+    /*
+      「拿掉這個」 — 旅伴 and 更多 are off this row, and they are off it by
+      not being passed rather than by an exception inside the component.
+    */
+    expect(screen.queryByTestId('trip-way-旅伴')).toBeNull();
+    expect(screen.queryByTestId('trip-way-更多')).toBeNull();
   });
 
   /* The rule this screen has earned the hard way. */

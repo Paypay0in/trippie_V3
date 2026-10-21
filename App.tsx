@@ -847,7 +847,6 @@ const App: React.FC = () => {
   */
   const [planningOnMap, setPlanningOnMap] = useState(false);
   const [shoppingSheetOpen, setShoppingSheetOpen] = useState(false);
-  const [workspaceMoreOpen, setWorkspaceMoreOpen] = useState(false);
   /*
     The map request is spent once the traveller leaves the plan, so the next
     地圖 tap is a new request rather than a `true` that never changed.
@@ -8516,9 +8515,6 @@ const App: React.FC = () => {
           onConfirm={handleConfirmRefundSettlement}
         />
         <TripWorkspaceShell
-          /* 「100%還原」 — so the overview's 更多 tile can open this drawer. */
-          moreOpen={workspaceMoreOpen}
-          onMoreOpenChange={setWorkspaceMoreOpen}
           tripName={currentTripName}
           dateRange={tripDateRangeDisplay}
           destination={tripDestination}
@@ -8682,16 +8678,17 @@ const App: React.FC = () => {
               onOpenPlanning={() => setWorkspaceSection("planning")}
               onOpenRecords={() => setWorkspaceSection("records")}
               /*
-                「100%還原」 — all five ways out of the mock, each with a door
-                behind it: the plan, the plan opened on its map, the shopping
-                list as a sheet, the companions sheet, and the shell's own 更多
-                drawer. A tile is still omitted rather than drawn dead when a
-                caller passes no handler; this caller passes all of them.
+                「拿掉這個」 — 旅伴 and 更多 are gone from this row. Both are
+                already reachable from the bar at the bottom of every screen,
+                and a second door to the same room is the duplication this
+                overview was just cleaned of once already.
+
+                Removed by not passing the handlers: the row draws what it is
+                given, so there is one rule for 「is this tile here」 rather
+                than a list of exceptions inside it.
               */
-              onOpenCompanions={() => setIsCompanionsOpen(true)}
               onOpenMap={() => { setPlanningOnMap(true); setWorkspaceSection("planning"); }}
               onOpenShoppingList={() => setShoppingSheetOpen(true)}
-              onOpenMore={() => setWorkspaceMoreOpen(true)}
             />
           )}
           {workspaceSection === "overview" && currentPhase === "during" && (
