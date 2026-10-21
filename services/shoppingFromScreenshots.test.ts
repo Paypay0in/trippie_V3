@@ -114,6 +114,49 @@ describe('mergeShoppingItems', () => {
   });
 });
 
+/**
+ * 「要找圖片」 — the screenshot the traveller uploaded. It is the only picture
+ * of a wanted thing this app can honestly show; a stock photo found on the web
+ * is somebody else's photograph captioned as their list.
+ */
+describe('the picture', () => {
+  it('hangs the screenshot on every row it produced', () => {
+    const rows = candidatesFromReading(
+      { products: [{ name: 'a' }, { name: 'b' }] },
+      'shot0',
+      'data:image/jpeg;base64,thumb',
+    );
+
+    expect(rows.map(row => row.photo)).toEqual([
+      'data:image/jpeg;base64,thumb',
+      'data:image/jpeg;base64,thumb',
+    ]);
+  });
+
+  it('leaves it off when there is none', () => {
+    expect(candidatesFromReading({ products: [{ name: 'a' }] })[0]).not.toHaveProperty('photo');
+  });
+
+  it('carries it onto the list item', () => {
+    const item = candidateToShoppingItem(
+      { id: 'a', name: 'x', photo: 'thumb' },
+      'during',
+      () => 'id-1',
+    );
+
+    expect(item.photo).toBe('thumb');
+  });
+
+  /* A row that already has a picture keeps it. */
+  it('does not replace one the row already has', () => {
+    const existing = { id: 'x', name: 'a', isPurchased: false, phase: 'during', photo: 'mine' } as ShoppingItem;
+
+    const { items } = mergeShoppingItems([existing], [{ ...existing, id: 'y', photo: 'theirs' }]);
+
+    expect(items[0].photo).toBe('mine');
+  });
+});
+
 describe('candidateDetail', () => {
   it('is empty when the picture said neither', () => {
     expect(candidateDetail({ id: 'a', name: 'x' })).toBe('');

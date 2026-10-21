@@ -25,6 +25,14 @@ export interface ShoppingCandidate {
   spec?: string;
   shop?: string;
   category?: string;
+  /**
+   * The screenshot this row was read out of, as a small data URL.
+   *
+   * 「要找圖片」 — the only picture of a wanted thing this app can honestly
+   * show is the one the traveller uploaded. Everything else on the internet
+   * is somebody else's photograph of a product, captioned as their list.
+   */
+  photo?: string;
 }
 
 const text = (value: unknown): string | undefined => {
@@ -39,7 +47,11 @@ const text = (value: unknown): string | undefined => {
  * is nothing for the traveller to judge, and a tick against nothing writes
  * nothing anybody meant.
  */
-export const candidatesFromReading = (payload: unknown, seed = 'shot'): ShoppingCandidate[] => {
+export const candidatesFromReading = (
+  payload: unknown,
+  seed = 'shot',
+  photo?: string,
+): ShoppingCandidate[] => {
   const products = (payload as { products?: unknown })?.products;
   if (!Array.isArray(products)) return [];
   return products
@@ -57,6 +69,7 @@ export const candidatesFromReading = (payload: unknown, seed = 'shot'): Shopping
         // An unrecognised category is the model inventing one; 其他 is where
         // it belongs rather than a seventh chip nobody chose.
         ...(category ? { category: KNOWN_CATEGORIES.includes(category) ? category : '其他' } : {}),
+        ...(photo ? { photo } : {}),
       } as ShoppingCandidate;
     })
     .filter((row): row is ShoppingCandidate => row !== null);
@@ -73,6 +86,8 @@ export const readShoppingFromImage = async (input: {
   base64Data: string;
   mimeType?: string;
   seed?: string;
+  /** The screenshot itself, downscaled, to hang on every row it produced. */
+  photo?: string;
 }): Promise<ShoppingCandidate[]> => {
   let response: Response;
   try {
@@ -89,7 +104,7 @@ export const readShoppingFromImage = async (input: {
   if (!response.ok) {
     throw new Error(typeof payload?.error === 'string' ? payload.error : '現在無法辨識截圖，請稍後再試。');
   }
-  return candidatesFromReading(payload, input.seed);
+  return candidatesFromReading(payload, input.seed, input.photo);
 };
 
 /** 「SK-II · 230ml」 — what was read, under the name, as one line. */
@@ -114,6 +129,7 @@ export const candidateToShoppingItem = (
   phase,
   ...(candidate.category ? { category: candidate.category } : {}),
   ...(candidate.shop ? { shop: candidate.shop } : {}),
+  ...(candidate.photo ? { photo: candidate.photo } : {}),
   /*
     The brand and the size go in the note rather than into the name: the name
     is what gets compared against an existing row, and 「SK-II 青春露 230ml」
@@ -153,6 +169,7 @@ export const mergeShoppingItems = (
       category: next[existing].category ?? item.category,
       shop: next[existing].shop ?? item.shop,
       description: next[existing].description ?? item.description,
+      photo: next[existing].photo ?? item.photo,
     };
   });
 

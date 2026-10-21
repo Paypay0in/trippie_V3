@@ -31,6 +31,16 @@ const DEFAULT_QUALITY = 0.72;
 export const RECEIPT_PHOTO = { maxEdge: 900, quality: 0.6 } as const;
 
 /**
+ * The thumbnail a shopping row carries.
+ *
+ * 「要找圖片」. It is the screenshot the traveller uploaded, shown at 40px on a
+ * list row — so it is stored at a size that serves that and nothing else. A
+ * full device has already stopped this app once, and a shopping list is the
+ * wrong place to spend the space again.
+ */
+export const SHOPPING_THUMB = { maxEdge: 320, quality: 0.55 } as const;
+
+/**
  * What a receipt is downscaled to before it is read.
  *
  * Larger than a photo meant for a screen: the labels that matter — 즉시환급,

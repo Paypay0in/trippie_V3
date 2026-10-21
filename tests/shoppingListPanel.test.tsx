@@ -129,6 +129,25 @@ describe('how many', () => {
   });
 });
 
+/**
+ * 「要找圖片」 — the screenshot the row was read out of.
+ */
+describe('the picture', () => {
+  it('shows the one the row carries', () => {
+    show([item({ photo: 'data:image/jpeg;base64,thumb' })]);
+
+    expect(screen.getByTestId('shopping-photo-sk2').getAttribute('src'))
+      .toBe('data:image/jpeg;base64,thumb');
+  });
+
+  /* Typed by hand, no picture — and no empty grey square either. */
+  it('shows nothing for a row without one', () => {
+    show([item()]);
+
+    expect(screen.queryByTestId('shopping-photo-sk2')).toBeNull();
+  });
+});
+
 describe('where to buy it', () => {
   it('shows the shop and the note', () => {
     show([item({ shop: '松本清 / 其他藥妝', description: '看看新款色號' })]);

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Check, Image as ImageIcon, Loader2, ShoppingBag, Sparkles } from 'lucide-react';
 import { ShoppingItem } from '../types';
+import { readAndDownscale, SHOPPING_THUMB } from '../services/postPhotos';
 import {
   candidateDetail,
   candidateToShoppingItem,
@@ -62,10 +63,18 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
     try {
       for (const [index, file] of batch.entries()) {
         try {
+          /*
+            「要找圖片」 — the picture every row from this screenshot carries.
+            Downscaled hard: it is shown at 40px on a list row and lives in
+            localStorage, which a full device has already proven is not free.
+            A failure to make a thumbnail never costs the reading.
+          */
+          const thumb = await readAndDownscale(file, SHOPPING_THUMB).catch(() => undefined);
           const read = await readShoppingFromImage({
             base64Data: await readAsBase64(file),
             mimeType: file.type,
             seed: `shot${index}`,
+            photo: thumb,
           });
           /*
             The same bottle screenshotted twice is one bottle. Across the batch
@@ -169,6 +178,14 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
                   chosen.has(candidate.id) ? 'border-violet-200 bg-white' : 'border-slate-100 bg-white/60 opacity-60'
                 }`}
               >
+                {candidate.photo && (
+                  <img
+                    src={candidate.photo}
+                    alt=""
+                    loading="lazy"
+                    className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                  />
+                )}
                 <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded ${
                   chosen.has(candidate.id) ? 'bg-[#5b3df5] text-white' : 'border border-slate-300'
                 }`}>

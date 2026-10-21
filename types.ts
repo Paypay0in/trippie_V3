@@ -90,6 +90,17 @@ export interface ShoppingItem {
   shop?: string;
   /** How many. Absent is one; this is a shopping list, not a warehouse. */
   quantity?: number;
+  /**
+   * The picture this row came from, as a small data URL.
+   *
+   * 「要找圖片」 — and the only picture of a thing somebody wants to buy that
+   * this app can honestly show is the screenshot they uploaded of it. A stock
+   * photo of SK-II found on the web is not their shopping list.
+   *
+   * Kept deliberately small （see `SHOPPING_THUMB`）: this lives in the trip
+   * draft in localStorage, which a full device has already proven is not free.
+   */
+  photo?: string;
   sourceType?: 'travel_rules';
   travelRuleActionType?: EntryActionType;
   travelRuleNecessity?: EntryNecessity;

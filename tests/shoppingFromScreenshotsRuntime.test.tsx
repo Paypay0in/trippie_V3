@@ -12,6 +12,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ShoppingScreenshotIntake from '../components/ShoppingScreenshotIntake';
 
+/*
+  jsdom has no canvas, so the real downscale neither resolves nor rejects —
+  it waits on an `img.onload` that never fires. The thumbnail is not what
+  these cases are about.
+*/
+vi.mock('../services/postPhotos', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/postPhotos')>();
+  return { ...actual, readAndDownscale: async () => 'data:image/jpeg;base64,thumb' };
+});
+
 const products = vi.fn(async () => ({
   products: [
     { name: 'SK-II 青春露', brand: 'SK-II', spec: '230ml', shop: '松本清', category: '美妝保養' },

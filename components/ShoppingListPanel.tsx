@@ -159,6 +159,21 @@ const ShoppingListPanel: React.FC<Props> = ({
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-start gap-3">
                     <Circle size={18} className="mt-0.5 shrink-0 text-gray-300" />
+                    {/*
+                      「要找圖片」 — the screenshot this row was read out of. It
+                      is the only picture of a wanted thing this app can
+                      honestly show: a stock photo found on the web is
+                      somebody else's photograph captioned as his list.
+                    */}
+                    {item.photo && (
+                      <img
+                        src={item.photo}
+                        alt=""
+                        loading="lazy"
+                        data-testid={`shopping-photo-${item.id}`}
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium text-gray-800">{item.name}</span>
