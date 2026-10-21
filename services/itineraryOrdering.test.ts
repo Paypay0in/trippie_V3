@@ -5,6 +5,7 @@ import {
   itemsForDay,
   moveItemToDay,
   placeNewStopByTime,
+  sortDayByTime,
   orderItemsForDay,
   reorderWithinDay,
   timeConflictItemIds,
@@ -283,5 +284,60 @@ describe('placeNewStopByTime', () => {
     const next = placeNewStopByTime([...arranged, other, stop('imahan', '10:00')], 'imahan');
 
     expect(next.find(item => item.id === 'other')?.sortOrder).toBe(0);
+  });
+});
+
+/**
+ * 「順序還是錯 第一個怎麼會是四點」.
+ *
+ * A day arranged by hand keeps its arrangement, so a stop added before the
+ * time-aware insert existed sits wherever it was appended. There has to be a
+ * way back — and it is the opposite of 重新安排時間, which keeps the order and
+ * rewrites the clocks.
+ */
+describe('sortDayByTime', () => {
+  const DAY = '2026-10-22';
+  const stop = (id: string, time: string, sortOrder?: number) => ({
+    id, date: DAY, time, title: id, location: id, notes: '', type: 'ACTIVITY',
+    ...(sortOrder === undefined ? {} : { sortOrder }),
+  } as unknown as ItineraryItem);
+
+  it('puts the cards back in clock order', () => {
+    const crossed = [stop('park', '16:00', 0), stop('imahan', '10:00', 1)];
+
+    const { items, changed } = sortDayByTime(crossed, DAY);
+
+    expect(changed).toBe(true);
+    expect(orderItemsForDay(itemsForDay(items, DAY)).map(item => item.id))
+      .toEqual(['imahan', 'park']);
+  });
+
+  /* The order is the only thing it is allowed to change. */
+  it('touches no time', () => {
+    const crossed = [stop('park', '16:00', 0), stop('imahan', '10:00', 1)];
+
+    const { items } = sortDayByTime(crossed, DAY);
+
+    expect(items.find(item => item.id === 'park')?.time).toBe('16:00');
+    expect(items.find(item => item.id === 'imahan')?.time).toBe('10:00');
+  });
+
+  it('reports nothing to do for a day already in order', () => {
+    const fine = [stop('imahan', '10:00', 0), stop('park', '16:00', 1)];
+
+    expect(sortDayByTime(fine, DAY)).toEqual({ items: fine, changed: false });
+  });
+
+  it('leaves other days where they are', () => {
+    const other = { ...stop('other', '09:00', 0), date: '2026-10-23' } as ItineraryItem;
+    const crossed = [stop('park', '16:00', 0), stop('imahan', '10:00', 1), other];
+
+    const { items } = sortDayByTime(crossed, DAY);
+
+    expect(items.find(item => item.id === 'other')?.sortOrder).toBe(0);
+  });
+
+  it('does nothing for a day with nothing in it', () => {
+    expect(sortDayByTime([], DAY)).toEqual({ items: [], changed: false });
   });
 });

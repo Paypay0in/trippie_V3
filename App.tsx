@@ -332,6 +332,7 @@ import {
   moveItemToDay,
   orderItemsForDay,
   placeNewStopByTime,
+  sortDayByTime,
   reorderWithinDay,
 } from "./services/itineraryOrdering";
 import { applyDurationChange, rescheduleFromItem, resequenceDayTimes } from "./services/itineraryTimeline";
@@ -3305,6 +3306,17 @@ const App: React.FC = () => {
    * the traveller's back is how a morning gets planned around the wrong
    * building with nothing on screen admitting it.
    */
+  /** Puts one day's cards back into clock order. No time is touched. */
+  const handleSortDayByTime = (date: string) => {
+    const sorted = sortDayByTime(itinerary, date);
+    if (!sorted.changed) return;
+    if (!commitItinerary(sorted.items)) {
+      showToast("排序沒有存起來，請再試一次。", "error");
+      return;
+    }
+    showToast("已照時間重新排列這一天");
+  };
+
   const handleFillDayBlockManually = ({ date, time, durationMinutes, title }: {
     date: string; time: string; durationMinutes: number; title: string;
   }) => {
@@ -8012,6 +8024,11 @@ const App: React.FC = () => {
           onFillBlock={handleFillDayBlock}
           onFillBlockManually={handleFillDayBlockManually}
           /*
+            「順序還是錯 第一個怎麼會是四點」 — the way back for a day arranged by
+            hand before the time-aware insert existed.
+          */
+          onSortByTime={handleSortDayByTime}
+          /*
             「要有『無』的選項」 — a block decided against, so the planner stops
             offering restaurants under a lunch already answered.
           */
@@ -9115,6 +9132,11 @@ const App: React.FC = () => {
                   savedPlaces={blockPlannerPlaces}
                   onFillBlock={handleFillDayBlock}
           onFillBlockManually={handleFillDayBlockManually}
+          /*
+            「順序還是錯 第一個怎麼會是四點」 — the way back for a day arranged by
+            hand before the time-aware insert existed.
+          */
+          onSortByTime={handleSortDayByTime}
           /*
             「要有『無』的選項」 — a block decided against, so the planner stops
             offering restaurants under a lunch already answered.

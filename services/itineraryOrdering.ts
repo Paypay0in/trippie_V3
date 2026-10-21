@@ -113,6 +113,34 @@ export const placeNewStopByTime = (
     : item));
 };
 
+/**
+ * Puts a whole day back into clock order.
+ *
+ * 「順序還是錯 第一個怎麼會是四點」. The day was arranged by hand once, so from
+ * then on the arrangement wins — and a stop added before the time-aware insert
+ * existed sits wherever it was appended. There has to be a way back.
+ *
+ * The opposite of 重新安排時間, deliberately, and the banner now offers both:
+ * one keeps the order and rewrites the clocks, this keeps the clocks and
+ * rewrites the order. Which of the two a traveller means is not something to
+ * guess from a list that disagrees with itself.
+ *
+ * Only the order changes. No time is touched, here or ever by this file.
+ */
+export const sortDayByTime = (
+  itinerary: ItineraryItem[],
+  date: string | undefined,
+): ReorderResult => {
+  const day = itemsForDay(itinerary, date);
+  if (day.length === 0) return { items: itinerary, changed: false };
+
+  const sorted = [...day].sort(byTimeThenArrivalLast);
+  const already = orderItemsForDay(day).map(item => item.id).join('|') === sorted.map(item => item.id).join('|');
+  if (already) return { items: itinerary, changed: false };
+
+  return { items: replaceDay(itinerary, date, withSequentialOrder(sorted)), changed: true };
+};
+
 /** Stamps 0..n-1 onto a day, making the arrangement explicit and gap-free. */
 const withSequentialOrder = (ordered: ItineraryItem[]): ItineraryItem[] =>
   ordered.map((item, index) => (item.sortOrder === index ? item : { ...item, sortOrder: index }));

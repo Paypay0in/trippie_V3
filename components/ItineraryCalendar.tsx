@@ -86,6 +86,13 @@ interface Props {
   /** Toggles the user's pin on one item. Persisted immediately by the caller. */
   onTogglePin?: (itemId: string, nextPinned: boolean) => void;
   /**
+   * Puts the day's cards back into clock order, touching no time.
+   *
+   * The opposite of `onResequenceTimes`, which keeps the order and rewrites
+   * the clocks. 「順序還是錯 第一個怎麼會是四點」.
+   */
+  onSortByTime?: (date: string) => void;
+  /**
    * Blocks the traveller has said are meant to be empty. See `emptiedSlots`.
    *
    * 「要有『無』的選項」 — a gap nobody has chosen for and a gap decided against
@@ -217,7 +224,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, categoryOf, viewerUserId, members = [], emptiedSlotIds, onToggleEmptied }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, categoryOf, viewerUserId, members = [], emptiedSlotIds, onToggleEmptied, onSortByTime }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -1387,7 +1394,24 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       */}
       {outOfOrder && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-xs font-bold leading-5 text-amber-700">
-          <span className="min-w-0 flex-1">行程順序已更新，請確認時間安排。</span>
+          <span className="min-w-0 flex-1">卡片的順序和它們的時間對不上。</span>
+          {/*
+            Two different answers, both offered. 「順序還是錯 第一個怎麼會是四
+            點」 — the banner only had the one that rewrites the clocks to match
+            the cards, which is the opposite of what he meant. Which of the two
+            a traveller wants is not something to guess from a list that
+            disagrees with itself.
+          */}
+          {onSortByTime && (
+            <button
+              type="button"
+              data-testid="sort-day-by-time"
+              onClick={() => onSortByTime(activeDate)}
+              className="shrink-0 rounded-xl bg-white px-2.5 py-1 text-[11px] font-black text-amber-700 shadow-sm"
+            >
+              照時間重排
+            </button>
+          )}
           {onResequenceTimes && (
             <button
               type="button"
