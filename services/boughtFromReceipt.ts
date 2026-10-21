@@ -16,8 +16,20 @@
  * two ideas of 「the same product」 is how a list comes to disagree with
  * itself.
  */
-import { Expense, ShoppingItem } from '../types';
+import { Category, Expense, ShoppingItem } from '../types';
 import { shoppingNameKey } from './shoppingFromScreenshots';
+
+/**
+ * The categories where a bill's own title names a thing rather than a meal.
+ *
+ * 「我覺得可以用購物這個類目再比」 — and that is the gate that makes the
+ * looser comparison safe. A typed bill has no printed lines, so its
+ * `description` is the only name it has; comparing that against the list in
+ * general would match 「黑船亭 洋食料理」 to something somebody wants to buy.
+ * Filed under 購物 it cannot: a 餐飲 bill is excluded by the category it is
+ * already in.
+ */
+const BUYING: string[] = [Category.SHOPPING, Category.SHOPPING_PRE, Category.SOUVENIR];
 
 /** Shorter than this and a shared name says nothing. 「水」 is not a match. */
 const SHORTEST_NAME = 3;
@@ -47,7 +59,19 @@ export const boughtFromReceipts = (
   const matches: BoughtMatch[] = [];
 
   expenses.forEach(expense => {
-    (expense.receiptItems ?? []).forEach(line => {
+    /*
+      The printed lines, plus the bill's own title when it is filed as
+      shopping. A till roll names what was bought; so does 「SK-II 青春露」
+      typed into a 購物 bill, and that is the only name such a bill has.
+    */
+    const lines = [
+      ...(expense.receiptItems ?? []),
+      ...(BUYING.includes(expense.category as string) && expense.description
+        ? [{ name: expense.description }]
+        : []),
+    ];
+
+    lines.forEach(line => {
       const printed = [line.name, line.translatedName]
         .map(value => shoppingNameKey(value || ''))
         .filter(value => value.length >= SHORTEST_NAME);

@@ -62,6 +62,32 @@ describe('boughtFromReceipts', () => {
     expect(found).toHaveLength(1);
   });
 
+  /*
+    「我覺得可以用購物這個類目再比」 — a typed bill has no printed lines, and
+    its own title is the only name it has. Filed under 購物 that title names
+    a thing rather than a meal.
+  */
+  it('reads the title of a bill filed as shopping', () => {
+    const typed = bill([], { category: '購物' as never, description: 'SK-II 青春露' });
+
+    expect(boughtFromReceipts([want()], [typed])).toHaveLength(1);
+  });
+
+  it('reads 行前採買 and 伴手禮 the same way', () => {
+    const before = bill([], { category: '行前採買' as never, description: 'SK-II 青春露' });
+    const souvenir = bill([], { id: 'e2', category: '伴手禮/紀念品' as never, description: 'SK-II 青春露' });
+
+    expect(boughtFromReceipts([want()], [before])).toHaveLength(1);
+    expect(boughtFromReceipts([want()], [souvenir])).toHaveLength(1);
+  });
+
+  /* The gate: a meal's title is not a thing somebody wanted to buy. */
+  it('does not read the title of a 餐飲 bill', () => {
+    const dinner = bill([], { category: '餐飲' as never, description: 'SK-II 青春露' });
+
+    expect(boughtFromReceipts([want()], [dinner])).toEqual([]);
+  });
+
   it('says nothing about a bill with no printed lines', () => {
     expect(boughtFromReceipts([want()], [bill([])])).toEqual([]);
   });
