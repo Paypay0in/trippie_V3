@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, ArrowRight, CalendarRange, CloudSun, Coffee, Map, MapPin, MoreHorizontal, Navigation, Plus, Receipt, ShoppingBag, TrainFront, Users } from 'lucide-react';
+import { AlertCircle, ArrowRight, CalendarRange, CloudSun, Coffee, Images, Map, MapPin, MoreHorizontal, Navigation, Plus, Receipt, ShoppingBag, TrainFront, Users } from 'lucide-react';
 import { Category, Expense, ItineraryItem, TripMember } from '../types';
 import { WeatherSnapshot } from '../services/weatherService';
 import { tomorrowLabel, whatToWear } from '../services/whatToWear';
@@ -170,6 +170,7 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
     [CalendarRange, '行程規劃', onOpenPlanning],
     ...(onOpenMap ? [[Map, '地圖', onOpenMap] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
     ...(onOpenShoppingList ? [[ShoppingBag, '購物清單', onOpenShoppingList] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
+    ...(onOpenRecap ? [[Images, '旅程回顧', onOpenRecap] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
     ...(onOpenCompanions ? [[Users, '旅伴', onOpenCompanions] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
     ...(onOpenMore ? [[MoreHorizontal, '更多', onOpenMore] as [React.ComponentType<{ size?: number }>, string, () => void]] : []),
   ];
@@ -231,21 +232,23 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
 
       So it is their own, newest first, and it says what it is.
     */}
-    {(memories.length > 0 || onOpenRecap) && (
+    {memories.length > 0 && (
       <section data-testid="trip-memories" className="rounded-[1.45rem] border border-slate-100 bg-white p-4 shadow-[0_8px_24px_rgba(66,74,150,.07)]">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <h2 className="font-black">旅程回顧</h2>
-            <div className="mt-1 text-[11px] text-slate-400">
-              {memories.length > 0 ? '你在這趟旅行拍下的照片' : '這趟旅程走過的天數、地點與花費'}
-            </div>
+            {/*
+              Named for what it holds, not for where 旅程回顧 lives.
+
+              「回顧不是應該在這嗎」 put the review in the row of tiles above,
+              which is where it belongs. This strip briefly carried the same
+              name and a second button to the same screen — the duplicate door
+              that 旅伴 and 更多 were taken off this very row for.
+            */}
+            <h2 className="font-black">這趟拍下的照片</h2>
+            <div className="mt-1 text-[11px] text-slate-400">記帳時拍的收據與現場照片</div>
           </div>
-          <button
-            data-testid="trip-open-recap"
-            onClick={onOpenRecap ?? onOpenRecords}
-            className="flex shrink-0 items-center gap-1 text-xs font-black text-violet-700"
-          >
-            {onOpenRecap ? '查看回顧' : '查看全部'}<ArrowRight size={13} />
+          <button onClick={onOpenRecords} className="flex shrink-0 items-center gap-1 text-xs font-black text-violet-700">
+            查看全部<ArrowRight size={13} />
           </button>
         </div>
         <div className="flex gap-2 overflow-x-auto">

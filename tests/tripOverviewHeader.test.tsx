@@ -89,6 +89,20 @@ describe('the ways out', () => {
     expect(screen.queryByTestId('trip-way-更多')).toBeNull();
   });
 
+  /*
+    「回顧不是應該在這嗎」 — 旅程回顧 was reachable only from a strip further
+    down the page. It is a place you go, so it is a tile in the row of places
+    you go.
+  */
+  it('offers 旅程回顧 in the row', () => {
+    const onOpenRecap = vi.fn();
+    show({ onOpenRecap });
+
+    fireEvent.click(screen.getByTestId('trip-way-旅程回顧'));
+
+    expect(onOpenRecap).toHaveBeenCalled();
+  });
+
   /* The rule this screen has earned the hard way. */
   it('leaves out the tiles with nowhere to go', () => {
     show();
@@ -96,6 +110,7 @@ describe('the ways out', () => {
     expect(screen.queryByTestId('trip-way-旅伴')).toBeNull();
     expect(screen.queryByTestId('trip-way-地圖')).toBeNull();
     expect(screen.queryByTestId('trip-way-購物清單')).toBeNull();
+    expect(screen.queryByTestId('trip-way-旅程回顧')).toBeNull();
   });
 });
 
@@ -120,6 +135,17 @@ describe('旅程回顧', () => {
 
     const shots = screen.getByTestId('trip-memories').querySelectorAll('img');
     expect(Array.from(shots).map(node => node.getAttribute('src'))).toEqual(['newest', 'older']);
+  });
+
+  /*
+    It no longer carries a second way into 旅程回顧: that is a tile in the row
+    above, and a strip naming the same destination is the duplicate door 旅伴
+    and 更多 were taken off this screen for.
+  */
+  it('is photos, not a second door to the review', () => {
+    show({ expenses: [billWithPhoto('a', '2026-10-21', 'shot')], onOpenRecap: vi.fn() });
+
+    expect(screen.getByTestId('trip-memories').textContent).not.toContain('旅程回顧');
   });
 
   /* Nothing photographed is nothing to look back on. */
