@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ShoppingItem } from '../types';
-import { Check, Minus, Plus, ShoppingBag, Trash2, Circle } from 'lucide-react';
+import { Check, ChevronDown, Minus, Plus, Search, ShoppingBag, Trash2, Circle } from 'lucide-react';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
 
 /**
@@ -64,6 +64,10 @@ const ShoppingListPanel: React.FC<Props> = ({
 }) => {
   const [newItemName, setNewItemName] = useState('');
   const [filter, setFilter] = useState(ALL);
+  /** 「搜尋商品、品牌或店家」 — one box over the three fields a row has. */
+  const [query, setQuery] = useState('');
+  /** Category headings the traveller has folded away. */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,19 +92,87 @@ const ShoppingListPanel: React.FC<Props> = ({
     return [[ALL, shoppingList.length] as const, ...counts.entries()];
   }, [shoppingList]);
 
-  const shown = filter === ALL
-    ? shoppingList
-    : shoppingList.filter(item => item.category?.trim() === filter);
+  /*
+    The search reads the name, what was written under it and where to buy —
+    「搜尋商品、品牌或店家」. The brand lives in `description` （see
+    `candidateToShoppingItem`）, so one box over those three fields covers all
+    three of the things the placeholder promises.
+  */
+  const wanted = query.trim().toLocaleLowerCase();
+  const shown = shoppingList
+    .filter(item => (filter === ALL ? true : item.category?.trim() === filter))
+    .filter(item => (wanted
+      ? [item.name, item.description, item.shop]
+        .some(field => (field || '').toLocaleLowerCase().includes(wanted))
+      : true));
 
-  const pendingItems = shown.filter(i => !i.isPurchased);
   const purchasedItems = shown.filter(i => i.isPurchased);
 
   const quantityOf = (item: ShoppingItem) => (item.quantity && item.quantity > 0 ? item.quantity : 1);
+
+  /*
+    已買 N / M, over the whole list rather than the filter.
+
+    A progress bar that moved when somebody tapped a category chip would be
+    measuring the filter instead of the shopping.
+  */
+  const bought = shoppingList.filter(item => item.isPurchased).length;
+  const total = shoppingList.length;
+  const percent = total > 0 ? Math.round((bought / total) * 100) : 0;
+
+  /** The pending rows grouped under the heading they were filed under. */
+  const sections = useMemo(() => {
+    const groups = new Map<string, ShoppingItem[]>();
+    shown.filter(item => !item.isPurchased).forEach(item => {
+      const key = item.category?.trim() || '未分類';
+      groups.set(key, [...(groups.get(key) ?? []), item]);
+    });
+    return [...groups.entries()];
+  }, [shown]);
+
+  const fold = (label: string) => setCollapsed(current => {
+    const next = new Set(current);
+    if (next.has(label)) next.delete(label); else next.add(label);
+    return next;
+  });
 
   return (
     <div className="mb-4 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
       <div className="border-b border-gray-50 bg-gray-50/50 p-4">
         <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-700">{title}</h3>
+
+        {/*
+          已買 N / M, over the whole list rather than whatever is filtered.
+          A bar that moved when somebody tapped a chip would be measuring the
+          filter instead of the shopping.
+        */}
+        {total > 0 && (
+          <div data-testid="shopping-progress" className="mb-2 rounded-xl bg-white px-3 py-2 ring-1 ring-slate-100">
+            <div className="flex items-center justify-between text-[11px] font-black text-[#11183d]">
+              <span className="flex items-center gap-1.5">
+                <ShoppingBag size={13} className="text-[#5b3df5]" />已買 {bought} / {total}
+              </span>
+              <span className="text-slate-400">{percent}%</span>
+            </div>
+            <div className="mt-1.5 h-1.5 rounded-full bg-slate-100">
+              <div className="h-1.5 rounded-full bg-[#5b3df5]" style={{ width: `${percent}%` }} />
+            </div>
+          </div>
+        )}
+
+        {total > 0 && (
+          <label className="mb-2 flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1.5 ring-1 ring-slate-200">
+            <Search size={13} className="shrink-0 text-slate-400" />
+            <input
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              placeholder="搜尋商品、品牌或店家"
+              aria-label="搜尋商品、品牌或店家"
+              data-testid="shopping-search"
+              className="min-w-0 flex-1 text-xs text-[#11183d] outline-none placeholder:text-slate-300"
+            />
+          </label>
+        )}
 
         {/* The categories this list actually has. */}
         {chips.length > 1 && (
@@ -154,7 +226,25 @@ const ShoppingListPanel: React.FC<Props> = ({
           </div>
         ) : (
           <>
-            {pendingItems.map(item => (
+            {sections.map(([label, items]) => (
+              <section key={label} data-testid={`shopping-section-${label}`}>
+                {/*
+                  Grouped under the heading it was filed under, foldable.
+                  「未分類」 is a real heading rather than a silent bucket: a row
+                  nobody filed is still a row somebody has to buy.
+                */}
+                <button
+                  type="button"
+                  data-testid={`shopping-section-toggle-${label}`}
+                  aria-expanded={!collapsed.has(label)}
+                  onClick={() => fold(label)}
+                  className="flex w-full items-center justify-between bg-slate-50/70 px-3 py-1.5 text-[11px] font-black text-slate-500"
+                >
+                  <span>{label}（{items.length}）</span>
+                  <ChevronDown size={13} className={collapsed.has(label) ? '-rotate-90' : ''} />
+                </button>
+
+                {!collapsed.has(label) && items.map(item => (
               <div key={item.id} data-testid={`shopping-item-${item.id}`} className="group p-3 transition-colors hover:bg-gray-50">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -162,8 +252,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                     {/*
                       「要找圖片」 — the screenshot this row was read out of. It
                       is the only picture of a wanted thing this app can
-                      honestly show: a stock photo found on the web is
-                      somebody else's photograph captioned as his list.
+                      honestly show.
                     */}
                     {item.photo && (
                       <img
@@ -177,10 +266,10 @@ const ShoppingListPanel: React.FC<Props> = ({
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                        {/*
-                          Said only when somebody said it. Absent is not 想買
-                          and certainly not 必買 — see `ShoppingItem.priority`.
-                        */}
+                        {/* 待購買, said on every unbought row. */}
+                        <span data-testid={`shopping-status-${item.id}`} className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-black text-rose-500">
+                          待購買
+                        </span>
                         {item.priority && (
                           <button
                             type="button"
@@ -199,61 +288,75 @@ const ShoppingListPanel: React.FC<Props> = ({
                           </button>
                         )}
                       </div>
-                      {item.shop && (
-                        <div className="mt-0.5 text-[11px] text-slate-400">@ {item.shop}</div>
-                      )}
                       {item.description && (
                         <div className="mt-0.5 text-[11px] leading-4 text-slate-500">{item.description}</div>
+                      )}
+                      {item.shop && (
+                        <div className="mt-0.5 text-[11px] text-slate-400">@ {item.shop}</div>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1">
-                    {/* How many, when the caller can remember the answer. */}
-                    {onUpdateItem && (
-                      <span className="mr-1 flex items-center gap-1 rounded-lg bg-slate-50 px-1 py-0.5">
-                        <button
-                          type="button"
-                          aria-label={`${item.name} 減少一個`}
-                          data-testid={`shopping-less-${item.id}`}
-                          disabled={quantityOf(item) <= 1}
-                          onClick={() => onUpdateItem(item.id, { quantity: quantityOf(item) - 1 })}
-                          className="p-1 text-slate-400 disabled:opacity-30"
-                        >
-                          <Minus size={12} />
-                        </button>
-                        <span data-testid={`shopping-quantity-${item.id}`} className="min-w-4 text-center text-xs font-black text-slate-700">
-                          {quantityOf(item)}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <div className="flex items-center gap-1">
+                      {onUpdateItem && (
+                        <span className="mr-1 flex items-center gap-1 rounded-lg bg-slate-50 px-1 py-0.5">
+                          <button
+                            type="button"
+                            aria-label={`${item.name} 減少一個`}
+                            data-testid={`shopping-less-${item.id}`}
+                            disabled={quantityOf(item) <= 1}
+                            onClick={() => onUpdateItem(item.id, { quantity: quantityOf(item) - 1 })}
+                            className="p-1 text-slate-400 disabled:opacity-30"
+                          >
+                            <Minus size={12} />
+                          </button>
+                          <span data-testid={`shopping-quantity-${item.id}`} className="min-w-4 text-center text-xs font-black text-slate-700">
+                            {quantityOf(item)}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`${item.name} 增加一個`}
+                            data-testid={`shopping-more-${item.id}`}
+                            onClick={() => onUpdateItem(item.id, { quantity: quantityOf(item) + 1 })}
+                            className="p-1 text-slate-400"
+                          >
+                            <Plus size={12} />
+                          </button>
                         </span>
+                      )}
+                      {onPurchaseItem && (
                         <button
-                          type="button"
-                          aria-label={`${item.name} 增加一個`}
-                          data-testid={`shopping-more-${item.id}`}
-                          onClick={() => onUpdateItem(item.id, { quantity: quantityOf(item) + 1 })}
-                          className="p-1 text-slate-400"
+                          onClick={() => onPurchaseItem(item)}
+                          className="bg-brand-50 text-brand-600 hover:bg-brand-100 flex items-center gap-1 rounded px-2 py-1.5 text-xs font-bold transition-colors"
+                          title="記錄為支出"
                         >
-                          <Plus size={12} />
+                          <ShoppingBag size={14} /> 購買
                         </button>
+                      )}
+                      <button
+                        onClick={() => onRemoveItem(item.id)}
+                        className="rounded p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    {/*
+                      What it is expected to cost, when somebody has said.
+                      Never read off a screenshot and never guessed — see
+                      `/api/shopping/parse-image`, which reads no prices at
+                      all, and §6 of docs/PRODUCT.md for why.
+                    */}
+                    {typeof item.estimatedAmount === 'number' && item.estimatedAmount > 0 && (
+                      <span data-testid={`shopping-amount-${item.id}`} className="text-[11px] font-bold text-slate-400">
+                        約 {item.estimatedCurrency || 'NT$'} {Math.round(item.estimatedAmount).toLocaleString()}
                       </span>
                     )}
-                    {onPurchaseItem && (
-                      <button
-                        onClick={() => onPurchaseItem(item)}
-                        className="bg-brand-50 text-brand-600 hover:bg-brand-100 flex items-center gap-1 rounded px-2 py-1.5 text-xs font-bold transition-colors"
-                        title="記錄為支出"
-                      >
-                        <ShoppingBag size={14} /> 購買
-                      </button>
-                    )}
-                    <button
-                      onClick={() => onRemoveItem(item.id)}
-                      className="rounded p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
-                    >
-                      <Trash2 size={16} />
-                    </button>
                   </div>
                 </div>
               </div>
+                ))}
+              </section>
             ))}
 
             {purchasedItems.length > 0 && (

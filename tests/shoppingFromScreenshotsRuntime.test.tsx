@@ -106,3 +106,52 @@ describe('reading a screenshot', () => {
       .toContain('沒有讀到商品'));
   });
 });
+
+/**
+ * 「請確認以下結果，並調整不正確的內容」.
+ *
+ * A reading that can only be accepted or rejected wastes the eight pictures
+ * it just read when one field is wrong — and one field being wrong is the
+ * normal case, not the edge.
+ */
+describe('correcting a row before it is added', () => {
+  it('opens the fields', async () => {
+    show();
+
+    await upload();
+    fireEvent.click(screen.getByTestId('shopping-candidate-edit-shot0-0'));
+
+    expect(screen.getByTestId('shopping-candidate-fields-shot0-0')).toBeTruthy();
+  });
+
+  it('adds what was corrected, not what was read', async () => {
+    const { onAdd } = show();
+
+    await upload();
+    fireEvent.click(screen.getByTestId('shopping-candidate-edit-shot0-0'));
+    fireEvent.change(screen.getByTestId('shopping-candidate-shop-shot0-0'), {
+      target: { value: '唐吉訶德' },
+    });
+    fireEvent.click(screen.getByTestId('shopping-candidates-add'));
+
+    expect(onAdd.mock.calls[0][0][0].shop).toBe('唐吉訶德');
+  });
+
+  it('says how many are chosen', async () => {
+    show();
+
+    await upload();
+
+    expect(screen.getByTestId('shopping-candidates-count').textContent).toContain('已選 2 項');
+  });
+});
+
+describe('the ways in', () => {
+  /* 拍照 and 從相簿選擇 are the same input with and without `capture`. */
+  it('offers the camera and the album', () => {
+    show();
+
+    expect(screen.getByTestId('shopping-screenshot-camera')).toBeTruthy();
+    expect(screen.getByTestId('shopping-screenshot-album')).toBeTruthy();
+  });
+});

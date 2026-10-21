@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Check, Image as ImageIcon, Loader2, ShoppingBag, Sparkles } from 'lucide-react';
+import { Camera, Check, Image as ImageIcon, Loader2, Pencil, ShoppingBag, Sparkles } from 'lucide-react';
 import { ShoppingItem } from '../types';
 import { readAndDownscale, SHOPPING_THUMB } from '../services/postPhotos';
 import {
@@ -34,6 +34,13 @@ interface Props {
 
 const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  /*
+    A separate input, because 拍照 and 從相簿選擇 differ only by `capture` and
+    an input cannot change its mind about that once it is open.
+  */
+  const cameraRef = useRef<HTMLInputElement>(null);
+  /** Which row is being corrected. 「調整不正確的內容」. */
+  const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -105,6 +112,14 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
     }
   };
 
+  /*
+    Corrections, before anything is written. 「請確認以下結果，並調整不正確的
+    內容」 — the model misreads a size or a shop often enough that a list which
+    can only be accepted or rejected wastes the eight pictures it just read.
+  */
+  const edit = (id: string, patch: Partial<ShoppingCandidate>) =>
+    setFound(current => current.map(row => (row.id === id ? { ...row, ...patch } : row)));
+
   const toggle = (id: string) => setChosen(current => {
     const next = new Set(current);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -131,6 +146,15 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
         onChange={event => { void handleFiles(Array.from(event.target.files || [])); }}
         className="hidden"
       />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        data-testid="shopping-screenshot-camera-input"
+        onChange={event => { void handleFiles(Array.from(event.target.files || [])); }}
+        className="hidden"
+      />
 
       {found.length === 0 ? (
         <>
@@ -151,6 +175,35 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
               ? <><Loader2 size={14} className="animate-spin" />辨識中 {progress.done}/{progress.total}</>
               : <><ImageIcon size={14} />選擇照片</>}
           </button>
+
+          {/*
+            拍照 and 從相簿選擇, which are the same input with and without
+            `capture`. 從連結匯入 and 從其他 App 分享 are not here: a link needs
+            a page fetched and read, and a share target needs the app
+            installed as a PWA with a manifest entry — both are real features
+            rather than buttons, and a tile that opens nothing is the dead tap
+            this app keeps deleting.
+          */}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              data-testid="shopping-screenshot-camera"
+              disabled={busy}
+              onClick={() => cameraRef.current?.click()}
+              className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-white text-[11px] font-black text-[#5b3df5] disabled:opacity-60"
+            >
+              <Camera size={13} />拍照
+            </button>
+            <button
+              type="button"
+              data-testid="shopping-screenshot-album"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+              className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-white text-[11px] font-black text-[#5b3df5] disabled:opacity-60"
+            >
+              <ImageIcon size={13} />從相簿選擇
+            </button>
+          </div>
         </>
       ) : (
         <>
@@ -168,46 +221,95 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
 
           <div className="mt-2 space-y-1.5">
             {found.map(candidate => (
-              <button
+              <div
                 key={candidate.id}
-                type="button"
-                data-testid={`shopping-candidate-${candidate.id}`}
-                aria-pressed={chosen.has(candidate.id)}
-                onClick={() => toggle(candidate.id)}
-                className={`flex w-full items-start gap-2 rounded-xl border p-2 text-left ${
+                className={`rounded-xl border p-2 ${
                   chosen.has(candidate.id) ? 'border-violet-200 bg-white' : 'border-slate-100 bg-white/60 opacity-60'
                 }`}
               >
-                {candidate.photo && (
-                  <img
-                    src={candidate.photo}
-                    alt=""
-                    loading="lazy"
-                    className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                  />
-                )}
-                <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded ${
-                  chosen.has(candidate.id) ? 'bg-[#5b3df5] text-white' : 'border border-slate-300'
-                }`}>
-                  {chosen.has(candidate.id) && <Check size={11} />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-black text-[#11183d]">{candidate.name}</span>
-                  {candidateDetail(candidate) && (
-                    <span className="mt-0.5 block text-[10px] text-slate-500">
-                      {candidateDetail(candidate)}
-                      <span className="ml-1 text-slate-400">（待確認）</span>
+                <div className="flex items-start gap-2">
+                  <button
+                    type="button"
+                    data-testid={`shopping-candidate-${candidate.id}`}
+                    aria-pressed={chosen.has(candidate.id)}
+                    onClick={() => toggle(candidate.id)}
+                    className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                  >
+                    <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded ${
+                      chosen.has(candidate.id) ? 'bg-[#5b3df5] text-white' : 'border border-slate-300'
+                    }`}>
+                      {chosen.has(candidate.id) && <Check size={11} />}
                     </span>
-                  )}
-                  <span className="mt-0.5 flex flex-wrap gap-1.5 text-[10px] text-slate-400">
-                    {candidate.category && (
-                      <span className="rounded bg-violet-50 px-1.5 py-0.5 font-bold text-violet-600">{candidate.category}</span>
+                    {candidate.photo && (
+                      <img
+                        src={candidate.photo}
+                        alt=""
+                        loading="lazy"
+                        className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                      />
                     )}
-                    {candidate.shop && <span>@ {candidate.shop}（待確認）</span>}
-                  </span>
-                </span>
-              </button>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-black text-[#11183d]">{candidate.name}</span>
+                      {candidateDetail(candidate) && (
+                        <span className="mt-0.5 block text-[10px] text-slate-500">
+                          {candidateDetail(candidate)}
+                          <span className="ml-1 text-slate-400">（待確認）</span>
+                        </span>
+                      )}
+                      <span className="mt-0.5 flex flex-wrap gap-1.5 text-[10px] text-slate-400">
+                        {candidate.category && (
+                          <span className="rounded bg-violet-50 px-1.5 py-0.5 font-bold text-violet-600">{candidate.category}</span>
+                        )}
+                        {candidate.shop && <span>@ {candidate.shop}（待確認）</span>}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`修改 ${candidate.name}`}
+                    data-testid={`shopping-candidate-edit-${candidate.id}`}
+                    onClick={() => setEditing(editing === candidate.id ? null : candidate.id)}
+                    className="shrink-0 p-1 text-slate-400"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                </div>
+
+                {/*
+                  Corrected before anything is written. 「請確認以下結果，並調整
+                  不正確的內容」 — a reading that can only be accepted or
+                  rejected wastes the eight pictures it just read when one
+                  field is wrong.
+                */}
+                {editing === candidate.id && (
+                  <div data-testid={`shopping-candidate-fields-${candidate.id}`} className="mt-2 space-y-1.5">
+                    {([
+                      ['name', '商品名稱'],
+                      ['brand', '品牌'],
+                      ['spec', '規格'],
+                      ['shop', '在哪買'],
+                    ] as const).map(([field, label]) => (
+                      <label key={field} className="block">
+                        <span className="block text-[10px] font-bold text-slate-400">{label}</span>
+                        <input
+                          value={candidate[field] ?? ''}
+                          aria-label={`${candidate.name} ${label}`}
+                          data-testid={`shopping-candidate-${field}-${candidate.id}`}
+                          onChange={event => edit(candidate.id, { [field]: event.target.value } as Partial<ShoppingCandidate>)}
+                          className="mt-0.5 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-[#11183d] outline-none"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
+          </div>
+
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span data-testid="shopping-candidates-count" className="text-[11px] font-bold text-slate-500">
+              已選 {chosen.size} 項
+            </span>
           </div>
 
           <button

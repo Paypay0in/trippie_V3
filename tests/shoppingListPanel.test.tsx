@@ -157,3 +157,93 @@ describe('where to buy it', () => {
     expect(row.textContent).toContain('看看新款色號');
   });
 });
+
+/**
+ * 「請100%還原這個設計」 — the third panel: progress, search, and the rows
+ * grouped under foldable headings.
+ */
+describe('已買 N / M', () => {
+  it('counts the whole list', () => {
+    show([item({ id: 'a' }), item({ id: 'b', isPurchased: true })]);
+
+    const bar = screen.getByTestId('shopping-progress');
+    expect(bar.textContent).toContain('已買 1 / 2');
+    expect(bar.textContent).toContain('50%');
+  });
+
+  /*
+    A bar that moved when somebody tapped a chip would be measuring the filter
+    rather than the shopping.
+  */
+  it('does not move when the list is filtered', () => {
+    show([
+      item({ id: 'a', category: '美妝保養' }),
+      item({ id: 'b', category: '伴手禮', isPurchased: true }),
+    ]);
+
+    fireEvent.click(screen.getByTestId('shopping-category-美妝保養'));
+
+    expect(screen.getByTestId('shopping-progress').textContent).toContain('已買 1 / 2');
+  });
+});
+
+describe('searching', () => {
+  it('finds a row by its shop', () => {
+    show([
+      item({ id: 'a', name: 'SK-II', shop: '松本清' }),
+      item({ id: 'b', name: '東京芭娜娜', shop: '東京車站' }),
+    ]);
+
+    fireEvent.change(screen.getByTestId('shopping-search'), { target: { value: '松本' } });
+
+    expect(screen.getByText('SK-II')).toBeTruthy();
+    expect(screen.queryByText('東京芭娜娜')).toBeNull();
+  });
+
+  /* The brand lives in the note, and the placeholder promises brands. */
+  it('finds a row by its brand', () => {
+    show([item({ id: 'a', name: '青春露', description: 'SK-II · 230ml' })]);
+
+    fireEvent.change(screen.getByTestId('shopping-search'), { target: { value: 'sk-ii' } });
+
+    expect(screen.getByText('青春露')).toBeTruthy();
+  });
+});
+
+describe('the sections', () => {
+  it('groups the rows under their category', () => {
+    show([item({ id: 'a', category: '美妝保養' })]);
+
+    expect(screen.getByTestId('shopping-section-美妝保養').textContent).toContain('1');
+  });
+
+  /* A row nobody filed is still a row somebody has to buy. */
+  it('gives the unfiled rows a heading of their own', () => {
+    show([item({ id: 'a' })]);
+
+    expect(screen.getByTestId('shopping-section-未分類')).toBeTruthy();
+  });
+
+  it('folds one away', () => {
+    show([item({ id: 'a', name: 'SK-II', category: '美妝保養' })]);
+
+    fireEvent.click(screen.getByTestId('shopping-section-toggle-美妝保養'));
+
+    expect(screen.queryByText('SK-II')).toBeNull();
+  });
+});
+
+describe('what it should cost', () => {
+  it('shows an amount somebody entered', () => {
+    show([item({ estimatedAmount: 5200, estimatedCurrency: 'NT$' })]);
+
+    expect(screen.getByTestId('shopping-amount-sk2').textContent).toContain('5,200');
+  });
+
+  /* Never read off a screenshot, so most rows have none and say none. */
+  it('shows nothing when nobody said', () => {
+    show([item()]);
+
+    expect(screen.queryByTestId('shopping-amount-sk2')).toBeNull();
+  });
+});
