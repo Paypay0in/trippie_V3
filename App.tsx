@@ -285,6 +285,8 @@ import {
   Sparkles,
   Receipt,
   Share2,
+  Images,
+  ArrowRight,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import QRShareModal from "./components/QRShareModal";
@@ -8709,6 +8711,35 @@ const App: React.FC = () => {
               shows; it is the overview, for a trip that is over.
             */
             <div className="space-y-6">
+              {/*
+                「旅程結束後的總覽 是帳目的」.
+
+                It was, and that was the whole of it: 旅程回顧 lived on the
+                row of tiles that only a trip in progress draws, so the one
+                screen written for looking back was unreachable from the only
+                stage that is entirely about looking back.
+
+                Above the report rather than beside it. What a finished trip
+                was is the days and the places; what it cost is the detail
+                underneath, and the report itself is untouched.
+              */}
+              <button
+                type="button"
+                data-testid="finished-trip-open-recap"
+                onClick={() => setRecapOpen(true)}
+                className="flex w-full items-center gap-3 rounded-[1.45rem] border border-slate-100 bg-white p-4 text-left shadow-[0_8px_24px_rgba(66,74,150,.07)]"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-white">
+                  <Images size={20} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-black text-[#11183d]">旅程回顧</span>
+                  <span className="mt-0.5 block text-[11px] text-slate-400">
+                    走過的天數、地點、亮點與花費
+                  </span>
+                </span>
+                <ArrowRight size={16} className="shrink-0 text-violet-600" />
+              </button>
               <TripSummaryModal
                 expenses={expenses}
                 onArchive={handleArchiveTrip}
