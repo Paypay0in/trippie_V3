@@ -1370,6 +1370,21 @@ describe('a pick that goes wrong', () => {
     expect(screen.getByTestId('pick-place-error').textContent).toContain('沒有排進去');
   });
 
+  /*
+    「這個地點沒有排進去，上面的訊息說明了原因」 — pointing at a toast behind the
+    sheet is the same failure as saying nothing, in a politer sentence. The
+    reason travels with the refusal.
+  */
+  it('prints the caller\'s own reason', async () => {
+    const user = userEvent.setup();
+    renderPlanner({ onFillBlock: vi.fn(() => '目前沒有開啟中的旅程，請回到旅程列表重新進入再試一次。') });
+
+    await user.click(screen.getByTestId('fill-block-1'));
+    await user.click(screen.getByTestId('pick-place-g-working'));
+
+    expect(screen.getByTestId('pick-place-error').textContent).toContain('目前沒有開啟中的旅程');
+  });
+
   it('shows a thrown error in its own words', async () => {
     const user = userEvent.setup();
     renderPlanner({

@@ -3231,13 +3231,19 @@ const App: React.FC = () => {
    */
   const handleFillDayBlock = ({ date, time, durationMinutes, placeGroupId }: {
     date: string; time: string; durationMinutes: number; placeGroupId: string;
-  }): boolean => {
+  }): true | string => {
     const groups = selectTripInspirationGroups(tripScopedInspirations, tripInspirationContext);
     const group = groups.find((entry) => entry.id === placeGroupId);
     if (!group) {
-      // A silent return here is a tap that does nothing and says nothing.
-      showToast("這個地點現在找不到，請重新整理再試一次。", "error");
-      return false;
+      /*
+        Returned as well as toasted. 「這個地點沒有排進去，上面的訊息說明了原
+        因」 — the sheet was pointing at a toast behind it, which is the same
+        failure as before wearing a politer sentence. The reason travels with
+        the refusal now, so the sheet can say it where the tap happened.
+      */
+      const reason = "這個地點現在找不到，請重新整理再試一次。";
+      showToast(reason, "error");
+      return reason;
     }
 
     const item = {
@@ -3261,10 +3267,11 @@ const App: React.FC = () => {
         did not go in, twice, with nothing on screen distinguishing 「this
         device is full」 from 「this screen is not editing a trip」.
       */
-      showToast(activeDraftId
-        ? "行程儲存失敗，這個地點沒有排進去。"
-        : "目前沒有開啟中的旅程，請回到旅程列表重新進入再試一次。", "error");
-      return false;
+      const reason = activeDraftId
+        ? "行程儲存失敗，這個地點沒有排進去。這台裝置的儲存空間可能滿了。"
+        : "目前沒有開啟中的旅程，請回到旅程列表重新進入再試一次。";
+      showToast(reason, "error");
+      return reason;
     }
     showToast(`已排入 ${time}・${group.placeName}`);
     return true;

@@ -157,7 +157,7 @@ interface Props {
    * Returns `false` when the stop did not go in, so the picker can stay open
    * rather than close on a refusal. 「我就是點下去就跳掉啦」.
    */
-  onFillBlock?: (input: { date: string; time: string; durationMinutes: number; placeGroupId: string }) => void | boolean;
+  onFillBlock?: (input: { date: string; time: string; durationMinutes: number; placeGroupId: string }) => void | boolean | string;
   /** A slot filled with a name the traveller typed, carrying no map location. */
   onFillBlockManually?: (input: { date: string; time: string; durationMinutes: number; title: string }) => void;
   /**

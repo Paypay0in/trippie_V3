@@ -78,7 +78,7 @@ interface Props {
    * that closes is this screen saying 「done」, and it was saying it whatever
    * happened next.
    */
-  onFillBlock: (slot: DaySlot, placeId: string) => void | boolean;
+  onFillBlock: (slot: DaySlot, placeId: string) => void | boolean | string;
   /** Fills a slot with a name the traveller typed, when no saved place fits. */
   onFillBlockManually?: (slot: DaySlot, title: string) => void;
   /** Changes how long a placed item runs; everything after it moves with it. */
@@ -254,10 +254,12 @@ const DayBlockPlanner: React.FC<Props> = ({
    * `false` only when the caller said so: a caller that returns nothing is
    * one that does not report, and silence is not a refusal.
    */
-  const replaceInSlot = (slot: DaySlot, fill: () => void | boolean): boolean => {
+  const replaceInSlot = (slot: DaySlot, fill: () => void | boolean | string): true | string => {
     const sitting = slot.occupantId ? itemById.get(slot.occupantId) : undefined;
     if (sitting) onClearBlock?.(sitting.id);
-    return fill() !== false;
+    const result = fill();
+    if (typeof result === 'string') return result;
+    return result === false ? '這個地點沒有排進去。' : true;
   };
 
   const commitTyped = (slot: DaySlot) => {
@@ -1218,11 +1220,8 @@ const DayBlockPlanner: React.FC<Props> = ({
               */
               setPickError('');
               try {
-                if (replaceInSlot(slot, () => onFillBlock(slot, placeId))) {
-                  setPickingAt(null);
-                } else {
-                  setPickError('這個地點沒有排進去，上面的訊息說明了原因。');
-                }
+                const result = replaceInSlot(slot, () => onFillBlock(slot, placeId));
+                if (result === true) setPickingAt(null); else setPickError(result);
               } catch (error) {
                 setPickError(`排入時出錯了：${(error as Error)?.message || String(error)}`);
               }
