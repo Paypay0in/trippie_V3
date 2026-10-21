@@ -116,6 +116,7 @@ import {
   saveStatedVisits,
   toggleStatedVisit,
 } from "./services/statedVisits";
+import { EmptiedSlots, loadEmptiedSlots, saveEmptiedSlots, toggleEmptied } from "./services/emptiedSlots";
 import { strandedLocalTripEscape } from "./services/strandedLocalTrip";
 import { isOwnerIdentity } from "./services/memberIdentity";
 import { filterOutstandingExpenses } from "./services/settlementConsumption";
@@ -1910,6 +1911,9 @@ const App: React.FC = () => {
   /** Places the traveller has said they went to. See `statedVisits`. */
   const [statedVisits, setStatedVisits] = useState<StatedVisits>(() => loadStatedVisits());
   useEffect(() => { saveStatedVisits(statedVisits); }, [statedVisits]);
+  /** Blocks said to be empty on purpose. See `emptiedSlots`. */
+  const [emptiedSlotIds, setEmptiedSlotIds] = useState<EmptiedSlots>(() => loadEmptiedSlots());
+  useEffect(() => { saveEmptiedSlots(emptiedSlotIds); }, [emptiedSlotIds]);
   /** Trips whose name here disagrees with the cloud's. See `identityDrift`. */
   const [identityDrifts, setIdentityDrifts] = useState<IdentityDrift[]>([]);
   /** The owner's name as the server stores it, for devices that are not theirs. */
@@ -7930,6 +7934,12 @@ const App: React.FC = () => {
           categoryOf={categoryOfItineraryItem}
           onFillBlock={handleFillDayBlock}
           onFillBlockManually={handleFillDayBlockManually}
+          /*
+            「要有『無』的選項」 — a block decided against, so the planner stops
+            offering restaurants under a lunch already answered.
+          */
+          emptiedSlotIds={emptiedSlotIds}
+          onToggleEmptied={(slotId) => setEmptiedSlotIds((current) => toggleEmptied(current, slotId))}
           items={itinerary}
           startDate={tripStartDate}
           endDate={tripEndDate}
@@ -9028,6 +9038,12 @@ const App: React.FC = () => {
                   savedPlaces={blockPlannerPlaces}
                   onFillBlock={handleFillDayBlock}
           onFillBlockManually={handleFillDayBlockManually}
+          /*
+            「要有『無』的選項」 — a block decided against, so the planner stops
+            offering restaurants under a lunch already answered.
+          */
+          emptiedSlotIds={emptiedSlotIds}
+          onToggleEmptied={(slotId) => setEmptiedSlotIds((current) => toggleEmptied(current, slotId))}
                   items={itinerary}
                   startDate={tripStartDate}
                   endDate={tripEndDate}

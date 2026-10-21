@@ -88,6 +88,21 @@ interface Props {
    */
   onClearBlock?: (itemId: string) => void;
   /**
+   * Blocks the traveller has said are meant to be empty. See `emptiedSlots`.
+   *
+   * 「要有『無』的選項」 on an empty row: a gap nobody has chosen for and a gap
+   * decided against look identical in an itinerary, so the planner kept
+   * offering restaurants under a lunch he had already said no to.
+   */
+  emptiedSlotIds?: string[];
+  /**
+   * Says a block is empty on purpose, or takes it back. The caller persists.
+   *
+   * Omit and 無 is not offered: a screen that cannot remember the answer must
+   * not appear to ask the question.
+   */
+  onToggleEmptied?: (slotId: string) => void;
+  /**
    * Writes the day back after 幾點出門 moves it. See `shiftDayToStart`.
    *
    * Omit and the offer is not made: this rewrites the traveller's own plan, so
@@ -156,6 +171,8 @@ const DayBlockPlanner: React.FC<Props> = ({
   onFillBlockManually,
   onChangeDuration,
   onClearBlock,
+  emptiedSlotIds = [],
+  onToggleEmptied,
   onUnpin,
   categoryOf,
   onSwapBlocks,
@@ -515,7 +532,13 @@ const DayBlockPlanner: React.FC<Props> = ({
     return bySlot;
   }, [slots, itemById, places]);
 
-  const suggestionsFor = (slot: DaySlot) => suggestionsBySlot.get(slot.index) || [];
+  /*
+    Nothing is offered for a block the traveller has said is empty on purpose.
+    The suggestions are an answer to 「what could go here」, and that question
+    has been answered.
+  */
+  const suggestionsFor = (slot: DaySlot) =>
+    (emptiedSlotIds.includes(slot.id) ? [] : suggestionsBySlot.get(slot.index)) || [];
 
   /*
     The corner the open sheet is filling, as two numbers.
@@ -942,7 +965,28 @@ const DayBlockPlanner: React.FC<Props> = ({
                       </button>
                     </span>
                   ) : (
+                  emptiedSlotIds.includes(slot.id) ? (
+                  /*
+                    Decided against, and saying so. The row keeps its time and
+                    its name so the day still reads as a day; what it loses is
+                    the pile of suggestions under a question already answered.
+                  */
+                  <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-400">沒有安排</span>
+                    {onToggleEmptied && (
+                      <button
+                        type="button"
+                        data-testid={`unempty-block-${slot.index}`}
+                        onClick={() => onToggleEmptied(slot.id)}
+                        className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-[#5b3df5]"
+                      >
+                        還是排一個
+                      </button>
+                    )}
+                  </span>
+                  ) : (
                   <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="flex gap-1">
                     <button
                       type="button"
                       data-testid={`fill-block-${slot.index}`}
@@ -952,6 +996,23 @@ const DayBlockPlanner: React.FC<Props> = ({
                     >
                       ＋ 選一個地點
                     </button>
+                    {/*
+                      「要有『無』的選項」. Beside the pick rather than inside it:
+                      saying there is nothing here is an answer, not one of the
+                      places on offer.
+                    */}
+                    {onToggleEmptied && (
+                      <button
+                        type="button"
+                        data-testid={`empty-block-${slot.index}`}
+                        aria-label={`${slot.startTime} ${slot.label} 不安排`}
+                        onClick={() => onToggleEmptied(slot.id)}
+                        className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-400"
+                      >
+                        無
+                      </button>
+                    )}
+                    </span>
                     {/*
                       「有空白行程的時候 會直接顯示附近的好地點 從收藏的優先推薦」.
 
@@ -978,6 +1039,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                       </span>
                     )}
                   </span>
+                  )
                   )}
                   </>
                 )}

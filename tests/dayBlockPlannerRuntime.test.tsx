@@ -1140,3 +1140,59 @@ describe('把疊在一起的時間排開', () => {
     expect(screen.queryByTestId('tidy-day-times')).toBeNull();
   });
 });
+
+/**
+ * 「要有『無』的選項」.
+ *
+ * A filled block could already be cleared; a block never filled had no way to
+ * say 「今天中午不吃」, so the planner went on offering restaurants under a gap
+ * the traveller had already decided about.
+ */
+describe('a block that is empty on purpose', () => {
+  const slotId = `${DAY}#1`;
+
+  it('offers 無 on an empty row', () => {
+    renderPlanner({ onToggleEmptied: vi.fn() });
+
+    expect(screen.getByTestId('empty-block-1').textContent).toBe('無');
+  });
+
+  it('hands back the block that was answered', async () => {
+    const onToggleEmptied = vi.fn();
+    const user = userEvent.setup();
+    renderPlanner({ onToggleEmptied });
+
+    await user.click(screen.getByTestId('empty-block-1'));
+
+    expect(onToggleEmptied).toHaveBeenCalledWith(slotId);
+  });
+
+  /* The question has been answered, so it stops being asked. */
+  it('stops offering anything for it', () => {
+    renderPlanner({ onToggleEmptied: vi.fn(), emptiedSlotIds: [slotId] });
+
+    expect(screen.queryByTestId('fill-block-1')).toBeNull();
+    expect(screen.queryByTestId('slot-suggestions-1')).toBeNull();
+    expect(screen.getByTestId('unempty-block-1')).toBeTruthy();
+  });
+
+  it('lets the traveller change their mind', async () => {
+    const onToggleEmptied = vi.fn();
+    const user = userEvent.setup();
+    renderPlanner({ onToggleEmptied, emptiedSlotIds: [slotId] });
+
+    await user.click(screen.getByTestId('unempty-block-1'));
+
+    expect(onToggleEmptied).toHaveBeenCalledWith(slotId);
+  });
+
+  /*
+    A screen that cannot remember the answer must not appear to ask the
+    question.
+  */
+  it('does not offer 無 when the caller cannot persist it', () => {
+    renderPlanner();
+
+    expect(screen.queryByTestId('empty-block-1')).toBeNull();
+  });
+});

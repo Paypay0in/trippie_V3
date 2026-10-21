@@ -85,6 +85,16 @@ interface Props {
    */
   /** Toggles the user's pin on one item. Persisted immediately by the caller. */
   onTogglePin?: (itemId: string, nextPinned: boolean) => void;
+  /**
+   * Blocks the traveller has said are meant to be empty. See `emptiedSlots`.
+   *
+   * 「要有『無』的選項」 — a gap nobody has chosen for and a gap decided against
+   * look identical in an itinerary, so the planner kept offering restaurants
+   * under a lunch already answered.
+   */
+  emptiedSlotIds?: string[];
+  /** Says a block is empty on purpose, or takes it back. Caller persists. */
+  onToggleEmptied?: (slotId: string) => void;
   onRescheduleItem?: (
     itemId: string,
     newStartMinutes: number,
@@ -201,7 +211,7 @@ const formatPrice = (amount: number, currency: string): string => {
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
 
-const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, categoryOf, viewerUserId, members = [] }) => {
+const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, categoryOf, viewerUserId, members = [], emptiedSlotIds, onToggleEmptied }) => {
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -1323,6 +1333,12 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             「this is no longer on the plan」 rather than two.
           */
           onClearBlock={onDelete}
+          /*
+            「要有『無』的選項」 on an empty row — a gap decided against, so the
+            suggestions stop being offered under it.
+          */
+          emptiedSlotIds={emptiedSlotIds}
+          onToggleEmptied={onToggleEmptied}
           /* The pin is undone from where its effect is visible. */
           onUnpin={onTogglePin ? (itemId) => onTogglePin(itemId, false) : undefined}
           /* So a meal row can ask whether a café was really meant as dinner. */
