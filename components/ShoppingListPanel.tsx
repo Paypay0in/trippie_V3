@@ -333,8 +333,18 @@ const ShoppingListPanel: React.FC<Props> = ({
 
                 {!collapsed.has(label) && items.map(item => (
               <div key={item.id} data-testid={`shopping-item-${item.id}`} className="group p-3 transition-colors hover:bg-gray-50">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                {/*
+                  「排版很糟糕」 — the name shared its line with a stepper, a
+                  購買 button and a bin, which on a phone left it about a third
+                  of the width: 「ReLUCE glitter serum fragrance shiny freesia」
+                  came out as six lines of one or two words.
+
+                  The controls drop to their own row. A product name is the
+                  thing being read; the buttons are the thing being pressed,
+                  and they do not need to be beside it.
+                */}
+                <div>
+                  <div className="flex min-w-0 items-start gap-3">
                     <Circle size={18} className="mt-0.5 shrink-0 text-gray-300" />
                     {/*
                       「要找圖片」 — the screenshot this row was read out of. It
@@ -383,7 +393,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                     ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                        <span className="text-sm font-medium leading-5 text-gray-800">{item.name}</span>
                         {/* 待購買, said on every unbought row. */}
                         <span data-testid={`shopping-status-${item.id}`} className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-black text-rose-500">
                           待購買
@@ -468,8 +478,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <div className="flex items-center gap-1">
+                  <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
                       {onUpdateItem && (
                         <span className="mr-1 flex items-center gap-1 rounded-lg bg-slate-50 px-1 py-0.5">
                           <button
@@ -511,7 +520,6 @@ const ShoppingListPanel: React.FC<Props> = ({
                       >
                         <Trash2 size={16} />
                       </button>
-                    </div>
                     {/*
                       What it is expected to cost, when somebody has said.
                       Never read off a screenshot and never guessed — see
