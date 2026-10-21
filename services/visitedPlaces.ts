@@ -94,7 +94,20 @@ export const visitsByPlace = (
 
   trips.forEach(trip => {
     (trip.itinerary || []).forEach((item: ItineraryItem) => {
-      if (!isPast(item.date, today)) return;
+      /*
+        A ticked stop is a visit, whatever the calendar says.
+
+        「若按完成 我希望我點回我的收藏清單 可以看到他被標註已訪」 — the date rule
+        answers 「has this day been and gone」, which is the right question for
+        a plan nobody has touched. It is the wrong question once somebody has
+        said they went: 完成 on this afternoon's stop is a statement, and
+        making it wait until midnight to count is the screen arguing with the
+        person who was there.
+
+        Same correction as the ticket list, and for the same reason: a to-do
+        list records what the traveller says.
+      */
+      if (!isPast(item.date, today) && item.isCompleted !== true) return;
       keysOf(item).forEach(key => {
         const existing = visits.get(key);
         /*

@@ -123,3 +123,48 @@ describe('同一個地方的兩種身份', () => {
     expect(visitOf({ placeName: 'DIART coffee' } as never, visits)).toBeUndefined();
   });
 });
+
+/**
+ * 「這個點 是我收藏的 我也有安排入行程。若按完成 我希望我點回我的收藏清單 可以看到
+ * 他被標註已訪」.
+ *
+ * The date rule answers 「has this day been and gone」, which is right for a
+ * plan nobody has touched and wrong once somebody has said they went.
+ */
+describe('a stop that was ticked 完成', () => {
+  const TODAY = '2026-10-21';
+  const trip = (over: Partial<ItineraryItem> = {}) => ([{
+    name: '東京',
+    itinerary: [{
+      id: 'it', date: TODAY, title: '待乳山聖天', location: '待乳山聖天',
+      placeId: 'ChIJ-matsuchi', notes: '', type: 'ACTIVITY',
+      ...over,
+    }],
+  }] as unknown as Array<Pick<Trip, 'name' | 'itinerary'>>);
+
+  it('counts today, once it is ticked', () => {
+    const visits = visitsByPlace(trip({ isCompleted: true }), TODAY);
+
+    expect(visits.get('place:ChIJ-matsuchi')?.date).toBe(TODAY);
+  });
+
+  /* An untouched plan for today is still a plan. */
+  it('does not count today while it is only planned', () => {
+    const visits = visitsByPlace(trip(), TODAY);
+
+    expect(visits.get('place:ChIJ-matsuchi')).toBeUndefined();
+  });
+
+  /* A stop still to come, ticked, is the traveller saying they went. */
+  it('counts a ticked stop on a later day too', () => {
+    const visits = visitsByPlace(trip({ date: '2026-10-23', isCompleted: true }), TODAY);
+
+    expect(visits.get('place:ChIJ-matsuchi')?.date).toBe('2026-10-23');
+  });
+
+  it('still counts a past stop nobody ticked', () => {
+    const visits = visitsByPlace(trip({ date: '2026-10-19' }), TODAY);
+
+    expect(visits.get('place:ChIJ-matsuchi')?.date).toBe('2026-10-19');
+  });
+});
