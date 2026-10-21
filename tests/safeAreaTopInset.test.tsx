@@ -67,6 +67,8 @@ describe('螢幕頂端的安全區域', () => {
       'components/CommunityPostDetail.tsx',
       'components/SavedTravelDestinationDetail.tsx',
       'components/CreateEditTripScreen.tsx',
+      // 「過度滿版」 — the review opens over the app and owns the top itself.
+      'components/TripRecapScreen.tsx',
       'App.tsx',
     ]) {
       expect(marked(screen), screen).toBe(true);

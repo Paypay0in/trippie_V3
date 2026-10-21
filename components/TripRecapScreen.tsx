@@ -142,7 +142,19 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
 
   return (
     <div className="min-h-full bg-[#f6f7fc] pb-8">
-      <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-100 bg-white/95 px-3 py-3 backdrop-blur">
+      {/*
+        「過度滿版」 — the title sat under the clock and the Dynamic Island.
+
+        index.html asks for viewport-fit=cover on purpose, so every screen
+        that owns the top of the display has to pay the inset back. Padding
+        rather than an offset: the header's own background then fills the
+        strip behind the clock instead of leaving a second status bar of
+        white above it.
+      */}
+      <header
+        data-safe-top
+        className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-100 bg-white/95 px-3 py-3 backdrop-blur"
+      >
         <button
           type="button"
           onClick={onBack}
