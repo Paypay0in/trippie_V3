@@ -210,6 +210,24 @@ export const priceFromHtml = (html: string): PagePrice | null => {
  * says nothing may still be quoted from its snippet — marked as unverified,
  * because a price nobody can check looks identical on screen to one that was.
  */
+/*
+  What this asks pages to think it is.
+
+  It used to say 「Trippie/3.0」 with a contact URL, which is the honest thing
+  to send and is why 無印良品's Japanese store and Jo Malone Taiwan would not
+  answer it at all — the first timed out, the second returned 403. Measured
+  on 2026-10-22: a plain browser string gets 200 and the structured price
+  from both, and appending our own name to that string gets the 403 back. So
+  there is no spelling that both identifies us and is allowed in.
+
+  The Founder chose access. What this does is unchanged by the string: it
+  opens pages a traveller's own shopping list named, one page per shop, five
+  seconds each, and reads the price the shop published for search engines to
+  read. It does not crawl, follow links, or return.
+*/
+const BROWSER = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+  + ' (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
 export interface PageReading {
   /** Whether the page could be opened at all. */
   reachable: boolean;
@@ -232,12 +250,7 @@ export const readPage = async (
 ): Promise<PageReading> => {
   try {
     const response = await fetchImpl(url, {
-      headers: {
-        // Several storefronts serve a stub to anything that does not look
-        // like a browser, and a stub has no price in it.
-        'User-Agent': 'Mozilla/5.0 (compatible; Trippie/3.0; +https://trippie-v3.onrender.com)',
-        Accept: 'text/html',
-      },
+      headers: { 'User-Agent': BROWSER, Accept: 'text/html' },
       signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return { reachable: false, price: null, offers: [] };
