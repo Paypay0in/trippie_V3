@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { Category, Expense, FlightAnchor, ItineraryItem, PaymentMethod, TripMember } from '../types';
+import { Category, Expense, FlightAnchor, ItineraryItem, PaymentMethod, ShoppingItem, TripMember } from '../types';
 import {
+  fromShoppingRow,
+  toShoppingRow,
   ExpenseRow,
   fromExpenseRow,
   fromItineraryRow,
@@ -353,3 +355,47 @@ describe('the two answers that used to live on one phone', () => {
     expect(fromItineraryRow(toItineraryRow(plain, 'trip-1')).ticketBought).toBeUndefined();
   });
 })
+
+/**
+ * 購物清單, shared with the trip since 0031.
+ *
+ * 「這照片好像不會存」 was a full device; underneath it, a list that had only
+ * ever lived inside one phone's draft.
+ */
+describe('the shopping list', () => {
+  const item: ShoppingItem = {
+    id: 's1', name: 'SK-II 青春露', isPurchased: false, phase: 'during',
+    description: 'SK-II · 230ml', shop: '松本清', category: '美妝保養',
+    priority: 'must', quantity: 2, estimatedAmount: 4200, estimatedCurrency: 'NT$',
+    photo: 'bottle', photoSource: 'https://example.com/p',
+  };
+
+  it('survives a round trip', () => {
+    expect(fromShoppingRow(toShoppingRow(item, 'trip-1'))).toEqual(item);
+  });
+
+  it('carries the trip it belongs to', () => {
+    expect(toShoppingRow(item, 'trip-1').trip_id).toBe('trip-1');
+  });
+
+  /*
+    Absent rather than null on the way back: the client's shape says 「nobody
+    said」 with a missing field, and a null would read as an answer.
+  */
+  it('leaves what nobody filled in absent', () => {
+    const bare = fromShoppingRow(toShoppingRow(
+      { id: 's2', name: '轉接頭', isPurchased: false, phase: 'pre' },
+      'trip-1',
+    ));
+
+    expect(bare).toEqual({ id: 's2', name: '轉接頭', isPurchased: false, phase: 'pre' });
+  });
+
+  /* 已買 is a fact two people share; it must survive the trip to the server. */
+  it('carries 已買 both ways', () => {
+    const bought = toShoppingRow({ ...item, isPurchased: true }, 'trip-1');
+
+    expect(bought.is_purchased).toBe(true);
+    expect(fromShoppingRow(bought).isPurchased).toBe(true);
+  });
+});

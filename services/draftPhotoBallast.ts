@@ -48,7 +48,8 @@ export const withoutCloudHeldPhotos = (drafts: TripDraft[]): LightenedDrafts => 
     const seen = loadEverSeen(draft.id);
     const confirmedBills = new Set(seen.expenses ?? []);
     const confirmedStops = new Set(seen.itinerary ?? []);
-    if (confirmedBills.size === 0 && confirmedStops.size === 0) return draft;
+    const confirmedBuys = new Set(seen.shoppingList ?? []);
+    if (confirmedBills.size === 0 && confirmedStops.size === 0 && confirmedBuys.size === 0) return draft;
 
     let touched = false;
 
@@ -70,7 +71,16 @@ export const withoutCloudHeldPhotos = (drafts: TripDraft[]): LightenedDrafts => 
       return rest as typeof item;
     });
 
-    return touched ? { ...draft, expenses, itinerary } : draft;
+    /* A product picture is a cache the moment the list reaches the server. */
+    const shoppingList = (draft.shoppingList ?? []).map(item => {
+      if (!item.photo || !confirmedBuys.has(item.id)) return item;
+      dropped += 1;
+      touched = true;
+      const { photo, ...rest } = item;
+      return rest as typeof item;
+    });
+
+    return touched ? { ...draft, expenses, itinerary, shoppingList } : draft;
   });
 
   return dropped > 0 ? { drafts: lightened, dropped } : { drafts, dropped: 0 };

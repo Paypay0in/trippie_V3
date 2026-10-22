@@ -4626,6 +4626,11 @@ const App: React.FC = () => {
     // the places that belong to this trip's destination travel with it — the
     // store is one list across every trip the traveller has ever planned.
     inspirations: tripScopedInspirations,
+    /*
+      購物清單, shared with the trip since 0031. 「幫我帶一條」 is why two people
+      keep one list, and until now it lived on whichever phone typed it.
+    */
+    shoppingList,
     // 「Gina的介面無法看到退稅資訊」 — the destination's refund rule travels with
     // the trip now. Only the tax part: entry rules depend on whose passport
     // it is, and that is one traveller's business.
@@ -4670,6 +4675,14 @@ const App: React.FC = () => {
       // Same rule as the ledger: whoever else is on this trip may have moved
       // a day since this device last looked, and the local copy cannot tell.
       setItinerary(snapshot.itinerary);
+      /*
+        購物清單, by the same rule as the ledger and the itinerary.
+
+        `undefined` means 0031 has not reached this database and the table
+        said nothing — which must never be read as 「the list is empty」, or
+        one device without the migration would wipe the other's list.
+      */
+      if (snapshot.shoppingList) setShoppingList(snapshot.shoppingList);
       // Flights arrive with the rest of the trip now. Every remote anchor id
       // is registered as known before the list is applied, so the
       // reconciliation treats them as this device's own from here on — without

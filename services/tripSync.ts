@@ -1,4 +1,4 @@
-import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMember } from '../types';
+import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, ShoppingItem, TripMember } from '../types';
 import { idsToPrune } from './syncPrune';
 import { changedRows, RowFingerprints, withFingerprints } from './rowFingerprints';
 import type { SharedTaxRule } from './sharedTaxRule';
@@ -14,6 +14,9 @@ import {
   fromFlightAnchorRow,
   fromTripInspirationRow,
   fromItineraryRow,
+  fromShoppingRow,
+  toShoppingRow,
+  ShoppingItemRow,
   fromMemberRow,
   toExpenseRow,
   toFlightAnchorRow,
@@ -57,6 +60,7 @@ export interface KnownRemoteIds {
   flightAnchors: Iterable<string>;
   /** Optional while the table is newer than some deployed clients. */
   inspirations?: Iterable<string>;
+  shoppingList?: Iterable<string>;
   /**
    * What the server is believed to hold, row by row.
    *
@@ -89,6 +93,8 @@ export interface TripSyncSnapshot {
    * and a missing list must never be read as an emptied one.
    */
   inspirations?: SavedTravelInspiration[];
+  /** 購物清單, shared with the trip since 0031. Undefined means 「not asked」. */
+  shoppingList?: ShoppingItem[];
   /**
    * The destination's tax-refund rule, so both travellers get an estimate.
    *
@@ -333,12 +339,13 @@ export const fetchTripSnapshot = async (
     // any update — so a re-read handed the app the same trip in a new order
     // every twenty seconds, and anything watching the list for changes saw one
     // that had not happened.
-    const [members, expenses, itinerary, flights, inspirations, taxRule] = await Promise.all([
+    const [members, expenses, itinerary, flights, inspirations, shopping, taxRule] = await Promise.all([
       supabase.from('trip_members').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('expenses').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('flight_anchors').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('trip_inspirations').select('*').eq('trip_id', tripId).order('id'),
+      supabase.from('shopping_items').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('trip_tax_rules').select('*').eq('trip_id', tripId).maybeSingle(),
     ]);
     if (members.error) throw members.error;
@@ -360,6 +367,10 @@ export const fetchTripSnapshot = async (
     if (inspirations.error && import.meta.env.DEV) {
       console.warn('[tripSync] trip inspirations unavailable', inspirations.error.message);
     }
+    // And for the shopping list, which arrives in migration 0031.
+    if (shopping.error && import.meta.env.DEV) {
+      console.warn('[tripSync] shopping items unavailable', shopping.error.message);
+    }
     // And for the shared tax rule, which arrives in migration 0012.
     if (taxRule.error && import.meta.env.DEV) {
       console.warn('[tripSync] trip tax rule unavailable', taxRule.error.message);
@@ -379,6 +390,9 @@ export const fetchTripSnapshot = async (
         inspirations: inspirations.error
           ? undefined
           : (inspirations.data as TripInspirationRow[]).map(fromTripInspirationRow),
+        shoppingList: shopping.error
+          ? undefined
+          : (shopping.data as ShoppingItemRow[]).map(fromShoppingRow),
         taxRule: taxRule.error || !taxRule.data
           ? undefined
           : {
@@ -550,7 +564,7 @@ export const pushMembers = async (
  * because nobody is looking for it.
  */
 export const pushTripSnapshot = async (
-  { members, expenses, itinerary, flightAnchors, inspirations, taxRule }: TripSyncSnapshot,
+  { members, expenses, itinerary, flightAnchors, inspirations, shoppingList, taxRule }: TripSyncSnapshot,
   tripId: string,
   /**
    * What this device knows exists on the server: everything it has read or
@@ -745,6 +759,40 @@ export const pushTripSnapshot = async (
           .in('id', removedInspirations);
         if (inspirationPruneError && import.meta.env.DEV) {
           console.warn('[tripSync] inspirations not pruned', inspirationPruneError.message);
+        }
+      }
+    }
+
+    /*
+      購物清單. Ids are minted on the client and stay put, so unlike the
+      want-to-go list there is nothing to align: the same item keeps the same
+      row wherever it was typed.
+    */
+    if (shoppingList?.length) {
+      const rows = shoppingList.map(item => toShoppingRow(item, tripId));
+      const { error } = await supabase
+        .from('shopping_items')
+        .upsert(rows, { onConflict: 'id', ignoreDuplicates: false });
+      if (error) {
+        // 0031 may not have reached this database yet; nothing else is
+        // tolerated, because a list that silently did not save is the fault
+        // this table exists to end.
+        if (!isMissingTable(error)) throw error;
+        if (import.meta.env.DEV) console.warn('[tripSync] shopping table missing', error.message);
+        return done();
+      }
+    }
+
+    if (shoppingList) {
+      const removedShopping = idsToPrune(known?.shoppingList ?? [], shoppingList.map(item => item.id));
+      if (removedShopping.length) {
+        const { error: shoppingPruneError } = await supabase
+          .from('shopping_items')
+          .delete()
+          .eq('trip_id', tripId)
+          .in('id', removedShopping);
+        if (shoppingPruneError && import.meta.env.DEV) {
+          console.warn('[tripSync] shopping not pruned', shoppingPruneError.message);
         }
       }
     }

@@ -1,4 +1,4 @@
-import { Category, Expense, FlightAnchor, ItineraryItem, PaymentMethod, SplitMethod, ReceiptItem, SavedTravelInspiration, TripFlightMode, TripMember } from '../types';
+import { Category, Expense, ShoppingItem, FlightAnchor, ItineraryItem, PaymentMethod, SplitMethod, ReceiptItem, SavedTravelInspiration, TripFlightMode, TripMember } from '../types';
 
 /**
  * Translation between the app's objects and the shared tables.
@@ -601,4 +601,68 @@ export const fromTripInspirationRow = (row: TripInspirationRow): SavedTravelInsp
     ? (row.notes as SavedTravelInspiration['notes']).filter(note => note && typeof note.text === 'string')
     : [],
   savedAt: row.saved_at ?? new Date().toISOString(),
+});
+
+/**
+ * The shopping list, which belonged to one phone until 0031.
+ *
+ * 「這照片好像不會存」 was a full device, and underneath it this: 購物清單 lived
+ * only inside the local draft, so changing phone emptied it and nothing could
+ * say why.
+ *
+ * `timingText` and `source` are deliberately not columns. They are written
+ * only by the pre-trip checklist generator, which is a different list that
+ * happens to share a type; carrying them here would mean inventing a storage
+ * shape for something no screen on this path ever reads.
+ */
+export interface ShoppingItemRow {
+  id: string;
+  trip_id: string;
+  name: string;
+  phase: string;
+  is_purchased: boolean;
+  description: string | null;
+  shop: string | null;
+  category: string | null;
+  priority: string | null;
+  quantity: number | null;
+  estimated_amount: number | null;
+  estimated_currency: string | null;
+  photo: string | null;
+  photo_source: string | null;
+}
+
+export const toShoppingRow = (item: ShoppingItem, tripId: string): ShoppingItemRow => ({
+  id: item.id,
+  trip_id: tripId,
+  name: item.name ?? '',
+  phase: item.phase ?? 'during',
+  is_purchased: item.isPurchased === true,
+  description: item.description ?? null,
+  shop: item.shop ?? null,
+  category: item.category ?? null,
+  priority: item.priority ?? null,
+  quantity: typeof item.quantity === 'number' ? item.quantity : null,
+  estimated_amount: typeof item.estimatedAmount === 'number' ? item.estimatedAmount : null,
+  estimated_currency: item.estimatedCurrency ?? null,
+  photo: item.photo ?? null,
+  photo_source: item.photoSource ?? null,
+});
+
+export const fromShoppingRow = (row: ShoppingItemRow): ShoppingItem => ({
+  id: row.id,
+  name: row.name ?? '',
+  isPurchased: row.is_purchased === true,
+  phase: (row.phase as ShoppingItem['phase']) ?? 'during',
+  // Absent rather than null throughout: the client's shape says 「nobody
+  // said」 with a missing field, and a null would read as an answer.
+  ...(row.description ? { description: row.description } : {}),
+  ...(row.shop ? { shop: row.shop } : {}),
+  ...(row.category ? { category: row.category } : {}),
+  ...(row.priority === 'must' || row.priority === 'want' ? { priority: row.priority } : {}),
+  ...(typeof row.quantity === 'number' ? { quantity: row.quantity } : {}),
+  ...(typeof row.estimated_amount === 'number' ? { estimatedAmount: row.estimated_amount } : {}),
+  ...(row.estimated_currency ? { estimatedCurrency: row.estimated_currency } : {}),
+  ...(row.photo ? { photo: row.photo } : {}),
+  ...(row.photo_source ? { photoSource: row.photo_source } : {}),
 });

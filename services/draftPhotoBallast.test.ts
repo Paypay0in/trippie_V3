@@ -104,3 +104,22 @@ describe('a stop\'s own photographs', () => {
     expect(drafts[0].itinerary?.[0].photos).toEqual(['a']);
   });
 });
+
+/* 「這照片好像不會存」 — and once the list syncs, its pictures are a cache too. */
+describe('a product picture', () => {
+  it('is freed once the list has reached the server', () => {
+    saveEverSeen('trip', { shoppingList: ['s1'] });
+
+    const { drafts, dropped } = withoutCloudHeldPhotos([
+      {
+        id: 'trip',
+        expenses: [],
+        shoppingList: [{ id: 's1', photo: 'bottle' }, { id: 's2', photo: 'tube' }],
+      } as never,
+    ]);
+
+    expect(dropped).toBe(1);
+    expect(drafts[0].shoppingList?.[0].photo).toBeUndefined();
+    expect(drafts[0].shoppingList?.[1].photo).toBe('tube');
+  });
+});

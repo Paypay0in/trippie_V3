@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, TripMember } from '../types';
+import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, ShoppingItem, TripMember } from '../types';
 import type { SharedTaxRule } from '../services/sharedTaxRule';
 import {
   KnownRemoteIds,
@@ -82,6 +82,11 @@ interface Options {
    * 「跟朋友會先把想去的地方列一個表單」.
    */
   inspirations?: SavedTravelInspiration[];
+  /**
+   * 購物清單. Shared with the trip, like the itinerary: 「幫我帶一條」 is the
+   * whole of why two people keep one list.
+   */
+  shoppingList?: ShoppingItem[];
   /** The destination's tax rule, so a companion gets a refund estimate too. */
   taxRule?: SharedTaxRule;
 }
@@ -179,6 +184,7 @@ export const useTripSync = ({
   itinerary,
   flightAnchors,
   inspirations = [],
+  shoppingList = [],
   taxRule,
   note,
   onRemoteSnapshot,
@@ -244,7 +250,7 @@ export const useTripSync = ({
     a deletion leaves no row anywhere, so this memory is the only trace of it.
   */
   const everSeenRef = useRef<EverSeenIds>({
-    members: [], expenses: [], itinerary: [], flightAnchors: [], inspirations: [],
+    members: [], expenses: [], itinerary: [], flightAnchors: [], inspirations: [], shoppingList: [],
   });
 
   const rememberEverSeen = (seen: Partial<Record<keyof EverSeenIds, Iterable<string>>>) => {
@@ -456,8 +462,8 @@ export const useTripSync = ({
   // The roster and the expense list are rebuilt on every render, so depending
   // on the arrays themselves would restart the debounce forever and never
   // write. Comparing content also means an idle re-render costs no request.
-  const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors, inspirations, taxRule });
-  const payloadRef = useRef({ members, expenses, itinerary, flightAnchors, inspirations, taxRule });
+  const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors, inspirations, shoppingList, taxRule });
+  const payloadRef = useRef({ members, expenses, itinerary, flightAnchors, inspirations, shoppingList, taxRule });
   /**
    * What this device last successfully sent.
    *
@@ -465,7 +471,7 @@ export const useTripSync = ({
    * a read landing before the debounced push — see `mergeWithUnpushed`.
    */
   const lastPushedRef = useRef<{ expenses?: readonly Expense[]; itinerary?: readonly ItineraryItem[] }>({});
-  payloadRef.current = { members, expenses, itinerary, flightAnchors, inspirations, taxRule };
+  payloadRef.current = { members, expenses, itinerary, flightAnchors, inspirations, shoppingList, taxRule };
 
   /**
    * Publish the name, destination and dates when they change.
@@ -507,8 +513,8 @@ export const useTripSync = ({
     if (!enabled || !tripId || readyTripIdRef.current !== tripId) return;
 
     const timer = window.setTimeout(() => {
-      const { members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s, taxRule: t } = payloadRef.current;
-      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s, taxRule: t }, tripId, knownRef.current).then(result => {
+      const { members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s, shoppingList: sl, taxRule: t } = payloadRef.current;
+      void pushTripSnapshot({ members: m, expenses: e, itinerary: i, flightAnchors: f, inspirations: s, shoppingList: sl, taxRule: t }, tripId, knownRef.current).then(result => {
         if (readyTripIdRef.current !== tripId) return;
         if (result.status !== 'error') {
           // What was just written is now known, and what was deleted stops
@@ -529,6 +535,7 @@ export const useTripSync = ({
             itinerary: nextKnownIds(knownRef.current.itinerary, i.map(item => item.id)),
             flightAnchors: nextKnownIds(knownRef.current.flightAnchors, f.map(anchor => anchor.id)),
             inspirations: nextKnownIds(knownRef.current.inspirations ?? [], s.map(entry => entry.id)),
+            shoppingList: nextKnownIds(knownRef.current.shoppingList ?? [], (sl ?? []).map(item => item.id)),
           };
           // What this device just put there, it has now seen there.
           rememberEverSeen({
@@ -537,6 +544,7 @@ export const useTripSync = ({
             itinerary: i.map(item => item.id),
             flightAnchors: f.map(anchor => anchor.id),
             inspirations: s.map(entry => entry.id),
+            shoppingList: (sl ?? []).map(item => item.id),
           });
         }
         if (result.status === 'error') {
@@ -610,6 +618,10 @@ export const useTripSync = ({
             */
             ...(remote.data.inspirations
               ? { inspirations: mergeWithUnpushed(local.inspirations ?? [], remote.data.inspirations, seen.inspirations ?? []) }
+              : {}),
+            /* Same rule, same reason: undefined is 「the table said nothing」. */
+            ...(remote.data.shoppingList
+              ? { shoppingList: mergeWithUnpushed(local.shoppingList ?? [], remote.data.shoppingList, seen.shoppingList ?? []) }
               : {}),
           };
           onRemoteSnapshotRef.current(merged);

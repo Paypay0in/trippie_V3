@@ -24,6 +24,8 @@ export interface EverSeenIds {
   itinerary: string[];
   flightAnchors: string[];
   inspirations: string[];
+  /** 購物清單, shared with the trip since 0031. */
+  shoppingList: string[];
 }
 
 export type EverSeenTable = keyof EverSeenIds;
@@ -31,7 +33,7 @@ export type EverSeenTable = keyof EverSeenIds;
 export const EVER_SEEN_STORAGE_PREFIX = 'trippie_sync_seen_v1:';
 
 const EMPTY: EverSeenIds = {
-  members: [], expenses: [], itinerary: [], flightAnchors: [], inspirations: [],
+  members: [], expenses: [], itinerary: [], flightAnchors: [], inspirations: [], shoppingList: [],
 };
 
 /** Adds what the server just showed, keeping everything it showed before. */
