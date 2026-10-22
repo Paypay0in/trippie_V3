@@ -2079,6 +2079,22 @@ ${sentence}
    * is a claim about a day that has passed — see the same reasoning in
    * `docs/PRODUCT.md` about menu prices going stale.
    */
+  /*
+    Prices already read today, so opening the list again is free.
+
+    「我希望不要需要我點選後才查價 一開始就要直接查了」 — which turns one
+    traveller opening a sixteen-row list into thirty-two searches, and doing
+    that four times in an afternoon is most of a day's free allowance spent
+    re-reading the same shelf.
+
+    Twelve hours, because a price read this morning is still what the shop is
+    charging this afternoon, and because the point of the number on the screen
+    is 「roughly, is this worth carrying home」. Successful reads only: a quota
+    refusal cached is a refusal that outlives its cause.
+  */
+  const PRICE_CACHE_MS = 12 * 60 * 60 * 1000;
+  const priceCache = new Map<string, { at: number; body: unknown }>();
+
   app.post("/api/shopping/price-check", async (req, res) => {
     const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
     const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 60) : "";
@@ -2096,6 +2112,13 @@ ${sentence}
       came from search results rather than from a shop — the snippet cannot
       know whether it was pricing the same size.
     */
+    const cacheKey = `${name}|${brand}`.toLocaleLowerCase();
+    const cached = priceCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < PRICE_CACHE_MS) {
+      res.json(cached.body);
+      return;
+    }
+
     const search = imageSearchConfig();
     if (search?.provider === "brave") {
       try {
@@ -2103,7 +2126,9 @@ ${sentence}
           searchPrices({ name, brand, region, apiKey: search.apiKey }).catch(() => [])));
         const quotes = [...taiwan.slice(0, 2), ...japan.slice(0, 2)];
         if (quotes.length > 0) {
-          res.json({ quotes, readAt: new Date().toISOString(), source: "search" });
+          const body = { quotes, readAt: new Date().toISOString(), source: "search" };
+          priceCache.set(cacheKey, { at: Date.now(), body });
+          res.json(body);
           return;
         }
       } catch (error) {
@@ -2112,7 +2137,22 @@ ${sentence}
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) { res.status(503).json({ error: "現在查不到價格。" }); return; }
+    if (!apiKey) {
+      /*
+        The search ran and found nothing, and that is 「沒查到」 rather than
+        「查不到價格」. One says this product has no price the web will show;
+        the other says the lookup is broken, and they ask opposite things of
+        the reader.
+      */
+      if (search?.provider === "brave") {
+        const body = { quotes: [], readAt: new Date().toISOString(), source: "search" };
+        priceCache.set(cacheKey, { at: Date.now(), body });
+        res.json(body);
+        return;
+      }
+      res.status(503).json({ error: "現在查不到價格。" });
+      return;
+    }
 
     try {
       const ai = new GoogleGenAI({ apiKey });
@@ -2160,7 +2200,15 @@ ${brand ? `品牌：${brand}` : ""}
         }))
         .slice(0, 4);
 
-      res.json({ quotes, readAt: new Date().toISOString() });
+      /*
+        An empty answer is an answer and is cached too: a product the search
+        has nothing on at 02:00 has nothing on it at 02:05 either, and 「沒查
+        到」 asked sixteen times an hour spends the allowance the products it
+        could find will need.
+      */
+      const body = { quotes, readAt: new Date().toISOString() };
+      priceCache.set(cacheKey, { at: Date.now(), body });
+      res.json(body);
     } catch (error) {
       console.error("Price check failed:", error);
       /*

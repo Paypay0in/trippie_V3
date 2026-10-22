@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ShoppingItem } from '../types';
 import {
   Check,
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { findProductImage, sourceLabel } from '../services/productImageService';
 import PhotoLightbox from './PhotoLightbox';
-import { byRegion, checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
+import { checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
 import { boughtFromReceipts } from '../services/boughtFromReceipt';
 import { Expense } from '../types';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
@@ -105,6 +105,15 @@ const ShoppingListPanel: React.FC<Props> = ({
     menu prices are not averaged across years either.
   */
   const [prices, setPrices] = useState<Record<string, PriceCheck>>({});
+  /*
+    What has already been looked up, read by the loop that looks things up.
+
+    Through a ref rather than the state it mirrors: the loop runs once per
+    change in which rows are on screen, and reading `prices` there would
+    restart it on its own first answer.
+  */
+  const pricesRef = useRef(prices);
+  pricesRef.current = prices;
   const [checking, setChecking] = useState<string | null>(null);
   /** The product picture being looked at, full screen. 「點擊照片要能變大」. */
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
@@ -133,6 +142,7 @@ const ShoppingListPanel: React.FC<Props> = ({
       .then(found => setPrices(current => ({ ...current, [item.id]: found })))
       .finally(() => setChecking(null));
   };
+
 
   /*
     A picture from the web, with the page it came from kept beside it.
@@ -246,6 +256,38 @@ const ShoppingListPanel: React.FC<Props> = ({
         .some(field => (field || '').toLocaleLowerCase().includes(wanted))
       : true))
     .filter(withinAmount);
+
+  /*
+    Every row's price, without being asked. 「我希望不要需要我點選後才查價
+    一開始就要直接查了！」
+
+    In order rather than all at once: sixteen rows is thirty-two searches, and
+    thirty-two at the same instant is how a free allowance becomes a rate
+    limit. The server holds each answer for twelve hours, so opening the list
+    again costs nothing — which is what makes doing this on open affordable.
+
+    Only what is on screen: a list filtered down to 伴手禮 has not asked about
+    the twelve rows in 美妝保養.
+  */
+  const onScreen = shown.map(item => item.id).join(',');
+  useEffect(() => {
+    let stopped = false;
+    void (async () => {
+      for (const item of shown) {
+        if (stopped) break;
+        if (pricesRef.current[item.id]) continue;
+        setChecking(item.id);
+        const found = await checkPrices({ name: item.name, brand: item.description })
+          .catch(() => null);
+        if (stopped) break;
+        if (found) setPrices(current => ({ ...current, [item.id]: found }));
+      }
+      if (!stopped) setChecking(null);
+    })();
+    return () => { stopped = true; };
+    // Keyed by the rows on screen; their names travel with them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onScreen]);
 
   /** How many the range is hiding, so the list can say so rather than shrink. */
   const unpricedHidden = filteringAmount
@@ -703,7 +745,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                             onClick={() => comparePrices(item)}
                             className="rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-[#5b3df5] ring-1 ring-slate-200 disabled:opacity-60"
                           >
-                            {checking === item.id ? '查價中…' : '比一下台／日價格'}
+                            {checking === item.id ? '查價中…' : '重新查價'}
                           </button>
                           {/*
                             One row's picture, for when the batch found the
@@ -757,36 +799,56 @@ const ShoppingListPanel: React.FC<Props> = ({
                         tax-refund assumption and a view on baggage, and a
                         sentence this app wrote would be read as advice.
                       */}
-                      {!prices[item.id] ? null : byRegion(prices[item.id].quotes).length === 0 ? (
-                        /*
-                          The server's own sentence when it has one. 「查不到這
-                          個商品的售價」 says stop looking; 「今天的查詢次數用完
-                          了」 says try tomorrow, and for weeks only the first
-                          was ever shown.
-                        */
-                        <p data-testid={`shopping-prices-empty-${item.id}`} className="mt-1 text-[11px] text-slate-400">
-                          {prices[item.id].error || '查不到這個商品的售價。'}
+                      {!prices[item.id] ? (
+                        <p data-testid={`shopping-prices-pending-${item.id}`} className="mt-1 text-[11px] text-slate-300">
+                          查價中…
                         </p>
                       ) : (
                         <div data-testid={`shopping-prices-${item.id}`} className="mt-1 space-y-0.5">
-                          {byRegion(prices[item.id].quotes).map(([region, found]) => (
-                            <div key={region} className="flex flex-wrap items-baseline gap-1.5 text-[11px]">
-                              <span className="font-black text-slate-500">{region}</span>
-                              {found.map(quote => (
-                                <a
-                                  key={quote.sourceUrl}
-                                  href={quote.sourceUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-slate-600 underline"
-                                >
-                                  {quote.shop ? `${quote.shop} ` : ''}{quoteLabel(quote)}
-                                </a>
-                              ))}
-                            </div>
-                          ))}
+                          {/*
+                            Both regions, always, each on its own line. 「日本
+                            價格：台灣價格：這樣條列 沒查到就說沒查到」.
+
+                            A region that is simply missing reads as a region
+                            nobody looked at, and the reader then does the
+                            looking themselves. 沒查到 ends that.
+                          */}
+                          {(['日本', '台灣'] as const).map(region => {
+                            const found = prices[item.id].quotes
+                              .filter(quote => quote.region === region)
+                              .sort((left, right) => left.amount - right.amount);
+                            return (
+                              <div key={region} data-testid={`shopping-prices-${region}-${item.id}`} className="flex flex-wrap items-baseline gap-1.5 text-[11px]">
+                                <span className="font-black text-slate-500">{region}價格：</span>
+                                {found.length === 0 ? (
+                                  <span className="text-slate-300">沒查到</span>
+                                ) : found.map(quote => (
+                                  <a
+                                    key={quote.sourceUrl}
+                                    href={quote.sourceUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-slate-600 underline"
+                                  >
+                                    {quote.shop ? `${quote.shop} ` : ''}{quoteLabel(quote)}
+                                  </a>
+                                ))}
+                              </div>
+                            );
+                          })}
+                          {/*
+                            The server's own sentence when it has one. 「查不到
+                            這個商品的售價」 says stop looking; 「額度用完了」
+                            says the lookup is blocked, and they ask opposite
+                            things of the reader.
+                          */}
+                          {prices[item.id].error && (
+                            <p data-testid={`shopping-prices-empty-${item.id}`} className="text-[10px] text-amber-600">
+                              {prices[item.id].error}
+                            </p>
+                          )}
                           {/* When it was read, so the reader can judge it. */}
-                          {prices[item.id].readAt && (
+                          {prices[item.id].readAt && prices[item.id].quotes.length > 0 && (
                             <p className="text-[10px] text-slate-400">
                               {prices[item.id].readAt.slice(0, 10).replace(/-/g, '/')} 查到的價格，僅供參考
                             </p>

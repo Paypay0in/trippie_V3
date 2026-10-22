@@ -13,6 +13,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import { SHOPPING_THUMB } from '../services/postPhotos';
 import { clearProductImageCache } from '../services/productImageService';
+import { clearPriceCheckCache } from '../services/priceCheckService';
 import { ShoppingItem } from '../types';
 
 afterEach(cleanup);
@@ -591,5 +592,97 @@ describe('全部換成商品圖', () => {
       photo: found.imageUrl,
       photoSource: found.pageUrl,
     }));
+  });
+});
+
+/**
+ * 「我希望不要需要我點選後才查價 一開始就要直接查了！然後日本價格：台灣價格：
+ * 這樣條列 沒查到就說沒查到」.
+ *
+ * Both regions are always printed. A region that is simply missing reads as a
+ * region nobody looked at, and then the traveller does the looking themselves.
+ */
+describe('價格', () => {
+  const quote = (over: Record<string, unknown> = {}) => ({
+    region: '台灣', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
+    sourceUrl: 'https://shop.muji.tw/SalePage/Index/1', ...over,
+  });
+
+  const answer = (body: Record<string, unknown>) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ readAt: '2026-10-22T09:00:00.000Z', ...body }),
+    })) as unknown as typeof fetch);
+  };
+
+  beforeEach(() => { clearPriceCheckCache(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('looks the price up without being asked', async () => {
+    answer({ quotes: [quote()] });
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.getByTestId('shopping-prices-台灣-sk2').textContent).toContain('TWD 135');
+  });
+
+  it('prints both regions, 日本 first', async () => {
+    answer({ quotes: [quote()] });
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    const lines = screen.getByTestId('shopping-prices-sk2').textContent || '';
+    expect(lines.indexOf('日本價格')).toBeLessThan(lines.indexOf('台灣價格'));
+  });
+
+  /* The whole point: a missing region says so rather than being absent. */
+  it('says 沒查到 for the region it found nothing in', async () => {
+    answer({ quotes: [quote()] });
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.getByTestId('shopping-prices-日本-sk2').textContent).toContain('沒查到');
+    expect(screen.getByTestId('shopping-prices-台灣-sk2').textContent).not.toContain('沒查到');
+  });
+
+  it('says 沒查到 on both lines when it found nothing at all', async () => {
+    answer({ quotes: [] });
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.getByTestId('shopping-prices-日本-sk2').textContent).toContain('沒查到');
+    expect(screen.getByTestId('shopping-prices-台灣-sk2').textContent).toContain('沒查到');
+  });
+
+  /*
+    「額度用完了」 and 「這個商品沒有價格」 ask opposite things of the reader,
+    so the server's own sentence is kept when it has one.
+  */
+  it('keeps the reason when the lookup itself was blocked', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      json: async () => ({ error: '網路查詢的額度用完了。' }),
+    })) as unknown as typeof fetch);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-empty-sk2').textContent)
+      .toContain('額度用完了'));
+  });
+
+  it('says it is still looking before the answer arrives', () => {
+    answer({ quotes: [quote()] });
+    show([item()]);
+
+    expect(screen.getByTestId('shopping-prices-pending-sk2').textContent).toContain('查價中');
+  });
+
+  /* One request per product, however many rows share the page. */
+  it('asks once per product', async () => {
+    answer({ quotes: [quote()] });
+    show([item({ id: 'a' }), item({ id: 'b' })]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-a')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-b')).toBeTruthy());
+    expect((globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls).toHaveLength(1);
   });
 });
