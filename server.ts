@@ -2272,7 +2272,18 @@ ${sentence}
               the same as the page having no price for us.
             */
             const judged = offers
-              .map(offer => ({ offer, match: matchProduct({ name, brand, spec: brand }, offer.name) }))
+              .map(offer => ({
+                offer,
+                /*
+                  Both names, because a shop with a shade picker names its
+                  offer 「05甜美杏桃」 and leaves 腮紅 on the product around it.
+                  Either one identifying the product is enough.
+                */
+                match: matchProduct(
+                  { name, brand, spec: brand },
+                  [offer.productName, offer.name].filter(Boolean).join(' '),
+                ),
+              }))
               .filter(({ match }) => match.confidence !== "none")
               .sort((left, right) => Number(right.match.confidence === "exact")
                 - Number(left.match.confidence === "exact"));

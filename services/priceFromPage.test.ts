@@ -7,7 +7,7 @@
  * them at once.
  */
 import { describe, expect, it } from 'vitest';
-import { isUsableCurrency, priceFromHtml, readPagePrice } from './priceFromPage';
+import { isUsableCurrency, offersFromHtml, priceFromHtml, readPagePrice } from './priceFromPage';
 
 const ld = (data: unknown) =>
   `<html><head><script type="application/ld+json">${JSON.stringify(data)}</script></head></html>`;
@@ -129,5 +129,36 @@ describe('reading the page', () => {
       .toBeNull();
     expect(await readPagePrice('https://shop/1', (async () => { throw new Error('timeout'); }) as unknown as typeof fetch))
       .toBeNull();
+  });
+});
+
+/**
+ * A shop with a shade picker names its offer after the shade.
+ *
+ * momoshop quoted NT$300 under an offer called 「05甜美杏桃」, which is a
+ * colour. The product it belongs to is named around it, and both are needed
+ * before anything can say whether this is the 腮紅 on the list.
+ */
+describe('a variant inside a product', () => {
+  it('keeps the product name beside the variant name', () => {
+    const offers = offersFromHtml(ld({
+      '@type': 'Product',
+      name: 'CANMAKE 腮紅',
+      offers: { '@type': 'Offer', name: '05甜美杏桃', price: 300, priceCurrency: 'TWD' },
+    }));
+
+    expect(offers).toEqual([{
+      name: '05甜美杏桃', productName: 'CANMAKE 腮紅', amount: 300, currency: 'TWD',
+    }]);
+  });
+
+  /* Every product on the page, not the first one with a price. */
+  it('returns all of them', () => {
+    const offers = offersFromHtml(ld([
+      { '@type': 'Product', name: '乳木果油霜', offers: { price: 389, priceCurrency: 'TWD' } },
+      { '@type': 'Product', name: 'SHIRO 身體乳', offers: { price: 1200, priceCurrency: 'TWD' } },
+    ]));
+
+    expect(offers.map(offer => offer.name)).toEqual(['乳木果油霜', 'SHIRO 身體乳']);
   });
 });

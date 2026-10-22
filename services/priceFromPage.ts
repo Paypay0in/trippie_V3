@@ -57,8 +57,17 @@ const asCurrency = (value: unknown): string =>
  * nothing downstream could tell, because all it received was a number.
  */
 export interface PageOffer {
-  /** What the page calls this thing. */
+  /**
+   * What the page calls this thing — the offer's own name when it has one.
+   *
+   * On a shop with a shade or size picker this is the variant alone:
+   * momoshop named its offer 「05甜美杏桃」, which is a colour and not a
+   * product, so it is read together with `productName` rather than instead
+   * of it.
+   */
   name: string;
+  /** What the product as a whole is called, when the offer sits inside one. */
+  productName?: string;
   amount: number;
   currency: string;
   /** schema.org availability, when stated. */
@@ -135,7 +144,11 @@ export const offersFromHtml = (html: string): PageOffer[] => {
       const offerName = Array.isArray(node.offers)
         ? textOf((node.offers[0] as Record<string, unknown>)?.name)
         : textOf((node.offers as Record<string, unknown>)?.name);
-      found.push({ name: offerName || textOf(node.name), ...price });
+      found.push({
+        name: offerName || textOf(node.name),
+        ...(textOf(node.name) ? { productName: textOf(node.name) } : {}),
+        ...price,
+      });
     }
   }
 
