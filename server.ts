@@ -2198,7 +2198,7 @@ ${sentence}
       for a sheet mask, and twelve hours is long enough for that to outlive
       the deploy that fixed it.
     */
-    const READER = "v3-verified-only";
+    const READER = "v4-why";
     const cacheKey = `${READER}|${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}`.toLocaleLowerCase();
     const cached = priceCache.get(cacheKey);
     if (cached && Date.now() - cached.at < PRICE_CACHE_MS) {
@@ -2247,6 +2247,20 @@ ${sentence}
             readPage(candidate.url).catch(() => ({ reachable: false, price: null, offers: [] }))));
 
           const quotes: SearchedQuote[] = [];
+          /*
+            Why a country ended with nothing, kept apart as it happens.
+
+            「找不到muji根本不合理」 — the row said 找到賣場，但頁面沒標價 for
+            both countries, and that was not what happened: shop.muji.tw was
+            found, its pages do publish prices, and the match rejected them
+            because they are 米糠發酵導入美容液 and 化妝水 rather than the mask.
+            Pages that priced something else and pages that priced nothing
+            had been written as the same sentence, and only one of them tells
+            the traveller what to do.
+          */
+          let pricedSomethingElse = false;
+          let pricedNothing = false;
+
           looking.forEach((candidate, index) => {
             const { reachable, offers } = read[index];
 
@@ -2289,6 +2303,10 @@ ${sentence}
                 - Number(left.match.confidence === "exact"));
 
             const best = judged[0];
+            if (!best) {
+              if (offers.length > 0) pricedSomethingElse = true;
+              else pricedNothing = true;
+            }
             if (best) {
               /*
                 The shop's own statement, with its own currency. A page that
@@ -2349,7 +2367,11 @@ ${sentence}
             quotes: kept,
             status: kept.length > 0
               ? "ok" as const
-              : looking.length > 0 ? "found_no_price" as const : "not_found" as const,
+              : pricedSomethingElse
+                ? "no_match" as const
+                : pricedNothing
+                  ? "found_no_price" as const
+                  : "not_found" as const,
           };
         }));
 
@@ -2371,7 +2393,7 @@ ${sentence}
           shops, none would say」 sends a traveller to look, 「found nothing」
           tells them to check the name.
         */
-        if (Object.values(byCountry).some(status => status === "found_no_price")) {
+        if (Object.values(byCountry).some(status => status !== "not_found")) {
           const body = { quotes: [], byCountry, readAt: new Date().toISOString(), source: "search" };
           priceCache.set(cacheKey, { at: Date.now(), body });
           res.json(body);

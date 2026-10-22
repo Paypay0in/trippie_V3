@@ -983,9 +983,10 @@ const ShoppingListPanel: React.FC<Props> = ({
                                     what needs fixing.
                                   */
                                   <span data-testid={`shopping-empty-${country.code}-${item.id}`} className="ml-1 text-slate-300">
-                                    {prices[item.id].byCountry?.[country.code] === 'found_no_price'
-                                      ? '找到賣場，但頁面沒標價'
-                                      : '沒查到'}
+                                    {{
+                                      no_match: '找到的是別的商品',
+                                      found_no_price: '找到商品頁，但沒標價',
+                                    }[prices[item.id].byCountry?.[country.code] ?? ''] ?? '沒查到'}
                                   </span>
                                 ) : (
                                   <span className="mt-0.5 block space-y-0.5">

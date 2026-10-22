@@ -939,8 +939,22 @@ describe('為什麼沒有價格', () => {
     show([item()]);
 
     await waitFor(() => expect(screen.getByTestId('shopping-empty-JP-sk2').textContent)
-      .toContain('找到賣場'));
+      .toContain('沒標價'));
     expect(screen.getByTestId('shopping-empty-TW-sk2').textContent).toContain('沒查到');
+  });
+
+  /*
+    「找不到muji根本不合理」 — shop.muji.tw was found and does publish prices;
+    what it sells under that search is 米糠發酵導入美容液, not the mask. Saying
+    「頁面沒標價」 there was false, and it is the one state that tells the
+    traveller the name is what needs fixing.
+  */
+  it('says when the shops price a different product', async () => {
+    answerWith({ byCountry: { JP: 'no_match', TW: 'no_match' } });
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-empty-TW-sk2').textContent)
+      .toContain('別的商品'));
   });
 
   /* An answer from before this existed still reads as it did. */

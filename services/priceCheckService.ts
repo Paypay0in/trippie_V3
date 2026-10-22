@@ -64,7 +64,15 @@ export interface PriceQuote {
 }
 
 /** Why a country has no price, when it has none. */
-export type CountryPriceStatus = 'ok' | 'found_no_price' | 'not_found';
+export type CountryPriceStatus =
+  /** A checked price. */
+  | 'ok'
+  /** Shops found, and what they price is a different product. */
+  | 'no_match'
+  /** Product pages found, and none of them publishes a price. */
+  | 'found_no_price'
+  /** Nothing the search returned was a shop selling anything like it. */
+  | 'not_found';
 
 export interface PriceCheck {
   quotes: PriceQuote[];
