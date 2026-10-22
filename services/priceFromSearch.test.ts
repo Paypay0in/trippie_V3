@@ -6,7 +6,7 @@
  * exactly where a price would sit.
  */
 import { describe, expect, it } from 'vitest';
-import { candidatesFromSearch, looksLikeAProductPage, placeOf, priceQuery, quotesFromSearch, readMoney, searchPrices } from './priceFromSearch';
+import { candidatesFromSearch, looksLikeAProductPage, placeOf, priceQueries, priceQuery, quotesFromSearch, readMoney, relaxedName, searchCandidates, searchPrices } from './priceFromSearch';
 import { comparisonCountry } from './comparisonCountries';
 
 const TW = comparisonCountry('TW')!;
@@ -445,5 +445,71 @@ describe('the other countries’ comparison sites', () => {
   it('refuses kakaku.com', () => {
     expect(looksLikeAProductPage('https://search.kakaku.com/sk-ii/')).toBe(false);
     expect(looksLikeAProductPage('https://kakaku.com/item/K0001234/')).toBe(false);
+  });
+});
+
+/**
+ * A name read off a package is not a name a shop puts in its title.
+ *
+ * 「うるおい線・くまスポット シニアケアMagic Concealer」 found nothing: the
+ * middle dot, the marketing line and the product name are one string, and
+ * every character of it was a word the search had to match.
+ */
+describe('asking a second way', () => {
+  it('drops the typography a package carries', () => {
+    expect(relaxedName('うるおい線・くまスポット シニアケアMagic Concealer'))
+      .toBe('うるおい線 くまスポット シニアケアMagic Concealer');
+    expect(relaxedName('【限定】雪肌精 化粧水（医薬部外品）')).toBe('雪肌精 化粧水');
+  });
+
+  it('cuts a name longer than a shop would write', () => {
+    expect(relaxedName('a b c d e f g h')).toBe('a b c d e');
+  });
+
+  it('leaves a name that is already plain alone', () => {
+    expect(relaxedName('SK-II 青春露')).toBe('SK-II 青春露');
+  });
+
+  it('offers the relaxed way only when it differs', () => {
+    expect(priceQueries('SK-II 青春露', 'SK-II', JP)).toHaveLength(1);
+    expect(priceQueries('うるおい線・くまスポット', undefined, JP)).toHaveLength(2);
+  });
+
+  /* Fifteen products that answer on the first ask must not pay for a second. */
+  it('stops at the first way of asking that answers', async () => {
+    const asked: string[] = [];
+    const found = await searchCandidates({
+      name: 'うるおい線・くまスポット',
+      country: JP,
+      inPlay: PAIR,
+      apiKey: 'k',
+      fetchImpl: (async (url: string) => {
+        asked.push(String(url));
+        return {
+          ok: true,
+          json: async () => web([{ url: 'https://shop.example.jp/item/1', title: 'a', description: '3,080円' }]),
+        };
+      }) as unknown as typeof fetch,
+    });
+
+    expect(asked).toHaveLength(1);
+    expect(found).toHaveLength(1);
+  });
+
+  it('asks the second way when the first answers nothing', async () => {
+    const asked: string[] = [];
+    await searchCandidates({
+      name: 'うるおい線・くまスポット',
+      country: JP,
+      inPlay: PAIR,
+      apiKey: 'k',
+      fetchImpl: (async (url: string) => {
+        asked.push(String(url));
+        return { ok: true, json: async () => web([]) };
+      }) as unknown as typeof fetch,
+    });
+
+    expect(asked).toHaveLength(2);
+    expect(new URL(asked[1]).searchParams.get('q')).toContain('うるおい線 くまスポット');
   });
 });

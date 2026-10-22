@@ -48,6 +48,49 @@ export const priceQuery = (name: string, brand: string | undefined, country: Com
   return product ? `${product} ${country.priceWords}` : '';
 };
 
+/**
+ * A product name with the punctuation a shop would not put in its title.
+ *
+ * 「うるおい線・くまスポット シニアケアMagic Concealer」 is what the package
+ * says; no shop writes its listing that way, so the query matched nothing.
+ * A name read off a screenshot carries the packaging's typography — the
+ * middle dots, the full-width brackets, the marketing line before the product
+ * — and every one of those is a word the search has to find.
+ *
+ * Nothing is translated here. The separators become spaces, bracketed asides
+ * go, and a name longer than a shop's title is cut to its first few words,
+ * which is where a product's name actually lives.
+ */
+export const relaxedName = (name: string): string => {
+  const words = (name || '')
+    // Bracketed asides are packaging copy: 【限定】, （医薬部外品）.
+    .replace(/[（(【\[][^）)】\]]*[）)】\]]/g, ' ')
+    .replace(/[・･／/,、|~〜+＋]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+  return words.slice(0, 5).join(' ');
+};
+
+/**
+ * What to ask, in order, until something answers.
+ *
+ * Two attempts at most, and the second only when it differs: a ladder that
+ * always runs twice doubles what the search costs for every product that
+ * never needed it.
+ */
+export const priceQueries = (
+  name: string,
+  brand: string | undefined,
+  country: ComparisonCountry,
+): string[] => {
+  const first = priceQuery(name, brand, country);
+  if (!first) return [];
+  const second = priceQuery(relaxedName(name), brand, country);
+  return second && second !== first ? [first, second] : [first];
+};
+
 /** The scripts that say which of two Asian markets a shop is writing for. */
 const KANA = /[\u3040-\u30ff]/;
 const HAN = /[\u4e00-\u9fff]/;
@@ -367,24 +410,36 @@ export const searchCandidates = async (input: {
   apiKey: string;
   fetchImpl?: typeof fetch;
 }): Promise<SearchCandidate[]> => {
-  const query = priceQuery(input.name, input.brand, input.country);
-  if (!query) return [];
+  const call = input.fetchImpl ?? fetch;
 
-  const url = new URL('https://api.search.brave.com/res/v1/web/search');
-  url.searchParams.set('q', query);
-  url.searchParams.set('count', '20');
-  url.searchParams.set('country', input.country.code);
+  const ask = async (query: string): Promise<SearchCandidate[]> => {
+    const url = new URL('https://api.search.brave.com/res/v1/web/search');
+    url.searchParams.set('q', query);
+    url.searchParams.set('count', '20');
+    url.searchParams.set('country', input.country.code);
 
-  const response = await (input.fetchImpl ?? fetch)(url.toString(), {
-    headers: { Accept: 'application/json', 'X-Subscription-Token': input.apiKey },
-    signal: AbortSignal.timeout(8_000),
-  });
-  if (!response.ok) {
-    const error = new Error(`price search ${response.status}`) as Error & { status: number };
-    error.status = response.status;
-    throw error;
+    const response = await call(url.toString(), {
+      headers: { Accept: 'application/json', 'X-Subscription-Token': input.apiKey },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) {
+      const error = new Error(`price search ${response.status}`) as Error & { status: number };
+      error.status = response.status;
+      throw error;
+    }
+    return candidatesFromSearch(await response.json(), input.inPlay, input.country);
+  };
+
+  /*
+    The first way of asking that answers wins, and the rest are never sent —
+    「ロキソプロフェンEX Naテープ」 needs the second, and the fifteen products
+    that found something on the first must not pay for it.
+  */
+  for (const query of priceQueries(input.name, input.brand, input.country)) {
+    const found = await ask(query);
+    if (found.length > 0) return found;
   }
-  return candidatesFromSearch(await response.json(), input.inPlay, input.country);
+  return [];
 };
 
 /** The snippet-only reading, for callers that want no page fetched. */
