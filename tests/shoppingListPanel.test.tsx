@@ -74,9 +74,17 @@ describe('the categories', () => {
   });
 });
 
+/*
+  必買／想買 lives behind the row's 「⋯」, with the expense entry, the price
+  comparison and the bin. Four controls on every row left the product name
+  about a third of a phone's width.
+*/
 describe('必買 / 想買', () => {
+  const openMenu = () => fireEvent.click(screen.getByTestId('shopping-menu-sk2'));
+
   it('shows what was said', () => {
     show([item({ priority: 'must' })]);
+    openMenu();
 
     expect(screen.getByTestId('shopping-priority-sk2').textContent).toBe('必買');
   });
@@ -87,12 +95,14 @@ describe('必買 / 想買', () => {
   */
   it('says nothing when nobody said', () => {
     show([item()]);
+    openMenu();
 
     expect(screen.queryByTestId('shopping-priority-sk2')).toBeNull();
   });
 
   it('turns one into the other', () => {
     const { onUpdateItem } = show([item({ priority: 'want' })]);
+    openMenu();
 
     fireEvent.click(screen.getByTestId('shopping-priority-sk2'));
 
@@ -358,5 +368,149 @@ describe('the row', () => {
 describe('how big a product picture is kept', () => {
   it('is stored at a size worth opening', () => {
     expect(SHOPPING_THUMB.maxEdge).toBeGreaterThanOrEqual(900);
+  });
+});
+
+/**
+ * 「我之後可以篩選商品金額」 — the funnel beside the search box.
+ *
+ * A range rather than a sort: the question a list gets asked on the way to the
+ * counter is 「什麼還沒買、而且不貴」, and a sorted list still makes somebody
+ * scroll past the expensive half.
+ */
+describe('依金額篩選', () => {
+  const openFunnel = () => fireEvent.click(screen.getByTestId('shopping-amount-filter'));
+
+  it('keeps what is inside the range', () => {
+    show([
+      item({ id: 'cheap', name: '腮紅', estimatedAmount: 420 }),
+      item({ id: 'dear', name: '青春露', estimatedAmount: 5200 }),
+    ]);
+    openFunnel();
+
+    fireEvent.change(screen.getByTestId('shopping-amount-max'), { target: { value: '1000' } });
+
+    expect(screen.getByText('腮紅')).toBeTruthy();
+    expect(screen.queryByText('青春露')).toBeNull();
+  });
+
+  it('reads either end on its own as a range', () => {
+    show([
+      item({ id: 'cheap', name: '腮紅', estimatedAmount: 420 }),
+      item({ id: 'dear', name: '青春露', estimatedAmount: 5200 }),
+    ]);
+    openFunnel();
+
+    fireEvent.change(screen.getByTestId('shopping-amount-min'), { target: { value: '1000' } });
+
+    expect(screen.getByText('青春露')).toBeTruthy();
+    expect(screen.queryByText('腮紅')).toBeNull();
+  });
+
+  /*
+    A row nobody has priced is not 0 元 and is not 貴. It leaves the list
+    while a range is set, and the list says how many — a row that vanishes
+    without a reason is a row lost.
+  */
+  it('says how many have no price rather than hiding them silently', () => {
+    show([
+      item({ id: 'priced', name: '腮紅', estimatedAmount: 420 }),
+      item({ id: 'unpriced', name: '東京芭娜娜' }),
+    ]);
+    openFunnel();
+
+    fireEvent.change(screen.getByTestId('shopping-amount-max'), { target: { value: '1000' } });
+
+    expect(screen.queryByText('東京芭娜娜')).toBeNull();
+    expect(screen.getByTestId('shopping-amount-unpriced').textContent).toContain('1');
+  });
+
+  it('shows everything again once the range is cleared', () => {
+    show([item({ id: 'unpriced', name: '東京芭娜娜' })]);
+    openFunnel();
+    fireEvent.change(screen.getByTestId('shopping-amount-max'), { target: { value: '1000' } });
+
+    fireEvent.click(screen.getByTestId('shopping-amount-clear'));
+
+    expect(screen.getByText('東京芭娜娜')).toBeTruthy();
+  });
+});
+
+/**
+ * The tick, where a list is ticked.
+ *
+ * Bought rows used to drop into a grey block at the bottom with a line through
+ * the name. 「已購買」 in the category it was filed under is how a list is read
+ * on the second day: what is left in 美妝保養, not what is left overall.
+ */
+describe('打勾', () => {
+  it('marks a row bought from the row', () => {
+    const { onUpdateItem } = show([item()]);
+
+    fireEvent.click(screen.getByTestId('shopping-tick-sk2'));
+
+    expect(onUpdateItem).toHaveBeenCalledWith('sk2', { isPurchased: true });
+  });
+
+  it('unticks one that was already bought', () => {
+    const { onUpdateItem } = show([item({ isPurchased: true })]);
+
+    fireEvent.click(screen.getByTestId('shopping-tick-sk2'));
+
+    expect(onUpdateItem).toHaveBeenCalledWith('sk2', { isPurchased: false });
+  });
+
+  it('leaves a bought row in its own category', () => {
+    show([item({ category: '美妝保養', isPurchased: true })]);
+
+    expect(screen.getByTestId('shopping-section-美妝保養').textContent).toContain('SK-II');
+    expect(screen.getByTestId('shopping-status-sk2').textContent).toBe('已購買');
+  });
+});
+
+/**
+ * 分類管理 — renaming a heading moves every row filed under it, because the
+ * heading is only ever the word on the rows.
+ */
+describe('分類管理', () => {
+  it('renames every row under the heading', () => {
+    const { onUpdateItem } = show([
+      item({ id: 'a', category: '美妝保養' }),
+      item({ id: 'b', category: '美妝保養' }),
+      item({ id: 'c', category: '伴手禮' }),
+    ]);
+
+    fireEvent.click(screen.getByTestId('shopping-manage-categories'));
+    const field = screen.getByTestId('shopping-category-name-美妝保養');
+    fireEvent.change(field, { target: { value: '保養品' } });
+    fireEvent.blur(field);
+
+    expect(onUpdateItem).toHaveBeenCalledWith('a', { category: '保養品' });
+    expect(onUpdateItem).toHaveBeenCalledWith('b', { category: '保養品' });
+    expect(onUpdateItem).not.toHaveBeenCalledWith('c', { category: '保養品' });
+  });
+
+  /* An empty name would file the rows under nothing at all. */
+  it('ignores an empty name', () => {
+    const { onUpdateItem } = show([item({ category: '美妝保養' })]);
+
+    fireEvent.click(screen.getByTestId('shopping-manage-categories'));
+    const field = screen.getByTestId('shopping-category-name-美妝保養');
+    fireEvent.change(field, { target: { value: '   ' } });
+    fireEvent.blur(field);
+
+    expect(onUpdateItem).not.toHaveBeenCalled();
+  });
+});
+
+/** 新增商品 — the add box is where the errand ends, not where reading begins. */
+describe('新增商品', () => {
+  it('opens the box behind the button', () => {
+    show([item()]);
+
+    expect(screen.queryByTestId('shopping-add-input')).toBeNull();
+    fireEvent.click(screen.getByTestId('shopping-add-open'));
+
+    expect(screen.getByTestId('shopping-add-input')).toBeTruthy();
   });
 });
