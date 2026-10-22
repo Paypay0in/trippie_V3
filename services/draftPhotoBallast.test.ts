@@ -70,3 +70,37 @@ describe('withoutCloudHeldPhotos', () => {
     expect(withoutCloudHeldPhotos(draft([bill('e1')])).dropped).toBe(0);
   });
 });
+
+/**
+ * 「這照片好像不會存」 — a shopping list losing pictures it had nothing to do
+ * with, because 旅程回顧 had just filled the same five megabytes with 淺草寺.
+ */
+describe('a stop\'s own photographs', () => {
+  it('frees the ones the server has confirmed', () => {
+    saveEverSeen('trip', { itinerary: ['i1'] });
+
+    const { drafts, dropped } = withoutCloudHeldPhotos([
+      {
+        id: 'trip',
+        expenses: [],
+        itinerary: [{ id: 'i1', photos: ['a', 'b'] }, { id: 'i2', photos: ['c'] }],
+      } as never,
+    ]);
+
+    expect(dropped).toBe(2);
+    expect(drafts[0].itinerary?.[0].photos).toBeUndefined();
+    // Never pushed, so never a cache: the only copy there is.
+    expect(drafts[0].itinerary?.[1].photos).toEqual(['c']);
+  });
+
+  it('leaves a draft whose stops the server has never seen entirely alone', () => {
+    saveEverSeen('fresh', {});
+
+    const { drafts, dropped } = withoutCloudHeldPhotos([
+      { id: 'fresh', expenses: [], itinerary: [{ id: 'i1', photos: ['a'] }] } as never,
+    ]);
+
+    expect(dropped).toBe(0);
+    expect(drafts[0].itinerary?.[0].photos).toEqual(['a']);
+  });
+});

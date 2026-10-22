@@ -1,5 +1,5 @@
 /**
- * Receipt photos, when the device has no room for them.
+ * Photographs, when the device has no room for them.
  *
  * 「行程儲存失敗…這台裝置的儲存空間可能滿了」 — and before that, a white screen.
  * Both were the same thing: receipt photos live inside the draft as base64, a
@@ -18,6 +18,12 @@
  * minutes ago in a basement with no signal is not 「confirmed」 and is never
  * touched. The worst case here is a photo having to be fetched again; the case
  * being avoided is a traveller unable to save anything at all.
+ *
+ * A stop's own photographs go the same way, and had to the day they existed:
+ * 「這照片好像不會存」 was a shopping list losing pictures it had nothing to do
+ * with, because 旅程回顧 had just filled the same five megabytes with 淺草寺.
+ * `itinerary_items.photos` is pushed on every sync, so a confirmed stop's
+ * pictures are a cache too.
  */
 import { loadEverSeen } from './everSeenRemoteIds';
 import { TripDraft } from './tripPersistence';
@@ -38,24 +44,33 @@ export const withoutCloudHeldPhotos = (drafts: TripDraft[]): LightenedDrafts => 
   let dropped = 0;
 
   const lightened = drafts.map(draft => {
-    const expenses = draft.expenses ?? [];
-    if (expenses.length === 0) return draft;
-
     // Acknowledged by the server for this trip, and nothing else.
-    const confirmed = new Set(loadEverSeen(draft.id).expenses ?? []);
-    if (confirmed.size === 0) return draft;
+    const seen = loadEverSeen(draft.id);
+    const confirmedBills = new Set(seen.expenses ?? []);
+    const confirmedStops = new Set(seen.itinerary ?? []);
+    if (confirmedBills.size === 0 && confirmedStops.size === 0) return draft;
 
     let touched = false;
-    const next = expenses.map(expense => {
+
+    const expenses = (draft.expenses ?? []).map(expense => {
       const photos = expense.receiptPhotos ?? [];
-      if (photos.length === 0 || !confirmed.has(expense.id)) return expense;
+      if (photos.length === 0 || !confirmedBills.has(expense.id)) return expense;
       dropped += photos.length;
       touched = true;
       const { receiptPhotos, ...rest } = expense;
       return rest as typeof expense;
     });
 
-    return touched ? { ...draft, expenses: next } : draft;
+    const itinerary = (draft.itinerary ?? []).map(item => {
+      const photos = item.photos ?? [];
+      if (photos.length === 0 || !confirmedStops.has(item.id)) return item;
+      dropped += photos.length;
+      touched = true;
+      const { photos: _dropped, ...rest } = item;
+      return rest as typeof item;
+    });
+
+    return touched ? { ...draft, expenses, itinerary } : draft;
   });
 
   return dropped > 0 ? { drafts: lightened, dropped } : { drafts, dropped: 0 };
