@@ -20,7 +20,7 @@ import PhotoLightbox from './PhotoLightbox';
 import { approxHomeLabel, checkPrices, PriceCheck, quoteLabel, quotesIn } from '../services/priceCheckService';
 import { boughtFromReceipts } from '../services/boughtFromReceipt';
 import { brandOf } from '../services/productIdentity';
-import { COMPARISON_COUNTRIES, ComparisonCountry } from '../services/comparisonCountries';
+import { COMPARISON_COUNTRIES, ComparisonCountry, comparisonCountry } from '../services/comparisonCountries';
 import { comparisonPair } from '../services/shoppingComparison';
 import { Expense } from '../types';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
@@ -178,7 +178,28 @@ const ShoppingListPanel: React.FC<Props> = ({
     residenceCountryCode,
     comparisonCountryCode,
   });
-  const pair: ComparisonCountry[] = destination && home ? [destination, home] : [];
+  /*
+    The two countries to print prices under.
+
+    The resolved pair when the screen was told what trip this is — and when
+    it was not, whichever countries the answers actually came back for.
+    「畫面沒變」: this panel is mounted on three screens and only one of them
+    passes the trip, so on the other two `pair` was empty and the whole price
+    block rendered nothing at all. A screen that cannot name the pair can
+    still show what it was sent.
+  */
+  const answered = useMemo(() => {
+    const codes = new Set<string>();
+    Object.values(prices).forEach(found =>
+      found.quotes.forEach(quote => codes.add(quote.countryCode)));
+    Object.values(prices).forEach(found =>
+      Object.keys(found.byCountry ?? {}).forEach(code => codes.add(code)));
+    return [...codes]
+      .map(code => comparisonCountry(code))
+      .filter((country): country is ComparisonCountry => Boolean(country));
+  }, [prices]);
+
+  const pair: ComparisonCountry[] = destination && home ? [destination, home] : answered;
 
   const comparePrices = (item: ShoppingItem) => {
     setChecking(item.id);

@@ -952,3 +952,45 @@ describe('為什麼沒有價格', () => {
       .toContain('沒查到'));
   });
 });
+
+/**
+ * 「畫面沒變」.
+ *
+ * This panel is mounted on three screens and only one of them was told which
+ * trip it belongs to. On the other two the country pair was empty, so the
+ * whole price block rendered nothing — not a price, not 沒查到, nothing.
+ */
+describe('a screen that was not told which trip this is', () => {
+  const answerWith = (body: Record<string, unknown>) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ readAt: '2026-10-22T09:00:00.000Z', ...body }),
+    })) as unknown as typeof fetch);
+  };
+
+  beforeEach(() => { clearPriceCheckCache(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  const bare = (list: Parameters<typeof show>[0]) =>
+    show(list, { tripCountry: undefined, residenceCountryCode: undefined });
+
+  it('still shows the prices it was sent', async () => {
+    answerWith({ quotes: [{
+      countryCode: 'JP', shop: 'matsukiyo.co.jp', amount: 3080, currency: 'JPY',
+      verified: true, match: 'exact', sourceUrl: 'https://matsukiyo.co.jp/p/1',
+    }] });
+    bare([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-JP-sk2').textContent)
+      .toContain('JPY 3,080'));
+  });
+
+  /* And still says why, for a country that answered with nothing. */
+  it('still says why a country has none', async () => {
+    answerWith({ quotes: [], byCountry: { JP: 'found_no_price', TW: 'not_found' } });
+    bare([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-empty-JP-sk2').textContent)
+      .toContain('找到賣場'));
+  });
+});

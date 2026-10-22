@@ -9694,6 +9694,17 @@ const App: React.FC = () => {
                         onRemoveItem={handleRemoveShoppingItem}
                         onPurchaseItem={handlePurchaseShoppingItem}
                         onUpdateItem={handleUpdateShoppingItem}
+                        /* The same pair as the other mount; one list, one comparison. */
+                        tripCountry={tripCountry(
+                          travelCountry || tripInspirationContext.destinationCountry,
+                          flightAnchors,
+                        )}
+                        residenceCountryCode={userProfile.residenceCountryCode}
+                        comparisonCountryCode={comparisonCountryCode}
+                        onComparisonCountry={setComparisonCountryCode}
+                        onResidenceCountry={(code) =>
+                          setUserProfile((profile) => ({ ...profile, residenceCountryCode: code }))
+                        }
                       />
                     </div>
                   </div>
