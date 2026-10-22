@@ -105,12 +105,28 @@ export const PLACE_COMMERCE_CATALOGUE: CuratedCommerceEntry[] = [
       '天望デッキ（350m）與天望回廊（450m）票價不同，可分開或合併購買',
       '當日券與預售票價不同，平日與假日也不同',
     ],
-    // KKday is deliberately not here, an hour after I would have added it:
-    // the generated KKday search turned out to 404, and this URL is from the
-    // same family of guesses — kkday.com answers 403 to everything, so no
-    // probe of mine can tell a real path from an invented one. Add it when a
-    // human has opened one and seen results.
     bookingLinks: [
+      {
+        provider: 'kkday',
+        label: 'KKday',
+        /*
+          Verified 2026-10-21 by the Founder opening it: this is the product
+          page he was looking at, not a path anybody guessed. kkday.com
+          answers 403 to every probe, so a human with a browser is the only
+          instrument that can check one — which is exactly why the generated
+          KKday search was removed an hour before this was added.
+
+          `direct`, because it is a product page and promises a product.
+
+          The URL he sent carried `gclid`, `gbraid`, `gad_campaignid`, `cid`
+          and five `ud` parameters. Those identify his click on somebody's ad,
+          not the ticket, and shipping them would attribute every traveller
+          who ever presses this button to that one advertisement. Stripped to
+          the path.
+        */
+        url: 'https://www.kkday.com/zh-tw/product/10759-tokyo-skytree-observatory-advance-ticket-japan',
+        urlType: 'direct',
+      },
       {
         provider: 'klook',
         label: 'Klook',

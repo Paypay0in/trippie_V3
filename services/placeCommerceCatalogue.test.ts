@@ -319,7 +319,7 @@ describe('東京晴空塔', () => {
 
     expect(entry?.admissionRequired).toBe(true);
     expect(entry?.officialUrl).toContain('tokyo-skytree.jp');
-    expect(entry?.bookingLinks?.map(link => link.provider)).toEqual(['klook']);
+    expect(entry?.bookingLinks?.map(link => link.provider)).toEqual(['kkday', 'klook']);
   });
 
   /*
@@ -329,6 +329,23 @@ describe('東京晴空塔', () => {
   */
   it('quotes no price, because the operator states none to quote', () => {
     expect(findCuratedCommerce(undefined, '東京晴空塔')?.priceSource).toBeUndefined();
+  });
+
+  /*
+    The KKday link is a product page a human opened, and carries none of the
+    advertising identifiers the URL arrived with: those name one person's
+    click, and shipping them would attribute every traveller who presses this
+    to that one ad.
+  */
+  it('links straight to the product, with no tracking on it', () => {
+    const kkday = findCuratedCommerce(undefined, '東京晴空塔')
+      ?.bookingLinks?.find(link => link.provider === 'kkday');
+
+    expect(kkday?.urlType).toBe('direct');
+    expect(kkday?.url).toBe('https://www.kkday.com/zh-tw/product/10759-tokyo-skytree-observatory-advance-ticket-japan');
+    for (const tracker of ['gclid', 'gbraid', 'gad_', 'cid=', 'ud1', 'adid']) {
+      expect(kkday?.url, tracker).not.toContain(tracker);
+    }
   });
 
   /* The name rule stays exact: 「塔」 must not drag every tower in with it. */
