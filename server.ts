@@ -1,5 +1,6 @@
 
 import express from "express";
+import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
 import { readFileSync } from "node:fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -2155,6 +2156,36 @@ ${brand ? `品牌：${brand}` : ""}
     const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
     const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 60) : "";
     if (!name) { res.status(400).json({ error: "A product is required." }); return; }
+    /*
+      Image search first, when it is configured.
+
+      「我真心希望看到品名之後可以在網路上抓商品圖」 — and the model route
+      below cannot run: the grounding allowance has been exhausted since the
+      morning of 2026-10-21 and does not reset on a calendar day. Custom
+      Search answers the one question this endpoint actually asks, returns the
+      image and its page as data rather than as prose to be audited, and bills
+      nothing for the first hundred a day.
+
+      The model stays underneath as the fallback for a deployment with no
+      search engine configured, which is every deployment until one is.
+    */
+    const imageSearch = imageSearchConfig();
+    if (imageSearch) {
+      try {
+        const found = await searchProductImage({ name, brand, config: imageSearch });
+        res.json(found ?? { imageUrl: "", pageUrl: "" });
+        return;
+      } catch (error) {
+        console.error("Image search failed:", error);
+        res.status(isSearchQuotaError(error) ? 429 : 502).json({
+          error: isSearchQuotaError(error)
+            ? "圖片搜尋今天的額度用完了。"
+            : "現在找不到商品圖片。",
+        });
+        return;
+      }
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) { res.status(503).json({ error: "現在找不到商品圖片。" }); return; }
 
