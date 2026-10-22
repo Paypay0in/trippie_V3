@@ -391,7 +391,38 @@ export const useTripSync = ({
         return;
       }
       if (shouldHydrateInitialSnapshot(ensured.data.created)) {
-        onRemoteSnapshotRef.current(remote.data);
+        /*
+          「我剛剛存了很多 都不見了」.
+
+          Applying the server's snapshot on open is right for a table the
+          server has been holding for months: the local copy cannot know what
+          anybody else did. It is catastrophic for a table created today.
+          `shopping_items` was empty for every account the moment it existed,
+          so the first open after the migration handed back `[]`, which
+          replaced a list nobody had pushed yet — and the push that followed
+          sent the emptiness on.
+
+          So the list the server has never acknowledged for this device
+          survives the open, by the same rule the re-read already used. Once
+          it has been pushed its ids are in `everSeen`, and the server is
+          authoritative from then on exactly as before.
+
+          Only the shopping list, deliberately: the ledger and the itinerary
+          have been through this path for months and tonight is not the night
+          to change what 「open」 means for them.
+        */
+        onRemoteSnapshotRef.current({
+          ...remote.data,
+          ...(remote.data.shoppingList
+            ? {
+              shoppingList: mergeWithUnpushed(
+                payloadRef.current.shoppingList ?? [],
+                remote.data.shoppingList,
+                everSeenRef.current.shoppingList ?? [],
+              ),
+            }
+            : {}),
+        });
       }
 
       /*

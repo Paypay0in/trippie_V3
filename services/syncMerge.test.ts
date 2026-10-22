@@ -94,3 +94,24 @@ describe('an edit that has not been pushed yet', () => {
     expect(mergeWithUnpushed([edited], [fromServer], ['a'])).toEqual([fromServer]);
   });
 });
+
+/**
+ * 「我剛剛存了很多 都不見了」.
+ *
+ * `shopping_items` was created tonight, so it was empty for every account the
+ * moment it existed. Applying the server's snapshot on open — right for a
+ * table the server has held for months — handed back `[]` over a list nobody
+ * had pushed yet, and the push that followed sent the emptiness on.
+ */
+describe('a table the server has only just been given', () => {
+  const mine = [{ id: 'a', name: '護髮精油' }, { id: 'b', name: 'SK-II' }];
+
+  it('keeps a list the server has never acknowledged', () => {
+    expect(mergeWithUnpushed(mine, [], [])).toEqual(mine);
+  });
+
+  /* Once pushed, the server is authoritative again — including about deletions. */
+  it('lets the server remove what it has acknowledged', () => {
+    expect(mergeWithUnpushed(mine, [mine[0]], ['a', 'b'])).toEqual([mine[0]]);
+  });
+});
