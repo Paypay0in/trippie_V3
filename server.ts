@@ -2246,7 +2246,13 @@ ${sentence}
             const status = (error as { status?: number })?.status;
             searchTrouble.set(
               country.code,
-              status === 429 ? "quota_exceeded" : "search_unavailable",
+              /*
+                402 is how Brave says the month's allowance is spent; 429 is
+                how it says 「not this second」. Both are the allowance rather
+                than the product, and 402 had been reading as 「the search is
+                broken」 — which sent nobody anywhere useful.
+              */
+              status === 402 || status === 429 ? "quota_exceeded" : "search_unavailable",
             );
             searchStatus = status ?? (error as Error)?.name ?? "error";
             console.error(`Price search failed for ${country.code}:`, status ?? error);

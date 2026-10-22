@@ -539,3 +539,20 @@ describe('an article is not a price', () => {
     ]), PAIR).map(quote => quote.shop)).toEqual(['shiro-shiro.tw']);
   });
 });
+
+/* 402 is how Brave says the month is spent; 429 is 「not this second」. */
+describe('what the provider answers when it will not', () => {
+  const refusing = (status: number) => searchCandidates({
+    name: '青春露',
+    country: JP,
+    inPlay: PAIR,
+    apiKey: 'k',
+    fetchImpl: (async () => ({ ok: false, status })) as unknown as typeof fetch,
+  });
+
+  it('carries the status out so the caller can tell them apart', async () => {
+    await expect(refusing(402)).rejects.toMatchObject({ status: 402 });
+    await expect(refusing(429)).rejects.toMatchObject({ status: 429 });
+    await expect(refusing(500)).rejects.toMatchObject({ status: 500 });
+  });
+});
