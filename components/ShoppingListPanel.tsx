@@ -982,10 +982,20 @@ const ShoppingListPanel: React.FC<Props> = ({
                                     matching at all tells them the name is
                                     what needs fixing.
                                   */
-                                  <span data-testid={`shopping-empty-${country.code}-${item.id}`} className="ml-1 text-slate-300">
+                                  <span
+                                    data-testid={`shopping-empty-${country.code}-${item.id}`}
+                                    className={`ml-1 ${
+                                      ['quota_exceeded', 'search_unavailable']
+                                        .includes(prices[item.id].byCountry?.[country.code] ?? '')
+                                        ? 'font-bold text-amber-600'
+                                        : 'text-slate-300'
+                                    }`}
+                                  >
                                     {{
                                       no_match: '找到的是別的商品',
                                       found_no_price: '找到商品頁，但沒標價',
+                                      quota_exceeded: '搜尋額度用完了，稍後再查',
+                                      search_unavailable: '搜尋暫時不通，稍後再查',
                                     }[prices[item.id].byCountry?.[country.code] ?? ''] ?? '沒查到'}
                                   </span>
                                 ) : (

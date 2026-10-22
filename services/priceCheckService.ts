@@ -72,7 +72,11 @@ export type CountryPriceStatus =
   /** Product pages found, and none of them publishes a price. */
   | 'found_no_price'
   /** Nothing the search returned was a shop selling anything like it. */
-  | 'not_found';
+  | 'not_found'
+  /** The search provider's allowance is spent. Not the product's fault. */
+  | 'quota_exceeded'
+  /** The search provider refused or failed for some other reason. */
+  | 'search_unavailable';
 
 export interface PriceCheck {
   quotes: PriceQuote[];

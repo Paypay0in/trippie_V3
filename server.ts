@@ -2198,7 +2198,7 @@ ${sentence}
       for a sheet mask, and twelve hours is long enough for that to outlive
       the deploy that fixed it.
     */
-    const READER = "v4-why";
+    const READER = "v5-why";
     const cacheKey = `${READER}|${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}`.toLocaleLowerCase();
     const cached = priceCache.get(cacheKey);
     if (cached && Date.now() - cached.at < PRICE_CACHE_MS) {
@@ -2217,10 +2217,31 @@ ${sentence}
           refused yet, which is luck rather than design.
         */
         const perCountry: SearchCandidate[][] = [];
+        /*
+          Why the search gave nothing, when it gave nothing.
+
+          「Never display quota failure as if the product has no price」 — and
+          this swallowed exactly that. `catch(() => [])` turned a 429 into an
+          empty list, which every stage downstream read as 「no shop sells
+          this」. For a whole morning that was true; the afternoon it stopped
+          being true, every row on the list said 沒查到 at once and nothing
+          anywhere said why.
+        */
+        const searchTrouble = new Map<string, "quota_exceeded" | "search_unavailable">();
         for (const country of inPlay) {
-          perCountry.push(await searchCandidates({
-            name, brand, country, inPlay, apiKey: search.apiKey,
-          }).catch(() => []));
+          try {
+            perCountry.push(await searchCandidates({
+              name, brand, country, inPlay, apiKey: search.apiKey,
+            }));
+          } catch (error) {
+            const status = (error as { status?: number })?.status;
+            searchTrouble.set(
+              country.code,
+              status === 429 ? "quota_exceeded" : "search_unavailable",
+            );
+            console.error(`Price search failed for ${country.code}:`, status ?? error);
+            perCountry.push([]);
+          }
         }
 
         /*
@@ -2365,13 +2386,14 @@ ${sentence}
           return {
             countryCode: country.code,
             quotes: kept,
-            status: kept.length > 0
+            status: searchTrouble.get(country.code)
+              ?? (kept.length > 0
               ? "ok" as const
               : pricedSomethingElse
                 ? "no_match" as const
                 : pricedNothing
                   ? "found_no_price" as const
-                  : "not_found" as const,
+                  : "not_found" as const),
           };
         }));
 
@@ -2393,12 +2415,17 @@ ${sentence}
           shops, none would say」 sends a traveller to look, 「found nothing」
           tells them to check the name.
         */
-        if (Object.values(byCountry).some(status => status !== "not_found")) {
-          const body = { quotes: [], byCountry, readAt: new Date().toISOString(), source: "search" };
-          priceCache.set(cacheKey, { at: Date.now(), body });
-          res.json(body);
-          return;
-        }
+        /*
+          Nothing verified anywhere still carries why, per country, and it is
+          never cached when the reason is that the search itself refused —
+          「額度用完了」 becomes false and a cached refusal outlives its cause.
+        */
+        const troubled = Object.values(byCountry)
+          .some(status => status === "quota_exceeded" || status === "search_unavailable");
+        const body = { quotes: [], byCountry, readAt: new Date().toISOString(), source: "search" };
+        if (!troubled) priceCache.set(cacheKey, { at: Date.now(), body });
+        res.json(body);
+        return;
       } catch (error) {
         console.error("Price search failed:", error);
       }

@@ -1008,3 +1008,39 @@ describe('a screen that was not told which trip this is', () => {
       .toContain('沒標價'));
   });
 });
+
+/**
+ * 「Never display quota failure as if the product has no price」.
+ *
+ * `catch(() => [])` turned the search provider's 429 into an empty list, and
+ * every stage downstream read that as 「no shop sells this」. One afternoon
+ * every row said 沒查到 at once and nothing anywhere said why.
+ */
+describe('搜尋本身壞掉的時候', () => {
+  const answerWith = (body: Record<string, unknown>) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ quotes: [], readAt: '2026-10-22T09:00:00.000Z', ...body }),
+    })) as unknown as typeof fetch);
+  };
+
+  beforeEach(() => { clearPriceCheckCache(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('says the allowance ran out, not that there is no price', async () => {
+    answerWith({ byCountry: { JP: 'quota_exceeded', TW: 'quota_exceeded' } });
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-empty-JP-sk2').textContent)
+      .toContain('額度用完'));
+  });
+
+  it('says the search would not answer', async () => {
+    answerWith({ byCountry: { JP: 'search_unavailable', TW: 'not_found' } });
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-empty-JP-sk2').textContent)
+      .toContain('暫時不通'));
+    expect(screen.getByTestId('shopping-empty-TW-sk2').textContent).toContain('沒查到');
+  });
+});
