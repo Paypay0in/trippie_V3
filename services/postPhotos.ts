@@ -31,14 +31,19 @@ const DEFAULT_QUALITY = 0.72;
 export const RECEIPT_PHOTO = { maxEdge: 900, quality: 0.6 } as const;
 
 /**
- * The thumbnail a shopping row carries.
+ * The picture a shopping row carries.
  *
- * 「要找圖片」. It is the screenshot the traveller uploaded, shown at 40px on a
- * list row — so it is stored at a size that serves that and nothing else. A
- * full device has already stopped this app once, and a shopping list is the
- * wrong place to spend the space again.
+ * 「要找圖片」 got a 320px thumbnail, sized for the 40px square it was going to
+ * be drawn in and nothing else. 「購物清單的照片這麼糊 有跟沒有一樣」 is what
+ * that looks like once the row can be opened full screen: a product shot too
+ * blurred to read the bottle it is of.
+ *
+ * Now the same size as a receipt. The reason for keeping it small was that a
+ * full device had already stopped this app once — and that reason is gone:
+ * the list reached the server tonight, so a confirmed product photo is a
+ * cache like every other, and `withoutCloudHeldPhotos` can free it.
  */
-export const SHOPPING_THUMB = { maxEdge: 320, quality: 0.55 } as const;
+export const SHOPPING_THUMB = { maxEdge: 900, quality: 0.6 } as const;
 
 /**
  * What a receipt is downscaled to before it is read.

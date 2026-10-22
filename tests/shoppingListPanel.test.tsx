@@ -11,6 +11,7 @@ import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import ShoppingListPanel from '../components/ShoppingListPanel';
+import { SHOPPING_THUMB } from '../services/postPhotos';
 import { ShoppingItem } from '../types';
 
 afterEach(cleanup);
@@ -344,5 +345,18 @@ describe('the row', () => {
     fireEvent.click(screen.getByTestId('shopping-photo-p1'));
 
     expect(screen.queryByTestId('photo-lightbox-count')).toBeNull();
+  });
+});
+
+/*
+  「購物清單的照片這麼糊 有跟沒有一樣」 — the picture was stored at 320px,
+  sized for the 40px square it was drawn in, which is unreadable the moment
+  the row can be opened full screen. It is a receipt's size now, and may stay
+  that size because the list reaches the server: a confirmed product photo is
+  a cache that `withoutCloudHeldPhotos` can free.
+*/
+describe('how big a product picture is kept', () => {
+  it('is stored at a size worth opening', () => {
+    expect(SHOPPING_THUMB.maxEdge).toBeGreaterThanOrEqual(900);
   });
 });
