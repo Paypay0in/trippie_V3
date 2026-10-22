@@ -188,6 +188,12 @@ describe('which pages are allowed to quote', () => {
     expect(looksLikeAProductPage('https://www.bcl-brand.jp/shop/default.aspx')).toBe(false);
   });
 
+  /* ¥2,000 for 青春露, off a department store's campaign landing page. */
+  it('refuses a shop landing page and a campaign link', () => {
+    expect(looksLikeAProductPage('https://web.hh-online.jp/hankyu-beauty/shop/?cid=bbs_pski')).toBe(false);
+    expect(looksLikeAProductPage('https://example.com/brand/shop/')).toBe(false);
+  });
+
   it('refuses a front page and somebody else’s search', () => {
     expect(looksLikeAProductPage('https://example.com/')).toBe(false);
     expect(looksLikeAProductPage('https://example.com/p?q=sk-ii')).toBe(false);

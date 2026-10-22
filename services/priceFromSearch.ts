@@ -66,7 +66,7 @@ const JAPAN_HOST = /(^|\.)jp$|amazon\.co\.jp|rakuten|matsukiyo|welcia|donki|cosm
 const AGGREGATOR = /biggo|findprice|feebee|ecshopping|pricearea|shopping\.yahoo\.co\.jp\/search/i;
 
 /** Paths that list things rather than being one. */
-const LISTING = /\/(s|search|category|categories|brands?|list|goodsList|tag)(\/|\.|$)|default\.aspx/i;
+const LISTING = /\/(s|search|category|categories|brands?|list|goodsList|tag)(\/|\.|$)|default\.aspx|\/shop\/?$/i;
 
 /** A page that is about one product, as far as its URL can say. */
 export const looksLikeAProductPage = (url: string): boolean => {
@@ -77,6 +77,9 @@ export const looksLikeAProductPage = (url: string): boolean => {
     // A front page prices nothing, and a search query is somebody else's list.
     if (parsed.pathname.replace(/\/+$/, '') === '') return false;
     if (parsed.searchParams.has('q') || parsed.searchParams.has('keyword')) return false;
+    // `?cid=` is a campaign landing page: one banner, many products, one of
+    // their prices in the snippet. 青春露 came back ¥2,000 off one.
+    if (parsed.searchParams.has('cid')) return false;
     return true;
   } catch {
     return false;
