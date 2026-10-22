@@ -59,10 +59,10 @@ describe('checkPrices', () => {
   it('keeps the server\'s reason rather than blaming the product', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: false,
-      json: async () => ({ error: '今天的網路查詢次數用完了，明天再試。' }),
+      json: async () => ({ error: '網路查詢的額度用完了，要在 Google AI Studio 提高才會恢復。' }),
     })));
 
-    expect((await checkPrices({ name: 'x' })).error).toContain('查詢次數用完');
+    expect((await checkPrices({ name: 'x' })).error).toContain('額度用完');
   });
 
   /* 「today」 stops being true tomorrow, so a refusal is not cached. */

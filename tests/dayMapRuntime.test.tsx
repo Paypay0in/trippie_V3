@@ -7,13 +7,27 @@
  * are dragged, retimed and ticked.
  */
 import React from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import ItineraryCalendar from '../components/ItineraryCalendar';
 import DayMap from '../components/DayMap';
 import { ItineraryItem } from '../types';
 
-afterEach(cleanup);
+/*
+  The clock is pinned, because these fixtures are dated.
+
+  Eight of these passed all day on 2026-10-21 and failed at 00:06 the next
+  morning without a line changing: the day card opens on today, and 「today」
+  had walked out of the fixture's trip. A test that depends on the wall clock
+  is a test that fails on a date nobody chose, which is both a false alarm and
+  — the time it is real — an alarm nobody believes.
+*/
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date('2026-10-21T10:00:00'));
+});
+
+afterEach(() => { vi.useRealTimers(); cleanup(); });
 
 const DAY = '2026-10-20';
 

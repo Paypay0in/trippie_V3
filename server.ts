@@ -2133,9 +2133,19 @@ ${brand ? `品牌：${brand}` : ""}
       res.json({ quotes, readAt: new Date().toISOString() });
     } catch (error) {
       console.error("Price check failed:", error);
+      /*
+        No longer 「明天再試」.
+
+        That sentence was a promise, and 「怎麼一直顯示這個」 is what happened
+        when it could not be kept: the allowance ran out on the morning of
+        2026-10-21 and was still refusing at 00:04 the next day, so whatever
+        bounds it, a calendar day is not it. Saying what actually unblocks it
+        is both true and actionable; telling somebody to come back tomorrow
+        sends them away to find the same thing waiting.
+      */
       res.status(isSearchQuotaError(error) ? 429 : 502).json({
         error: isSearchQuotaError(error)
-          ? "今天的網路查詢次數用完了，明天再試。"
+          ? "網路查詢的額度用完了，要在 Google AI Studio 提高才會恢復。"
           : "現在查不到價格。",
       });
     }
@@ -2187,7 +2197,7 @@ ${brand ? `品牌：${brand}` : ""}
       console.error("Product image lookup failed:", error);
       res.status(isSearchQuotaError(error) ? 429 : 502).json({
         error: isSearchQuotaError(error)
-          ? "今天的網路查詢次數用完了，明天再試。"
+          ? "網路查詢的額度用完了，要在 Google AI Studio 提高才會恢復。"
           : "現在找不到商品圖片。",
       });
     }
@@ -2260,7 +2270,7 @@ ${city ? `城市：${city}` : ""}
       console.error("Place highlights failed:", error);
       res.status(isSearchQuotaError(error) ? 429 : 502).json({
         error: isSearchQuotaError(error)
-          ? "今天的網路查詢次數用完了，明天再試。"
+          ? "網路查詢的額度用完了，要在 Google AI Studio 提高才會恢復。"
           : "現在查不到這家店的資料。",
       });
     }
