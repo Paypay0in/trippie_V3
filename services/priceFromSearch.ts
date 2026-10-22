@@ -85,10 +85,24 @@ export const priceQueries = (
   brand: string | undefined,
   country: ComparisonCountry,
 ): string[] => {
-  const first = priceQuery(name, brand, country);
-  if (!first) return [];
-  const second = priceQuery(relaxedName(name), brand, country);
-  return second && second !== first ? [first, second] : [first];
+  /*
+    The brand goes last, not first.
+
+    It is the strongest word in a query when the shop spells it the same way
+    — and the weakest when it does not. 「Hisamitsu ロキソプロフェンEX Naテープ」
+    found nothing in Japan, where the shops write 久光製薬: the one word meant
+    to narrow the search was the word no listing contained.
+
+    So the brand is dropped only after both ways of asking with it have
+    answered nothing, because a name alone — 「腮紅」, 「卸妝濕巾」 — finds the
+    whole shelf.
+  */
+  const ways = [
+    priceQuery(name, brand, country),
+    priceQuery(relaxedName(name), brand, country),
+    ...(brand?.trim() ? [priceQuery(name, undefined, country)] : []),
+  ];
+  return [...new Set(ways.filter(Boolean))];
 };
 
 /** The scripts that say which of two Asian markets a shop is writing for. */

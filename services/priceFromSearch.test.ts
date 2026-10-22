@@ -471,8 +471,21 @@ describe('asking a second way', () => {
   });
 
   it('offers the relaxed way only when it differs', () => {
-    expect(priceQueries('SK-II 青春露', 'SK-II', JP)).toHaveLength(1);
+    expect(priceQueries('SK-II 青春露', undefined, JP)).toHaveLength(1);
     expect(priceQueries('うるおい線・くまスポット', undefined, JP)).toHaveLength(2);
+  });
+
+  /*
+    「Hisamitsu ロキソプロフェンEX Naテープ」 found nothing in Japan, where the
+    shops write 久光製薬. The one word meant to narrow the search was the word
+    no listing contained — so it is dropped, but only last.
+  */
+  it('tries without the brand, after everything with it', () => {
+    const ways = priceQueries('ロキソプロフェンEX Naテープ', 'Hisamitsu', JP);
+
+    expect(ways[0]).toContain('Hisamitsu');
+    expect(ways[ways.length - 1]).not.toContain('Hisamitsu');
+    expect(ways[ways.length - 1]).toContain('ロキソプロフェンEX Naテープ');
   });
 
   /* Fifteen products that answer on the first ask must not pay for a second. */
