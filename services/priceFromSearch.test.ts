@@ -307,3 +307,42 @@ describe('when the address will not say, the language does', () => {
       .toBeNull();
   });
 });
+
+/**
+ * 「官網金額1400 你也寫錯」.
+ *
+ * jomalone.com.tw was read as NT$3,600, which is the 「消費滿 NT$3,600」 banner
+ * across the top of the page. The product cost 1,400 and said so a few words
+ * later. A shop's snippet opens with whatever the shop most wants said, and
+ * that is the spending threshold.
+ */
+describe('a condition is not a price', () => {
+  it('walks past the 滿額 banner to the product', () => {
+    const quotes = quotesFromSearch(web([{
+      url: 'https://www.jomalone.com.tw/product/25956/vitamin-e-lip-conditioner',
+      title: 'Jo Malone 維他命E護唇霜',
+      description: '消費滿 NT$3,600，即享限時節慶贈禮。維他命E護唇霜 15ml NT$1,400',
+    }]));
+
+    expect(quotes[0].amount).toBe(1400);
+  });
+
+  it('ignores a 「起」 price', () => {
+    expect(readMoney('護唇霜 NT$990 起')).toBeNull();
+  });
+
+  it('ignores a free-shipping threshold', () => {
+    expect(readMoney('全館滿 NT$1,000 免運')).toBeNull();
+  });
+
+  /* 送料無料 after a yen price is free shipping, not a condition on it. */
+  it('keeps a price that merely has free shipping after it', () => {
+    expect(readMoney('アネッサ 3,080円 送料無料')).toEqual({
+      amount: 3080, currency: 'JPY', certain: true,
+    });
+  });
+
+  it('still reads a snippet that is only a threshold as nothing', () => {
+    expect(readMoney('消費滿 NT$2,900，即享限時節慶贈禮')).toBeNull();
+  });
+});

@@ -127,34 +127,57 @@ const PLAUSIBLE: Record<string, { min: number; max: number }> = {
  * thing, in exactly the place a price would be.
  */
 export const readMoney = (text: string): Money | null => {
-  /*
-    「円」 and 「NT$」 name one currency each. 「¥」, 「$」 and 「元」 do not:
-    ¥ is the yuan too, $ is most of the world, and 元 is the yuan as well as
-    the New Taiwan dollar. Those three are read but marked uncertain, and the
-    host has to settle them.
+  const found = allMoney(text);
+  // 「円」 and 「NT$」 name one currency each, so they are preferred over a
+  // mark the host will have to settle.
+  return found.find(money => money.certain && money.currency === 'JPY')
+    ?? found.find(money => money.certain)
+    ?? found[0]
+    ?? null;
+};
 
-    This is the whole of the 淘寶 bug: ¥14 printed as TWD 14, which is not a
-    rounding error — it is a price from a country this trip does not visit,
-    wearing the right-looking mark.
-  */
-  const certainYen = text.match(/([\d,]+)\s*円/);
-  if (certainYen) {
-    const amount = Number(certainYen[1].replace(/,/g, ''));
-    if (Number.isFinite(amount) && amount > 0) return { amount, currency: 'JPY', certain: true };
-  }
-  const certainTwd = text.match(/NT\$\s*([\d,]+)/i);
-  if (certainTwd) {
-    const amount = Number(certainTwd[1].replace(/,/g, ''));
-    if (Number.isFinite(amount) && amount > 0) return { amount, currency: 'TWD', certain: true };
-  }
-  const ambiguous = text.match(/[¥￥]\s*([\d,]+)|\$\s*([\d,]+)|([\d,]+)\s*元/);
-  if (ambiguous) {
-    const amount = Number((ambiguous[1] ?? ambiguous[2] ?? ambiguous[3] ?? '').replace(/,/g, ''));
+/*
+  Numbers that are a condition rather than a price.
+
+  「官網金額1400 你也寫錯」 — jomalone.com.tw was read as NT$3,600, which is
+  the 「消費滿 NT$3,600」 banner across the top of the page. The product cost
+  1,400 and said so a few words later.
+
+  A shop's snippet opens with whatever the shop most wants said, and what a
+  shop most wants said is the spending threshold. Both figures are real money
+  on a real product page, so no bound and no host check can tell them apart:
+  only the words around them can.
+*/
+const BEFORE_A_THRESHOLD = /滿|超過|以上|單筆|全館|現折|折抵|送|贈|券|起$|最低|up to|over/i;
+/*
+  Only words that make the number a floor. Not 「送」: 「¥3,080 送料無料」 is a
+  price followed by free shipping, which is the commonest shape there is on a
+  Japanese product page.
+*/
+const AFTER_A_THRESHOLD = /^\s*(以上|起|免運)/;
+
+/** Every figure in the snippet that is money and is not a condition. */
+const allMoney = (text: string): Money[] => {
+  const pattern = /([\d,]+)\s*円|NT\$\s*([\d,]+)|[¥￥]\s*([\d,]+)|\$\s*([\d,]+)|([\d,]+)\s*元/g;
+  const found: Money[] = [];
+
+  for (const match of text.matchAll(pattern)) {
+    const [yen, ntd, yuanish, dollar, chineseUnit] = match.slice(1);
+    const raw = yen ?? ntd ?? yuanish ?? dollar ?? chineseUnit ?? '';
+    const amount = Number(raw.replace(/,/g, ''));
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+
+    const at = match.index ?? 0;
+    if (BEFORE_A_THRESHOLD.test(text.slice(Math.max(0, at - 8), at))) continue;
+    if (AFTER_A_THRESHOLD.test(text.slice(at + match[0].length))) continue;
+
+    if (yen !== undefined) { found.push({ amount, currency: 'JPY', certain: true }); continue; }
+    if (ntd !== undefined) { found.push({ amount, currency: 'TWD', certain: true }); continue; }
     // A 「¥」 leans yen, the other two lean dollar; the host decides either way.
-    const leaning = ambiguous[1] ? 'JPY' : 'TWD';
-    if (Number.isFinite(amount) && amount > 0) return { amount, currency: leaning, certain: false };
+    found.push({ amount, currency: yuanish !== undefined ? 'JPY' : 'TWD', certain: false });
   }
-  return null;
+
+  return found;
 };
 
 /** The host, without the `www.`, which is the only shop name a snippet owns. */
