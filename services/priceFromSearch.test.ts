@@ -6,25 +6,26 @@
  * exactly where a price would sit.
  */
 import { describe, expect, it } from 'vitest';
-import { looksLikeAProductPage, priceQuery, quotesFromSearch, readMoney, searchPrices } from './priceFromSearch';
+import { looksLikeAProductPage, placeOf, priceQuery, quotesFromSearch, readMoney, searchPrices } from './priceFromSearch';
 
 const web = (results: Array<Record<string, unknown>>) => ({ web: { results } });
 
 describe('reading money out of a snippet', () => {
-  it('reads yen written in front', () => {
-    expect(readMoney('ANESSA 日焼け止め ¥3,080 送料無料')).toEqual({ amount: 3080, currency: 'JPY' });
+  /* 「¥」 is the yuan too, so it is read but not trusted to name a country. */
+  it('reads a yen sign but does not call it certain', () => {
+    expect(readMoney('ANESSA 日焼け止め ¥3,080 送料無料')).toEqual({ amount: 3080, currency: 'JPY', certain: false });
   });
 
   it('reads yen written behind', () => {
-    expect(readMoney('資生堂 アネッサ 3,080円（税込）')).toEqual({ amount: 3080, currency: 'JPY' });
+    expect(readMoney('資生堂 アネッサ 3,080円（税込）')).toEqual({ amount: 3080, currency: 'JPY', certain: true });
   });
 
   it('reads New Taiwan dollars', () => {
-    expect(readMoney('SK-II 青春露 NT$5,200 屈臣氏')).toEqual({ amount: 5200, currency: 'TWD' });
+    expect(readMoney('SK-II 青春露 NT$5,200 屈臣氏')).toEqual({ amount: 5200, currency: 'TWD', certain: true });
   });
 
   it('reads 元', () => {
-    expect(readMoney('康是美 特價 520 元')).toEqual({ amount: 520, currency: 'TWD' });
+    expect(readMoney('康是美 特價 520 元')).toEqual({ amount: 520, currency: 'TWD', certain: false });
   });
 
   /*
@@ -54,8 +55,8 @@ describe('which region a quote belongs to', () => {
     expect(quotes[0].region).toBe('台灣');
   });
 
-  /* A yen price on a host that says nothing is still a Japanese price. */
-  it('falls back to the currency when the host says nothing', () => {
+  /* 「円」 names one currency, so it places a host nobody recognises. */
+  it('lets an unmistakable mark place an unknown host', () => {
     const quotes = quotesFromSearch(web([
       { url: 'https://example.com/p/1', title: 'アネッサ', description: '3,080円' },
     ]));
@@ -207,5 +208,51 @@ describe('which pages are allowed to quote', () => {
       region: '台灣', shop: 'tw.bid.yahoo.com', amount: 699, currency: 'TWD',
       sourceUrl: 'https://tw.bid.yahoo.com/item/100269476721',
     }]);
+  });
+});
+
+/**
+ * 「這個腮紅的資料來源是cn 是中國價格」.
+ *
+ * muji.com.cn was quoted under 台灣, and in the same list 淘寶's ¥14 printed
+ * as TWD 14. One hole: ¥ is the yuan as well as the yen and 元 is the yuan as
+ * well as the New Taiwan dollar, so a currency mark cannot name a country.
+ */
+describe('a price from neither place', () => {
+  it('drops a .cn shop', () => {
+    expect(quotesFromSearch(web([
+      { url: 'https://www.muji.com.cn/cn/product/1', title: '腮紅', description: '¥89' },
+    ]))).toEqual([]);
+  });
+
+  it('drops 淘寶 rather than printing yuan as TWD', () => {
+    expect(quotesFromSearch(web([
+      { url: 'https://au.world.taobao.com/item/1', title: 'ellips', description: '¥14' },
+    ]))).toEqual([]);
+  });
+
+  /* A bare ¥ on a host nobody can place could be either of two countries. */
+  it('drops an uncertain mark on a host it cannot place', () => {
+    expect(placeOf('example.com', { amount: 14, currency: 'JPY', certain: false })).toBeNull();
+    expect(placeOf('example.com', { amount: 520, currency: 'TWD', certain: false })).toBeNull();
+  });
+
+  /* The host outranks the mark: a Taiwanese shop writing 「$520」 means TWD. */
+  it('lets a known host settle an uncertain mark', () => {
+    expect(placeOf('shopee.tw', { amount: 520, currency: 'JPY', certain: false }))
+      .toEqual({ region: '台灣', currency: 'TWD' });
+    expect(placeOf('matsukiyo.co.jp', { amount: 3080, currency: 'TWD', certain: false }))
+      .toEqual({ region: '日本', currency: 'JPY' });
+  });
+
+  it('keeps the shops that are in one of the two places', () => {
+    const quotes = quotesFromSearch(web([
+      { url: 'https://www.muji.com.cn/cn/product/1', title: '腮紅', description: '¥89' },
+      { url: 'https://shop.muji.tw/SalePage/Index/1', title: '腮紅', description: '$350' },
+    ]));
+
+    expect(quotes).toHaveLength(1);
+    expect(quotes[0].shop).toBe('shop.muji.tw');
+    expect(quotes[0].currency).toBe('TWD');
   });
 });

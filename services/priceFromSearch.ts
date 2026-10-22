@@ -22,6 +22,14 @@
  * presented as the shop's own answer.
  */
 
+/** A number with a currency mark, and whether that mark named one country. */
+export interface Money {
+  amount: number;
+  currency: string;
+  /** 「円」 and 「NT$」 are certain; 「¥」, 「$」 and 「元」 are not. */
+  certain: boolean;
+}
+
 export interface SearchedQuote {
   region: '台灣' | '日本';
   shop: string;
@@ -46,6 +54,21 @@ export const priceQuery = (name: string, brand: string | undefined, region: '台
  */
 const TAIWAN_HOST = /(^|\.)(tw|com\.tw)$|shopee\.tw|momoshop|pchome|cosmed|watsons/i;
 const JAPAN_HOST = /(^|\.)jp$|amazon\.co\.jp|rakuten|matsukiyo|welcia|donki|cosme\.net/i;
+
+/*
+  Shops in neither place, dropped rather than guessed at.
+
+  「這個腮紅的資料來源是cn 是中國價格」 — muji.com.cn quoted under 台灣, and
+  in the same list 淘寶's ¥14 printed as TWD 14. Both come from the same
+  hole: ¥ is the yuan as well as the yen, and 元 is the yuan as well as the
+  New Taiwan dollar, so a snippet's currency mark cannot name a country on
+  its own.
+
+  This list is not a judgement about these shops. It is that a price from
+  them answers a question nobody asked: the row says 松本清 or 屈臣氏, and
+  the traveller is flying to one of two places.
+*/
+const CHINA_HOST = /(^|\.)cn$|taobao|tmall|jd\.com|1688|pinduoduo|xiaohongshu|dangdang|vip\.com|suning/i;
 
 /*
   Pages whose number is never this product's price.
@@ -99,16 +122,33 @@ const PLAUSIBLE: Record<string, { min: number; max: number }> = {
  * snippet is the size: 「50ml」 and 「30g」 are numbers beside the name of the
  * thing, in exactly the place a price would be.
  */
-export const readMoney = (text: string): { amount: number; currency: string } | null => {
-  const yen = text.match(/[¥￥]\s*([\d,]+)|([\d,]+)\s*円/);
-  if (yen) {
-    const amount = Number((yen[1] ?? yen[2] ?? '').replace(/,/g, ''));
-    if (Number.isFinite(amount) && amount > 0) return { amount, currency: 'JPY' };
+export const readMoney = (text: string): Money | null => {
+  /*
+    「円」 and 「NT$」 name one currency each. 「¥」, 「$」 and 「元」 do not:
+    ¥ is the yuan too, $ is most of the world, and 元 is the yuan as well as
+    the New Taiwan dollar. Those three are read but marked uncertain, and the
+    host has to settle them.
+
+    This is the whole of the 淘寶 bug: ¥14 printed as TWD 14, which is not a
+    rounding error — it is a price from a country this trip does not visit,
+    wearing the right-looking mark.
+  */
+  const certainYen = text.match(/([\d,]+)\s*円/);
+  if (certainYen) {
+    const amount = Number(certainYen[1].replace(/,/g, ''));
+    if (Number.isFinite(amount) && amount > 0) return { amount, currency: 'JPY', certain: true };
   }
-  const twd = text.match(/NT\$?\s*([\d,]+)|\$\s*([\d,]+)|([\d,]+)\s*元/i);
-  if (twd) {
-    const amount = Number((twd[1] ?? twd[2] ?? twd[3] ?? '').replace(/,/g, ''));
-    if (Number.isFinite(amount) && amount > 0) return { amount, currency: 'TWD' };
+  const certainTwd = text.match(/NT\$\s*([\d,]+)/i);
+  if (certainTwd) {
+    const amount = Number(certainTwd[1].replace(/,/g, ''));
+    if (Number.isFinite(amount) && amount > 0) return { amount, currency: 'TWD', certain: true };
+  }
+  const ambiguous = text.match(/[¥￥]\s*([\d,]+)|\$\s*([\d,]+)|([\d,]+)\s*元/);
+  if (ambiguous) {
+    const amount = Number((ambiguous[1] ?? ambiguous[2] ?? ambiguous[3] ?? '').replace(/,/g, ''));
+    // A 「¥」 leans yen, the other two lean dollar; the host decides either way.
+    const leaning = ambiguous[1] ? 'JPY' : 'TWD';
+    if (Number.isFinite(amount) && amount > 0) return { amount, currency: leaning, certain: false };
   }
   return null;
 };
@@ -122,12 +162,26 @@ const hostOf = (url: string): string => {
   }
 };
 
-const regionOf = (host: string, currency: string): '台灣' | '日本' | null => {
-  if (JAPAN_HOST.test(host)) return '日本';
-  if (TAIWAN_HOST.test(host)) return '台灣';
-  if (currency === 'JPY') return '日本';
-  if (currency === 'TWD') return '台灣';
-  return null;
+/**
+ * Where a quote is from, and in what.
+ *
+ * The host decides. A shop in Japan quoting 「¥3,080」 is quoting yen and a
+ * shop in Taiwan quoting 「$520」 is quoting New Taiwan dollars, and neither
+ * mark says so on its own.
+ *
+ * When the host says nothing, only a mark that names one currency is
+ * believed: 「円」 is yen anywhere, 「NT$」 is the New Taiwan dollar anywhere,
+ * and a bare 「¥」 on a host nobody can place could be either of two countries
+ * — one of which this trip is not going to.
+ */
+export const placeOf = (host: string, money: Money): { region: '台灣' | '日本'; currency: string } | null => {
+  if (CHINA_HOST.test(host)) return null;
+  if (JAPAN_HOST.test(host)) return { region: '日本', currency: 'JPY' };
+  if (TAIWAN_HOST.test(host)) return { region: '台灣', currency: 'TWD' };
+  if (!money.certain) return null;
+  return money.currency === 'JPY'
+    ? { region: '日本', currency: 'JPY' }
+    : { region: '台灣', currency: 'TWD' };
 };
 
 interface BraveWebResult {
@@ -166,14 +220,20 @@ export const quotesFromSearch = (payload: unknown, want?: '台灣' | '日本'): 
     const money = readMoney(text);
     if (!money) continue;
 
-    const bounds = PLAUSIBLE[money.currency];
+    const place = placeOf(host, money);
+    if (!place || (want && place.region !== want)) continue;
+
+    const bounds = PLAUSIBLE[place.currency];
     if (bounds && (money.amount < bounds.min || money.amount > bounds.max)) continue;
 
-    const region = regionOf(host, money.currency);
-    if (!region || (want && region !== want)) continue;
-
     seen.add(host);
-    found.push({ region, shop: host, amount: money.amount, currency: money.currency, sourceUrl: url });
+    found.push({
+      region: place.region,
+      shop: host,
+      amount: money.amount,
+      currency: place.currency,
+      sourceUrl: url,
+    });
   }
 
   return found;
