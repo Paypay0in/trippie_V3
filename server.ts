@@ -2179,7 +2179,7 @@ ${brand ? `品牌：${brand}` : ""}
         console.error("Image search failed:", error);
         res.status(isSearchQuotaError(error) ? 429 : 502).json({
           error: isSearchQuotaError(error)
-            ? "圖片搜尋今天的額度用完了。"
+            ? "圖片搜尋的額度用完了。"
             : "現在找不到商品圖片。",
         });
         return;

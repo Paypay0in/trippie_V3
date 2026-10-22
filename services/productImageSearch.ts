@@ -77,19 +77,55 @@ export const firstUsableImage = (payload: unknown): ProductImage | null => {
   return null;
 };
 
-export interface ImageSearchConfig {
-  apiKey: string;
-  /** The programmable search engine id, `cx`. */
-  engineId: string;
+/**
+ * Brave's reply, as much of it as is needed.
+ *
+ * `properties.url` is the picture itself and `url` is the page it came from.
+ * `thumbnail.src` is Brave's own cached copy and is the fallback: it is small,
+ * but a small real picture beats none.
+ */
+interface BraveImageResult {
+  url?: unknown;
+  properties?: { url?: unknown };
+  thumbnail?: { src?: unknown };
 }
 
-/** Configured only when both halves are present; one without the other is nothing. */
+/** The first Brave result that is actually an image. */
+export const firstUsableBraveImage = (payload: unknown): ProductImage | null => {
+  const results = (payload as { results?: unknown })?.results;
+  if (!Array.isArray(results)) return null;
+  for (const entry of results as BraveImageResult[]) {
+    const page = typeof entry?.url === 'string' ? entry.url.trim() : '';
+    const candidates = [entry?.properties?.url, entry?.thumbnail?.src]
+      .map(value => (typeof value === 'string' ? value.trim() : ''));
+    const picture = candidates.find(looksLikeAnImage);
+    if (!picture) continue;
+    return { imageUrl: picture, pageUrl: /^https:\/\//.test(page) ? page : '' };
+  }
+  return null;
+};
+
+export type ImageSearchConfig =
+  | { provider: 'brave'; apiKey: string }
+  | { provider: 'google'; apiKey: string; engineId: string };
+
+/**
+ * Whichever provider this deployment has been given.
+ *
+ * Brave first because it is the one that was chosen: one key, no search
+ * engine to build, and a free allowance larger than Custom Search's. Google
+ * stays reachable for a deployment already carrying its two halves — and only
+ * both halves: one without the other is not a configuration.
+ */
 export const imageSearchConfig = (
   env: Record<string, string | undefined> = process.env,
 ): ImageSearchConfig | null => {
+  const brave = env.BRAVE_SEARCH_KEY?.trim();
+  if (brave) return { provider: 'brave', apiKey: brave };
+
   const apiKey = env.GOOGLE_CSE_KEY?.trim();
   const engineId = env.GOOGLE_CSE_CX?.trim();
-  return apiKey && engineId ? { apiKey, engineId } : null;
+  return apiKey && engineId ? { provider: 'google', apiKey, engineId } : null;
 };
 
 /**
@@ -103,6 +139,31 @@ export const searchProductImage = async (
 ): Promise<ProductImage | null> => {
   const query = productImageQuery(input.name, input.brand);
   if (!query) return null;
+  const call = input.fetchImpl ?? fetch;
+
+  if (input.config.provider === 'brave') {
+    /*
+      Verified against the live endpoint on 2026-10-22: it answers 422 naming
+      `x-subscription-token` as the missing header, which is a route that
+      exists rejecting a request it understood. Today has already cost a
+      button that 404'd because a path was assumed, so this one was asked.
+    */
+    const braveUrl = new URL('https://api.search.brave.com/res/v1/images/search');
+    braveUrl.searchParams.set('q', query);
+    braveUrl.searchParams.set('count', '10');
+    braveUrl.searchParams.set('safesearch', 'strict');
+
+    const braveResponse = await call(braveUrl.toString(), {
+      headers: { Accept: 'application/json', 'X-Subscription-Token': input.config.apiKey },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!braveResponse.ok) {
+      const error = new Error(`image search ${braveResponse.status}`) as Error & { status: number };
+      error.status = braveResponse.status;
+      throw error;
+    }
+    return firstUsableBraveImage(await braveResponse.json());
+  }
 
   const url = new URL('https://www.googleapis.com/customsearch/v1');
   url.searchParams.set('key', input.config.apiKey);
@@ -114,7 +175,6 @@ export const searchProductImage = async (
   url.searchParams.set('num', '10');
   url.searchParams.set('safe', 'active');
 
-  const call = input.fetchImpl ?? fetch;
   const response = await call(url.toString(), { signal: AbortSignal.timeout(8_000) });
   if (!response.ok) {
     const error = new Error(`image search ${response.status}`) as Error & { status: number };

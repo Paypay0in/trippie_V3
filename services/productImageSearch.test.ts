@@ -9,6 +9,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
+  firstUsableBraveImage,
   firstUsableImage,
   imageSearchConfig,
   looksLikeAnImage,
@@ -84,17 +85,88 @@ describe('picking a result', () => {
 
 describe('configuration', () => {
   /* Half a configuration is not a configuration. */
-  it('needs both the key and the engine id', () => {
+  it('needs both halves for Google', () => {
     expect(imageSearchConfig({ GOOGLE_CSE_KEY: 'k' })).toBeNull();
     expect(imageSearchConfig({ GOOGLE_CSE_CX: 'c' })).toBeNull();
     expect(imageSearchConfig({})).toBeNull();
     expect(imageSearchConfig({ GOOGLE_CSE_KEY: 'k', GOOGLE_CSE_CX: 'c' }))
-      .toEqual({ apiKey: 'k', engineId: 'c' });
+      .toEqual({ provider: 'google', apiKey: 'k', engineId: 'c' });
+  });
+
+  /* Brave needs one key, which is the whole reason it was chosen. */
+  it('takes Brave from a single key', () => {
+    expect(imageSearchConfig({ BRAVE_SEARCH_KEY: 'b' }))
+      .toEqual({ provider: 'brave', apiKey: 'b' });
+  });
+
+  it('prefers Brave when a deployment carries both', () => {
+    expect(imageSearchConfig({ BRAVE_SEARCH_KEY: 'b', GOOGLE_CSE_KEY: 'k', GOOGLE_CSE_CX: 'c' }))
+      .toEqual({ provider: 'brave', apiKey: 'b' });
+  });
+});
+
+/**
+ * Brave's reply.
+ *
+ * The endpoint was asked on 2026-10-22 rather than assumed: it answers 422
+ * naming `x-subscription-token`, which is a route that exists refusing a
+ * request it understood. A button that 404s cost a traveller's trust earlier
+ * the same night because a path was guessed.
+ */
+describe('reading what Brave sends back', () => {
+  const brave = { provider: 'brave', apiKey: 'b' } as const;
+
+  it('takes the full picture and the page it came from', () => {
+    expect(firstUsableBraveImage({
+      results: [{
+        url: 'https://shop.example.com/p/1',
+        properties: { url: 'https://cdn.example.com/bottle.jpg' },
+        thumbnail: { src: 'https://imgs.brave.com/small.jpg' },
+      }],
+    })).toEqual({
+      imageUrl: 'https://cdn.example.com/bottle.jpg',
+      pageUrl: 'https://shop.example.com/p/1',
+    });
+  });
+
+  /* A small real picture beats none. */
+  it('falls back to the thumbnail when the full one is unusable', () => {
+    expect(firstUsableBraveImage({
+      results: [{
+        url: 'https://shop.example.com/p/1',
+        properties: { url: 'https://example.com/not-an-image' },
+        thumbnail: { src: 'https://imgs.brave.com/small.jpg' },
+      }],
+    })?.imageUrl).toBe('https://imgs.brave.com/small.jpg');
+  });
+
+  /*
+    A shape this does not recognise reads as 「nothing found」 rather than
+    breaking. The reply was never seen with a real key, so it has to fail
+    softly.
+  */
+  it('is null for a reply it does not understand', () => {
+    expect(firstUsableBraveImage({})).toBeNull();
+    expect(firstUsableBraveImage({ results: [] })).toBeNull();
+    expect(firstUsableBraveImage({ results: [{ url: 'https://x/p' }] })).toBeNull();
+  });
+
+  it('sends the key as the header the endpoint asked for', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true, json: async () => ({ results: [] }),
+    })) as unknown as typeof fetch;
+
+    await searchProductImage({ name: '青春露', brand: 'SK-II', config: brave, fetchImpl });
+
+    const [url, init] = (fetchImpl as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0];
+    expect(url).toContain('api.search.brave.com/res/v1/images/search');
+    expect(new URL(url).searchParams.get('q')).toBe('SK-II 青春露');
+    expect((init.headers as Record<string, string>)['X-Subscription-Token']).toBe('b');
   });
 });
 
 describe('the search itself', () => {
-  const config = { apiKey: 'k', engineId: 'c' };
+  const config = { provider: 'google', apiKey: 'k', engineId: 'c' } as const;
 
   it('asks for images, safely, ten at a time', async () => {
     const fetchImpl = vi.fn(async (url: string) => ({
