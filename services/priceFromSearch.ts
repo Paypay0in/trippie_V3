@@ -40,6 +40,16 @@ export interface SearchedQuote {
   amount: number;
   currency: string;
   sourceUrl: string;
+  /**
+   * Whether the shop's own page stated this figure.
+   *
+   * False means it was read out of a search snippet: the page opened and
+   * published no price, so this is the best available reading rather than
+   * the shop's answer. 「我覺得目前很多價格錯誤」 — every wrong figure in an
+   * audit of thirty-two quotes was one of these, and they are marked rather
+   * than dropped because for several products they are all there is.
+   */
+  verified?: boolean;
 }
 
 /** What to ask, in the language that country's shops price in. */

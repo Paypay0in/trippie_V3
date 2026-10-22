@@ -131,16 +131,36 @@ export const priceFromHtml = (html: string): PagePrice | null => {
 };
 
 /**
+ * What came of asking one product page.
+ *
+ * 「我點入後會有找不到網頁的狀況」 — the fetch failing and the page publishing
+ * no price were the same answer, `null`, so a shop that answered 403 still had
+ * its snippet price shown beside a link that opens nothing. Four of thirty-two
+ * quotes were links a traveller could not open.
+ *
+ * They are different facts and the caller acts differently on each: a page
+ * that cannot be reached cannot be quoted at all, while one that opens and
+ * says nothing may still be quoted from its snippet — marked as unverified,
+ * because a price nobody can check looks identical on screen to one that was.
+ */
+export interface PageReading {
+  /** Whether the page could be opened at all. */
+  reachable: boolean;
+  /** What it states about its own price, when it states anything. */
+  price: PagePrice | null;
+}
+
+/**
  * Reads one product page.
  *
- * Bounded hard: five seconds and the first half-megabyte. This runs for four
- * pages while somebody watches a shopping list, and a shop that will not
- * answer promptly has answered.
+ * Bounded hard: five seconds and the first half-megabyte. This runs for
+ * several pages while somebody watches a shopping list, and a shop that will
+ * not answer promptly has answered.
  */
-export const readPagePrice = async (
+export const readPage = async (
   url: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<PagePrice | null> => {
+): Promise<PageReading> => {
   try {
     const response = await fetchImpl(url, {
       headers: {
@@ -151,16 +171,22 @@ export const readPagePrice = async (
       },
       signal: AbortSignal.timeout(5_000),
     });
-    if (!response.ok) return null;
+    if (!response.ok) return { reachable: false, price: null };
     const html = (await response.text()).slice(0, 500_000);
     /*
-      Returned whatever the currency. 「the page says nothing」 and 「the page
-      says Hong Kong dollars」 are different answers, and only the caller can
-      act on the second: it has a snippet to fall back on, and falling back
-      there would relabel HK$908 as NT$908.
+      The price is returned whatever its currency. 「the page says nothing」
+      and 「the page says Hong Kong dollars」 are different answers, and only
+      the caller can act on the second: falling back to the snippet there
+      would relabel HK$908 as NT$908.
     */
-    return priceFromHtml(html);
+    return { reachable: true, price: priceFromHtml(html) };
   } catch {
-    return null;
+    return { reachable: false, price: null };
   }
 };
+
+/** The stated price, for callers that do not care why there is none. */
+export const readPagePrice = async (
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<PagePrice | null> => (await readPage(url, fetchImpl)).price;

@@ -753,3 +753,55 @@ describe('約台幣', () => {
     expect(screen.queryByTestId('shopping-approx-sk2')).toBeNull();
   });
 });
+
+/**
+ * 「我覺得目前很多價格錯誤」.
+ *
+ * An audit of thirty-two live quotes: seventeen matched the shop's own page,
+ * four were links that did not open, and every wrong figure was read out of a
+ * search snippet rather than stated by the page.
+ */
+describe('未驗證', () => {
+  const answerWith = (quotes: unknown[]) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ quotes, readAt: '2026-10-22T09:00:00.000Z' }),
+    })) as unknown as typeof fetch);
+  };
+
+  beforeEach(() => { clearPriceCheckCache(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('marks a price the shop’s page did not state', async () => {
+    answerWith([{
+      countryCode: 'TW', shop: 'tw.buy.yahoo.com', amount: 3899, currency: 'TWD',
+      verified: false, sourceUrl: 'https://tw.buy.yahoo.com/p/1',
+    }]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-unverified-sk2')).toBeTruthy());
+  });
+
+  it('says nothing beside a price the page stated', async () => {
+    answerWith([{
+      countryCode: 'TW', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
+      verified: true, sourceUrl: 'https://shop.muji.tw/p/1',
+    }]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.queryByTestId('shopping-unverified-sk2')).toBeNull();
+  });
+
+  /* A quote from before this existed says nothing either: absent is not false. */
+  it('says nothing when nobody recorded either way', async () => {
+    answerWith([{
+      countryCode: 'TW', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
+      sourceUrl: 'https://shop.muji.tw/p/1',
+    }]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.queryByTestId('shopping-unverified-sk2')).toBeNull();
+  });
+});

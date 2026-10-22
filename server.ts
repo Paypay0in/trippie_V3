@@ -2,7 +2,7 @@
 import express from "express";
 import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
 import { searchCandidates, SearchCandidate, SearchedQuote } from "./services/priceFromSearch";
-import { readPagePrice } from "./services/priceFromPage";
+import { readPage } from "./services/priceFromPage";
 import { comparisonCountry } from "./services/comparisonCountries";
 import { readFileSync } from "node:fs";
 import { createServer } from "http";
@@ -2235,36 +2235,54 @@ ${sentence}
         const perCountryQuotes = await Promise.all(perCountry.map(async (candidates, at) => {
           const country = inPlay[at];
           const looking = candidates.slice(0, PAGES_PER_COUNTRY);
-          const stated = await Promise.all(looking.map(candidate =>
-            readPagePrice(candidate.url).catch(() => null)));
+          const read = await Promise.all(looking.map(candidate =>
+            readPage(candidate.url).catch(() => ({ reachable: false, price: null }))));
 
           const quotes: SearchedQuote[] = [];
           looking.forEach((candidate, index) => {
-            const page = stated[index];
-            if (page) {
+            const { reachable, price } = read[index];
+
+            /*
+              A link that does not open is not a quote. 「我點入後會有找不到
+              網頁的狀況」 — the page failing and the page saying nothing used
+              to be the same answer, so a shop that returned 403 still had
+              its snippet price printed beside a dead link.
+            */
+            if (!reachable) return;
+
+            if (price) {
               /*
                 The shop's own statement, with its own currency. A page that
                 prices itself in money neither country spends is a page for
-                somebody else's trip — and falling back to its snippet would
-                relabel HK$908 as NT$908.
+                somebody else's trip.
               */
-              const stating = inPlay.find(entry => entry.currency === page.currency);
+              const stating = inPlay.find(entry => entry.currency === price.currency);
               if (!stating) return;
               quotes.push({
                 countryCode: stating.code,
                 shop: candidate.host,
-                amount: page.amount,
-                currency: page.currency,
+                amount: price.amount,
+                currency: price.currency,
                 sourceUrl: candidate.url,
+                verified: true,
               });
               return;
             }
-            // Nothing published: the snippet is all there is, and it is
-            // better than nothing.
-            if (candidate.snippet) quotes.push(candidate.snippet);
+
+            /*
+              The page opened and published nothing. The snippet is all there
+              is, and it is marked as such: nine of thirty-two quotes came
+              this way and they are where the wrong numbers were — a gift set
+              counted as the product, a multipack counted as one.
+            */
+            if (candidate.snippet) quotes.push({ ...candidate.snippet, verified: false });
           });
 
-          return quotes.filter(quote => quote.countryCode === country.code).slice(0, QUOTES_PER_COUNTRY);
+          return quotes
+            .filter(quote => quote.countryCode === country.code)
+            /* A checked price outranks a guessed one, whatever the order. */
+            .sort((left, right) => Number(right.verified) - Number(left.verified))
+            .slice(0, QUOTES_PER_COUNTRY);
         }));
 
         const quotes = await withHomeAmount(perCountryQuotes.flat(), home.currency);

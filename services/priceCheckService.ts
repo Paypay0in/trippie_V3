@@ -36,6 +36,14 @@ export interface PriceQuote {
   approxHome?: number;
   /** The money `approxHome` is in, so the label can name it. */
   homeCurrency?: string;
+  /**
+   * Whether the shop's own page stated this figure.
+   *
+   * False means it was read out of a search snippet. §6 of
+   * `docs/PRODUCT.md`: a figure nobody looked up is 價格需確認, and on screen
+   * it looks identical to one that was — so it says so.
+   */
+  verified?: boolean;
 }
 
 export interface PriceCheck {

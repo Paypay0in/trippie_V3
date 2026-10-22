@@ -965,6 +965,18 @@ const ShoppingListPanel: React.FC<Props> = ({
                                     >
                                       {quote.shop ? `${quote.shop} ` : ''}{quoteLabel(quote)}
                                     </a>
+                                    {/*
+                                      A figure the shop's page did not state.
+                                      「我覺得目前很多價格錯誤」 — every wrong
+                                      one in an audit of thirty-two was read
+                                      out of a search snippet, where a gift
+                                      set and the product look the same.
+                                    */}
+                                    {quote.verified === false && (
+                                      <span data-testid={`shopping-unverified-${item.id}`} className="rounded bg-amber-50 px-1 py-0.5 text-[10px] font-black text-amber-600">
+                                        未驗證
+                                      </span>
+                                    )}
                                     {/* 「那要直接換算：約台幣xxxx」 */}
                                     {home && approxHomeLabel(quote, home.moneyName) && (
                                       <span data-testid={`shopping-approx-${item.id}`} className="text-slate-400">
