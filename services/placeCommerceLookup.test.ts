@@ -244,13 +244,26 @@ describe('somewhere to buy, for a place nobody has curated', () => {
     { catalogue: [], skipNetwork: true },
   );
 
-  it('offers Klook and KKday beside the official site', async () => {
+  it('offers Klook beside the official site', async () => {
     const { commerce } = await resolve() as { commerce: { bookingOptions: Array<{ provider: string; urlType: string; url: string }> } };
     const providers = commerce.bookingOptions.map(option => option.provider);
 
     expect(providers).toContain('official');
     expect(providers).toContain('klook');
-    expect(providers).toContain('kkday');
+  });
+
+  /*
+    「從Trippie找到的連結 點入是這個」 — a KKday 404, from a path generated on
+    the strength of 「a human confirmed it once」. kkday.com answers 403 to a
+    real path and an invented one alike, so nothing here could re-check it.
+
+    A missing provider button costs one search. A button that 404s costs the
+    traveller their trust in every other button on the card.
+  */
+  it('generates no KKday link, because none can be verified', async () => {
+    const { commerce } = await resolve() as { commerce: { bookingOptions: Array<{ provider: string }> } };
+
+    expect(commerce.bookingOptions.map(option => option.provider)).not.toContain('kkday');
   });
 
   /*

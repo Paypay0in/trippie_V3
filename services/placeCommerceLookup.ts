@@ -128,22 +128,30 @@ export interface PlaceDetailsForCommerce {
  *   kkday.com/zh-tw/product/productlist  403
  *   kkday.com/this-path-does-not-exist   403
  *
- * So Klook's router does distinguish them and the old blanket claim was only
- * true of KKday. KKday's pattern is here on different evidence: a human
- * confirmed `product/ls?keyword=` when the SPA LAND entry was written, and
- * that entry is still in the catalogue carrying it.
+ * So Klook's router does distinguish them, and a generated Klook search is
+ * standing on a measurement.
  *
- * These are searches and are labelled as such — `urlType: 'search'`, which the
- * card renders as 「搜尋」 rather than 「查看價格」. That distinction is the whole
- * licence for generating them: a search page for a name cannot be wrong in the
- * way a product page can, because it promises only to look.
+ * KKday is not, and is gone. 「從Trippie找到的連結 點入是這個」 — a 404 page,
+ * from `product/ls?keyword=`, the path this file generated on the strength of
+ * 「a human confirmed it once」. That was the weakest evidence here and it was
+ * the one that broke; 403-for-everything meant nothing could re-check it, and
+ * a link nobody can verify is a link nobody should ship. A missing provider
+ * button costs a traveller one search of their own. A button that 404s costs
+ * them their trust in every other button on the card.
+ *
+ * To bring it back: open a KKday search in a browser, confirm it lists
+ * results, and put that exact path here with the date it was checked.
+ *
+ * What remains is a search and is labelled as such — `urlType: 'search'`,
+ * which the card renders as 「搜尋」 rather than 「查看價格」. That distinction is
+ * the whole licence for generating one: a search page for a name cannot be
+ * wrong in the way a product page can, because it promises only to look.
  */
 const searchLinksFor = (placeName: string): DeclaredBookingLink[] => {
   const query = encodeURIComponent(placeName.trim());
   if (!query) return [];
   return [
     { provider: 'klook', label: 'Klook', url: `https://www.klook.com/zh-TW/search/?query=${query}`, urlType: 'search' },
-    { provider: 'kkday', label: 'KKday', url: `https://www.kkday.com/zh-tw/product/ls?keyword=${query}`, urlType: 'search' },
   ];
 };
 

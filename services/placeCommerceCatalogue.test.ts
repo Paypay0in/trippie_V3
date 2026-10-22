@@ -319,7 +319,7 @@ describe('東京晴空塔', () => {
 
     expect(entry?.admissionRequired).toBe(true);
     expect(entry?.officialUrl).toContain('tokyo-skytree.jp');
-    expect(entry?.bookingLinks?.map(link => link.provider)).toEqual(['kkday', 'klook']);
+    expect(entry?.bookingLinks?.map(link => link.provider)).toEqual(['klook']);
   });
 
   /*

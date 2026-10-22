@@ -105,13 +105,12 @@ export const PLACE_COMMERCE_CATALOGUE: CuratedCommerceEntry[] = [
       '天望デッキ（350m）與天望回廊（450m）票價不同，可分開或合併購買',
       '當日券與預售票價不同，平日與假日也不同',
     ],
+    // KKday is deliberately not here, an hour after I would have added it:
+    // the generated KKday search turned out to 404, and this URL is from the
+    // same family of guesses — kkday.com answers 403 to everything, so no
+    // probe of mine can tell a real path from an invented one. Add it when a
+    // human has opened one and seen results.
     bookingLinks: [
-      {
-        provider: 'kkday',
-        label: 'KKday',
-        url: 'https://www.kkday.com/zh-tw/product/productlist?keyword=%E6%9D%B1%E4%BA%AC%E6%99%B4%E7%A9%BA%E5%A1%94',
-        urlType: 'search',
-      },
       {
         provider: 'klook',
         label: 'Klook',
