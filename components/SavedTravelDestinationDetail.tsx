@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
-import { ChevronRight, Ellipsis, MapPin, Plus, Receipt } from 'lucide-react';
+import { ChevronRight, Ellipsis, MapPin, NotebookPen, Plus, Receipt } from 'lucide-react';
 import { CommunityPost, Expense, ItineraryItem, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { clusterSavedPlaces } from '../services/placeClusters';
@@ -12,7 +12,7 @@ import { PlaceVisit, visitLabel, visitOf } from '../services/visitedPlaces';
 import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import SavedPlaceCard from './SavedPlaceCard';
-import { myRecordAtPlace } from '../services/myRecordAtPlace';
+import { myRecordAtPlace, myRecordSummary } from '../services/myRecordAtPlace';
 import AddPlaceByName from './AddPlaceByName';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
@@ -561,6 +561,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             const expanded = openNotes.has(item.id);
             const shown = expanded ? notesOf(item) : notesOf(item).slice(0, NOTE_PREVIEW);
             const spend = spendAtPlace(item, expenses);
+            const myHere = myRecordAtPlace(item, myTrips, journals);
             return <>
             {/*
               What it cost when you went.
@@ -571,6 +572,31 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
               `merchantPlaceId`, which a receipt scan already records. See
               `spendAtPlace`.
             */}
+            {/*
+              What the traveller themselves recorded here, on the shelf.
+
+              「沒有」 — the block existed only on the card that opens when a
+              place is tapped, and the collection is a list somebody scrolls.
+              Summarised rather than drawn out, for the reason the spend row
+              beside it already learned: a squeezed copy of a thing one tap
+              away earns none of the room it takes.
+            */}
+            {myHere.length > 0 && (
+              <div data-testid={`my-record-at-${item.id}`} className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-violet-100 bg-violet-50/50 px-2.5 py-2">
+                <span className="flex min-w-0 items-center gap-1 text-[11px] font-black text-violet-800">
+                  <NotebookPen size={11} className="shrink-0" />
+                  <span className="truncate">{myRecordSummary(myHere)}</span>
+                </span>
+                <button
+                  type="button"
+                  data-testid={`my-record-open-${item.id}`}
+                  onClick={() => setOpenPlaceId(item.id)}
+                  className="flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1 text-[11px] font-black text-violet-700"
+                >
+                  查看記錄<ChevronRight size={11} />
+                </button>
+              </div>
+            )}
             {spend.length > 0 && (
               <div data-testid={`spend-at-${item.id}`} className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 px-2.5 py-2">
                 {/*

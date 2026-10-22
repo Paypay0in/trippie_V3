@@ -64,3 +64,26 @@ export const myRecordAtPlace = (
 
   return records.sort((left, right) => (right.date || '').localeCompare(left.date || ''));
 };
+
+/**
+ * 「★★★★★ · 8 張照片 · 有日記」 — the one line a list can carry.
+ *
+ * A summary rather than the thing itself: the collection is scrolled, and
+ * the row beside this one learned the same lesson when it stopped printing
+ * receipt thumbnails. Only what is actually there is named, so the line is
+ * never padded out with 「0 張照片」.
+ */
+export const myRecordSummary = (records: MyVisitRecord[]): string => {
+  const best = records
+    .map(record => record.rating)
+    .filter((value): value is number => typeof value === 'number')
+    .sort((left, right) => right - left)[0];
+  const photos = records.reduce((count, record) => count + (record.photos?.length ?? 0), 0);
+  const wrote = records.some(record => record.diary);
+
+  return [
+    typeof best === 'number' ? '★'.repeat(Math.min(5, Math.round(best))) : '',
+    photos > 0 ? `${photos} 張照片` : '',
+    wrote ? '有日記' : '',
+  ].filter(Boolean).join(' · ');
+};

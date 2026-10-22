@@ -6,7 +6,7 @@
  * narrow: one wrong match puts another temple's photographs on this card.
  */
 import { describe, expect, it } from 'vitest';
-import { myRecordAtPlace } from './myRecordAtPlace';
+import { myRecordAtPlace, myRecordSummary } from './myRecordAtPlace';
 import { ItineraryItem, SavedTravelInspiration } from '../types';
 
 const stop = (over: Partial<ItineraryItem> = {}): ItineraryItem => ({
@@ -71,5 +71,28 @@ describe('myRecordAtPlace', () => {
     ]);
 
     expect(found.map(record => record.itemId)).toEqual(['new', 'old']);
+  });
+});
+
+/* The one line the collection list can carry. */
+describe('myRecordSummary', () => {
+  it('names the stars, the photographs and the writing', () => {
+    expect(myRecordSummary([
+      { itemId: 'a', date: '2026-10-21', rating: 5, photos: ['x', 'y'], diary: '很寧靜' },
+    ])).toBe('★★★★★ · 2 張照片 · 有日記');
+  });
+
+  /* Never padded out with what is not there. */
+  it('says only what there is', () => {
+    expect(myRecordSummary([{ itemId: 'a', date: '', photos: ['x'] }])).toBe('1 張照片');
+    expect(myRecordSummary([{ itemId: 'a', date: '', rating: 3 }])).toBe('★★★');
+  });
+
+  /* Two visits are one place: the best star, and all the photographs. */
+  it('adds up across visits', () => {
+    expect(myRecordSummary([
+      { itemId: 'a', date: '2026-10-21', rating: 3, photos: ['x'] },
+      { itemId: 'b', date: '2025-03-02', rating: 5, photos: ['y', 'z'] },
+    ])).toBe('★★★★★ · 3 張照片');
   });
 });
