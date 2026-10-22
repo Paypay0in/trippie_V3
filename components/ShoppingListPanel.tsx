@@ -124,6 +124,8 @@ const ShoppingListPanel: React.FC<Props> = ({
   const [adding, setAdding] = useState(false);
   /** 分類管理 — renaming the headings this list actually has. */
   const [managing, setManaging] = useState(false);
+  /** 全部換成商品圖 — how far through the list it has got. */
+  const [swapping, setSwapping] = useState<{ done: number; total: number } | null>(null);
 
   const comparePrices = (item: ShoppingItem) => {
     setChecking(item.id);
@@ -147,6 +149,40 @@ const ShoppingListPanel: React.FC<Props> = ({
         if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
       })
       .finally(() => setFindingImage(null));
+  };
+
+  /*
+    Rows still wearing the screenshot they were read out of.
+
+    A 小紅書 post photographed on a phone shows where the thing was seen, not
+    what it looks like: captions across it, three other products beside it,
+    somebody's thumb. A picture found on the web is stored as an https URL, so
+    the data URL is exactly the set that has not been swapped yet.
+  */
+  const wearingAScreenshot = shoppingList.filter(item =>
+    !item.photo || item.photo.startsWith('data:'));
+
+  /*
+    「每一張都要換成搜尋結果的圖片 不要用截圖」.
+
+    One search per row, run in order rather than all at once: twenty parallel
+    requests is how a free allowance turns into a rate limit, and the count on
+    the button is worth more than the two seconds it saves.
+
+    A row nothing is found for keeps its screenshot. Having no picture is
+    worse than having the wrong kind of one.
+  */
+  const swapAllPhotos = async () => {
+    if (!onUpdateItem || swapping) return;
+    const queue = wearingAScreenshot;
+    setSwapping({ done: 0, total: queue.length });
+    for (const [at, item] of queue.entries()) {
+      const found = await findProductImage({ name: item.name, brand: item.description })
+        .catch(() => null);
+      if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
+      setSwapping({ done: at + 1, total: queue.length });
+    }
+    setSwapping(null);
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -414,6 +450,25 @@ const ShoppingListPanel: React.FC<Props> = ({
           </div>
         )}
 
+        {/*
+          「每一張都要換成搜尋結果的圖片 不要用截圖」 — offered for the whole
+          list, because pressing a button per row sixteen times is the errand
+          this removes. Only shown while there is still a screenshot to swap.
+        */}
+        {onUpdateItem && wearingAScreenshot.length > 0 && (
+          <button
+            type="button"
+            data-testid="shopping-swap-photos"
+            disabled={!!swapping}
+            onClick={() => { void swapAllPhotos(); }}
+            className="mb-3 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-2xl bg-white text-[11px] font-black text-[#5b3df5] ring-1 ring-violet-200 disabled:opacity-60"
+          >
+            {swapping
+              ? <><Loader2 size={13} className="animate-spin" />正在找商品圖 {swapping.done}/{swapping.total}</>
+              : <><ImageIcon size={13} />全部換成商品圖（{wearingAScreenshot.length}）</>}
+          </button>
+        )}
+
         {/* The categories this list actually has. */}
         {chips.length > 1 && (
           <div data-testid="shopping-categories" className="-mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -650,6 +705,24 @@ const ShoppingListPanel: React.FC<Props> = ({
                           >
                             {checking === item.id ? '查價中…' : '比一下台／日價格'}
                           </button>
+                          {/*
+                            One row's picture, for when the batch found the
+                            wrong bottle or he wants a different one.
+                          */}
+                          {onUpdateItem && item.photo && (
+                            <button
+                              type="button"
+                              data-testid={`shopping-swap-photo-${item.id}`}
+                              disabled={findingImage === item.id}
+                              onClick={() => lookUpImage(item)}
+                              className="flex items-center gap-1 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-[#5b3df5] ring-1 ring-slate-200 disabled:opacity-60"
+                            >
+                              {findingImage === item.id
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <ImageIcon size={12} />}
+                              換一張商品圖
+                            </button>
+                          )}
                           {item.priority && (
                             <button
                               type="button"

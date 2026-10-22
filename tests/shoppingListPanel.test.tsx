@@ -8,10 +8,11 @@
  * the right.
  */
 import React from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ShoppingListPanel from '../components/ShoppingListPanel';
 import { SHOPPING_THUMB } from '../services/postPhotos';
+import { clearProductImageCache } from '../services/productImageService';
 import { ShoppingItem } from '../types';
 
 afterEach(cleanup);
@@ -512,5 +513,83 @@ describe('新增商品', () => {
     fireEvent.click(screen.getByTestId('shopping-add-open'));
 
     expect(screen.getByTestId('shopping-add-input')).toBeTruthy();
+  });
+});
+
+/**
+ * 「每一張都要換成搜尋結果的圖片 不要用截圖」.
+ *
+ * A 小紅書 post photographed on a phone shows where the thing was seen, not
+ * what it looks like: captions across it, three other products beside it,
+ * somebody's thumb. On a shelf, hunting one bottle, that is nearly useless.
+ */
+describe('全部換成商品圖', () => {
+  const found = { imageUrl: 'https://img.example.com/a.jpg', pageUrl: 'https://muji.com/p/1' };
+
+  beforeEach(() => {
+    clearProductImageCache();
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => found,
+    })) as unknown as typeof fetch);
+  });
+
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('offers it while a screenshot is still there', () => {
+    show([item({ photo: 'data:image/jpeg;base64,shot' })]);
+
+    expect(screen.getByTestId('shopping-swap-photos').textContent).toContain('1');
+  });
+
+  /* A picture found on the web is stored as a URL; it is already swapped. */
+  it('does not count a row that already has a web picture', () => {
+    show([item({ photo: 'https://img.example.com/a.jpg' })]);
+
+    expect(screen.queryByTestId('shopping-swap-photos')).toBeNull();
+  });
+
+  it('counts a row with no picture at all', () => {
+    show([item()]);
+
+    expect(screen.getByTestId('shopping-swap-photos').textContent).toContain('1');
+  });
+
+  it('replaces the screenshot with what it found', async () => {
+    const { onUpdateItem } = show([item({ photo: 'data:image/jpeg;base64,shot' })]);
+
+    fireEvent.click(screen.getByTestId('shopping-swap-photos'));
+
+    await waitFor(() => expect(onUpdateItem).toHaveBeenCalledWith('sk2', {
+      photo: found.imageUrl,
+      photoSource: found.pageUrl,
+    }));
+  });
+
+  /* Having no picture is worse than having the wrong kind of one. */
+  it('leaves the screenshot alone when nothing is found', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ imageUrl: '' }),
+    })) as unknown as typeof fetch);
+    const { onUpdateItem } = show([item({ photo: 'data:image/jpeg;base64,shot' })]);
+
+    fireEvent.click(screen.getByTestId('shopping-swap-photos'));
+
+    await waitFor(() => expect(screen.getByTestId('shopping-swap-photos')).toBeTruthy());
+    expect(onUpdateItem).not.toHaveBeenCalled();
+  });
+
+  /* One row at a time, for when the batch found the wrong bottle. */
+  it('swaps one row from its menu', async () => {
+    const { onUpdateItem } = show([item({ photo: 'data:image/jpeg;base64,shot' })]);
+
+    fireEvent.click(screen.getByTestId('shopping-menu-sk2'));
+    fireEvent.click(screen.getByTestId('shopping-swap-photo-sk2'));
+
+    await waitFor(() => expect(onUpdateItem).toHaveBeenCalledWith('sk2', {
+      photo: found.imageUrl,
+      photoSource: found.pageUrl,
+    }));
   });
 });
