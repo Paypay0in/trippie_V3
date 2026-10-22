@@ -7,7 +7,7 @@
  * them at once.
  */
 import { describe, expect, it } from 'vitest';
-import { isUsableCurrency, offersFromHtml, priceFromHtml, readPagePrice } from './priceFromPage';
+import { isUsableCurrency, offersFromHtml, priceFromHtml, readPage, readPagePrice } from './priceFromPage';
 
 const ld = (data: unknown) =>
   `<html><head><script type="application/ld+json">${JSON.stringify(data)}</script></head></html>`;
@@ -160,5 +160,56 @@ describe('a variant inside a product', () => {
     ]));
 
     expect(offers.map(offer => offer.name)).toEqual(['乳木果油霜', 'SHIRO 身體乳']);
+  });
+});
+
+/**
+ * Who this says it is, and what to do when that is refused.
+ *
+ * Measured twice each on 2026-10-22: askul.co.jp answers 「Trippie/3.0」 and
+ * refuses a browser string; muji.com/jp and jomalone.com.tw do the opposite.
+ * A single fixed header loses a shop whichever it picks.
+ */
+describe('introducing ourselves', () => {
+  const refusing = (allowed: string) => {
+    const seen: string[] = [];
+    const impl = (async (_url: string, init: RequestInit) => {
+      const agent = (init.headers as Record<string, string>)['User-Agent'];
+      seen.push(agent);
+      return agent === allowed
+        ? { ok: true, text: async () => ld({ '@type': 'Product', offers: { price: 390, priceCurrency: 'JPY' } }) }
+        : { ok: false, status: 403 };
+    }) as unknown as typeof fetch;
+    return { impl, seen };
+  };
+
+  it('says who it is first', async () => {
+    const { impl, seen } = refusing('Mozilla/5.0 (compatible; Trippie/3.0; +https://trippie-v3.onrender.com)');
+
+    const read = await readPage('https://shop/1', impl);
+
+    expect(read.price).toEqual({ amount: 390, currency: 'JPY' });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain('Trippie/3.0');
+  });
+
+  /* And only where saying so gets the door shut. */
+  it('asks again as a browser when that is refused', async () => {
+    const { impl, seen } = refusing('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+
+    const read = await readPage('https://shop/1', impl);
+
+    expect(read.price).toEqual({ amount: 390, currency: 'JPY' });
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toContain('Trippie/3.0');
+    expect(seen[1]).toContain('Chrome');
+  });
+
+  it('gives up after the second try', async () => {
+    const { impl, seen } = refusing('nobody');
+
+    expect(await readPage('https://shop/1', impl))
+      .toEqual({ reachable: false, price: null, offers: [] });
+    expect(seen).toHaveLength(2);
   });
 });

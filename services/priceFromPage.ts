@@ -211,20 +211,30 @@ export const priceFromHtml = (html: string): PagePrice | null => {
  * because a price nobody can check looks identical on screen to one that was.
  */
 /*
-  What this asks pages to think it is.
+  Who this says it is, and what to do when that is refused.
 
-  It used to say 「Trippie/3.0」 with a contact URL, which is the honest thing
-  to send and is why 無印良品's Japanese store and Jo Malone Taiwan would not
-  answer it at all — the first timed out, the second returned 403. Measured
-  on 2026-10-22: a plain browser string gets 200 and the structured price
-  from both, and appending our own name to that string gets the 403 back. So
-  there is no spelling that both identifies us and is allowed in.
+  There is no one answer. Measured on 2026-10-22, twice each:
 
-  The Founder chose access. What this does is unchanged by the string: it
-  opens pages a traveller's own shopping list named, one page per shop, five
+    askul.co.jp     Trippie/3.0 → 200      browser string → 403
+    muji.com/jp     Trippie/3.0 → timeout  browser string → 200
+    jomalone.com.tw Trippie/3.0 → 403      browser string → 200
+
+  The two shops that publish the exact prices this list needed would not
+  answer an honest introduction, and the one that answered it refuses the
+  browser string. A single fixed header loses a shop whichever it picks —
+  changing it to the browser string this morning fixed 無印 and Jo Malone and
+  silently broke アスクル, which had been the only source of MUJI Japan's ¥390.
+
+  So the truthful one goes first and the other is a retry, used only where
+  saying who we are gets the door shut. 「Founder chose access」 is honoured
+  without making deception the default.
+
+  Either way the behaviour is the same and worth stating plainly: this opens
+  pages a traveller's own shopping list named, one page per shop, a few
   seconds each, and reads the price the shop published for search engines to
-  read. It does not crawl, follow links, or return.
+  read. It does not crawl, follow links, or come back.
 */
+const HONEST = 'Mozilla/5.0 (compatible; Trippie/3.0; +https://trippie-v3.onrender.com)';
 const BROWSER = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
   + ' (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
@@ -248,24 +258,30 @@ export const readPage = async (
   url: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<PageReading> => {
-  try {
-    const response = await fetchImpl(url, {
-      headers: { 'User-Agent': BROWSER, Accept: 'text/html' },
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!response.ok) return { reachable: false, price: null, offers: [] };
-    const html = (await response.text()).slice(0, 500_000);
-    const offers = offersFromHtml(html);
-    /*
-      The price is returned whatever its currency. 「the page says nothing」
-      and 「the page says Hong Kong dollars」 are different answers, and only
-      the caller can act on the second: falling back to the snippet there
-      would relabel HK$908 as NT$908.
-    */
-    return { reachable: true, price: priceFromHtml(html), offers };
-  } catch {
-    return { reachable: false, price: null, offers: [] };
-  }
+  const ask = async (agent: string): Promise<string | null> => {
+    try {
+      const response = await fetchImpl(url, {
+        headers: { 'User-Agent': agent, Accept: 'text/html' },
+        // Half of what one page used to get, because there are now two tries.
+        signal: AbortSignal.timeout(4_000),
+      });
+      return response.ok ? (await response.text()).slice(0, 500_000) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const html = await ask(HONEST) ?? await ask(BROWSER);
+  if (html === null) return { reachable: false, price: null, offers: [] };
+
+  const offers = offersFromHtml(html);
+  /*
+    The price is returned whatever its currency. 「the page says nothing」 and
+    「the page says Hong Kong dollars」 are different answers, and only the
+    caller can act on the second: falling back to the snippet there would
+    relabel HK$908 as NT$908.
+  */
+  return { reachable: true, price: priceFromHtml(html), offers };
 };
 
 /** The stated price, for callers that do not care why there is none. */
