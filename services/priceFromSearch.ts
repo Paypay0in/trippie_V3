@@ -25,6 +25,7 @@
 /** A number with a currency mark, and whether that mark named one country. */
 import { ComparisonCountry, hostCountry, hostIsClaimed } from './comparisonCountries';
 import { productQuery } from './productIdentity';
+import { looksEditorial } from './merchantPages';
 
 export interface Money {
   amount: number;
@@ -163,6 +164,12 @@ export const looksLikeAProductPage = (url: string): boolean => {
   try {
     const parsed = new URL(url);
     if (AGGREGATOR.test(parsed.hostname + parsed.pathname)) return false;
+    /*
+      An article is not a shop, however complete its structured data.
+      「這個點進去明顯是錯誤」 — roomie.tw/posts/157366 published a Product
+      with a price, and the price was another product mentioned in the piece.
+    */
+    if (looksEditorial(url)) return false;
     if (LISTING.test(parsed.pathname)) return false;
     // A front page prices nothing, and a search query is somebody else's list.
     if (parsed.pathname.replace(/\/+$/, '') === '') return false;

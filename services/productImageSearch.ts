@@ -21,6 +21,8 @@
  * picture of this thing」.
  */
 
+import { looksEditorial } from './merchantPages';
+
 export interface ProductImage {
   /** The image file itself, always https and always an image extension. */
   imageUrl: string;
@@ -91,17 +93,17 @@ interface BraveImageResult {
 }
 
 /*
-  Pages that write about a product rather than sell it.
+  A shop's photograph, preferred over a magazine's.
 
   「這個圖明顯就錯誤」 — 卸妝濕巾 came back wearing a magazine's photograph of
-  a hand. A shop's own photograph is the product on white; a magazine's is
-  the product being used, in a scene, at an angle chosen to be beautiful.
-  Both answer 「show me this thing」 and only one answers it on a shelf.
+  a hand. A shop's own photograph is the product on white; a magazine's is the
+  product being used, in a scene, at an angle chosen to be beautiful. Both
+  answer 「show me this thing」 and only one answers it on a shelf.
 
-  Not excluded, only outranked: a shop photograph is preferred when the same
-  search returns one, and an editorial picture beats no picture at all.
+  Outranked rather than excluded here: an editorial picture beats no picture,
+  while an editorial *price* is simply wrong, which is why `looksEditorial`
+  lives in its own module and each caller decides what to do with the answer.
 */
-const EDITORIAL = /elle\.|vogue|marieclaire|cosmopolitan|popbee|harpersbazaar|beauty321|bella|pinterest|youtube|facebook|instagram|blog|wikipedia|ptt\.cc|dcard/i;
 
 const braveEntryToImage = (entry: BraveImageResult): ProductImage | null => {
   const page = typeof entry?.url === 'string' ? entry.url.trim() : '';
@@ -121,7 +123,7 @@ export const firstUsableBraveImage = (payload: unknown): ProductImage | null => 
     .map(braveEntryToImage)
     .filter((found): found is ProductImage => found !== null);
 
-  return usable.find(found => found.pageUrl && !EDITORIAL.test(found.pageUrl))
+  return usable.find(found => found.pageUrl && !looksEditorial(found.pageUrl))
     ?? usable[0]
     ?? null;
 };

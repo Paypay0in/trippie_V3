@@ -528,3 +528,14 @@ describe('asking a second way', () => {
     expect(new URL(asked[1]).searchParams.get('q')).toContain('うるおい線 くまスポット');
   });
 });
+
+/* An article is not a shop, however complete its structured data. */
+describe('an article is not a price', () => {
+  it('refuses the post the Founder clicked', () => {
+    expect(looksLikeAProductPage('https://www.roomie.tw/posts/157366')).toBe(false);
+    expect(quotesFromSearch(web([
+      { url: 'https://www.roomie.tw/posts/157366', title: '潤唇精華油', description: 'NT$389' },
+      { url: 'https://shiro-shiro.tw/products/essence-lip_1', title: '潤唇精華油', description: 'NT$1,000' },
+    ]), PAIR).map(quote => quote.shop)).toEqual(['shiro-shiro.tw']);
+  });
+});
