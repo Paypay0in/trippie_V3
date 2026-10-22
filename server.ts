@@ -2095,6 +2095,57 @@ ${sentence}
   const PRICE_CACHE_MS = 12 * 60 * 60 * 1000;
   const priceCache = new Map<string, { at: number; body: unknown }>();
 
+  /*
+    One day's rate, for 「日本價格有日幣金額 那要直接換算：約台幣xxxx」.
+
+    The same published feed `/api/exchange-rate` already prefers: no key, no
+    quota, and authoritative in a way a model reading search results is not.
+    Held for the day, because sixteen rows asking for the same rate sixteen
+    times is sixteen requests for one number.
+
+    約 and never 「這邊比較便宜」. The conversion is arithmetic the traveller
+    was going to do anyway; which side is cheaper needs a tax-refund
+    assumption and a view on baggage, and a sentence this app wrote would be
+    read as advice.
+  */
+  const fxCache = new Map<string, { at: number; rate: number }>();
+  const rateToTwd = async (from: string): Promise<number | null> => {
+    if (from === "TWD") return 1;
+    const held = fxCache.get(from);
+    if (held && Date.now() - held.at < PRICE_CACHE_MS) return held.rate;
+    try {
+      const response = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`, {
+        signal: AbortSignal.timeout(6_000),
+      });
+      if (!response.ok) return null;
+      const rate = rateFromFxResponse(await response.json(), "TWD");
+      if (rate === null) return null;
+      fxCache.set(from, { at: Date.now(), rate });
+      return rate;
+    } catch {
+      return null;
+    }
+  };
+
+  /*
+    約台幣, on every quote that is not already in it.
+
+    A rate that could not be read leaves the quote alone rather than guessing
+    one: a converted figure and an invented one look identical on screen.
+  */
+  const withTwd = async <T extends { amount: number; currency: string }>(quotes: T[]) => {
+    const currencies = [...new Set(quotes.map(quote => quote.currency))].filter(code => code !== "TWD");
+    const rates = new Map<string, number>();
+    await Promise.all(currencies.map(async code => {
+      const rate = await rateToTwd(code);
+      if (rate !== null) rates.set(code, rate);
+    }));
+    return quotes.map(quote => {
+      const rate = rates.get(quote.currency);
+      return rate ? { ...quote, approxTwd: Math.round(quote.amount * rate) } : quote;
+    });
+  };
+
   app.post("/api/shopping/price-check", async (req, res) => {
     const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
     const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 60) : "";
@@ -2124,7 +2175,7 @@ ${sentence}
       try {
         const [taiwan, japan] = await Promise.all((["台灣", "日本"] as const).map(region =>
           searchPrices({ name, brand, region, apiKey: search.apiKey }).catch(() => [])));
-        const quotes = [...taiwan.slice(0, 2), ...japan.slice(0, 2)];
+        const quotes = await withTwd([...taiwan.slice(0, 2), ...japan.slice(0, 2)]);
         if (quotes.length > 0) {
           const body = { quotes, readAt: new Date().toISOString(), source: "search" };
           priceCache.set(cacheKey, { at: Date.now(), body });
@@ -2206,7 +2257,7 @@ ${brand ? `品牌：${brand}` : ""}
         到」 asked sixteen times an hour spends the allowance the products it
         could find will need.
       */
-      const body = { quotes, readAt: new Date().toISOString() };
+      const body = { quotes: await withTwd(quotes), readAt: new Date().toISOString() };
       priceCache.set(cacheKey, { at: Date.now(), body });
       res.json(body);
     } catch (error) {

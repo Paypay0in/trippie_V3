@@ -686,3 +686,57 @@ describe('價格', () => {
     expect((globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls).toHaveLength(1);
   });
 });
+
+/**
+ * 「日本價格有日幣金額 那要直接換算：約台幣xxxx」.
+ *
+ * 約, and never 「這邊比較便宜」: which side wins needs a tax-refund
+ * assumption and a view on baggage, and a sentence this app wrote would be
+ * read as advice.
+ */
+describe('約台幣', () => {
+  const answerWith = (quotes: unknown[]) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ quotes, readAt: '2026-10-22T09:00:00.000Z' }),
+    })) as unknown as typeof fetch);
+  };
+
+  beforeEach(() => { clearPriceCheckCache(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('shows the converted figure beside a yen price', async () => {
+    answerWith([{
+      region: '日本', shop: 'matsukiyo.co.jp', amount: 3080, currency: 'JPY',
+      approxTwd: 643, sourceUrl: 'https://www.matsukiyo.co.jp/p/1',
+    }]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-approx-sk2').textContent)
+      .toContain('約台幣 643'));
+  });
+
+  /* A converted figure and an invented one look identical on screen. */
+  it('shows nothing when the rate could not be read', async () => {
+    answerWith([{
+      region: '日本', shop: 'matsukiyo.co.jp', amount: 3080, currency: 'JPY',
+      sourceUrl: 'https://www.matsukiyo.co.jp/p/1',
+    }]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.queryByTestId('shopping-approx-sk2')).toBeNull();
+  });
+
+  /* 「約台幣 135」 under TWD 135 is a sentence that says nothing twice. */
+  it('says nothing beside a price already in TWD', async () => {
+    answerWith([{
+      region: '台灣', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
+      approxTwd: 135, sourceUrl: 'https://shop.muji.tw/p/1',
+    }]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.queryByTestId('shopping-approx-sk2')).toBeNull();
+  });
+});

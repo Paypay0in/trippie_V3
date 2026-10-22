@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { findProductImage, sourceLabel } from '../services/productImageService';
 import PhotoLightbox from './PhotoLightbox';
-import { checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
+import { approxTwdLabel, checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
 import { boughtFromReceipts } from '../services/boughtFromReceipt';
 import { Expense } from '../types';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
@@ -823,15 +823,22 @@ const ShoppingListPanel: React.FC<Props> = ({
                                 {found.length === 0 ? (
                                   <span className="text-slate-300">沒查到</span>
                                 ) : found.map(quote => (
-                                  <a
-                                    key={quote.sourceUrl}
-                                    href={quote.sourceUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-slate-600 underline"
-                                  >
-                                    {quote.shop ? `${quote.shop} ` : ''}{quoteLabel(quote)}
-                                  </a>
+                                  <span key={quote.sourceUrl} className="inline-flex flex-wrap items-baseline gap-1">
+                                    <a
+                                      href={quote.sourceUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-slate-600 underline"
+                                    >
+                                      {quote.shop ? `${quote.shop} ` : ''}{quoteLabel(quote)}
+                                    </a>
+                                    {/* 「那要直接換算：約台幣xxxx」 */}
+                                    {approxTwdLabel(quote) && (
+                                      <span data-testid={`shopping-approx-${item.id}`} className="text-slate-400">
+                                        （{approxTwdLabel(quote)}）
+                                      </span>
+                                    )}
+                                  </span>
                                 ))}
                               </div>
                             );

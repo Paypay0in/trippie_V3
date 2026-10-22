@@ -20,6 +20,19 @@ export interface PriceQuote {
   amount: number;
   currency: string;
   sourceUrl: string;
+  /**
+   * Roughly what it is in TWD, when the quote is in something else.
+   *
+   * 「日本價格有日幣金額 那要直接換算：約台幣xxxx」. Converted on the server at
+   * the day's published rate, and absent rather than guessed when that rate
+   * could not be read: a converted figure and an invented one look identical
+   * on screen.
+   *
+   * 約, and never 「這邊比較便宜」 — which side wins needs a tax-refund
+   * assumption and a view on baggage, and a sentence this app wrote would be
+   * read as advice.
+   */
+  approxTwd?: number;
 }
 
 export interface PriceCheck {
@@ -87,6 +100,12 @@ export const checkPrices = (product: { name: string; brand?: string }): Promise<
 /** 「TWD 1,200」 — the money as the shop quoted it, never converted. */
 export const quoteLabel = (quote: PriceQuote): string =>
   `${quote.currency} ${Math.round(quote.amount).toLocaleString()}`;
+
+/** 「約台幣 1,234」, for a quote that was not in TWD to begin with. */
+export const approxTwdLabel = (quote: PriceQuote): string =>
+  (quote.currency !== 'TWD' && typeof quote.approxTwd === 'number' && quote.approxTwd > 0
+    ? `約台幣 ${Math.round(quote.approxTwd).toLocaleString()}`
+    : '');
 
 /**
  * The quotes grouped by where they were found, cheapest first.
