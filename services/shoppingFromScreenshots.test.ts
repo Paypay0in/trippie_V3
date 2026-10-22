@@ -162,3 +162,44 @@ describe('candidateDetail', () => {
     expect(candidateDetail({ id: 'a', name: 'x' })).toBe('');
   });
 });
+
+/**
+ * 「即使有截圖也不好用」.
+ *
+ * A 小紅書 post photographed on a phone shows where the thing was seen, not
+ * what it looks like: captions across it, three other products beside it,
+ * somebody's thumb. So the web picture leads — and the screenshot stays
+ * underneath, because a lookup that finds nothing must not cost the only
+ * record of where the line came from.
+ */
+describe('which picture a row ends up with', () => {
+  const candidate = { id: 'c1', name: 'SK-II 青春露', photo: 'the-screenshot' };
+  const makeId = () => 'new';
+
+  it('uses the product photograph when one was found', () => {
+    const item = candidateToShoppingItem(candidate, 'during', makeId, {
+      imageUrl: 'https://cdn.example.com/bottle.jpg',
+      pageUrl: 'https://shop.example.com/p/1',
+    });
+
+    expect(item.photo).toBe('https://cdn.example.com/bottle.jpg');
+    expect(item.photoSource).toBe('https://shop.example.com/p/1');
+  });
+
+  it('falls back to the screenshot when nothing was found', () => {
+    expect(candidateToShoppingItem(candidate, 'during', makeId, null).photo)
+      .toBe('the-screenshot');
+    expect(candidateToShoppingItem(candidate, 'during', makeId).photo)
+      .toBe('the-screenshot');
+  });
+
+  /* A picture with no page is still a picture. */
+  it('keeps a product photograph that came without a source page', () => {
+    const item = candidateToShoppingItem(candidate, 'during', makeId, {
+      imageUrl: 'https://cdn.example.com/bottle.jpg', pageUrl: '',
+    });
+
+    expect(item.photo).toBe('https://cdn.example.com/bottle.jpg');
+    expect(item.photoSource).toBeUndefined();
+  });
+});

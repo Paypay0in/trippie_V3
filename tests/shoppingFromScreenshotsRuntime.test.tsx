@@ -90,7 +90,12 @@ describe('reading a screenshot', () => {
     fireEvent.click(screen.getByTestId('shopping-candidate-shot0-1'));
     fireEvent.click(screen.getByTestId('shopping-candidates-add'));
 
-    expect(onAdd).toHaveBeenCalledTimes(1);
+    /*
+      Awaited: adding looks up a product picture for each row first, because
+      「即使有截圖也不好用」 — the screenshot shows where the thing was seen,
+      not what it looks like.
+    */
+    await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1));
     expect(onAdd.mock.calls[0][0]).toHaveLength(1);
     expect(onAdd.mock.calls[0][0][0].name).toBe('SK-II 青春露');
   });
@@ -134,6 +139,7 @@ describe('correcting a row before it is added', () => {
     });
     fireEvent.click(screen.getByTestId('shopping-candidates-add'));
 
+    await waitFor(() => expect(onAdd).toHaveBeenCalled());
     expect(onAdd.mock.calls[0][0][0].shop).toBe('唐吉訶德');
   });
 

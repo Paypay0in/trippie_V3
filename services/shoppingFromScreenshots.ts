@@ -122,6 +122,20 @@ export const candidateToShoppingItem = (
   candidate: ShoppingCandidate,
   phase: ShoppingItem['phase'],
   makeId: () => string,
+  /**
+   * A product photograph found on the web, when one was.
+   *
+   * 「即使有截圖也不好用」 — and he is right: a 小紅書 post photographed on a
+   * phone is a picture of where the thing was seen, not of the thing. It has
+   * captions over it, three other products beside it, and a thumb. On a
+   * shelf, looking for one bottle, it is nearly useless.
+   *
+   * So the web picture leads when there is one, and the screenshot stays as
+   * the fallback rather than being thrown away: a lookup that finds the wrong
+   * bottle, or nothing at all, must not cost the only record of where this
+   * line came from.
+   */
+  productImage?: { imageUrl: string; pageUrl: string } | null,
 ): ShoppingItem => ({
   id: makeId(),
   name: candidate.name,
@@ -129,7 +143,9 @@ export const candidateToShoppingItem = (
   phase,
   ...(candidate.category ? { category: candidate.category } : {}),
   ...(candidate.shop ? { shop: candidate.shop } : {}),
-  ...(candidate.photo ? { photo: candidate.photo } : {}),
+  ...(productImage?.imageUrl
+    ? { photo: productImage.imageUrl, ...(productImage.pageUrl ? { photoSource: productImage.pageUrl } : {}) }
+    : candidate.photo ? { photo: candidate.photo } : {}),
   /*
     The brand and the size go in the note rather than into the name: the name
     is what gets compared against an existing row, and 「SK-II 青春露 230ml」

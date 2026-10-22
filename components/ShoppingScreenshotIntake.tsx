@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Camera, Check, Image as ImageIcon, Loader2, Pencil, ShoppingBag, Sparkles } from 'lucide-react';
 import { ShoppingItem } from '../types';
 import { readAndDownscale, SHOPPING_THUMB } from '../services/postPhotos';
+import { findProductImage } from '../services/productImageService';
 import {
   candidateDetail,
   candidateToShoppingItem,
@@ -126,10 +127,36 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
     return next;
   });
 
-  const add = () => {
+  const [findingImages, setFindingImages] = useState(false);
+
+  /*
+    A product photograph for every row, looked up as they are added.
+
+    「即使有截圖也不好用」 — a 小紅書 post photographed on a phone shows where
+    the thing was seen, not what it looks like: captions across it, three
+    other products beside it, somebody's thumb. On a shelf, hunting one
+    bottle, that is nearly useless.
+
+    Looked up together rather than one at a time when somebody presses a
+    button per row, because adding eight things and then pressing eight
+    buttons is the errand this screen exists to remove.
+
+    Every lookup is allowed to fail on its own: the screenshot stays as the
+    fallback, so a product nothing could be found for keeps the only record
+    of where it came from.
+  */
+  const add = async () => {
     const picked = found.filter(candidate => chosen.has(candidate.id));
     if (picked.length === 0) return;
-    onAdd(picked.map(candidate => candidateToShoppingItem(candidate, phase, makeId)));
+
+    setFindingImages(true);
+    const images = await Promise.all(picked.map(candidate =>
+      findProductImage({ name: candidate.name, brand: candidate.brand }).catch(() => null),
+    ));
+    setFindingImages(false);
+
+    onAdd(picked.map((candidate, at) =>
+      candidateToShoppingItem(candidate, phase, makeId, images[at])));
     setFound([]);
     setChosen(new Set());
     setShots(0);
@@ -315,11 +342,12 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
           <button
             type="button"
             data-testid="shopping-candidates-add"
-            disabled={chosen.size === 0}
-            onClick={add}
+            disabled={chosen.size === 0 || findingImages}
+            onClick={() => { void add(); }}
             className="mt-2 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-xs font-black text-white disabled:bg-slate-200 disabled:bg-none disabled:text-slate-400"
           >
-            <ShoppingBag size={14} />加入購物清單（{chosen.size}）
+            <ShoppingBag size={14} />
+            {findingImages ? '正在找商品圖片…' : `加入購物清單（${chosen.size}）`}
           </button>
         </>
       )}
