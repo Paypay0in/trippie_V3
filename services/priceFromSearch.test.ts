@@ -215,6 +215,7 @@ describe('which pages are allowed to quote', () => {
     ]), PAIR)).toEqual([{
       countryCode: 'TW', shop: 'tw.bid.yahoo.com', amount: 699, currency: 'TWD',
       sourceUrl: 'https://tw.bid.yahoo.com/item/100269476721',
+      placement: 'host',
     }]);
   });
 });
@@ -284,6 +285,7 @@ describe('when the address will not say, the language does', () => {
     expect(quotes).toEqual([{
       countryCode: 'TW', shop: 'glamoroushairbeauty.store', amount: 205, currency: 'TWD',
       sourceUrl: 'https://glamoroushairbeauty.store/product-page/sublimic-aqua',
+      placement: 'language',
     }]);
   });
 

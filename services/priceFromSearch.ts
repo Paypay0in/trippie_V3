@@ -50,6 +50,23 @@ export interface SearchedQuote {
    * than dropped because for several products they are all there is.
    */
   verified?: boolean;
+  /**
+   * How this quote was decided to be that country's price.
+   *
+   * 「我覺得你要區分很清楚 日本的價格來源 以及台灣的價格來源」 — and the
+   * three ways are not equally sure:
+   *
+   * - `host`: the shop's address says so. `shop.muji.tw` is a Taiwanese shop
+   *   and `matsukiyo.co.jp` is a Japanese one, and nothing overrides that.
+   * - `mark`: the page quoted 「円」 or 「NT$」, which name one currency each
+   *   wherever they are written.
+   * - `language`: nothing but the writing. A shop on a .com writing Chinese
+   *   and pricing in dollars is probably Taiwanese — and `rakuraku-jp.com`,
+   *   which buys in Japan and sells to Taiwan, is exactly as probably not.
+   *
+   * The last one is shown as an inference rather than as a fact.
+   */
+  placement?: 'host' | 'mark' | 'language';
 }
 
 /** What to ask, in the language that country's shops price in. */
@@ -252,14 +269,14 @@ export const placeOf = (
   money: Money,
   inPlay: ComparisonCountry[],
   text = '',
-): { country: ComparisonCountry; currency: string } | null => {
+): { country: ComparisonCountry; currency: string; placement: 'host' | 'mark' | 'language' } | null => {
   /*
     The host first. A shop in Japan quoting 「¥3,080」 is quoting yen and a
     shop in Taiwan quoting 「$520」 is quoting New Taiwan dollars, and neither
     mark says so on its own.
   */
   const claimed = hostCountry(host, inPlay);
-  if (claimed) return { country: claimed, currency: claimed.currency };
+  if (claimed) return { country: claimed, currency: claimed.currency, placement: 'host' };
 
   /*
     A host claimed by a country that is not in play has been identified and
@@ -277,7 +294,7 @@ export const placeOf = (
 
   if (money.certain) {
     const found = byCurrency(money.currency);
-    return found ? { country: found, currency: found.currency } : null;
+    return found ? { country: found, currency: found.currency, placement: 'mark' } : null;
   }
 
   /*
@@ -291,7 +308,9 @@ export const placeOf = (
   */
   if (KANA.test(text)) {
     const japan = byCurrency('JPY');
-    return money.currency === 'JPY' && japan ? { country: japan, currency: 'JPY' } : null;
+    return money.currency === 'JPY' && japan
+      ? { country: japan, currency: 'JPY', placement: 'language' }
+      : null;
   }
   if (HAN.test(text) && money.currency === 'TWD') {
     /*
@@ -300,7 +319,9 @@ export const placeOf = (
       pair holds two.
     */
     const chinese = inPlay.find(entry => ['TW', 'HK', 'CN'].includes(entry.code));
-    return chinese ? { country: chinese, currency: chinese.currency } : null;
+    return chinese
+      ? { country: chinese, currency: chinese.currency, placement: 'language' }
+      : null;
   }
   return null;
 };
@@ -394,6 +415,7 @@ export const candidatesFromSearch = (
             amount: money.amount,
             currency: place!.currency,
             sourceUrl: url,
+            placement: place!.placement,
           },
         }
         : {}),

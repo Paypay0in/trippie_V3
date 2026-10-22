@@ -57,7 +57,7 @@ const country = (
  * country's own top-level domain is always one of them.
  */
 export const COMPARISON_COUNTRIES: ComparisonCountry[] = [
-  country('TW', '台灣', 'TWD', '台幣', '價格 購買', /(^|\.)tw$|shopee\.tw|momoshop|pchome|cosmed|watsons\.com\.tw|books\.com\.tw/i),
+  country('TW', '台灣', 'TWD', '台幣', '價格 購買', /(^|\.)tw$|shopee\.tw|momoshop|pchome|cosmed|watsons\.com\.tw|books\.com\.tw|tw\.(bid|buy|mall)\.yahoo|ruten\.com/i),
   country('JP', '日本', 'JPY', '日圓', '価格 通販', /(^|\.)jp$|amazon\.co\.jp|rakuten|matsukiyo|welcia|donki|cosme\.net/i),
   country('KR', '韓國', 'KRW', '韓元', '가격 구매', /(^|\.)kr$|coupang|gmarket|oliveyoung|11st/i),
   country('HK', '香港', 'HKD', '港幣', '價錢 購買', /(^|\.)hk$|hktvmall|shampoosecret/i),

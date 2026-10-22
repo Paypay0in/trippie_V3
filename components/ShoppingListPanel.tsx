@@ -951,40 +951,64 @@ const ShoppingListPanel: React.FC<Props> = ({
                           {pair.map(country => {
                             const found = quotesIn(prices[item.id].quotes, country.code);
                             return (
-                              <div key={country.code} data-testid={`shopping-prices-${country.code}-${item.id}`} className="flex flex-wrap items-baseline gap-1.5 text-[11px]">
+                              <div key={country.code} data-testid={`shopping-prices-${country.code}-${item.id}`} className="text-[11px]">
                                 <span className="font-black text-slate-500">{country.displayName}價格：</span>
                                 {found.length === 0 ? (
-                                  <span className="text-slate-300">沒查到</span>
-                                ) : found.map(quote => (
-                                  <span key={quote.sourceUrl} className="inline-flex flex-wrap items-baseline gap-1">
-                                    <a
-                                      href={quote.sourceUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-slate-600 underline"
-                                    >
-                                      {quote.shop ? `${quote.shop} ` : ''}{quoteLabel(quote)}
-                                    </a>
-                                    {/*
-                                      A figure the shop's page did not state.
-                                      「我覺得目前很多價格錯誤」 — every wrong
-                                      one in an audit of thirty-two was read
-                                      out of a search snippet, where a gift
-                                      set and the product look the same.
-                                    */}
-                                    {quote.verified === false && (
-                                      <span data-testid={`shopping-unverified-${item.id}`} className="rounded bg-amber-50 px-1 py-0.5 text-[10px] font-black text-amber-600">
-                                        未驗證
+                                  <span className="ml-1 text-slate-300">沒查到</span>
+                                ) : (
+                                  <span className="mt-0.5 block space-y-0.5">
+                                    {found.map(quote => (
+                                      <span key={quote.sourceUrl} className="block">
+                                        {/*
+                                          Which shop, first and in full.
+                                          「要區分很清楚 日本的價格來源 以及台
+                                          灣的價格來源」 — the shop is what
+                                          makes a price checkable, so it
+                                          leads the line rather than trailing
+                                          a number.
+                                        */}
+                                        <a
+                                          href={quote.sourceUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="font-bold text-slate-600 underline"
+                                        >
+                                          {quote.shop}
+                                        </a>
+                                        <span className="ml-1.5 font-black text-[#11183d]">{quoteLabel(quote)}</span>
+                                        {/* 「那要直接換算：約台幣xxxx」 */}
+                                        {home && approxHomeLabel(quote, home.moneyName) && (
+                                          <span data-testid={`shopping-approx-${item.id}`} className="ml-1 text-slate-400">
+                                            （{approxHomeLabel(quote, home.moneyName)}）
+                                          </span>
+                                        )}
+                                        {/*
+                                          A figure the shop's page did not
+                                          state, read out of a search snippet
+                                          — where a gift set and the product
+                                          look the same.
+                                        */}
+                                        {quote.verified === false && (
+                                          <span data-testid={`shopping-unverified-${item.id}`} className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-black text-amber-600">
+                                            未驗證
+                                          </span>
+                                        )}
+                                        {/*
+                                          And a shop whose country was read
+                                          off its language rather than its
+                                          address. 「rakuraku-jp.com」 buys in
+                                          Japan and sells to Taiwan; nothing
+                                          but the page says which it is.
+                                        */}
+                                        {quote.placement === 'language' && (
+                                          <span data-testid={`shopping-inferred-${item.id}`} className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-black text-slate-400">
+                                            國別推定
+                                          </span>
+                                        )}
                                       </span>
-                                    )}
-                                    {/* 「那要直接換算：約台幣xxxx」 */}
-                                    {home && approxHomeLabel(quote, home.moneyName) && (
-                                      <span data-testid={`shopping-approx-${item.id}`} className="text-slate-400">
-                                        （{approxHomeLabel(quote, home.moneyName)}）
-                                      </span>
-                                    )}
+                                    ))}
                                   </span>
-                                ))}
+                                )}
                               </div>
                             );
                           })}

@@ -44,6 +44,14 @@ export interface PriceQuote {
    * it looks identical to one that was — so it says so.
    */
   verified?: boolean;
+  /**
+   * How this quote was decided to be that country's price.
+   *
+   * 「我覺得你要區分很清楚 日本的價格來源 以及台灣的價格來源」. `host` is the
+   * shop's own address; `mark` is the currency it published; `language` is
+   * only how its page is written, which is an inference and says so.
+   */
+  placement?: 'host' | 'mark' | 'language';
 }
 
 export interface PriceCheck {

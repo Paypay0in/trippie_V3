@@ -2265,6 +2265,12 @@ ${sentence}
                 currency: price.currency,
                 sourceUrl: candidate.url,
                 verified: true,
+                /*
+                  The address decides when it can; otherwise the money the
+                  shop published is its own statement about where it sells,
+                  which is a mark rather than a guess at the language.
+                */
+                placement: candidate.country ? "host" : "mark",
               });
               return;
             }

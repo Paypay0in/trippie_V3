@@ -805,3 +805,62 @@ describe('未驗證', () => {
     expect(screen.queryByTestId('shopping-unverified-sk2')).toBeNull();
   });
 });
+
+/**
+ * 「我覺得你要區分很清楚 日本的價格來源 以及台灣的價格來源」.
+ *
+ * Three ways a quote gets filed under a country, and they are not equally
+ * sure. The address says so; the currency the shop published says so; or
+ * only the language of the page does — and `rakuraku-jp.com`, which buys in
+ * Japan and sells to Taiwan, is exactly the case that reading cannot settle.
+ */
+describe('價格來源', () => {
+  const answerWith = (quotes: unknown[]) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ quotes, readAt: '2026-10-22T09:00:00.000Z' }),
+    })) as unknown as typeof fetch);
+  };
+
+  const quote = (over: Record<string, unknown> = {}) => ({
+    countryCode: 'TW', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
+    verified: true, placement: 'host', sourceUrl: 'https://shop.muji.tw/p/1', ...over,
+  });
+
+  beforeEach(() => { clearPriceCheckCache(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('names the shop on the line, as a link', async () => {
+    answerWith([quote()]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-TW-sk2').textContent)
+      .toContain('shop.muji.tw'));
+    expect(screen.getByText('shop.muji.tw').getAttribute('href')).toBe('https://shop.muji.tw/p/1');
+  });
+
+  it('marks a country read off the page’s language', async () => {
+    answerWith([quote({ shop: 'rakuraku-jp.com', placement: 'language' })]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-inferred-sk2').textContent)
+      .toContain('國別推定'));
+  });
+
+  it('says nothing when the shop’s address settled it', async () => {
+    answerWith([quote()]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.queryByTestId('shopping-inferred-sk2')).toBeNull();
+  });
+
+  /* The currency a shop published is its own statement, not an inference. */
+  it('says nothing when the published currency settled it', async () => {
+    answerWith([quote({ placement: 'mark' })]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.queryByTestId('shopping-inferred-sk2')).toBeNull();
+  });
+});
