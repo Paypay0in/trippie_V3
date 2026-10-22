@@ -1255,6 +1255,16 @@ const App: React.FC = () => {
   const authUserIdRef = useRef<string | undefined>(undefined);
 
   // Country & Tax Rules
+  /*
+    Which country this trip's shopping list compares prices against.
+
+    Per-trip, like `planBrief`: a Taiwan-based traveller flying to Korea may
+    be buying for somebody in Canada. Empty means 「use my residence」, which
+    is the common case and is read from the Profile.
+  */
+  const [comparisonCountryCode, setComparisonCountryCode] = useState<string>(
+    () => initialActiveDraft?.comparisonCountryCode || "",
+  );
   const [travelCountry, setTravelCountry] = useState<string>(() => {
     return initialActiveDraft?.travelCountry || "";
   });
@@ -1812,6 +1822,8 @@ const App: React.FC = () => {
       itinerary: Array.isArray(trip.itinerary) ? trip.itinerary : undefined,
       travelCountry:
         typeof trip.travelCountry === "string" ? trip.travelCountry : undefined,
+      comparisonCountryCode:
+        typeof trip.comparisonCountryCode === "string" ? trip.comparisonCountryCode : undefined,
       travelBook:
         trip.travelBook?.tripId === trip.id ? trip.travelBook : undefined,
       taxRule: trip.taxRule || undefined, // Ensure legacy data works
@@ -2341,6 +2353,7 @@ const App: React.FC = () => {
               carRentals: carRentals.length > 0 ? [...carRentals] : undefined,
               selectedPassportId,
               travelCountry: travelCountry || undefined,
+              comparisonCountryCode: comparisonCountryCode || undefined,
               taxRule: taxRule || undefined,
               visaInfo: visaInfo || undefined,
               travelRules,
@@ -2360,6 +2373,7 @@ const App: React.FC = () => {
     shoppingList,
     taxRule,
     travelCountry,
+    comparisonCountryCode,
     tripDestination,
     tripEndDate,
     tripStartDate,
@@ -2477,6 +2491,7 @@ const App: React.FC = () => {
     setTravelCountry(
       draft.travelCountry || draft.taxRule?.country || namedPlace?.country || "",
     );
+    setComparisonCountryCode(draft.comparisonCountryCode || "");
     setTaxRule(draft.taxRule || null);
     setVisaInfo(draft.visaInfo || null);
     setTravelRules(draft.travelRules);
@@ -2973,6 +2988,7 @@ const App: React.FC = () => {
       setCurrentPhase("pre");
       setTripDestination("");
       setTravelCountry("");
+      setComparisonCountryCode("");
       setTaxRule(null);
       setVisaInfo(null);
       setTravelRules(undefined);
@@ -5232,6 +5248,7 @@ const App: React.FC = () => {
       setCurrentPhase("pre");
       setTripDestination("");
       setTravelCountry("");
+      setComparisonCountryCode("");
       setTaxRule(null);
       setVisaInfo(null);
       setTravelRules(undefined);
@@ -5276,6 +5293,7 @@ const App: React.FC = () => {
       setTaxRule(null);
       setTravelCountry(trip.travelCountry || "");
     }
+    setComparisonCountryCode(trip.comparisonCountryCode || "");
 
     // Restore Visa Info
     if (trip.visaInfo) {
@@ -5925,6 +5943,7 @@ const App: React.FC = () => {
       setItinerary([]);
       setCurrentPhase("pre");
       setTravelCountry("");
+      setComparisonCountryCode("");
       setTaxRule(null);
       setVisaInfo(null);
       setTravelRules(undefined);
@@ -9289,6 +9308,20 @@ const App: React.FC = () => {
                 makeId={generateId}
                 /* 「拍收據的時候 就要自動對比購物清單」 — see `boughtFromReceipt`. */
                 expenses={ratedExpenses}
+                /*
+                  Which two countries to compare. The trip's country against
+                  where the traveller lives, unless this trip says otherwise.
+                */
+                tripCountry={tripCountry(
+                  travelCountry || tripInspirationContext.destinationCountry,
+                  flightAnchors,
+                )}
+                residenceCountryCode={userProfile.residenceCountryCode}
+                comparisonCountryCode={comparisonCountryCode}
+                onComparisonCountry={setComparisonCountryCode}
+                onResidenceCountry={(code) =>
+                  setUserProfile((profile) => ({ ...profile, residenceCountryCode: code }))
+                }
               />
             </div>
           </div>

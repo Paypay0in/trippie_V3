@@ -1,8 +1,9 @@
 
 import express from "express";
 import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
-import { searchPrices } from "./services/priceFromSearch";
-import { isUsableCurrency, readPagePrice } from "./services/priceFromPage";
+import { searchCandidates, SearchCandidate, SearchedQuote } from "./services/priceFromSearch";
+import { readPagePrice } from "./services/priceFromPage";
+import { comparisonCountry } from "./services/comparisonCountries";
 import { readFileSync } from "node:fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -2110,18 +2111,19 @@ ${sentence}
     read as advice.
   */
   const fxCache = new Map<string, { at: number; rate: number }>();
-  const rateToTwd = async (from: string): Promise<number | null> => {
-    if (from === "TWD") return 1;
-    const held = fxCache.get(from);
+  const rateBetween = async (from: string, to: string): Promise<number | null> => {
+    if (from === to) return 1;
+    const key = `${from}>${to}`;
+    const held = fxCache.get(key);
     if (held && Date.now() - held.at < PRICE_CACHE_MS) return held.rate;
     try {
       const response = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`, {
         signal: AbortSignal.timeout(6_000),
       });
       if (!response.ok) return null;
-      const rate = rateFromFxResponse(await response.json(), "TWD");
+      const rate = rateFromFxResponse(await response.json(), to);
       if (rate === null) return null;
-      fxCache.set(from, { at: Date.now(), rate });
+      fxCache.set(key, { at: Date.now(), rate });
       return rate;
     } catch {
       return null;
@@ -2129,21 +2131,27 @@ ${sentence}
   };
 
   /*
-    約台幣, on every quote that is not already in it.
+    約台幣, on every quote that is not already in the money being compared to.
 
     A rate that could not be read leaves the quote alone rather than guessing
     one: a converted figure and an invented one look identical on screen.
   */
-  const withTwd = async <T extends { amount: number; currency: string }>(quotes: T[]) => {
-    const currencies = [...new Set(quotes.map(quote => quote.currency))].filter(code => code !== "TWD");
+  const withHomeAmount = async <T extends { amount: number; currency: string }>(
+    quotes: T[],
+    homeCurrency: string,
+  ) => {
+    const currencies = [...new Set(quotes.map(quote => quote.currency))]
+      .filter(code => code !== homeCurrency);
     const rates = new Map<string, number>();
     await Promise.all(currencies.map(async code => {
-      const rate = await rateToTwd(code);
+      const rate = await rateBetween(code, homeCurrency);
       if (rate !== null) rates.set(code, rate);
     }));
     return quotes.map(quote => {
       const rate = rates.get(quote.currency);
-      return rate ? { ...quote, approxTwd: Math.round(quote.amount * rate) } : quote;
+      return rate
+        ? { ...quote, approxHome: Math.round(quote.amount * rate), homeCurrency }
+        : quote;
     });
   };
 
@@ -2164,7 +2172,26 @@ ${sentence}
       came from search results rather than from a shop — the snippet cannot
       know whether it was pricing the same size.
     */
-    const cacheKey = `${name}|${brand}`.toLocaleLowerCase();
+    /*
+      The two countries this list is comparing. 「Use the user's Profile
+      country of residence as the default comparison country」, with a
+      per-trip override — both resolved on the client, which is where the
+      trip and the profile live, and sent as codes.
+
+      Defaulted to 日本 against 台灣 only when the client sent neither, so a
+      build that has not been updated yet keeps answering the way it did.
+    */
+    const destination = comparisonCountry(req.body?.destinationCountry) ?? comparisonCountry("JP");
+    const home = comparisonCountry(req.body?.homeCountry) ?? comparisonCountry("TW");
+    const inPlay = destination && home && destination.code !== home.code
+      ? [destination, home]
+      : [];
+    if (inPlay.length < 2) {
+      res.json({ quotes: [], readAt: new Date().toISOString(), source: "search" });
+      return;
+    }
+
+    const cacheKey = `${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}`.toLocaleLowerCase();
     const cached = priceCache.get(cacheKey);
     if (cached && Date.now() - cached.at < PRICE_CACHE_MS) {
       res.json(cached.body);
@@ -2174,43 +2201,73 @@ ${sentence}
     const search = imageSearchConfig();
     if (search?.provider === "brave") {
       try {
-        const [taiwan, japan] = await Promise.all((["台灣", "日本"] as const).map(region =>
-          searchPrices({ name, brand, region, apiKey: search.apiKey }).catch(() => [])));
         /*
-          The page itself, for the figure the snippet could only guess at.
+          One country at a time, not both at once.
 
-          Four wrong prices in one night came out of snippets — a comparison
-          site's cheapest match, a brand index's nearest number, 淘寶's yuan
-          in a dollar sign, and 「消費滿 NT$3,600」. A shop's own structured
-          price carries its own currency, which settles every one of them.
-
-          The snippet stays as the fallback, so a shop that publishes nothing
-          still shows what it showed before. Read in parallel: four pages,
-          five seconds each at worst, and the answer is then held for twelve
-          hours.
+          Brave's free plan allows one query per second, and asking for two
+          countries in parallel was two in the same instant. It has not
+          refused yet, which is luck rather than design.
         */
-        const candidates = [...taiwan.slice(0, 2), ...japan.slice(0, 2)];
-        const stated = await Promise.all(candidates.map(quote =>
-          readPagePrice(quote.sourceUrl).catch(() => null)));
-        const quotes = await withTwd(candidates.map((quote, at) => {
-          const page = stated[at];
-          // Nothing stated: the snippet is all there is, and it is better
-          // than nothing.
-          if (!page) return quote;
-          /*
-            Stated in money this trip does not spend: drop it. The snippet
-            would print 「$908」 as NT$908 and shampoosecret.com's own data
-            says HKD — which is the same mistake as 淘寶's yuan, one layer
-            further in and invisible without asking the page.
-          */
-          if (!isUsableCurrency(page.currency)) return null;
-          return {
-            ...quote,
-            amount: page.amount,
-            currency: page.currency,
-            region: page.currency === "JPY" ? "日本" as const : "台灣" as const,
-          };
-        }).filter((quote): quote is NonNullable<typeof quote> => quote !== null));
+        const perCountry: SearchCandidate[][] = [];
+        for (const country of inPlay) {
+          perCountry.push(await searchCandidates({
+            name, brand, country, inPlay, apiKey: search.apiKey,
+          }).catch(() => []));
+        }
+
+        /*
+          Ask the pages, not the snippets. 「我覺得你要努力找到」.
+
+          The snippet used to decide which results were worth fetching, which
+          put the least reliable reader in front of the most reliable one: a
+          product page whose first hundred characters happen to describe the
+          ingredients was discarded before its structured price was ever
+          read. Now every product page the search returned is asked, and the
+          snippet is only consulted when the page publishes nothing.
+
+          Costs no extra Brave requests — the search already returned these
+          results — and the whole answer is held for twelve hours, so only
+          the first traveller to open the list waits.
+        */
+        const PAGES_PER_COUNTRY = 5;
+        const QUOTES_PER_COUNTRY = 2;
+
+        const perCountryQuotes = await Promise.all(perCountry.map(async (candidates, at) => {
+          const country = inPlay[at];
+          const looking = candidates.slice(0, PAGES_PER_COUNTRY);
+          const stated = await Promise.all(looking.map(candidate =>
+            readPagePrice(candidate.url).catch(() => null)));
+
+          const quotes: SearchedQuote[] = [];
+          looking.forEach((candidate, index) => {
+            const page = stated[index];
+            if (page) {
+              /*
+                The shop's own statement, with its own currency. A page that
+                prices itself in money neither country spends is a page for
+                somebody else's trip — and falling back to its snippet would
+                relabel HK$908 as NT$908.
+              */
+              const stating = inPlay.find(entry => entry.currency === page.currency);
+              if (!stating) return;
+              quotes.push({
+                countryCode: stating.code,
+                shop: candidate.host,
+                amount: page.amount,
+                currency: page.currency,
+                sourceUrl: candidate.url,
+              });
+              return;
+            }
+            // Nothing published: the snippet is all there is, and it is
+            // better than nothing.
+            if (candidate.snippet) quotes.push(candidate.snippet);
+          });
+
+          return quotes.filter(quote => quote.countryCode === country.code).slice(0, QUOTES_PER_COUNTRY);
+        }));
+
+        const quotes = await withHomeAmount(perCountryQuotes.flat(), home.currency);
         if (quotes.length > 0) {
           const body = { quotes, readAt: new Date().toISOString(), source: "search" };
           priceCache.set(cacheKey, { at: Date.now(), body });
@@ -2244,7 +2301,7 @@ ${sentence}
       const ai = new GoogleGenAI({ apiKey });
       const response = await withModelFallback(model => ai.models.generateContent({
         model,
-        contents: `查這個商品現在在台灣和日本的售價。
+        contents: `查這個商品現在在${destination.displayName}和${home.displayName}的售價。
 
 商品：${name}
 ${brand ? `品牌：${brand}` : ""}
@@ -2252,9 +2309,9 @@ ${brand ? `品牌：${brand}` : ""}
 規則：
 1. 一定要搜尋查過才寫，查不到就回空陣列。不要憑印象給價格。
 2. 每一筆都要有 sourceUrl，就是你讀到那個價格的頁面網址。沒有網址的不要回。
-3. 台灣看：屈臣氏、康是美、蝦皮、momo。日本看：松本清、Welcia、唐吉訶德、Amazon JP。
-4. region 只能填「台灣」或「日本」。
-5. amount 填數字，currency 填 TWD 或 JPY。
+3. 只看這兩個地方的商家，不要列其他國家的價格。
+4. countryCode 只能填 ${destination.code} 或 ${home.code}。
+5. amount 填數字，currency 填 ${destination.currency} 或 ${home.currency}。
 6. shop 填店名。
 7. 同一個地區最多回兩筆，挑最有代表性的。
 只回傳 JSON。`,
@@ -2277,13 +2334,19 @@ ${brand ? `品牌：${brand}` : ""}
       const quotes = prices
         .filter(row => typeof row.sourceUrl === "string" && /^https:\/\//.test(row.sourceUrl as string))
         .filter(row => Number.isFinite(Number(row.amount)) && Number(row.amount) > 0)
-        .map(row => ({
-          region: row.region === "日本" ? "日本" : "台灣",
-          shop: typeof row.shop === "string" ? row.shop.trim() : "",
-          amount: Number(row.amount),
-          currency: typeof row.currency === "string" && row.currency.trim() ? row.currency.trim().toUpperCase() : "TWD",
-          sourceUrl: row.sourceUrl as string,
-        }))
+        .map(row => {
+          const stated = typeof row.countryCode === "string" ? row.countryCode.trim().toUpperCase() : "";
+          const named = inPlay.find(entry => entry.code === stated) ?? home;
+          return {
+            countryCode: named.code,
+            shop: typeof row.shop === "string" ? row.shop.trim() : "",
+            amount: Number(row.amount),
+            currency: typeof row.currency === "string" && row.currency.trim()
+              ? row.currency.trim().toUpperCase()
+              : named.currency,
+            sourceUrl: row.sourceUrl as string,
+          };
+        })
         .slice(0, 4);
 
       /*
@@ -2292,7 +2355,7 @@ ${brand ? `品牌：${brand}` : ""}
         到」 asked sixteen times an hour spends the allowance the products it
         could find will need.
       */
-      const body = { quotes: await withTwd(quotes), readAt: new Date().toISOString() };
+      const body = { quotes: await withHomeAmount(quotes, home.currency), readAt: new Date().toISOString() };
       priceCache.set(cacheKey, { at: Date.now(), body });
       res.json(body);
     } catch (error) {

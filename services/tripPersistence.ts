@@ -69,6 +69,14 @@ export interface TripDraft {
    */
   carRentals?: ParsedRental[];
   shoppingList: ShoppingItem[];
+  /**
+   * Which country this trip's shopping list compares prices against.
+   *
+   * Per-trip and not a profile setting, for the same reason `planBrief` is:
+   * a Taiwan-based traveller flying to Korea may be buying for somebody in
+   * Canada. Absent means 「use my residence」, which is the common case.
+   */
+  comparisonCountryCode?: string;
   itinerary?: ItineraryItem[];
   travelCountry?: string;
   taxRule?: TaxRule;
@@ -359,6 +367,9 @@ const normalizeDraft = (value: Partial<TripDraft>): TripDraft | null => {
     companions: legacyCompanions,
     settlementBatches: Array.isArray(value.settlementBatches) ? value.settlementBatches.filter(batch => batch && typeof batch.id === 'string' && Array.isArray(batch.expenseIds) && Array.isArray(batch.memberIds)).map(batch => ({ ...batch, status: batch.status === 'settled' ? 'settled' as const : 'open' as const, frozenResult: normalizeFrozenSettlementResult(batch.frozenResult) })) : [],
     shoppingList: normalizeShoppingList(value.shoppingList),
+    ...(typeof value.comparisonCountryCode === 'string' && value.comparisonCountryCode.trim()
+      ? { comparisonCountryCode: value.comparisonCountryCode.trim().toUpperCase() }
+      : {}),
     itinerary: normalizeItinerary(value.itinerary),
     travelCountry: typeof value.travelCountry === 'string' && value.travelCountry ? value.travelCountry : undefined,
     taxRule: value.taxRule,

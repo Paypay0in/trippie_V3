@@ -518,6 +518,14 @@ export interface Trip {
   shoppingList: ShoppingItem[];
   itinerary?: ItineraryItem[];
   travelCountry?: string;
+  /**
+   * Which country this trip's shopping list compares prices against.
+   *
+   * Per-trip rather than a profile setting: a Taiwan-based traveller flying
+   * to Korea may be buying for somebody in Canada. Absent means 「use my
+   * residence」, which is the common case.
+   */
+  comparisonCountryCode?: string;
   travelBook?: TravelBook;
   createdAt?: string;
   updatedAt?: string;
@@ -1051,6 +1059,22 @@ export interface UserProfile {
   level: number;
   passports?: PassportProfile[];
   defaultPassportId?: string;
+  /**
+   * Where the traveller lives, as an ISO country code.
+   *
+   * Not their passport. 「護照國籍不等於居住地」 is already written into the
+   * travel-rules prompt, and the research has been sending
+   * `residenceStatus: 'unknown'` ever since because nothing ever asked — so
+   * tax-refund eligibility has never been answerable.
+   *
+   * The shopping list needs it for a second reason: 「回台灣買比較便宜」 is a
+   * comparison against where the suitcase is going, and guessing that from a
+   * passport sends somebody home with things that were cheaper at home.
+   *
+   * Absent means nobody said. It is asked for, never inferred from
+   * nationality, IP or GPS.
+   */
+  residenceCountryCode?: string;
 }
 
 export type AuthStatus = 'loading' | 'anonymous' | 'authenticated';

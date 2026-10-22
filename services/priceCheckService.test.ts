@@ -8,10 +8,10 @@
  * identical on screen to a checked one.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { byRegion, checkPrices, clearPriceCheckCache, quoteLabel } from './priceCheckService';
+import { checkPrices, clearPriceCheckCache, quoteLabel, quotesIn } from './priceCheckService';
 
 const quote = (over: Record<string, unknown> = {}) => ({
-  region: '台灣', shop: '屈臣氏', amount: 1200, currency: 'TWD',
+  countryCode: 'TW', shop: '屈臣氏', amount: 1200, currency: 'TWD',
   sourceUrl: 'https://www.watsons.com.tw/p/1', ...over,
 });
 
@@ -83,18 +83,23 @@ describe('checkPrices', () => {
   });
 });
 
-describe('byRegion', () => {
-  it('puts the cheapest of each region first', () => {
-    const grouped = byRegion([
+describe('quotesIn', () => {
+  it('puts the cheapest of a country first', () => {
+    const found = quotesIn([
       quote({ amount: 1500 }) as never,
       quote({ amount: 980, shop: '蝦皮' }) as never,
-    ]);
+    ], 'TW');
 
-    expect(grouped[0][1].map(row => row.amount)).toEqual([980, 1500]);
+    expect(found.map(row => row.amount)).toEqual([980, 1500]);
   });
 
-  it('leaves out a region with nothing in it', () => {
-    expect(byRegion([quote() as never]).map(([region]) => region)).toEqual(['台灣']);
+  /*
+    An empty list for a country is the answer the screen prints as 沒查到 —
+    「日本價格：台灣價格：這樣條列 沒查到就說沒查到」 — so the country is never
+    filtered away here.
+  */
+  it('answers nothing for a country with nothing in it', () => {
+    expect(quotesIn([quote() as never], 'JP')).toEqual([]);
   });
 });
 

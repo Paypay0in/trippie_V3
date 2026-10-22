@@ -17,9 +17,11 @@ import {
 } from 'lucide-react';
 import { findProductImage, sourceLabel } from '../services/productImageService';
 import PhotoLightbox from './PhotoLightbox';
-import { approxTwdLabel, checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
+import { approxHomeLabel, checkPrices, PriceCheck, quoteLabel, quotesIn } from '../services/priceCheckService';
 import { boughtFromReceipts } from '../services/boughtFromReceipt';
 import { brandOf } from '../services/productIdentity';
+import { COMPARISON_COUNTRIES, ComparisonCountry } from '../services/comparisonCountries';
+import { comparisonPair } from '../services/shoppingComparison';
 import { Expense } from '../types';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
 
@@ -73,6 +75,28 @@ interface Props {
    * comparison is automatic; the ticking is not. See `boughtFromReceipt`.
    */
   expenses?: Expense[];
+  /**
+   * Which country this trip is in, as the trip spelled it.
+   *
+   * 「日本」, 「Japan」 and 「JP」 are all accepted: `countryCodeOf` reuses the
+   * same synonym table the rest of the app groups countries on.
+   */
+  tripCountry?: string;
+  /** Where the traveller lives, from their Profile. Never their passport. */
+  residenceCountryCode?: string;
+  /** This trip's override of where to compare against, when one was set. */
+  comparisonCountryCode?: string;
+  /** Sets that override. Omitted and the picker is not shown. */
+  onComparisonCountry?: (code: string) => void;
+  /**
+   * Records where the traveller lives, when they answer the prompt.
+   *
+   * Written to the Profile rather than to the trip, because it is a fact
+   * about the person — and because the travel-rules research has been
+   * sending `residenceStatus: 'unknown'` ever since it was written, for want
+   * of exactly this answer.
+   */
+  onResidenceCountry?: (code: string) => void;
 }
 
 /** The chip every list has, whatever is in it. */
@@ -89,6 +113,11 @@ const ShoppingListPanel: React.FC<Props> = ({
   phase,
   makeId,
   expenses = [],
+  tripCountry,
+  residenceCountryCode,
+  comparisonCountryCode,
+  onComparisonCountry,
+  onResidenceCountry,
 }) => {
   const [newItemName, setNewItemName] = useState('');
   const [filter, setFilter] = useState(ALL);
@@ -136,10 +165,29 @@ const ShoppingListPanel: React.FC<Props> = ({
   const [managing, setManaging] = useState(false);
   /** 全部換成商品圖 — how far through the list it has got. */
   const [swapping, setSwapping] = useState<{ done: number; total: number } | null>(null);
+  /** Whether the country picker is open. */
+  const [pickingCountry, setPickingCountry] = useState(false);
+
+  /*
+    The two countries this list compares: where the trip is, against where
+    the traveller lives — or whatever this trip was told to compare against
+    instead.
+  */
+  const { destination, home, needsHome } = comparisonPair({
+    tripCountry,
+    residenceCountryCode,
+    comparisonCountryCode,
+  });
+  const pair: ComparisonCountry[] = destination && home ? [destination, home] : [];
 
   const comparePrices = (item: ShoppingItem) => {
     setChecking(item.id);
-    void checkPrices({ name: item.name, brand: brandOf(item.description) })
+    void checkPrices({
+      name: item.name,
+      brand: brandOf(item.description),
+      destinationCountry: destination?.code,
+      homeCountry: home?.code,
+    })
       .then(found => setPrices(current => ({ ...current, [item.id]: found })))
       .finally(() => setChecking(null));
   };
@@ -288,7 +336,12 @@ const ShoppingListPanel: React.FC<Props> = ({
         if (stopped) break;
         if (pricesRef.current[item.id]) continue;
         setChecking(item.id);
-        const found = await checkPrices({ name: item.name, brand: brandOf(item.description) })
+        const found = await checkPrices({
+          name: item.name,
+          brand: brandOf(item.description),
+          destinationCountry: destination?.code,
+          homeCountry: home?.code,
+        })
           .catch(() => null);
         if (stopped) break;
         if (found) setPrices(current => ({ ...current, [item.id]: found }));
@@ -410,6 +463,75 @@ const ShoppingListPanel: React.FC<Props> = ({
                 />
               </span>
             </span>
+          </div>
+        )}
+
+        {/*
+          Which two places this list is comparing, said once at the top
+          rather than implied by the rows.
+
+          A list whose two price lines say 日本 and 台灣 has been comparing
+          those two all along; saying so is what makes the override findable,
+          and what makes 「I live somewhere else」 answerable at all.
+        */}
+        {(destination || needsHome) && (
+          <div data-testid="shopping-comparison" className="mb-3 rounded-2xl bg-[#f4f3ff] px-3 py-2.5">
+            {needsHome ? (
+              <p className="text-[11px] font-black text-[#11183d]">
+                要跟哪裡的價格比？
+                <span className="ml-1 font-bold text-slate-500">選了才能比價</span>
+              </p>
+            ) : (
+              <button
+                type="button"
+                data-testid="shopping-comparison-open"
+                aria-expanded={pickingCountry}
+                disabled={!onComparisonCountry && !onResidenceCountry}
+                onClick={() => setPickingCountry(open => !open)}
+                className="flex w-full items-center justify-between text-[11px] font-black text-[#11183d]"
+              >
+                <span>
+                  比價：{destination?.displayName ?? '—'}
+                  <span className="mx-1 text-slate-400">⇄</span>
+                  {home?.displayName}
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 ${pickingCountry ? '' : '-rotate-90'}`} />
+              </button>
+            )}
+
+            {(needsHome || pickingCountry) && (onComparisonCountry || onResidenceCountry) && (
+              <div data-testid="shopping-comparison-options" className="mt-2 flex flex-wrap gap-1.5">
+                {COMPARISON_COUNTRIES
+                  .filter(country => country.code !== destination?.code)
+                  .map(country => (
+                    <button
+                      key={country.code}
+                      type="button"
+                      aria-pressed={home?.code === country.code}
+                      data-testid={`shopping-comparison-${country.code}`}
+                      onClick={() => {
+                        /*
+                          The first answer is a fact about the person and is
+                          written to the Profile; changing it afterwards is a
+                          decision about this trip and stays on the trip. The
+                          Profile is never silently overwritten.
+                        */
+                        if (needsHome && !residenceCountryCode && onResidenceCountry) {
+                          onResidenceCountry(country.code);
+                        } else {
+                          onComparisonCountry?.(country.code);
+                        }
+                        setPickingCountry(false);
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-black ${
+                        home?.code === country.code ? 'bg-[#5b3df5] text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'
+                      }`}
+                    >
+                      {country.displayName}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -826,13 +948,11 @@ const ShoppingListPanel: React.FC<Props> = ({
                             nobody looked at, and the reader then does the
                             looking themselves. 沒查到 ends that.
                           */}
-                          {(['日本', '台灣'] as const).map(region => {
-                            const found = prices[item.id].quotes
-                              .filter(quote => quote.region === region)
-                              .sort((left, right) => left.amount - right.amount);
+                          {pair.map(country => {
+                            const found = quotesIn(prices[item.id].quotes, country.code);
                             return (
-                              <div key={region} data-testid={`shopping-prices-${region}-${item.id}`} className="flex flex-wrap items-baseline gap-1.5 text-[11px]">
-                                <span className="font-black text-slate-500">{region}價格：</span>
+                              <div key={country.code} data-testid={`shopping-prices-${country.code}-${item.id}`} className="flex flex-wrap items-baseline gap-1.5 text-[11px]">
+                                <span className="font-black text-slate-500">{country.displayName}價格：</span>
                                 {found.length === 0 ? (
                                   <span className="text-slate-300">沒查到</span>
                                 ) : found.map(quote => (
@@ -846,9 +966,9 @@ const ShoppingListPanel: React.FC<Props> = ({
                                       {quote.shop ? `${quote.shop} ` : ''}{quoteLabel(quote)}
                                     </a>
                                     {/* 「那要直接換算：約台幣xxxx」 */}
-                                    {approxTwdLabel(quote) && (
+                                    {home && approxHomeLabel(quote, home.moneyName) && (
                                       <span data-testid={`shopping-approx-${item.id}`} className="text-slate-400">
-                                        （{approxTwdLabel(quote)}）
+                                        （{approxHomeLabel(quote, home.moneyName)}）
                                       </span>
                                     )}
                                   </span>

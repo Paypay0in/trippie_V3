@@ -15,7 +15,8 @@
  * which is the same reason menu prices are not averaged across years.
  */
 export interface PriceQuote {
-  region: '台灣' | '日本';
+  /** ISO code of the country the shop is in. */
+  countryCode: string;
   shop: string;
   amount: number;
   currency: string;
@@ -32,7 +33,9 @@ export interface PriceQuote {
    * assumption and a view on baggage, and a sentence this app wrote would be
    * read as advice.
    */
-  approxTwd?: number;
+  approxHome?: number;
+  /** The money `approxHome` is in, so the label can name it. */
+  homeCurrency?: string;
 }
 
 export interface PriceCheck {
@@ -58,8 +61,21 @@ export const clearPriceCheckCache = () => { cache.clear(); pending.clear(); };
 
 const EMPTY: PriceCheck = { quotes: [], readAt: '' };
 
-export const checkPrices = (product: { name: string; brand?: string }): Promise<PriceCheck> => {
-  const key = `${product.name}|${product.brand ?? ''}`.toLocaleLowerCase();
+export const checkPrices = (product: {
+  name: string;
+  brand?: string;
+  /** Where the trip is, as an ISO code. */
+  destinationCountry?: string;
+  /** Where it is being compared against. */
+  homeCountry?: string;
+}): Promise<PriceCheck> => {
+  /*
+    The pair is part of the key. The same bottle compared 日本/台灣 and
+    日本/香港 are two different questions, and answering the second from the
+    first's cache is how a Hong Kong price appears under 台灣價格.
+  */
+  const key = [product.name, product.brand ?? '', product.destinationCountry ?? '', product.homeCountry ?? '']
+    .join('|').toLocaleLowerCase();
   const cached = cache.get(key);
   if (cached !== undefined) return Promise.resolve(cached);
   const existing = pending.get(key);
@@ -68,7 +84,12 @@ export const checkPrices = (product: { name: string; brand?: string }): Promise<
   const request = fetch('/api/shopping/price-check', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: product.name, brand: product.brand }),
+    body: JSON.stringify({
+      name: product.name,
+      brand: product.brand,
+      destinationCountry: product.destinationCountry,
+      homeCountry: product.homeCountry,
+    }),
   })
     .then(async response => {
       const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
@@ -101,10 +122,12 @@ export const checkPrices = (product: { name: string; brand?: string }): Promise<
 export const quoteLabel = (quote: PriceQuote): string =>
   `${quote.currency} ${Math.round(quote.amount).toLocaleString()}`;
 
-/** 「約台幣 1,234」, for a quote that was not in TWD to begin with. */
-export const approxTwdLabel = (quote: PriceQuote): string =>
-  (quote.currency !== 'TWD' && typeof quote.approxTwd === 'number' && quote.approxTwd > 0
-    ? `約台幣 ${Math.round(quote.approxTwd).toLocaleString()}`
+/** 「約台幣 1,234」, for a quote not already in the money being compared to. */
+export const approxHomeLabel = (quote: PriceQuote, moneyName: string): string =>
+  (quote.currency !== quote.homeCurrency
+    && typeof quote.approxHome === 'number'
+    && quote.approxHome > 0
+    ? `約${moneyName} ${Math.round(quote.approxHome).toLocaleString()}`
     : '');
 
 /**
@@ -115,8 +138,7 @@ export const approxTwdLabel = (quote: PriceQuote): string =>
  * would be read as advice. The two columns are put side by side and the
  * traveller does the arithmetic they were going to do anyway.
  */
-export const byRegion = (quotes: PriceQuote[]): Array<[PriceQuote['region'], PriceQuote[]]> =>
-  (['台灣', '日本'] as const)
-    .map(region => [region, quotes.filter(quote => quote.region === region)
-      .sort((left, right) => left.amount - right.amount)] as [PriceQuote['region'], PriceQuote[]])
-    .filter(([, found]) => found.length > 0);
+export const quotesIn = (quotes: PriceQuote[], countryCode: string): PriceQuote[] =>
+  quotes
+    .filter(quote => quote.countryCode === countryCode)
+    .sort((left, right) => left.amount - right.amount);

@@ -23,6 +23,9 @@
  */
 
 /** A number with a currency mark, and whether that mark named one country. */
+import { ComparisonCountry, hostCountry, hostIsClaimed } from './comparisonCountries';
+import { productQuery } from './productIdentity';
+
 export interface Money {
   amount: number;
   currency: string;
@@ -31,46 +34,21 @@ export interface Money {
 }
 
 export interface SearchedQuote {
-  region: '台灣' | '日本';
+  /** ISO code of the country the shop is in — one of the two being compared. */
+  countryCode: string;
   shop: string;
   amount: number;
   currency: string;
   sourceUrl: string;
 }
 
-/** What to ask, per region, in the language that region's shops price in. */
-export const priceQuery = (name: string, brand: string | undefined, region: '台灣' | '日本'): string => {
-  const product = [brand?.trim(), name.trim()].filter(Boolean).join(' ');
-  if (!product) return '';
-  return region === '日本' ? `${product} 価格 通販` : `${product} 價格 購買`;
+/** What to ask, in the language that country's shops price in. */
+export const priceQuery = (name: string, brand: string | undefined, country: ComparisonCountry): string => {
+  const product = productQuery(name, brand);
+  return product ? `${product} ${country.priceWords}` : '';
 };
 
-/**
- * The shops each region is asked about, as hosts rather than as names.
- *
- * A snippet from a Japanese shop quoted in yen is a Japanese price whatever
- * language the page is in, so the host decides and the currency only breaks
- * the tie.
- */
-const TAIWAN_HOST = /(^|\.)(tw|com\.tw)$|shopee\.tw|momoshop|pchome|cosmed|watsons/i;
-const JAPAN_HOST = /(^|\.)jp$|amazon\.co\.jp|rakuten|matsukiyo|welcia|donki|cosme\.net/i;
-
-/*
-  Shops in neither place, dropped rather than guessed at.
-
-  「這個腮紅的資料來源是cn 是中國價格」 — muji.com.cn quoted under 台灣, and
-  in the same list 淘寶's ¥14 printed as TWD 14. Both come from the same
-  hole: ¥ is the yuan as well as the yen, and 元 is the yuan as well as the
-  New Taiwan dollar, so a snippet's currency mark cannot name a country on
-  its own.
-
-  This list is not a judgement about these shops. It is that a price from
-  them answers a question nobody asked: the row says 松本清 or 屈臣氏, and
-  the traveller is flying to one of two places.
-*/
-const CHINA_HOST = /(^|\.)cn$|taobao|tmall|jd\.com|1688|pinduoduo|xiaohongshu|dangdang|vip\.com|suning/i;
-
-/** The scripts that say which of the two a shop is writing for. */
+/** The scripts that say which of two Asian markets a shop is writing for. */
 const KANA = /[\u3040-\u30ff]/;
 const HAN = /[\u4e00-\u9fff]/;
 
@@ -204,31 +182,58 @@ const hostOf = (url: string): string => {
 export const placeOf = (
   host: string,
   money: Money,
+  inPlay: ComparisonCountry[],
   text = '',
-): { region: '台灣' | '日本'; currency: string } | null => {
-  if (CHINA_HOST.test(host)) return null;
-  if (JAPAN_HOST.test(host)) return { region: '日本', currency: 'JPY' };
-  if (TAIWAN_HOST.test(host)) return { region: '台灣', currency: 'TWD' };
+): { country: ComparisonCountry; currency: string } | null => {
+  /*
+    The host first. A shop in Japan quoting 「¥3,080」 is quoting yen and a
+    shop in Taiwan quoting 「$520」 is quoting New Taiwan dollars, and neither
+    mark says so on its own.
+  */
+  const claimed = hostCountry(host, inPlay);
+  if (claimed) return { country: claimed, currency: claimed.currency };
+
+  /*
+    A host claimed by a country that is not in play has been identified and
+    excluded. 淘寶's ¥14 is a real price for somebody; printed beside a
+    Taiwanese one it reads as NT$14.
+  */
+  if (hostIsClaimed(host)) return null;
+
+  /*
+    Nobody claims this host. Only a mark that names one currency may place
+    it, and only onto a country that is in play.
+  */
+  const byCurrency = (currency: string) =>
+    inPlay.find(entry => entry.currency === currency);
+
   if (money.certain) {
-    return money.currency === 'JPY'
-      ? { region: '日本', currency: 'JPY' }
-      : { region: '台灣', currency: 'TWD' };
+    const found = byCurrency(money.currency);
+    return found ? { country: found, currency: found.currency } : null;
   }
 
   /*
-    The language the shop is writing in, when its address will not say.
+    The language the shop writes in, when its address will not say.
 
-    「這個個台幣908 你也沒列出來」 — shampoosecret.com is a Taiwanese shop on
-    a .com, pricing in 「$908」, and requiring an unmistakable mark had thrown
-    it away along with the yuan it was meant to catch.
-
-    A page selling in Taiwan is written in Chinese; one selling in Japan has
-    kana in it. That is a weaker signal than a .tw, and it is a much stronger
-    one than the dollar sign — which is also how jomashop.com's US 「$44」
-    stays out, being written in neither.
+    「這個個台幣908 你也沒列出來」 — shampoosecret.com is on a .com, and
+    requiring an unmistakable mark threw it away. A page selling in Japan has
+    kana in it; one selling in Chinese does not. Weaker than a known host and
+    much stronger than a dollar sign, which is also how jomashop.com's US
+    「$44」 stays out: written in neither.
   */
-  if (KANA.test(text)) return money.currency === 'JPY' ? { region: '日本', currency: 'JPY' } : null;
-  if (HAN.test(text) && money.currency === 'TWD') return { region: '台灣', currency: 'TWD' };
+  if (KANA.test(text)) {
+    const japan = byCurrency('JPY');
+    return money.currency === 'JPY' && japan ? { country: japan, currency: 'JPY' } : null;
+  }
+  if (HAN.test(text) && money.currency === 'TWD') {
+    /*
+      Chinese places it in whichever Chinese-writing country is in play. Only
+      one of them can be, because 台灣, 香港 and 中國 are separate rows and a
+      pair holds two.
+    */
+    const chinese = inPlay.find(entry => ['TW', 'HK', 'CN'].includes(entry.code));
+    return chinese ? { country: chinese, currency: chinese.currency } : null;
+  }
   return null;
 };
 
@@ -239,16 +244,39 @@ interface BraveWebResult {
 }
 
 /**
- * The quotes a search answer actually contains, at most one per shop.
+ * Every product page the search returned, whether or not its snippet had a
+ * price in it.
  *
- * Two listings from the same shop are the same shop disagreeing with itself,
- * which on a phone in an aisle is noise rather than a comparison.
+ * 「我覺得你要努力找到」 — and the reason it was not finding is here. The
+ * snippet used to be a gate: a result whose first hundred characters happened
+ * not to contain money was thrown away before the page was ever asked. But a
+ * product page's snippet is usually its description, its ingredients or its
+ * review count, while the page itself publishes the price as structured data.
+ *
+ * So the least reliable reader was standing in front of the most reliable one.
+ * Now the snippet only decides what to believe when the page says nothing.
+ *
+ * One candidate per shop: two listings from one shop is a shop disagreeing
+ * with itself, which on a phone in an aisle is noise rather than a comparison.
  */
-export const quotesFromSearch = (payload: unknown, want?: '台灣' | '日本'): SearchedQuote[] => {
+export interface SearchCandidate {
+  url: string;
+  host: string;
+  /** The country that claims this host, when one of the two in play does. */
+  country?: ComparisonCountry;
+  /** What the snippet said, kept as the fallback when the page states nothing. */
+  snippet?: SearchedQuote;
+}
+
+export const candidatesFromSearch = (
+  payload: unknown,
+  inPlay: ComparisonCountry[],
+  want?: ComparisonCountry,
+): SearchCandidate[] => {
   const results = (payload as { web?: { results?: unknown } })?.web?.results;
   if (!Array.isArray(results)) return [];
 
-  const found: SearchedQuote[] = [];
+  const found: SearchCandidate[] = [];
   const seen = new Set<string>();
 
   for (const entry of results as BraveWebResult[]) {
@@ -259,33 +287,69 @@ export const quotesFromSearch = (payload: unknown, want?: '台灣' | '日本'): 
     const host = hostOf(url);
     if (!host || seen.has(host)) continue;
 
+    /*
+      A shop a country claims, where that country is not one of the two being
+      compared, is excluded before anything else — 淘寶 in a 日本／台灣 pair.
+      A host nobody claims is kept: it may be the Taiwanese shop on a .com
+      that the host table has never heard of.
+    */
+    const claimed = hostCountry(host, inPlay);
+    if (!claimed && hostIsClaimed(host)) continue;
+    if (want && claimed && claimed.code !== want.code) continue;
+
     const text = [entry?.title, entry?.description]
       .map(value => (typeof value === 'string' ? value : ''))
       .join(' ')
       // Brave marks the matched words; the tags would split a 「1,480円」.
       .replace(/<[^>]+>/g, '');
 
+    /*
+      The snippet is read anyway, because it is what is left when the page
+      publishes nothing — but it no longer decides whether the page is asked.
+    */
     const money = readMoney(text);
-    if (!money) continue;
-
-    const place = placeOf(host, money, text);
-    if (!place || (want && place.region !== want)) continue;
-
-    const bounds = PLAUSIBLE[place.currency];
-    if (bounds && (money.amount < bounds.min || money.amount > bounds.max)) continue;
+    const place = money ? placeOf(host, money, inPlay, text) : null;
+    const bounds = place ? PLAUSIBLE[place.currency] : undefined;
+    const plausible = !bounds || (money!.amount >= bounds.min && money!.amount <= bounds.max);
+    const usable = place && plausible && (!want || place.country.code === want.code);
 
     seen.add(host);
     found.push({
-      region: place.region,
-      shop: host,
-      amount: money.amount,
-      currency: place.currency,
-      sourceUrl: url,
+      url,
+      host,
+      ...(claimed ? { country: claimed } : {}),
+      ...(usable && money
+        ? {
+          snippet: {
+            countryCode: place!.country.code,
+            shop: host,
+            amount: money.amount,
+            currency: place!.currency,
+            sourceUrl: url,
+          },
+        }
+        : {}),
     });
   }
 
   return found;
 };
+
+/**
+ * The quotes a search answer's snippets contain, at most one per shop.
+ *
+ * Kept as its own reading because it is what the screen falls back to, and
+ * because the rules it encodes — a threshold is not a price, a currency mark
+ * cannot name a country — are the four defects of one night.
+ */
+export const quotesFromSearch = (
+  payload: unknown,
+  inPlay: ComparisonCountry[],
+  want?: ComparisonCountry,
+): SearchedQuote[] =>
+  candidatesFromSearch(payload, inPlay, want)
+    .map(candidate => candidate.snippet)
+    .filter((quote): quote is SearchedQuote => quote !== undefined);
 
 /**
  * Asks Brave for one region's prices.
@@ -294,20 +358,21 @@ export const quotesFromSearch = (payload: unknown, want?: '台灣' | '日本'): 
  * answers 422 naming `x-subscription-token` as the missing header, which is a
  * route that exists rejecting a request it understood.
  */
-export const searchPrices = async (input: {
+export const searchCandidates = async (input: {
   name: string;
   brand?: string;
-  region: '台灣' | '日本';
+  country: ComparisonCountry;
+  inPlay: ComparisonCountry[];
   apiKey: string;
   fetchImpl?: typeof fetch;
-}): Promise<SearchedQuote[]> => {
-  const query = priceQuery(input.name, input.brand, input.region);
+}): Promise<SearchCandidate[]> => {
+  const query = priceQuery(input.name, input.brand, input.country);
   if (!query) return [];
 
   const url = new URL('https://api.search.brave.com/res/v1/web/search');
   url.searchParams.set('q', query);
-  url.searchParams.set('count', '10');
-  url.searchParams.set('country', input.region === '日本' ? 'JP' : 'TW');
+  url.searchParams.set('count', '20');
+  url.searchParams.set('country', input.country.code);
 
   const response = await (input.fetchImpl ?? fetch)(url.toString(), {
     headers: { Accept: 'application/json', 'X-Subscription-Token': input.apiKey },
@@ -318,5 +383,11 @@ export const searchPrices = async (input: {
     error.status = response.status;
     throw error;
   }
-  return quotesFromSearch(await response.json(), input.region);
+  return candidatesFromSearch(await response.json(), input.inPlay, input.country);
 };
+
+/** The snippet-only reading, for callers that want no page fetched. */
+export const searchPrices = async (input: Parameters<typeof searchCandidates>[0]): Promise<SearchedQuote[]> =>
+  (await searchCandidates(input))
+    .map(candidate => candidate.snippet)
+    .filter((quote): quote is SearchedQuote => quote !== undefined);

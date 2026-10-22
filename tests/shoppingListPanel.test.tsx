@@ -32,6 +32,8 @@ const show = (list: ShoppingItem[], over: Record<string, unknown> = {}) => {
       onAddItem={vi.fn()}
       onRemoveItem={vi.fn()}
       onUpdateItem={onUpdateItem}
+      tripCountry="日本"
+      residenceCountryCode="TW"
       {...over}
     />,
   );
@@ -615,7 +617,7 @@ describe('全部換成商品圖', () => {
  */
 describe('價格', () => {
   const quote = (over: Record<string, unknown> = {}) => ({
-    region: '台灣', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
+    countryCode: 'TW', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
     sourceUrl: 'https://shop.muji.tw/SalePage/Index/1', ...over,
   });
 
@@ -634,7 +636,7 @@ describe('價格', () => {
     show([item()]);
 
     await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
-    expect(screen.getByTestId('shopping-prices-台灣-sk2').textContent).toContain('TWD 135');
+    expect(screen.getByTestId('shopping-prices-TW-sk2').textContent).toContain('TWD 135');
   });
 
   it('prints both regions, 日本 first', async () => {
@@ -652,8 +654,8 @@ describe('價格', () => {
     show([item()]);
 
     await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
-    expect(screen.getByTestId('shopping-prices-日本-sk2').textContent).toContain('沒查到');
-    expect(screen.getByTestId('shopping-prices-台灣-sk2').textContent).not.toContain('沒查到');
+    expect(screen.getByTestId('shopping-prices-JP-sk2').textContent).toContain('沒查到');
+    expect(screen.getByTestId('shopping-prices-TW-sk2').textContent).not.toContain('沒查到');
   });
 
   it('says 沒查到 on both lines when it found nothing at all', async () => {
@@ -661,8 +663,8 @@ describe('價格', () => {
     show([item()]);
 
     await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
-    expect(screen.getByTestId('shopping-prices-日本-sk2').textContent).toContain('沒查到');
-    expect(screen.getByTestId('shopping-prices-台灣-sk2').textContent).toContain('沒查到');
+    expect(screen.getByTestId('shopping-prices-JP-sk2').textContent).toContain('沒查到');
+    expect(screen.getByTestId('shopping-prices-TW-sk2').textContent).toContain('沒查到');
   });
 
   /*
@@ -718,8 +720,8 @@ describe('約台幣', () => {
 
   it('shows the converted figure beside a yen price', async () => {
     answerWith([{
-      region: '日本', shop: 'matsukiyo.co.jp', amount: 3080, currency: 'JPY',
-      approxTwd: 643, sourceUrl: 'https://www.matsukiyo.co.jp/p/1',
+      countryCode: 'JP', shop: 'matsukiyo.co.jp', amount: 3080, currency: 'JPY',
+      approxHome: 643, homeCurrency: 'TWD', sourceUrl: 'https://www.matsukiyo.co.jp/p/1',
     }]);
     show([item()]);
 
@@ -730,8 +732,8 @@ describe('約台幣', () => {
   /* A converted figure and an invented one look identical on screen. */
   it('shows nothing when the rate could not be read', async () => {
     answerWith([{
-      region: '日本', shop: 'matsukiyo.co.jp', amount: 3080, currency: 'JPY',
-      sourceUrl: 'https://www.matsukiyo.co.jp/p/1',
+      countryCode: 'JP', shop: 'matsukiyo.co.jp', amount: 3080, currency: 'JPY',
+      homeCurrency: 'TWD', sourceUrl: 'https://www.matsukiyo.co.jp/p/1',
     }]);
     show([item()]);
 
@@ -742,7 +744,7 @@ describe('約台幣', () => {
   /* 「約台幣 135」 under TWD 135 is a sentence that says nothing twice. */
   it('says nothing beside a price already in TWD', async () => {
     answerWith([{
-      region: '台灣', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
+      countryCode: 'TW', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
       approxTwd: 135, sourceUrl: 'https://shop.muji.tw/p/1',
     }]);
     show([item()]);
