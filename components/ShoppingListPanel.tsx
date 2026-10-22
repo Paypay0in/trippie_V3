@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ShoppingItem } from '../types';
 import { Check, ChevronDown, ImageIcon, Loader2, Minus, Plus, Search, ShoppingBag, Trash2, Circle } from 'lucide-react';
 import { findProductImage, sourceLabel } from '../services/productImageService';
+import PhotoLightbox from './PhotoLightbox';
 import { byRegion, checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
 import { boughtFromReceipts } from '../services/boughtFromReceipt';
 import { Expense } from '../types';
@@ -91,6 +92,8 @@ const ShoppingListPanel: React.FC<Props> = ({
   */
   const [prices, setPrices] = useState<Record<string, PriceCheck>>({});
   const [checking, setChecking] = useState<string | null>(null);
+  /** The product picture being looked at, full screen. 「點擊照片要能變大」. */
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
   const comparePrices = (item: ShoppingItem) => {
     setChecking(item.id);
@@ -197,6 +200,14 @@ const ShoppingListPanel: React.FC<Props> = ({
 
   return (
     <div className="mb-4 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+      {viewingPhoto && (
+        <PhotoLightbox
+          photos={[viewingPhoto]}
+          index={0}
+          onIndex={() => undefined}
+          onClose={() => setViewingPhoto(null)}
+        />
+      )}
       <div className="border-b border-gray-50 bg-gray-50/50 p-4">
         <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-700">{title}</h3>
 
@@ -353,13 +364,21 @@ const ShoppingListPanel: React.FC<Props> = ({
                     */}
                     {item.photo ? (
                       <span className="shrink-0">
-                        <img
-                          src={item.photo}
-                          alt=""
-                          loading="lazy"
-                          data-testid={`shopping-photo-${item.id}`}
-                          className="h-10 w-10 rounded-lg object-cover"
-                        />
+                        {/* 「點擊照片要能變大」 — 40px shows that there is a
+                            picture and nothing of what is in it. */}
+                        <button
+                          type="button"
+                          aria-label={`放大 ${item.name} 的照片`}
+                          onClick={() => setViewingPhoto(item.photo as string)}
+                        >
+                          <img
+                            src={item.photo}
+                            alt=""
+                            loading="lazy"
+                            data-testid={`shopping-photo-${item.id}`}
+                            className="h-12 w-12 rounded-lg object-cover"
+                          />
+                        </button>
                         {/*
                           Where the picture is from, when it is not his own
                           screenshot. A product shot nobody can place is
@@ -478,9 +497,9 @@ const ShoppingListPanel: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                  <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
                       {onUpdateItem && (
-                        <span className="mr-1 flex items-center gap-1 rounded-lg bg-slate-50 px-1 py-0.5">
+                        <span className="flex items-center gap-1 rounded-lg bg-slate-50 px-1 py-0.5">
                           <button
                             type="button"
                             aria-label={`${item.name} 減少一個`}
@@ -505,6 +524,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                           </button>
                         </span>
                       )}
+                      <span className="flex items-center gap-1">
                       {onPurchaseItem && (
                         <button
                           onClick={() => onPurchaseItem(item)}
@@ -520,6 +540,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                       >
                         <Trash2 size={16} />
                       </button>
+                      </span>
                     {/*
                       What it is expected to cost, when somebody has said.
                       Never read off a screenshot and never guessed — see

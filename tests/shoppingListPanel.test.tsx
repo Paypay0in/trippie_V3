@@ -319,3 +319,30 @@ describe('what a receipt says was bought', () => {
     expect(screen.queryByTestId('shopping-bought-offer')).toBeNull();
   });
 });
+
+/**
+ * 「這排版真的不合理 另外 點擊照片要能變大」.
+ *
+ * The buttons sat on their own row but right-aligned under the text, leaving
+ * a gap where the stepper should have been, and the product picture was a
+ * 40px square that showed only that a picture existed.
+ */
+describe('the row', () => {
+  const withPhoto = item({ id: 'p1', name: 'SABON Body Gelée', photo: 'bottle' });
+
+  it('opens the product picture full screen', () => {
+    show([withPhoto]);
+
+    fireEvent.click(screen.getByTestId('shopping-photo-p1'));
+
+    expect(screen.getByTestId('photo-lightbox-image').getAttribute('src')).toBe('bottle');
+  });
+
+  /* One picture needs no counter and no arrows. */
+  it('shows it bare, because there is only one', () => {
+    show([withPhoto]);
+    fireEvent.click(screen.getByTestId('shopping-photo-p1'));
+
+    expect(screen.queryByTestId('photo-lightbox-count')).toBeNull();
+  });
+});
