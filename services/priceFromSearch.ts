@@ -47,6 +47,42 @@ export const priceQuery = (name: string, brand: string | undefined, region: '台
 const TAIWAN_HOST = /(^|\.)(tw|com\.tw)$|shopee\.tw|momoshop|pchome|cosmed|watsons/i;
 const JAPAN_HOST = /(^|\.)jp$|amazon\.co\.jp|rakuten|matsukiyo|welcia|donki|cosme\.net/i;
 
+/*
+  Pages whose number is never this product's price.
+
+  Measured against the live search on 2026-10-22 with five real rows off the
+  Founder's list. Every wrong quote came from the same two shapes:
+
+  - a price-comparison site, whose figure is the cheapest of whatever its
+    crawler matched — 「KUMARGIC EYE」 came back NT$172 from one, for
+    something else entirely;
+  - a brand's front page or a category listing, where the number belongs to
+    whatever happened to be in the snippet. 青春露 came back ¥98,200 from a
+    duty-free shop's brand index.
+
+  Both look exactly like a shop when all you have is a host and a snippet. A
+  product page is the only page whose price is about the product.
+*/
+const AGGREGATOR = /biggo|findprice|feebee|ecshopping|pricearea|shopping\.yahoo\.co\.jp\/search/i;
+
+/** Paths that list things rather than being one. */
+const LISTING = /\/(s|search|category|categories|brands?|list|goodsList|tag)(\/|\.|$)|default\.aspx/i;
+
+/** A page that is about one product, as far as its URL can say. */
+export const looksLikeAProductPage = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    if (AGGREGATOR.test(parsed.hostname + parsed.pathname)) return false;
+    if (LISTING.test(parsed.pathname)) return false;
+    // A front page prices nothing, and a search query is somebody else's list.
+    if (parsed.pathname.replace(/\/+$/, '') === '') return false;
+    if (parsed.searchParams.has('q') || parsed.searchParams.has('keyword')) return false;
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /** What a thing on a shopping list could plausibly cost, per currency. */
 const PLAUSIBLE: Record<string, { min: number; max: number }> = {
   TWD: { min: 10, max: 100_000 },
@@ -113,6 +149,7 @@ export const quotesFromSearch = (payload: unknown, want?: '台灣' | '日本'): 
   for (const entry of results as BraveWebResult[]) {
     const url = typeof entry?.url === 'string' ? entry.url.trim() : '';
     if (!/^https:\/\//.test(url)) continue;
+    if (!looksLikeAProductPage(url)) continue;
 
     const host = hostOf(url);
     if (!host || seen.has(host)) continue;

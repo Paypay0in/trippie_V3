@@ -6,7 +6,7 @@
  * exactly where a price would sit.
  */
 import { describe, expect, it } from 'vitest';
-import { priceQuery, quotesFromSearch, readMoney, searchPrices } from './priceFromSearch';
+import { looksLikeAProductPage, priceQuery, quotesFromSearch, readMoney, searchPrices } from './priceFromSearch';
 
 const web = (results: Array<Record<string, unknown>>) => ({ web: { results } });
 
@@ -159,5 +159,47 @@ describe('what is asked', () => {
       apiKey: 'k',
       fetchImpl: (async () => ({ ok: false, status: 429 })) as unknown as typeof fetch,
     })).rejects.toMatchObject({ status: 429 });
+  });
+});
+
+/**
+ * Only a page that is about one product prices that product.
+ *
+ * Measured against the live search on 2026-10-22 with five real rows off the
+ * Founder's list: every wrong quote came from a comparison site or from a
+ * brand front page / category index, where the number in the snippet belongs
+ * to whatever else was on it.
+ */
+describe('which pages are allowed to quote', () => {
+  it('takes a product page', () => {
+    expect(looksLikeAProductPage('https://shop.muji.tw/SalePage/Index/8920730')).toBe(true);
+    expect(looksLikeAProductPage('https://tw.bid.yahoo.com/item/100269476721')).toBe(true);
+  });
+
+  /* NT$172 for KUMARGIC EYE, which is the cheapest of something else. */
+  it('refuses a price-comparison site', () => {
+    expect(looksLikeAProductPage('https://biggo.com.tw/s/Kumargic+EYE/')).toBe(false);
+    expect(looksLikeAProductPage('https://www.findprice.com.tw/g/sk-ii')).toBe(false);
+  });
+
+  /* ¥98,200 for 青春露, off a duty-free shop's brand index. */
+  it('refuses a listing', () => {
+    expect(looksLikeAProductPage('https://duty-free-japan.jp/narita/ta/goodsList.aspx?brdCD=219')).toBe(false);
+    expect(looksLikeAProductPage('https://www.bcl-brand.jp/shop/default.aspx')).toBe(false);
+  });
+
+  it('refuses a front page and somebody else’s search', () => {
+    expect(looksLikeAProductPage('https://example.com/')).toBe(false);
+    expect(looksLikeAProductPage('https://example.com/p?q=sk-ii')).toBe(false);
+  });
+
+  it('keeps them out of the quotes', () => {
+    expect(quotesFromSearch(web([
+      { url: 'https://biggo.com.tw/s/Kumargic+EYE/', title: 'KUMARGIC', description: 'NT$172' },
+      { url: 'https://tw.bid.yahoo.com/item/100269476721', title: 'KUMARGIC', description: 'NT$699' },
+    ]))).toEqual([{
+      region: '台灣', shop: 'tw.bid.yahoo.com', amount: 699, currency: 'TWD',
+      sourceUrl: 'https://tw.bid.yahoo.com/item/100269476721',
+    }]);
   });
 });
