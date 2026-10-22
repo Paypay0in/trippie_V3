@@ -2,6 +2,7 @@
 import express from "express";
 import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
 import { searchPrices } from "./services/priceFromSearch";
+import { readPagePrice } from "./services/priceFromPage";
 import { readFileSync } from "node:fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -2175,7 +2176,37 @@ ${sentence}
       try {
         const [taiwan, japan] = await Promise.all((["台灣", "日本"] as const).map(region =>
           searchPrices({ name, brand, region, apiKey: search.apiKey }).catch(() => [])));
-        const quotes = await withTwd([...taiwan.slice(0, 2), ...japan.slice(0, 2)]);
+        /*
+          The page itself, for the figure the snippet could only guess at.
+
+          Four wrong prices in one night came out of snippets — a comparison
+          site's cheapest match, a brand index's nearest number, 淘寶's yuan
+          in a dollar sign, and 「消費滿 NT$3,600」. A shop's own structured
+          price carries its own currency, which settles every one of them.
+
+          The snippet stays as the fallback, so a shop that publishes nothing
+          still shows what it showed before. Read in parallel: four pages,
+          five seconds each at worst, and the answer is then held for twelve
+          hours.
+        */
+        const candidates = [...taiwan.slice(0, 2), ...japan.slice(0, 2)];
+        const stated = await Promise.all(candidates.map(quote =>
+          readPagePrice(quote.sourceUrl).catch(() => null)));
+        const quotes = await withTwd(candidates.map((quote, at) => {
+          const page = stated[at];
+          /*
+            A page that prices itself in the other country's money is not a
+            shop for that region — the region came from the host, and the
+            money is the shop's own statement about itself.
+          */
+          if (!page) return quote;
+          return {
+            ...quote,
+            amount: page.amount,
+            currency: page.currency,
+            region: page.currency === "JPY" ? "日本" as const : "台灣" as const,
+          };
+        }));
         if (quotes.length > 0) {
           const body = { quotes, readAt: new Date().toISOString(), source: "search" };
           priceCache.set(cacheKey, { at: Date.now(), body });
