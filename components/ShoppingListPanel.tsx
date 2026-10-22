@@ -19,6 +19,7 @@ import { findProductImage, sourceLabel } from '../services/productImageService';
 import PhotoLightbox from './PhotoLightbox';
 import { approxTwdLabel, checkPrices, PriceCheck, quoteLabel } from '../services/priceCheckService';
 import { boughtFromReceipts } from '../services/boughtFromReceipt';
+import { brandOf } from '../services/productIdentity';
 import { Expense } from '../types';
 import ShoppingScreenshotIntake from './ShoppingScreenshotIntake';
 
@@ -138,7 +139,7 @@ const ShoppingListPanel: React.FC<Props> = ({
 
   const comparePrices = (item: ShoppingItem) => {
     setChecking(item.id);
-    void checkPrices({ name: item.name, brand: item.description })
+    void checkPrices({ name: item.name, brand: brandOf(item.description) })
       .then(found => setPrices(current => ({ ...current, [item.id]: found })))
       .finally(() => setChecking(null));
   };
@@ -154,7 +155,7 @@ const ShoppingListPanel: React.FC<Props> = ({
   const lookUpImage = (item: ShoppingItem) => {
     if (!onUpdateItem) return;
     setFindingImage(item.id);
-    void findProductImage({ name: item.name, brand: item.description })
+    void findProductImage({ name: item.name, brand: brandOf(item.description) })
       .then(found => {
         if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
       })
@@ -187,7 +188,7 @@ const ShoppingListPanel: React.FC<Props> = ({
     const queue = wearingAScreenshot;
     setSwapping({ done: 0, total: queue.length });
     for (const [at, item] of queue.entries()) {
-      const found = await findProductImage({ name: item.name, brand: item.description })
+      const found = await findProductImage({ name: item.name, brand: brandOf(item.description) })
         .catch(() => null);
       if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
       setSwapping({ done: at + 1, total: queue.length });
@@ -277,7 +278,7 @@ const ShoppingListPanel: React.FC<Props> = ({
         if (stopped) break;
         if (pricesRef.current[item.id]) continue;
         setChecking(item.id);
-        const found = await checkPrices({ name: item.name, brand: item.description })
+        const found = await checkPrices({ name: item.name, brand: brandOf(item.description) })
           .catch(() => null);
         if (stopped) break;
         if (found) setPrices(current => ({ ...current, [item.id]: found }));
