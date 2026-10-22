@@ -24,6 +24,7 @@ import { ITINERARY_PREFIX, buildTripAreas } from '../services/tripAreas';
 import { dayMapSrc } from '../services/dayMapImage';
 import { CATEGORY_LABELS } from '../services/placeCategory';
 import TripCover from './TripCover';
+import PhotoLightbox from './PhotoLightbox';
 import { PlaceThumbnail } from './PlaceThumbnail';
 import { SavedTravelInspiration } from '../types';
 
@@ -123,6 +124,13 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
    * 13 個地點 in Taito City is a walk, and that is the map worth drawing.
    */
   const [area, setArea] = useState<string | null>(null);
+  /**
+   * The photograph being looked at, full screen.
+   *
+   * 「點擊照片能讓他變大嗎」 — 64px is enough to recognise a picture and not
+   * nearly enough to read a receipt, which is most of why one was taken.
+   */
+  const [viewing, setViewing] = useState<{ photos: string[]; index: number } | null>(null);
 
   /*
     The areas, from the same grouping the collection screen uses. 新宿區 4個景點
@@ -193,6 +201,14 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
 
   return (
     <div className="min-h-full bg-[#f6f7fc] pb-8">
+      {viewing && (
+        <PhotoLightbox
+          photos={viewing.photos}
+          index={viewing.index}
+          onIndex={index => setViewing({ ...viewing, index })}
+          onClose={() => setViewing(null)}
+        />
+      )}
       {/*
         「過度滿版」 — the title sat under the clock and the Dynamic Island.
 
@@ -528,13 +544,27 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                           */}
                           {stop.photos && stop.photos.length > 0 && (
                             <div data-testid={`recap-stop-photos-${stop.itemId}`} className="mt-2 flex gap-1.5">
-                              {stop.photos.slice(0, 3).map(shot => (
-                                <img key={shot} src={shot} alt="" loading="lazy" className="h-16 w-16 rounded-xl object-cover" />
+                              {stop.photos.slice(0, 3).map((shot, at) => (
+                                <button
+                                  key={shot}
+                                  type="button"
+                                  aria-label={`放大 ${stop.title} 的第 ${at + 1} 張照片`}
+                                  data-testid={`recap-stop-photo-${stop.itemId}-${at}`}
+                                  onClick={() => setViewing({ photos: stop.photos ?? [], index: at })}
+                                >
+                                  <img src={shot} alt="" loading="lazy" className="h-16 w-16 rounded-xl object-cover" />
+                                </button>
                               ))}
+                              {/* The overflow opens at the fourth, not at the first. */}
                               {stop.photos.length > 3 && (
-                                <span className="flex h-16 w-16 items-center justify-center rounded-xl bg-slate-100 text-[11px] font-black text-slate-500">
+                                <button
+                                  type="button"
+                                  data-testid={`recap-stop-photo-more-${stop.itemId}`}
+                                  onClick={() => setViewing({ photos: stop.photos ?? [], index: 3 })}
+                                  className="flex h-16 w-16 items-center justify-center rounded-xl bg-slate-100 text-[11px] font-black text-slate-500"
+                                >
                                   +{stop.photos.length - 3}
-                                </span>
+                                </button>
                               )}
                             </div>
                           )}

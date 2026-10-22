@@ -343,6 +343,27 @@ describe('每日行程', () => {
     expect(grid.textContent).toContain('+2');
   });
 
+  /* 「點擊照片能讓他變大嗎」 — and the +2 opens at the fourth, not the first. */
+  it('opens a photograph full screen', () => {
+    open(
+      [stop({ id: 'k', title: 'Kurofunetei', latitude: 35.71, longitude: 139.77 })],
+      [bill({
+        merchant: 'Kurofunetei', merchantLatitude: 35.71, merchantLongitude: 139.77,
+        receiptPhotos: ['a', 'b', 'c', 'd', 'e'],
+      })],
+    );
+    fireEvent.click(screen.getByTestId('recap-tab-days'));
+    fireEvent.click(screen.getByTestId('recap-stop-photo-k-1'));
+
+    expect(screen.getByTestId('photo-lightbox-image').getAttribute('src')).toBe('b');
+
+    fireEvent.click(screen.getByTestId('photo-lightbox-close'));
+    fireEvent.click(screen.getByTestId('recap-stop-photo-more-k'));
+
+    expect(screen.getByTestId('photo-lightbox-image').getAttribute('src')).toBe('d');
+    expect(screen.getByTestId('photo-lightbox-count').textContent).toBe('4 / 5');
+  });
+
   /*
     「這個呢」 — the design ends a day with a way to add to it, which is the
     difference between a review you read and one you keep.
