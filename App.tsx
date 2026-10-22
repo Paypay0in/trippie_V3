@@ -7005,6 +7005,13 @@ const App: React.FC = () => {
           traveller's own journeys plus the trip open now, so a place visited on
           this trip's earlier days counts too.
         */
+        /*
+          「若在收藏中 有這個地點 應該要在收藏中可以看到我去的紀錄」 — the same
+          journeys the 已訪 chip is derived from, so the chip and the record
+          below it can never disagree about which trip took him there.
+        */
+        myTrips={[...tripHistory, { name: currentTripName, itinerary }]}
+        journals={journals}
         visits={visitsByPlace(
           [...tripHistory, { name: currentTripName, itinerary }],
           new Date().toISOString().slice(0, 10),

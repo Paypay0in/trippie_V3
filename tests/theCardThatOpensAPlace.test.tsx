@@ -233,3 +233,46 @@ describe('當天消費紀錄', () => {
     expect(screen.getByTestId('place-spend-record').textContent).toContain('沒有留下結帳細目');
   });
 });
+
+/**
+ * 「若在收藏中 有這個地點 應該要在收藏中可以看到我去的紀錄」.
+ *
+ * The collection held what somebody else said about a place and the review
+ * held what happened when you went — two piles again, with the join already
+ * written and simply not asked for from here.
+ */
+describe('我去的時候', () => {
+  const record = {
+    itemId: 'i9',
+    date: '2026-10-21',
+    tripName: '東京之旅',
+    rating: 5,
+    photos: ['gate', 'lantern'],
+    diary: '很寧靜，跟淺草寺形成巨大反差',
+  };
+
+  it('shows the stars, the journal and the photographs from the day', () => {
+    open({ myRecord: [record] });
+
+    const block = screen.getByTestId('saved-place-my-record');
+    expect(block.textContent).toContain('我去的時候');
+    expect(block.textContent).toContain('2026/10/21');
+    expect(screen.getByTestId('saved-place-my-stars-i9').textContent).toBe('★★★★★');
+    expect(screen.getByTestId('saved-place-my-diary-i9').textContent).toContain('很寧靜');
+  });
+
+  it('opens one of those photographs full screen', () => {
+    open({ myRecord: [record] });
+
+    fireEvent.click(screen.getByTestId('saved-place-my-photo-i9-1'));
+
+    expect(screen.getByTestId('photo-lightbox-image').getAttribute('src')).toBe('lantern');
+  });
+
+  /* A place he has never been to has no block at all. */
+  it('is absent when nothing was recorded here', () => {
+    open();
+
+    expect(screen.queryByTestId('saved-place-my-record')).toBeNull();
+  });
+});

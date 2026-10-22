@@ -6,6 +6,8 @@ import { navigationProviderFor } from '../services/navigationProvider';
 import { naverPlaceUrl } from '../services/naverMapLinks';
 import { fetchPlaceBasics, hoursForToday, PlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { placeWhereLabel } from '../services/placeWhereLabel';
+import { MyVisitRecord } from '../services/myRecordAtPlace';
+import PhotoLightbox from './PhotoLightbox';
 import { fetchPlacePhotos, PlacePhoto } from '../services/placePhotoService';
 import PlaceGallery from './PlaceGallery';
 import PlaceSpendRecord from './PlaceSpendRecord';
@@ -66,10 +68,20 @@ interface Props {
    * and only one of them is inside a trip with bills.
    */
   spend?: SpendAtPlace[];
+  /**
+   * What the traveller recorded at this place on a trip.
+   *
+   * 「若在收藏中 有這個地點 應該要在收藏中可以看到我去的紀錄」 — the collection
+   * holds what somebody else said; this is what happened when you went. See
+   * `myRecordAtPlace`.
+   */
+  myRecord?: MyVisitRecord[];
   onClose: () => void;
 }
 
-const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], visited = false, onAddNote, onClose }) => {
+const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], myRecord = [], visited = false, onAddNote, onClose }) => {
+  /** The photograph being looked at, full screen. */
+  const [viewing, setViewing] = useState<{ photos: string[]; index: number } | null>(null);
   /*
     A note came from somewhere or the reader wrote it; there is no third case.
     A `sourcePostId` is that somewhere — a community post, or a screenshot of
@@ -91,7 +103,62 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
     a place can be marked 已訪 by hand with nothing else attached to it — see
     `statedVisits`, which exists for exactly that case.
   */
-  const mineFirst = visited || spend.length > 0 || mine.length > 0;
+  const mineFirst = visited || spend.length > 0 || myRecord.length > 0 || mine.length > 0;
+
+  /*
+    My own record of going, drawn once and rendered in both orderings.
+
+    Written as a value rather than copied into the two branches below: this
+    card already draws the spend record twice, and a third thing duplicated
+    is the point where one of the copies starts drifting.
+  */
+  const lightbox = viewing ? (
+    <PhotoLightbox
+      photos={viewing.photos}
+      index={viewing.index}
+      onIndex={index => setViewing({ ...viewing, index })}
+      onClose={() => setViewing(null)}
+    />
+  ) : null;
+
+  const myRecordBlock = myRecord.length > 0 ? (
+    <section data-testid="saved-place-my-record" className="rounded-2xl border border-violet-100 bg-violet-50/40 p-3">
+      <h3 className="text-sm font-black text-[#11183d]">我去的時候</h3>
+      {myRecord.map(record => (
+        <div key={record.itemId} data-testid={`saved-place-my-record-${record.itemId}`} className="mt-2">
+          <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
+            {record.date && <span>{record.date.replace(/-/g, '/')}</span>}
+            {record.tripName && <span className="truncate">{record.tripName}</span>}
+            {typeof record.rating === 'number' && (
+              <span data-testid={`saved-place-my-stars-${record.itemId}`} className="text-amber-500">
+                {'★'.repeat(Math.min(5, Math.round(record.rating)))}
+              </span>
+            )}
+          </div>
+          {record.diary && (
+            <p data-testid={`saved-place-my-diary-${record.itemId}`} className="mt-1 text-[12px] leading-5 text-slate-700">
+              {record.diary}
+            </p>
+          )}
+          {record.photos && record.photos.length > 0 && (
+            <div className="mt-2 flex gap-1.5 overflow-x-auto">
+              {record.photos.map((shot, at) => (
+                <button
+                  key={shot}
+                  type="button"
+                  aria-label={`放大第 ${at + 1} 張照片`}
+                  data-testid={`saved-place-my-photo-${record.itemId}-${at}`}
+                  onClick={() => setViewing({ photos: record.photos ?? [], index: at })}
+                >
+                  <img src={shot} alt="" loading="lazy" className="h-16 w-16 rounded-xl object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
+  ) : null;
   const [copied, setCopied] = useState(false);
   /*
     「Allow users to manually choose another supported navigation provider」.
@@ -412,6 +479,8 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
             would put a machine's summary beside a person's experience as though
             the two were the same kind of thing.
           */}
+          {lightbox}
+          {myRecordBlock}
           <PlaceSpendRecord spend={spend} />
           {/*
             Google's own facts, kept visibly separate from what a person wrote.
@@ -744,6 +813,8 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
               )}
             </div>
           )}
+          {lightbox}
+          {myRecordBlock}
           <PlaceSpendRecord spend={spend} />
           </>
         )}

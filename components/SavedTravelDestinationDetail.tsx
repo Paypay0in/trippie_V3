@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
 import { ChevronRight, Ellipsis, MapPin, Plus, Receipt } from 'lucide-react';
-import { CommunityPost, Expense, SavedExperienceNote, SavedTravelInspiration } from '../types';
+import { CommunityPost, Expense, ItineraryItem, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { keepDistinctNotes } from '../services/distinctNotes';
@@ -12,6 +12,7 @@ import { PlaceVisit, visitLabel, visitOf } from '../services/visitedPlaces';
 import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
 import SavedPlaceCard from './SavedPlaceCard';
+import { myRecordAtPlace } from '../services/myRecordAtPlace';
 import AddPlaceByName from './AddPlaceByName';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
@@ -89,6 +90,12 @@ type Props = {
    */
   expenses?: Expense[];
   /**
+   * The traveller's own trips, and their private journals, so a saved place
+   * can show what happened when they went. See `myRecordAtPlace`.
+   */
+  myTrips?: Array<{ name?: string; itinerary?: ItineraryItem[] }>;
+  journals?: Record<string, { text: string }>;
+  /**
    * Who is reading, so the card that opens a place can tell the reader's own
    * notes from another traveller's. 「我覺得要區分」.
    */
@@ -110,7 +117,7 @@ type Props = {
  */
 const NOTE_PREVIEW = 4;
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], onLinkExpense, viewerUserId,
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], myTrips = [], journals = {}, onLinkExpense, viewerUserId,
 }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
@@ -674,6 +681,11 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
           notes={open.notes}
           viewerUserId={viewerUserId}
           spend={spendAtPlace(open, expenses)}
+          /*
+            「若在收藏中 有這個地點 應該要在收藏中可以看到我去的紀錄」 — the stars,
+            the photographs and the journal written on the day.
+          */
+          myRecord={myRecordAtPlace(open, myTrips, journals)}
           /*
             「若點選我去過的紀錄的話 我希望主要看到的都是自己的紀錄」 — a place
             he has been to puts his own records above the internet's.
