@@ -7,7 +7,7 @@
  * them at once.
  */
 import { describe, expect, it } from 'vitest';
-import { priceFromHtml, readPagePrice } from './priceFromPage';
+import { isUsableCurrency, priceFromHtml, readPagePrice } from './priceFromPage';
 
 const ld = (data: unknown) =>
   `<html><head><script type="application/ld+json">${JSON.stringify(data)}</script></head></html>`;
@@ -94,14 +94,34 @@ describe('reading the page', () => {
     })))).toEqual({ amount: 1400, currency: 'TWD' });
   });
 
-  /* A page priced in won or dollars is a page for somebody else's trip. */
-  it('drops a currency this trip cannot use', async () => {
+  /*
+    A currency this trip does not spend is still an answer, and it is
+    returned as one. 「the page says nothing」 lets the caller keep the
+    snippet; 「the page says Hong Kong dollars」 must not, or HK$908 is
+    printed as NT$908 — which is exactly what shampoosecret.com's own data
+    says it was.
+  */
+  it('reports a currency this trip cannot use rather than hiding it', async () => {
     expect(await readPagePrice('https://shop/1', page(ld({
-      '@type': 'Product', offers: { price: 44, priceCurrency: 'USD' },
-    })))).toBeNull();
+      '@type': 'Product', offers: { price: 908, priceCurrency: 'HKD' },
+    })))).toEqual({ amount: 908, currency: 'HKD' });
+    expect(isUsableCurrency('HKD')).toBe(false);
+    expect(isUsableCurrency('TWD')).toBe(true);
+    expect(isUsableCurrency('JPY')).toBe(true);
+  });
+
+  /* The shape shampoosecret.com actually publishes. */
+  it('reads an AggregateOffer whose priceSpecification is a list', async () => {
     expect(await readPagePrice('https://shop/1', page(ld({
-      '@type': 'Product', offers: { price: 89, priceCurrency: 'CNY' },
-    })))).toBeNull();
+      '@type': 'Product',
+      offers: [{
+        '@type': 'AggregateOffer',
+        lowPrice: '908',
+        highPrice: '2020',
+        priceSpecification: [{ '@type': 'UnitPriceSpecification', price: '908', priceCurrency: 'HKD' }],
+        priceCurrency: 'HKD',
+      }],
+    })))).toEqual({ amount: 908, currency: 'HKD' });
   });
 
   it('gives up quietly when the shop will not answer', async () => {

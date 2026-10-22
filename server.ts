@@ -2,7 +2,7 @@
 import express from "express";
 import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
 import { searchPrices } from "./services/priceFromSearch";
-import { readPagePrice } from "./services/priceFromPage";
+import { isUsableCurrency, readPagePrice } from "./services/priceFromPage";
 import { readFileSync } from "node:fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -2194,19 +2194,23 @@ ${sentence}
           readPagePrice(quote.sourceUrl).catch(() => null)));
         const quotes = await withTwd(candidates.map((quote, at) => {
           const page = stated[at];
-          /*
-            A page that prices itself in the other country's money is not a
-            shop for that region — the region came from the host, and the
-            money is the shop's own statement about itself.
-          */
+          // Nothing stated: the snippet is all there is, and it is better
+          // than nothing.
           if (!page) return quote;
+          /*
+            Stated in money this trip does not spend: drop it. The snippet
+            would print 「$908」 as NT$908 and shampoosecret.com's own data
+            says HKD — which is the same mistake as 淘寶's yuan, one layer
+            further in and invisible without asking the page.
+          */
+          if (!isUsableCurrency(page.currency)) return null;
           return {
             ...quote,
             amount: page.amount,
             currency: page.currency,
             region: page.currency === "JPY" ? "日本" as const : "台灣" as const,
           };
-        }));
+        }).filter((quote): quote is NonNullable<typeof quote> => quote !== null));
         if (quotes.length > 0) {
           const body = { quotes, readAt: new Date().toISOString(), source: "search" };
           priceCache.set(cacheKey, { at: Date.now(), body });

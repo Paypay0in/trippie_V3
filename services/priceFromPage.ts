@@ -28,6 +28,18 @@ export interface PagePrice {
 /** The currencies a shopping list for this trip can use. */
 const USABLE = new Set(['TWD', 'JPY']);
 
+/**
+ * Whether a stated price is money this trip spends.
+ *
+ * Exported because the difference matters to the caller: a page that states
+ * HKD has said something, and the right answer is to drop the quote rather
+ * than fall back to a snippet that would print the same figure as TWD.
+ * shampoosecret.com's 「$908」 is HK$908 — its own structured data says so,
+ * and both the snippet reader and the person reading the screenshot took it
+ * for New Taiwan dollars.
+ */
+export const isUsableCurrency = (currency: string): boolean => USABLE.has(currency);
+
 const asAmount = (value: unknown): number | null => {
   const amount = typeof value === 'number' ? value : Number(String(value ?? '').replace(/[^\d.]/g, ''));
   return Number.isFinite(amount) && amount > 0 ? amount : null;
@@ -49,9 +61,13 @@ const fromOffers = (offers: unknown): PagePrice | null => {
   if (!offers || typeof offers !== 'object') return null;
   const offer = offers as Record<string, unknown>;
   const currency = asCurrency(offer.priceCurrency);
+  // `priceSpecification` is an object on some shops and a list on others.
+  const spec = Array.isArray(offer.priceSpecification)
+    ? offer.priceSpecification[0] as Record<string, unknown> | undefined
+    : offer.priceSpecification as Record<string, unknown> | undefined;
   const amount = asAmount(offer.price)
     ?? asAmount(offer.lowPrice)
-    ?? asAmount((offer.priceSpecification as Record<string, unknown>)?.price);
+    ?? asAmount(spec?.price);
   if (amount === null || !currency) return null;
   return { amount, currency };
 };
@@ -137,9 +153,13 @@ export const readPagePrice = async (
     });
     if (!response.ok) return null;
     const html = (await response.text()).slice(0, 500_000);
-    const found = priceFromHtml(html);
-    // A page priced in won or dollars is a page for somebody else's trip.
-    return found && USABLE.has(found.currency) ? found : null;
+    /*
+      Returned whatever the currency. 「the page says nothing」 and 「the page
+      says Hong Kong dollars」 are different answers, and only the caller can
+      act on the second: it has a snippet to fall back on, and falling back
+      there would relabel HK$908 as NT$908.
+    */
+    return priceFromHtml(html);
   } catch {
     return null;
   }
