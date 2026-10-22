@@ -115,3 +115,36 @@ describe('a table the server has only just been given', () => {
     expect(mergeWithUnpushed(mine, [mine[0]], ['a', 'b'])).toEqual([mine[0]]);
   });
 });
+
+/**
+ * 「我按刪除 全部又回來」.
+ *
+ * Deleting is two steps — the removal, and the prune that carries it — and a
+ * read landing between them found the row still on the server and handed it
+ * back. It then looked like a row this device had never heard of, so the
+ * prune had nothing to remove and it stayed for good.
+ */
+describe('a deletion still on its way to the server', () => {
+  const sent = [{ id: 'a', name: 'SK-II' }, { id: 'b', name: '護髮精油' }];
+  const afterDeleting = [sent[1]];
+
+  it('does not come back on a read', () => {
+    expect(mergeWithUnpushed(afterDeleting, sent, ['a', 'b'], sent)).toEqual(afterDeleting);
+  });
+
+  /*
+    What somebody else added since our push is not our deletion: it was never
+    in what this device sent, so the server's word stands.
+  */
+  it('still accepts a row the other traveller added', () => {
+    const hers = { id: 'c', name: '洗面乳' };
+
+    expect(mergeWithUnpushed(afterDeleting, [...sent, hers], ['a', 'b'], sent))
+      .toEqual([sent[1], hers]);
+  });
+
+  /* With nothing pushed from here, a local absence proves nothing. */
+  it('leaves the server alone when this device has pushed nothing', () => {
+    expect(mergeWithUnpushed(afterDeleting, sent, ['a', 'b'])).toEqual(sent);
+  });
+});

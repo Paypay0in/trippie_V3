@@ -55,16 +55,31 @@ export const mergeWithUnpushed = <T extends { id: string }>(
 
   const sentAs = new Map(lastPushed.map(item => [item.id, JSON.stringify(item)]));
   const localById = new Map(local.map(item => [item.id, item]));
-  const merged = remote.map(item => {
+  const merged = remote.flatMap(item => {
     const mine = localById.get(item.id);
-    if (!mine) return item;
     const sent = sentAs.get(item.id);
+    if (!mine) {
+      /*
+        Gone from here, and this device put it there.
+
+        「我按刪除 全部又回來」 — deleting is two steps, the removal and the
+        prune that carries it, and a read landing between them found the row
+        still on the server and handed it back. The row then looked like
+        something this device had never heard of, so the prune had nothing to
+        remove and it stayed.
+
+        An id this device pushed and no longer holds is a deletion in flight.
+        A row absent from `lastPushed` is one somebody else added since, and
+        is taken as it comes.
+      */
+      return sent === undefined ? [item] : [];
+    }
     /*
       Never seen in a push is not an edit — it is a record this device has
       only ever read, and the server's copy is the only word on it.
     */
-    if (sent === undefined) return item;
-    return JSON.stringify(mine) === sent ? item : mine;
+    if (sent === undefined) return [item];
+    return [JSON.stringify(mine) === sent ? item : mine];
   });
   return [...merged, ...unpushed];
 };
