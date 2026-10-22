@@ -52,6 +52,15 @@ export interface PriceQuote {
    * only how its page is written, which is an inference and says so.
    */
   placement?: 'host' | 'mark' | 'language';
+  /**
+   * Whether the page sells the product on the list, and how sure that is.
+   *
+   * Absent means nothing checked — a snippet is a number beside a title, and
+   * the title was never compared with anything.
+   */
+  match?: 'exact' | 'probable';
+  /** Why, in words. Shown beside a probable match. */
+  matchReason?: string;
 }
 
 export interface PriceCheck {

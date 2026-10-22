@@ -3,6 +3,7 @@ import express from "express";
 import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
 import { searchCandidates, SearchCandidate, SearchedQuote } from "./services/priceFromSearch";
 import { readPage } from "./services/priceFromPage";
+import { matchProduct } from "./services/productMatch";
 import { comparisonCountry } from "./services/comparisonCountries";
 import { readFileSync } from "node:fs";
 import { createServer } from "http";
@@ -2191,7 +2192,14 @@ ${sentence}
       return;
     }
 
-    const cacheKey = `${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}`.toLocaleLowerCase();
+    /*
+      The reading rules are part of the key. A price cached before the
+      product-match gate existed was read under rules that let a serum answer
+      for a sheet mask, and twelve hours is long enough for that to outlive
+      the deploy that fixed it.
+    */
+    const READER = "v2-match";
+    const cacheKey = `${READER}|${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}`.toLocaleLowerCase();
     const cached = priceCache.get(cacheKey);
     if (cached && Date.now() - cached.at < PRICE_CACHE_MS) {
       res.json(cached.body);
@@ -2236,11 +2244,11 @@ ${sentence}
           const country = inPlay[at];
           const looking = candidates.slice(0, PAGES_PER_COUNTRY);
           const read = await Promise.all(looking.map(candidate =>
-            readPage(candidate.url).catch(() => ({ reachable: false, price: null }))));
+            readPage(candidate.url).catch(() => ({ reachable: false, price: null, offers: [] }))));
 
           const quotes: SearchedQuote[] = [];
           looking.forEach((candidate, index) => {
-            const { reachable, price } = read[index];
+            const { reachable, offers } = read[index];
 
             /*
               A link that does not open is not a quote. 「我點入後會有找不到
@@ -2250,44 +2258,67 @@ ${sentence}
             */
             if (!reachable) return;
 
-            if (price) {
+            /*
+              Which of the things this page sells is the thing on the list.
+
+              This question had never been asked. 米糠发酵修护舒缓湿敷面膜 was
+              quoted NT$490 off a page titled 米糠發酵導入美容液 — right shop,
+              real price, wrong product — and every check downstream passed
+              because all any of them received was a number.
+
+              A page offering several things is ordinary: a size picker, a
+              related-items rail, an article's two affiliate links. The one
+              that matches is taken and the rest are left; none matching is
+              the same as the page having no price for us.
+            */
+            const judged = offers
+              .map(offer => ({ offer, match: matchProduct({ name, brand, spec: brand }, offer.name) }))
+              .filter(({ match }) => match.confidence !== "none")
+              .sort((left, right) => Number(right.match.confidence === "exact")
+                - Number(left.match.confidence === "exact"));
+
+            const best = judged[0];
+            if (best) {
               /*
                 The shop's own statement, with its own currency. A page that
                 prices itself in money neither country spends is a page for
                 somebody else's trip.
               */
-              const stating = inPlay.find(entry => entry.currency === price.currency);
+              const stating = inPlay.find(entry => entry.currency === best.offer.currency);
               if (!stating) return;
               quotes.push({
                 countryCode: stating.code,
                 shop: candidate.host,
-                amount: price.amount,
-                currency: price.currency,
+                amount: best.offer.amount,
+                currency: best.offer.currency,
                 sourceUrl: candidate.url,
                 verified: true,
-                /*
-                  The address decides when it can; otherwise the money the
-                  shop published is its own statement about where it sells,
-                  which is a mark rather than a guess at the language.
-                */
+                match: best.match.confidence === "exact" ? "exact" as const : "probable" as const,
+                matchReason: best.match.reason,
                 placement: candidate.country ? "host" : "mark",
               });
               return;
             }
 
             /*
-              The page opened and published nothing. The snippet is all there
-              is, and it is marked as such: nine of thirty-two quotes came
-              this way and they are where the wrong numbers were — a gift set
-              counted as the product, a multipack counted as one.
+              Nothing on the page matched, or the page published no price at
+              all. The snippet is what is left, and it is worth less than it
+              was: nothing has checked that it is even this product, so it
+              carries no match at all and the screen says so.
             */
-            if (candidate.snippet) quotes.push({ ...candidate.snippet, verified: false });
+            if (offers.length === 0 && candidate.snippet) {
+              quotes.push({ ...candidate.snippet, verified: false });
+            }
           });
 
           return quotes
             .filter(quote => quote.countryCode === country.code)
-            /* A checked price outranks a guessed one, whatever the order. */
-            .sort((left, right) => Number(right.verified) - Number(left.verified))
+            /*
+              A checked price outranks a guessed one, and an exact match
+              outranks a probable one, whatever order they arrived in.
+            */
+            .sort((left, right) => (Number(right.verified) - Number(left.verified))
+              || (Number(right.match === "exact") - Number(left.match === "exact")))
             .slice(0, QUOTES_PER_COUNTRY);
         }));
 
@@ -2394,6 +2425,25 @@ ${brand ? `品牌：${brand}` : ""}
         is both true and actionable; telling somebody to come back tomorrow
         sends them away to find the same thing waiting.
       */
+      /*
+        The search already ran and found nothing.
+
+        「網路查詢的額度用完了，要在 Google AI Studio 提高才會恢復」 appeared
+        on the Chanel row, and it was not true of what happened: the web
+        search ran, no page matched, and the model underneath — kept as a
+        second opinion — then failed on a quota of its own. Reporting its
+        failure tells the traveller to go and change a setting that would not
+        have helped, about a product the search genuinely could not find.
+
+        A quota notice is still shown when there was no search to run, which
+        is the one case where it is the whole story.
+      */
+      if (search?.provider === "brave") {
+        const body = { quotes: [], readAt: new Date().toISOString(), source: "search" };
+        priceCache.set(cacheKey, { at: Date.now(), body });
+        res.json(body);
+        return;
+      }
       res.status(isSearchQuotaError(error) ? 429 : 502).json({
         error: isSearchQuotaError(error)
           ? "網路查詢的額度用完了，要在 Google AI Studio 提高才會恢復。"

@@ -49,13 +49,30 @@ const asCurrency = (value: unknown): string =>
   (typeof value === 'string' ? value.trim().toUpperCase() : '');
 
 /**
+ * One thing a page says it is selling, and what it says it costs.
+ *
+ * The name travels with the price because the price alone cannot be checked.
+ * 「米糠发酵修护舒缓湿敷面膜」 was quoted NT$490 from a page titled 「米糠發酵
+ * 導入美容液，50ml」 — the right shop, a real price, the wrong product — and
+ * nothing downstream could tell, because all it received was a number.
+ */
+export interface PageOffer {
+  /** What the page calls this thing. */
+  name: string;
+  amount: number;
+  currency: string;
+  /** schema.org availability, when stated. */
+  availability?: string;
+}
+
+/**
  * `offers` is whatever the shop felt like: one object, a list of them, or an
  * `AggregateOffer` with a low and a high. The low is the one a traveller is
  * being quoted — the high is the gift set.
  */
-const fromOffers = (offers: unknown): PagePrice | null => {
+const fromOffers = (offers: unknown): Omit<PageOffer, 'name'> | null => {
   if (Array.isArray(offers)) {
-    const found = offers.map(fromOffers).filter((price): price is PagePrice => price !== null);
+    const found = offers.map(fromOffers).filter((price): price is Omit<PageOffer, 'name'> => price !== null);
     return found.sort((left, right) => left.amount - right.amount)[0] ?? null;
   }
   if (!offers || typeof offers !== 'object') return null;
@@ -69,7 +86,11 @@ const fromOffers = (offers: unknown): PagePrice | null => {
     ?? asAmount(offer.lowPrice)
     ?? asAmount(spec?.price);
   if (amount === null || !currency) return null;
-  return { amount, currency };
+  return {
+    amount,
+    currency,
+    ...(typeof offer.availability === 'string' ? { availability: offer.availability } : {}),
+  };
 };
 
 /** Every object inside a JSON-LD blob, however deeply it was nested. */
@@ -83,13 +104,20 @@ const walk = function* (node: unknown): Generator<Record<string, unknown>> {
   for (const value of Object.values(node as Record<string, unknown>)) yield* walk(value);
 };
 
+const textOf = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
 /**
- * Structured data first, meta tags second.
+ * Everything the page offers, not the first thing it offers.
  *
- * Both are the shop's own statement rather than a reading of its page, and a
- * shop that publishes neither is a shop this cannot help with.
+ * 「一頁兩個商品，我的程式取第一個」 — roomie.tw's article carried two Products
+ * and the reader took the shea butter cream's NT$389 for a lip oil. A page
+ * with several products is the normal case on a shop too: a size picker, a
+ * related-items rail, a gift set. Which one was wanted is a question only the
+ * caller can answer, so all of them are returned and none is chosen here.
  */
-export const priceFromHtml = (html: string): PagePrice | null => {
+export const offersFromHtml = (html: string): PageOffer[] => {
+  const found: PageOffer[] = [];
+
   for (const block of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
     let parsed: unknown;
     try {
@@ -98,10 +126,20 @@ export const priceFromHtml = (html: string): PagePrice | null => {
       continue;
     }
     for (const node of walk(parsed)) {
-      const found = fromOffers(node.offers);
-      if (found) return found;
+      const price = fromOffers(node.offers);
+      if (!price) continue;
+      /*
+        The offer's own name when it has one — a shop that lists several
+        sizes names them on the offer rather than on the product.
+      */
+      const offerName = Array.isArray(node.offers)
+        ? textOf((node.offers[0] as Record<string, unknown>)?.name)
+        : textOf((node.offers as Record<string, unknown>)?.name);
+      found.push({ name: offerName || textOf(node.name), ...price });
     }
   }
+
+  if (found.length > 0) return found;
 
   /*
     Open Graph's product tags, which most storefronts emit even without
@@ -127,7 +165,23 @@ export const priceFromHtml = (html: string): PagePrice | null => {
   const currency = asCurrency(
     attr('product:price:currency') || attr('og:price:currency') || attr('priceCurrency'),
   );
-  return amount !== null && currency ? { amount, currency } : null;
+  if (amount === null || !currency) return [];
+
+  /*
+    The page's own title is the only name a meta-tagged price has. It is the
+    whole of what 「米糠發酵導入美容液，50ml」 was: a true title, beside a true
+    price, for a product nobody asked about.
+  */
+  const title = attr('og:title') || (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '');
+  return [{ name: title.trim(), amount, currency }];
+};
+
+/** The cheapest thing the page offers, for callers with nothing to match on. */
+export const priceFromHtml = (html: string): PagePrice | null => {
+  const offers = offersFromHtml(html);
+  if (offers.length === 0) return null;
+  const cheapest = [...offers].sort((left, right) => left.amount - right.amount)[0];
+  return { amount: cheapest.amount, currency: cheapest.currency };
 };
 
 /**
@@ -148,6 +202,8 @@ export interface PageReading {
   reachable: boolean;
   /** What it states about its own price, when it states anything. */
   price: PagePrice | null;
+  /** Everything it says it sells, each with the name the page gave it. */
+  offers: PageOffer[];
 }
 
 /**
@@ -171,17 +227,18 @@ export const readPage = async (
       },
       signal: AbortSignal.timeout(5_000),
     });
-    if (!response.ok) return { reachable: false, price: null };
+    if (!response.ok) return { reachable: false, price: null, offers: [] };
     const html = (await response.text()).slice(0, 500_000);
+    const offers = offersFromHtml(html);
     /*
       The price is returned whatever its currency. 「the page says nothing」
       and 「the page says Hong Kong dollars」 are different answers, and only
       the caller can act on the second: falling back to the snippet there
       would relabel HK$908 as NT$908.
     */
-    return { reachable: true, price: priceFromHtml(html) };
+    return { reachable: true, price: priceFromHtml(html), offers };
   } catch {
-    return { reachable: false, price: null };
+    return { reachable: false, price: null, offers: [] };
   }
 };
 

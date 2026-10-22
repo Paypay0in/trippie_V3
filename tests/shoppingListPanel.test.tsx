@@ -864,3 +864,54 @@ describe('價格來源', () => {
     expect(screen.queryByTestId('shopping-inferred-sk2')).toBeNull();
   });
 });
+
+/**
+ * 「已驗證」 used to mean only 「the page printed this number」.
+ *
+ * 米糠发酵修护舒缓湿敷面膜 carried that badge while quoting a page titled
+ * 米糠發酵導入美容液 — right shop, real price, wrong product. The row now says
+ * what was actually checked.
+ */
+describe('比對狀態', () => {
+  const answerWith = (quotes: unknown[]) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ quotes, readAt: '2026-10-22T09:00:00.000Z' }),
+    })) as unknown as typeof fetch);
+  };
+
+  const quote = (over: Record<string, unknown> = {}) => ({
+    countryCode: 'TW', shop: 'shop.muji.tw', amount: 135, currency: 'TWD',
+    verified: true, placement: 'host', match: 'exact',
+    sourceUrl: 'https://shop.muji.tw/p/1', ...over,
+  });
+
+  beforeEach(() => { clearPriceCheckCache(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('says nothing when the page sells exactly this product', async () => {
+    answerWith([quote()]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-prices-sk2')).toBeTruthy());
+    expect(screen.queryByTestId('shopping-probable-sk2')).toBeNull();
+    expect(screen.queryByTestId('shopping-unverified-sk2')).toBeNull();
+  });
+
+  it('marks a page that might be selling it', async () => {
+    answerWith([quote({ match: 'probable', matchReason: '名稱部分相符' })]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-probable-sk2').textContent)
+      .toContain('可能同款'));
+  });
+
+  /* A snippet reading compared the title with nothing at all. */
+  it('says 未比對商品 for a figure read off a search snippet', async () => {
+    answerWith([quote({ verified: false, match: undefined })]);
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-unverified-sk2').textContent)
+      .toContain('未比對商品'));
+  });
+});

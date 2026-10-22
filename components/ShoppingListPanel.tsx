@@ -988,9 +988,27 @@ const ShoppingListPanel: React.FC<Props> = ({
                                           — where a gift set and the product
                                           look the same.
                                         */}
+                                        {/*
+                                          What was checked, said in the words
+                                          that are true of it.
+
+                                          「已驗證」 used to mean only 「the page
+                                          printed this number」, which is not
+                                          what anybody reads it as: 米糠面膜
+                                          carried it while quoting a serum.
+                                        */}
                                         {quote.verified === false && (
                                           <span data-testid={`shopping-unverified-${item.id}`} className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-black text-amber-600">
-                                            未驗證
+                                            未比對商品
+                                          </span>
+                                        )}
+                                        {quote.match === 'probable' && (
+                                          <span
+                                            title={quote.matchReason}
+                                            data-testid={`shopping-probable-${item.id}`}
+                                            className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-black text-amber-600"
+                                          >
+                                            可能同款
                                           </span>
                                         )}
                                         {/*

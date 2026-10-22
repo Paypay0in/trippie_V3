@@ -68,6 +68,15 @@ export interface SearchedQuote {
    * The last one is shown as an inference rather than as a fact.
    */
   placement?: 'host' | 'mark' | 'language';
+  /**
+   * Whether the page sells the product on the list, and how sure that is.
+   *
+   * Absent on a snippet reading, because nothing checked: a snippet is a
+   * number beside a title, and the title was never compared with anything.
+   */
+  match?: 'exact' | 'probable';
+  /** Why, in words — shown beside a probable match. */
+  matchReason?: string;
 }
 
 /** What to ask, in the language that country's shops price in. */
