@@ -207,3 +207,36 @@ describe('the search itself', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * 「這個圖明顯就錯誤」.
+ *
+ * 卸妝濕巾 came back wearing a magazine's photograph of a hand. A shop's own
+ * photograph is the product on white; a magazine's is the product being
+ * used, in a scene, at an angle chosen to be beautiful. Both answer 「show me
+ * this thing」 and only one answers it on a shelf.
+ */
+describe('which picture is worth having', () => {
+  const brave = (results: Array<Record<string, unknown>>) => ({ results });
+
+  it('prefers a shop over a magazine', () => {
+    expect(firstUsableBraveImage(brave([
+      { url: 'https://elle.com.tw/beauty/article/1', properties: { url: 'https://img.elle/a.jpg' } },
+      { url: 'https://shop.muji.tw/SalePage/Index/1', properties: { url: 'https://img.muji/b.jpg' } },
+    ]))).toEqual({ imageUrl: 'https://img.muji/b.jpg', pageUrl: 'https://shop.muji.tw/SalePage/Index/1' });
+  });
+
+  /* An editorial picture still beats no picture at all. */
+  it('takes the magazine when that is all there is', () => {
+    expect(firstUsableBraveImage(brave([
+      { url: 'https://elle.com.tw/beauty/article/1', properties: { url: 'https://img.elle/a.jpg' } },
+    ]))).toEqual({ imageUrl: 'https://img.elle/a.jpg', pageUrl: 'https://elle.com.tw/beauty/article/1' });
+  });
+
+  it('keeps skipping results that are not images', () => {
+    expect(firstUsableBraveImage(brave([
+      { url: 'https://shop.muji.tw/p/1', properties: { url: 'https://img.muji/redirect?to=a.jpg' } },
+      { url: 'https://shop.muji.tw/p/2', properties: { url: 'https://img.muji/b.png' } },
+    ]))).toMatchObject({ imageUrl: 'https://img.muji/b.png' });
+  });
+});

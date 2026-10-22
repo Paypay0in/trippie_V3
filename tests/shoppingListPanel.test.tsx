@@ -543,11 +543,22 @@ describe('全部換成商品圖', () => {
     expect(screen.getByTestId('shopping-swap-photos').textContent).toContain('1');
   });
 
-  /* A picture found on the web is stored as a URL; it is already swapped. */
-  it('does not count a row that already has a web picture', () => {
+  /*
+    A list where every row already has a web picture can still be re-run:
+    「這個圖明顯就錯誤」 — the brand handed to the search had been the row's
+    whole note, so every picture on the list was found by a query that could
+    not have found the right one.
+  */
+  it('offers to look again when nothing is wearing a screenshot', () => {
     show([item({ photo: 'https://img.example.com/a.jpg' })]);
 
-    expect(screen.queryByTestId('shopping-swap-photos')).toBeNull();
+    expect(screen.getByTestId('shopping-swap-photos').textContent).toContain('全部重新找商品圖');
+  });
+
+  it('says 換成 rather than 重新找 while a screenshot is still there', () => {
+    show([item({ photo: 'data:image/jpeg;base64,shot' })]);
+
+    expect(screen.getByTestId('shopping-swap-photos').textContent).toContain('全部換成商品圖');
   });
 
   it('counts a row with no picture at all', () => {

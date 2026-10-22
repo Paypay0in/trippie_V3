@@ -174,6 +174,16 @@ const ShoppingListPanel: React.FC<Props> = ({
     !item.photo || item.photo.startsWith('data:'));
 
   /*
+    Everything, for when the lookup itself was wrong rather than the picture.
+
+    「這個圖明顯就錯誤」 — the brand handed to the search was the row's whole
+    note, 「Muji · 12片裝」, so every picture on the list was found by a query
+    that could not have found the right one. Swapping only the rows still
+    wearing a screenshot would have left those behind.
+  */
+  const swapTarget = wearingAScreenshot.length > 0 ? wearingAScreenshot : shoppingList;
+
+  /*
     「每一張都要換成搜尋結果的圖片 不要用截圖」.
 
     One search per row, run in order rather than all at once: twenty parallel
@@ -185,7 +195,7 @@ const ShoppingListPanel: React.FC<Props> = ({
   */
   const swapAllPhotos = async () => {
     if (!onUpdateItem || swapping) return;
-    const queue = wearingAScreenshot;
+    const queue = swapTarget;
     setSwapping({ done: 0, total: queue.length });
     for (const [at, item] of queue.entries()) {
       const found = await findProductImage({ name: item.name, brand: brandOf(item.description) })
@@ -498,7 +508,7 @@ const ShoppingListPanel: React.FC<Props> = ({
           list, because pressing a button per row sixteen times is the errand
           this removes. Only shown while there is still a screenshot to swap.
         */}
-        {onUpdateItem && wearingAScreenshot.length > 0 && (
+        {onUpdateItem && swapTarget.length > 0 && (
           <button
             type="button"
             data-testid="shopping-swap-photos"
@@ -508,7 +518,9 @@ const ShoppingListPanel: React.FC<Props> = ({
           >
             {swapping
               ? <><Loader2 size={13} className="animate-spin" />正在找商品圖 {swapping.done}/{swapping.total}</>
-              : <><ImageIcon size={13} />全部換成商品圖（{wearingAScreenshot.length}）</>}
+              : <><ImageIcon size={13} />
+                  {wearingAScreenshot.length > 0 ? '全部換成商品圖' : '全部重新找商品圖'}（{swapTarget.length}）
+                </>}
           </button>
         )}
 

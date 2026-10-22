@@ -90,19 +90,40 @@ interface BraveImageResult {
   thumbnail?: { src?: unknown };
 }
 
-/** The first Brave result that is actually an image. */
+/*
+  Pages that write about a product rather than sell it.
+
+  「這個圖明顯就錯誤」 — 卸妝濕巾 came back wearing a magazine's photograph of
+  a hand. A shop's own photograph is the product on white; a magazine's is
+  the product being used, in a scene, at an angle chosen to be beautiful.
+  Both answer 「show me this thing」 and only one answers it on a shelf.
+
+  Not excluded, only outranked: a shop photograph is preferred when the same
+  search returns one, and an editorial picture beats no picture at all.
+*/
+const EDITORIAL = /elle\.|vogue|marieclaire|cosmopolitan|popbee|harpersbazaar|beauty321|bella|pinterest|youtube|facebook|instagram|blog|wikipedia|ptt\.cc|dcard/i;
+
+const braveEntryToImage = (entry: BraveImageResult): ProductImage | null => {
+  const page = typeof entry?.url === 'string' ? entry.url.trim() : '';
+  const candidates = [entry?.properties?.url, entry?.thumbnail?.src]
+    .map(value => (typeof value === 'string' ? value.trim() : ''));
+  const picture = candidates.find(looksLikeAnImage);
+  if (!picture) return null;
+  return { imageUrl: picture, pageUrl: /^https:\/\//.test(page) ? page : '' };
+};
+
+/** A shop's picture if the search returned one, otherwise the first usable. */
 export const firstUsableBraveImage = (payload: unknown): ProductImage | null => {
   const results = (payload as { results?: unknown })?.results;
   if (!Array.isArray(results)) return null;
-  for (const entry of results as BraveImageResult[]) {
-    const page = typeof entry?.url === 'string' ? entry.url.trim() : '';
-    const candidates = [entry?.properties?.url, entry?.thumbnail?.src]
-      .map(value => (typeof value === 'string' ? value.trim() : ''));
-    const picture = candidates.find(looksLikeAnImage);
-    if (!picture) continue;
-    return { imageUrl: picture, pageUrl: /^https:\/\//.test(page) ? page : '' };
-  }
-  return null;
+
+  const usable = (results as BraveImageResult[])
+    .map(braveEntryToImage)
+    .filter((found): found is ProductImage => found !== null);
+
+  return usable.find(found => found.pageUrl && !EDITORIAL.test(found.pageUrl))
+    ?? usable[0]
+    ?? null;
 };
 
 export type ImageSearchConfig =
