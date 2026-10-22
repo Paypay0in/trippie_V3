@@ -2228,6 +2228,15 @@ ${sentence}
           anywhere said why.
         */
         const searchTrouble = new Map<string, "quota_exceeded" | "search_unavailable">();
+        /*
+          What the provider actually answered, carried out of the server.
+
+          Without it 「search_unavailable」 is a shrug: a revoked key, a rate
+          limit, a timeout and a network fault all read the same from
+          outside, and the one person who can fix each of them is looking at
+          the screen rather than at the logs.
+        */
+        let searchStatus: number | string | undefined;
         for (const country of inPlay) {
           try {
             perCountry.push(await searchCandidates({
@@ -2239,6 +2248,7 @@ ${sentence}
               country.code,
               status === 429 ? "quota_exceeded" : "search_unavailable",
             );
+            searchStatus = status ?? (error as Error)?.name ?? "error";
             console.error(`Price search failed for ${country.code}:`, status ?? error);
             perCountry.push([]);
           }
@@ -2422,7 +2432,13 @@ ${sentence}
         */
         const troubled = Object.values(byCountry)
           .some(status => status === "quota_exceeded" || status === "search_unavailable");
-        const body = { quotes: [], byCountry, readAt: new Date().toISOString(), source: "search" };
+        const body = {
+          quotes: [],
+          byCountry,
+          ...(searchStatus !== undefined ? { searchStatus } : {}),
+          readAt: new Date().toISOString(),
+          source: "search",
+        };
         if (!troubled) priceCache.set(cacheKey, { at: Date.now(), body });
         res.json(body);
         return;
