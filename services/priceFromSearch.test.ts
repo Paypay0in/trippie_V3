@@ -256,3 +256,54 @@ describe('a price from neither place', () => {
     expect(quotes[0].currency).toBe('TWD');
   });
 });
+
+/**
+ * 「這個個台幣908 你也沒列出來」.
+ *
+ * shampoosecret.com is a Taiwanese shop on a .com, pricing in 「$908」.
+ * Requiring an unmistakable currency mark threw it away along with the yuan
+ * that rule was written to catch. A shop selling in Taiwan writes in Chinese;
+ * one selling in Japan has kana in it.
+ */
+describe('when the address will not say, the language does', () => {
+  it('takes a Chinese page quoting a bare dollar as TWD', () => {
+    const quotes = quotesFromSearch(web([{
+      url: 'https://shampoosecret.com/products/sublimic-aqua',
+      title: 'SUBLIMIC 水凝系列 護髮油',
+      description: '為髮絲重注水分，營造順滑觸感至髮尾。$908',
+    }]));
+
+    expect(quotes).toEqual([{
+      region: '台灣', shop: 'shampoosecret.com', amount: 908, currency: 'TWD',
+      sourceUrl: 'https://shampoosecret.com/products/sublimic-aqua',
+    }]);
+  });
+
+  it('takes a Japanese page quoting a bare yen sign as JPY', () => {
+    const quotes = quotesFromSearch(web([{
+      url: 'https://example.com/item/1',
+      title: 'アネッサ パーフェクトUV',
+      description: '日焼け止め ¥3,080 送料無料',
+    }]));
+
+    expect(quotes[0]).toMatchObject({ region: '日本', currency: 'JPY', amount: 3080 });
+  });
+
+  /*
+    The case this rule has to keep out: a US retailer's 「$44」 is not
+    NT$44, and jomashop.com writes in neither language.
+  */
+  it('drops a dollar on a page written in neither', () => {
+    expect(quotesFromSearch(web([{
+      url: 'https://www.jomashop.com/shiseido-oil.html',
+      title: 'Shiseido Sublimic Aqua Intensive Velvet Oil',
+      description: 'Free shipping on orders over $50. $44',
+    }]))).toEqual([]);
+  });
+
+  /* Kana outranks a dollar sign: a Japanese page is not quoting NT$. */
+  it('will not read a Japanese page as Taiwanese', () => {
+    expect(placeOf('example.com', { amount: 520, currency: 'TWD', certain: false }, 'ロールオン $520'))
+      .toBeNull();
+  });
+});

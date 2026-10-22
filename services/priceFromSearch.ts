@@ -70,6 +70,10 @@ const JAPAN_HOST = /(^|\.)jp$|amazon\.co\.jp|rakuten|matsukiyo|welcia|donki|cosm
 */
 const CHINA_HOST = /(^|\.)cn$|taobao|tmall|jd\.com|1688|pinduoduo|xiaohongshu|dangdang|vip\.com|suning/i;
 
+/** The scripts that say which of the two a shop is writing for. */
+const KANA = /[\u3040-\u30ff]/;
+const HAN = /[\u4e00-\u9fff]/;
+
 /*
   Pages whose number is never this product's price.
 
@@ -174,14 +178,35 @@ const hostOf = (url: string): string => {
  * and a bare 「¥」 on a host nobody can place could be either of two countries
  * — one of which this trip is not going to.
  */
-export const placeOf = (host: string, money: Money): { region: '台灣' | '日本'; currency: string } | null => {
+export const placeOf = (
+  host: string,
+  money: Money,
+  text = '',
+): { region: '台灣' | '日本'; currency: string } | null => {
   if (CHINA_HOST.test(host)) return null;
   if (JAPAN_HOST.test(host)) return { region: '日本', currency: 'JPY' };
   if (TAIWAN_HOST.test(host)) return { region: '台灣', currency: 'TWD' };
-  if (!money.certain) return null;
-  return money.currency === 'JPY'
-    ? { region: '日本', currency: 'JPY' }
-    : { region: '台灣', currency: 'TWD' };
+  if (money.certain) {
+    return money.currency === 'JPY'
+      ? { region: '日本', currency: 'JPY' }
+      : { region: '台灣', currency: 'TWD' };
+  }
+
+  /*
+    The language the shop is writing in, when its address will not say.
+
+    「這個個台幣908 你也沒列出來」 — shampoosecret.com is a Taiwanese shop on
+    a .com, pricing in 「$908」, and requiring an unmistakable mark had thrown
+    it away along with the yuan it was meant to catch.
+
+    A page selling in Taiwan is written in Chinese; one selling in Japan has
+    kana in it. That is a weaker signal than a .tw, and it is a much stronger
+    one than the dollar sign — which is also how jomashop.com's US 「$44」
+    stays out, being written in neither.
+  */
+  if (KANA.test(text)) return money.currency === 'JPY' ? { region: '日本', currency: 'JPY' } : null;
+  if (HAN.test(text) && money.currency === 'TWD') return { region: '台灣', currency: 'TWD' };
+  return null;
 };
 
 interface BraveWebResult {
@@ -220,7 +245,7 @@ export const quotesFromSearch = (payload: unknown, want?: '台灣' | '日本'): 
     const money = readMoney(text);
     if (!money) continue;
 
-    const place = placeOf(host, money);
+    const place = placeOf(host, money, text);
     if (!place || (want && place.region !== want)) continue;
 
     const bounds = PLAUSIBLE[place.currency];
