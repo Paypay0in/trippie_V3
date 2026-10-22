@@ -253,17 +253,19 @@ describe('somewhere to buy, for a place nobody has curated', () => {
   });
 
   /*
-    「從Trippie找到的連結 點入是這個」 — a KKday 404, from a path generated on
-    the strength of 「a human confirmed it once」. kkday.com answers 403 to a
-    real path and an invented one alike, so nothing here could re-check it.
-
-    A missing provider button costs one search. A button that 404s costs the
-    traveller their trust in every other button on the card.
+    The keyword is a path segment on KKday, not a query parameter — which is
+    why `product/ls?keyword=` 404'd and why no probe would ever have found
+    it. Observed in a browser, 2026-10-21.
   */
-  it('generates no KKday link, because none can be verified', async () => {
-    const { commerce } = await resolve() as { commerce: { bookingOptions: Array<{ provider: string }> } };
+  it('searches KKday on the path, not the query string', async () => {
+    const { commerce } = await resolve() as { commerce: { bookingOptions: Array<{ provider: string; urlType: string; url: string }> } };
+    const kkday = commerce.bookingOptions.find(option => option.provider === 'kkday');
 
-    expect(commerce.bookingOptions.map(option => option.provider)).not.toContain('kkday');
+    expect(kkday?.urlType).toBe('search');
+    expect(kkday?.url).toBe(
+      `https://www.kkday.com/zh-tw/product/productlist/${encodeURIComponent('東京都現代美術館')}`,
+    );
+    expect(kkday?.url).not.toContain('keyword=');
   });
 
   /*
