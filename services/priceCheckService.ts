@@ -63,8 +63,19 @@ export interface PriceQuote {
   matchReason?: string;
 }
 
+/** Why a country has no price, when it has none. */
+export type CountryPriceStatus = 'ok' | 'found_no_price' | 'not_found';
+
 export interface PriceCheck {
   quotes: PriceQuote[];
+  /**
+   * Per country, why it looks the way it does.
+   *
+   * 「The UI should not collapse every failure into 沒查到」 — shops found and
+   * none of them saying what this costs sends a traveller to go and look;
+   * nothing matching the search at all tells them to check the name.
+   */
+  byCountry?: Record<string, CountryPriceStatus>;
   /** When it was read, so the reader can judge how old 「now」 is. */
   readAt: string;
   /**
@@ -130,6 +141,9 @@ export const checkPrices = (product: {
         ? (payload.quotes as PriceQuote[]).filter(quote => quote?.sourceUrl && quote.amount > 0)
         : [],
       readAt: typeof payload.readAt === 'string' ? payload.readAt : '',
+      ...(payload.byCountry && typeof payload.byCountry === 'object'
+        ? { byCountry: payload.byCountry as Record<string, CountryPriceStatus> }
+        : {}),
       ...(typeof payload.error === 'string' ? { error: payload.error } : {}),
     }))
     .catch(() => ({ ...EMPTY, error: '現在查不到價格。' }))

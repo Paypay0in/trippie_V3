@@ -915,3 +915,40 @@ describe('比對狀態', () => {
       .toContain('未比對商品'));
   });
 });
+
+/**
+ * 「The UI should not collapse every failure into 沒查到」.
+ *
+ * Shops found and none of them saying what this costs sends a traveller to go
+ * and look. Nothing matching the search at all tells them the name is what
+ * needs fixing. They had been the same sentence.
+ */
+describe('為什麼沒有價格', () => {
+  const answerWith = (body: Record<string, unknown>) => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ quotes: [], readAt: '2026-10-22T09:00:00.000Z', ...body }),
+    })) as unknown as typeof fetch);
+  };
+
+  beforeEach(() => { clearPriceCheckCache(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('says the shops were found but would not say', async () => {
+    answerWith({ byCountry: { JP: 'found_no_price', TW: 'not_found' } });
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-empty-JP-sk2').textContent)
+      .toContain('找到賣場'));
+    expect(screen.getByTestId('shopping-empty-TW-sk2').textContent).toContain('沒查到');
+  });
+
+  /* An answer from before this existed still reads as it did. */
+  it('falls back to 沒查到 when nobody said why', async () => {
+    answerWith({});
+    show([item()]);
+
+    await waitFor(() => expect(screen.getByTestId('shopping-empty-JP-sk2').textContent)
+      .toContain('沒查到'));
+  });
+});

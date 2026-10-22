@@ -954,7 +954,18 @@ const ShoppingListPanel: React.FC<Props> = ({
                               <div key={country.code} data-testid={`shopping-prices-${country.code}-${item.id}`} className="text-[11px]">
                                 <span className="font-black text-slate-500">{country.displayName}價格：</span>
                                 {found.length === 0 ? (
-                                  <span className="ml-1 text-slate-300">沒查到</span>
+                                  /*
+                                    Why, not just that. Shops found and none
+                                    of them saying what this costs sends a
+                                    traveller to go and look; nothing
+                                    matching at all tells them the name is
+                                    what needs fixing.
+                                  */
+                                  <span data-testid={`shopping-empty-${country.code}-${item.id}`} className="ml-1 text-slate-300">
+                                    {prices[item.id].byCountry?.[country.code] === 'found_no_price'
+                                      ? '找到賣場，但頁面沒標價'
+                                      : '沒查到'}
+                                  </span>
                                 ) : (
                                   <span className="mt-0.5 block space-y-0.5">
                                     {found.map(quote => (

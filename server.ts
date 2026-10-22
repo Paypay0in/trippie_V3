@@ -2198,7 +2198,7 @@ ${sentence}
       for a sheet mask, and twelve hours is long enough for that to outlive
       the deploy that fixed it.
     */
-    const READER = "v2-match";
+    const READER = "v3-verified-only";
     const cacheKey = `${READER}|${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}`.toLocaleLowerCase();
     const cached = priceCache.get(cacheKey);
     if (cached && Date.now() - cached.at < PRICE_CACHE_MS) {
@@ -2312,17 +2312,22 @@ ${sentence}
             }
 
             /*
-              Nothing on the page matched, or the page published no price at
-              all. The snippet is what is left, and it is worth less than it
-              was: nothing has checked that it is even this product, so it
-              carries no match at all and the screen says so.
+              Nothing on the page matched, or the page published no price.
+
+              The snippet used to be kept here, marked 未比對商品. 「A false
+              price must be rejected even if this means returning fewer
+              results」 — and the evidence agreed with the instruction: every
+              figure that survived this way and was later checked was wrong.
+              雪肌精 came back NT$3,899 off a bundle, クレンジングシート ¥2,000
+              off askul's brand index when the product costs ¥390.
+
+              So the page not answering is now an answer. The country keeps
+              what it could verify and says plainly that it found shops and
+              no price, which is a different thing from finding nothing.
             */
-            if (offers.length === 0 && candidate.snippet) {
-              quotes.push({ ...candidate.snippet, verified: false });
-            }
           });
 
-          return quotes
+          const kept = quotes
             .filter(quote => quote.countryCode === country.code)
             /*
               A checked price outranks a guessed one, and an exact match
@@ -2331,11 +2336,43 @@ ${sentence}
             .sort((left, right) => (Number(right.verified) - Number(left.verified))
               || (Number(right.match === "exact") - Number(left.match === "exact")))
             .slice(0, QUOTES_PER_COUNTRY);
+
+          /*
+            「The UI should not collapse every failure into 沒查到」.
+
+            Shops were found and none of them would say what this costs is a
+            different answer from nothing matching the search at all, and
+            only this loop knows which happened.
+          */
+          return {
+            countryCode: country.code,
+            quotes: kept,
+            status: kept.length > 0
+              ? "ok" as const
+              : looking.length > 0 ? "found_no_price" as const : "not_found" as const,
+          };
         }));
 
-        const quotes = await withHomeAmount(perCountryQuotes.flat(), home.currency);
+        const quotes = await withHomeAmount(
+          perCountryQuotes.flatMap(found => found.quotes),
+          home.currency,
+        );
+        const byCountry = Object.fromEntries(
+          perCountryQuotes.map(found => [found.countryCode, found.status]),
+        );
         if (quotes.length > 0) {
-          const body = { quotes, readAt: new Date().toISOString(), source: "search" };
+          const body = { quotes, byCountry, readAt: new Date().toISOString(), source: "search" };
+          priceCache.set(cacheKey, { at: Date.now(), body });
+          res.json(body);
+          return;
+        }
+        /*
+          Nothing verified anywhere still carries why, per country: 「found
+          shops, none would say」 sends a traveller to look, 「found nothing」
+          tells them to check the name.
+        */
+        if (Object.values(byCountry).some(status => status === "found_no_price")) {
+          const body = { quotes: [], byCountry, readAt: new Date().toISOString(), source: "search" };
           priceCache.set(cacheKey, { at: Date.now(), body });
           res.json(body);
           return;
