@@ -439,3 +439,11 @@ describe('which results are worth fetching', () => {
     }]), PAIR)).toHaveLength(1);
   });
 });
+
+/* 価格.com is Japan's 比價站: ¥3,000 for a 青春露 that costs five times that. */
+describe('the other countries’ comparison sites', () => {
+  it('refuses kakaku.com', () => {
+    expect(looksLikeAProductPage('https://search.kakaku.com/sk-ii/')).toBe(false);
+    expect(looksLikeAProductPage('https://kakaku.com/item/K0001234/')).toBe(false);
+  });
+});

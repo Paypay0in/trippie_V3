@@ -60,7 +60,8 @@ const HAN = /[\u4e00-\u9fff]/;
 
   - a price-comparison site, whose figure is the cheapest of whatever its
     crawler matched — 「KUMARGIC EYE」 came back NT$172 from one, for
-    something else entirely;
+    something else entirely, and 青春露 came back ¥3,000 from kakaku.com
+    against a real price over five times that;
   - a brand's front page or a category listing, where the number belongs to
     whatever happened to be in the snippet. 青春露 came back ¥98,200 from a
     duty-free shop's brand index.
@@ -68,7 +69,7 @@ const HAN = /[\u4e00-\u9fff]/;
   Both look exactly like a shop when all you have is a host and a snippet. A
   product page is the only page whose price is about the product.
 */
-const AGGREGATOR = /biggo|findprice|feebee|ecshopping|pricearea|shopping\.yahoo\.co\.jp\/search/i;
+const AGGREGATOR = /biggo|findprice|feebee|ecshopping|pricearea|kakaku\.com|coneco|价格网|pricespy|idealo|shopping\.yahoo\.co\.jp\/search/i;
 
 /** Paths that list things rather than being one. */
 const LISTING = /\/(s|search|category|categories|brands?|list|goodsList|tag)(\/|\.|$)|default\.aspx|\/shop\/?$/i;
