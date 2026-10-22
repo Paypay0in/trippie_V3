@@ -1005,6 +1005,6 @@ describe('a screen that was not told which trip this is', () => {
     bare([item()]);
 
     await waitFor(() => expect(screen.getByTestId('shopping-empty-JP-sk2').textContent)
-      .toContain('找到賣場'));
+      .toContain('沒標價'));
   });
 });
