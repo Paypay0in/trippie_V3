@@ -41,13 +41,22 @@ interface Props {
   /** Opens the ledger, for a figure somebody wants to question. */
   onOpenRecords?: () => void;
   /**
-   * Writes the traveller's own account of a stop.
+   * Writes the traveller's private account of a stop.
    *
-   * Saved onto the itinerary item's `notes`, so it travels with the trip and
-   * is readable by whoever else is on it — rather than into a device-local
-   * store, which is the shape that cost this morning.
+   * Saved into `itinerary_journals`, a row owned by its author — not the
+   * item's `notes`, which is the trip's note and which everybody on the trip
+   * reads, and not a device-local store, which is the shape that cost a
+   * morning.
    */
   onWriteDiary?: (itemId: string, text: string) => void;
+  /**
+   * What this traveller has written privately about each stop.
+   *
+   * 「日記只給自己看」 — kept in `itinerary_journals`, where the row belongs to
+   * its author and RLS says so. The itinerary item's own `notes` stays what it
+   * always was: the trip's note, which everybody on it reads.
+   */
+  journals?: Record<string, { text: string }>;
   /**
    * 編輯這一天 / 新增行程, both landing on the planner with that day in hand.
    *
@@ -96,7 +105,7 @@ const Stars: React.FC<{ stop: RecapStop; testId: string }> = ({ stop, testId }) 
   );
 };
 
-const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords, onWriteDiary, onPlanDay, onRateStop, onAddStopPhotos }) => {
+const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords, onWriteDiary, onPlanDay, onRateStop, onAddStopPhotos, journals = {} }) => {
   const [tab, setTab] = useState<Tab>('overview');
   const recap = useMemo(
     () => buildTripRecap({ trip, expenses, today, viewerMemberId, members }),
@@ -537,6 +546,16 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                             nothing else. Written against the item's own
                             `notes`, which has always synced.
                           */}
+                          {/*
+                            The trip's own note on the stop, which is not a
+                            diary and never was: 「共 3 晚，退房 訂房編號…」 is
+                            for whoever else is on the trip.
+                          */}
+                          {stop.diary && (
+                            <p data-testid={`recap-stop-shared-note-${stop.itemId}`} className="mt-1 text-[11px] leading-4 text-slate-500">
+                              {stop.diary}
+                            </p>
+                          )}
                           {onWriteDiary && editing === stop.itemId ? (
                             <div className="mt-2">
                               <textarea
@@ -545,22 +564,12 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                 onChange={event => setDraft(event.target.value)}
                                 rows={3}
                                 autoFocus
-                                placeholder="這裡發生了什麼？"
+                                placeholder="這裡發生了什麼？只有你看得到。"
                                 className="w-full rounded-xl border border-slate-200 p-2 text-[12px] leading-5 text-slate-700 outline-none focus:border-violet-400"
                               />
-                              {/*
-                                「日記只給自己看」 — and this is not that yet.
-
-                                It writes the trip's own note on the stop,
-                                which everybody on the trip reads. The private
-                                journal needs a table of its own （see
-                                `0030_itinerary_journals`）; until that exists,
-                                the honest thing is to say whose eyes this is
-                                in front of rather than let somebody write
-                                something personal into it.
-                              */}
-                              <p data-testid={`recap-diary-shared-${stop.itemId}`} className="mt-1 text-[10px] leading-4 text-amber-600">
-                                這則目前是行程備註，同行的人也看得到。私人日記還在等資料表建立。
+              {/* 「日記只給自己看」 — and now it is. */}
+                              <p data-testid={`recap-diary-private-${stop.itemId}`} className="mt-1 text-[10px] leading-4 text-slate-400">
+                                只有你看得到。
                               </p>
                               <div className="mt-1.5 flex gap-2">
                                 <button
@@ -582,9 +591,9 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                             </div>
                           ) : (
                             <>
-                              {stop.diary && (
-                                <p data-testid={`recap-stop-diary-${stop.itemId}`} className="mt-1 text-[11px] leading-4 text-slate-700">
-                                  {stop.diary}
+                              {journals[stop.itemId]?.text && (
+                                <p data-testid={`recap-stop-diary-${stop.itemId}`} className="mt-1 rounded-xl bg-violet-50/60 px-2 py-1.5 text-[11px] leading-4 text-slate-700">
+                                  {journals[stop.itemId].text}
                                 </p>
                               )}
                               {onAddStopPhotos && (
@@ -614,10 +623,10 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                 <button
                                   type="button"
                                   data-testid={`recap-diary-open-${stop.itemId}`}
-                                  onClick={() => { setDraft(stop.diary ?? ''); setEditing(stop.itemId); }}
+                                  onClick={() => { setDraft(journals[stop.itemId]?.text ?? ''); setEditing(stop.itemId); }}
                                   className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-black text-violet-700"
                                 >
-                                  <NotebookPen size={12} />{stop.diary ? '編輯備註' : '寫下備註'}
+                                  <NotebookPen size={12} />{journals[stop.itemId]?.text ? '編輯日記' : '寫下日記'}
                                 </button>
                               )}
                             </>

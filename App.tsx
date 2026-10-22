@@ -306,6 +306,7 @@ import TripPlanOverview from "./components/TripPlanOverview";
 import TripLiveOverview from "./components/TripLiveOverview";
 import TripRecapScreen from "./components/TripRecapScreen";
 import TripWays from "./components/TripWays";
+import { JournalsByItem, fetchTripJournals, saveJournal } from "./services/journalSync";
 import { resolvePlace } from "./services/placeService";
 import {
   fetchPreparationSuggestions,
@@ -852,6 +853,15 @@ const App: React.FC = () => {
   const [shoppingSheetOpen, setShoppingSheetOpen] = useState(false);
   /** 旅程回顧 — the whole trip read back, opened from the overview. */
   const [recapOpen, setRecapOpen] = useState(false);
+  /**
+   * 「日記只給自己看」 — this account's own writing, per stop.
+   *
+   * Read from `itinerary_journals`, where RLS returns nobody else's. Kept
+   * out of the trip snapshot on purpose: everything in there is shared by
+   * definition, and a private note riding along in it would be one refactor
+   * away from being published.
+   */
+  const [journals, setJournals] = useState<JournalsByItem>({});
   /*
     The map request is spent once the traveller leaves the plan, so the next
     地圖 tap is a new request rather than a `true` that never changed.
@@ -4574,6 +4584,27 @@ const App: React.FC = () => {
     () => withStatedRatings(expenses, statedRatings),
     [expenses, statedRatings],
   );
+
+  /*
+    The journals for whichever trip is open.
+
+    Re-read when the trip or the account changes and at no other time: they
+    are this device's author's own, so there is no second writer to race, and
+    a failed read keeps what was already on screen rather than blanking it.
+  */
+  useEffect(() => {
+    const tripId = activeDraftId || currentLoadedTripId;
+    if (!tripId || !authUser?.id || !isSyncAvailable()) {
+      setJournals({});
+      return;
+    }
+    let cancelled = false;
+    void fetchTripJournals(tripId).then((result) => {
+      if (cancelled || result.status !== "ok") return;
+      setJournals(result.data);
+    });
+    return () => { cancelled = true; };
+  }, [activeDraftId, currentLoadedTripId, authUser?.id]);
 
   const tripSyncState = useTripSync({
     // The same trip id the rest of the screen uses. A trip opened from history
@@ -9155,9 +9186,21 @@ const App: React.FC = () => {
               members={settlementMembers}
               onBack={() => setRecapOpen(false)}
               onOpenRecords={() => { setRecapOpen(false); setWorkspaceSection("records"); }}
-              onWriteDiary={(itemId, text) =>
-                handleUpdateItineraryItem(itemId, { notes: text })
-              }
+              journals={journals}
+              onWriteDiary={(itemId, text) => {
+                /* Shown at once; the row is written behind it. */
+                setJournals((current) => {
+                  const next = { ...current };
+                  if (text.trim()) next[itemId] = { ...next[itemId], text: text.trim() };
+                  else delete next[itemId];
+                  return next;
+                });
+                const tripId = activeDraftId || currentLoadedTripId;
+                if (!tripId || !authUser?.id) return;
+                void saveJournal({ tripId, itemId, authorId: authUser.id, text }).then((result) => {
+                  if (result.status === "error") showToast(`日記沒有存成功：${result.message}`);
+                });
+              }}
               /*
                 編輯這一天 / 新增行程, with that day already in hand — the form
                 takes an `initialDate`, so the day being looked at is the day
