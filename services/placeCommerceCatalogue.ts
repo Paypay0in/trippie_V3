@@ -93,6 +93,46 @@ export const PLACE_COMMERCE_CATALOGUE: CuratedCommerceEntry[] = [
     // that captures it. Until then this entry still earns the card its 門票 / 預約
     // section, its booking links and 查看最新票價 — all of which are true.
   },
+  {
+    // 「谷歌搜尋結果！是有這個門票的！」 — and there is: KKday lists it from
+    // NT$410. The card said nothing because this catalogue had never heard of
+    // the place, which is a gap in the list rather than a judgement about the
+    // ticket.
+    nameKeys: ['東京晴空塔', '晴空塔', 'tokyoskytree', 'skytree', '東京スカイツリー', 'スカイツリー'],
+    admissionRequired: true,
+    officialUrl: 'https://www.tokyo-skytree.jp/ticket/',
+    notes: [
+      '天望デッキ（350m）與天望回廊（450m）票價不同，可分開或合併購買',
+      '當日券與預售票價不同，平日與假日也不同',
+    ],
+    bookingLinks: [
+      {
+        provider: 'kkday',
+        label: 'KKday',
+        url: 'https://www.kkday.com/zh-tw/product/productlist?keyword=%E6%9D%B1%E4%BA%AC%E6%99%B4%E7%A9%BA%E5%A1%94',
+        urlType: 'search',
+      },
+      {
+        provider: 'klook',
+        label: 'Klook',
+        url: 'https://www.klook.com/zh-TW/search/?query=%E6%9D%B1%E4%BA%AC%E6%99%B4%E7%A9%BA%E5%A1%94',
+        urlType: 'search',
+      },
+    ],
+    // priceSource is intentionally absent, and this is the interesting case.
+    //
+    // tokyo-skytree.jp/ticket/ is reachable and does state figures in its HTML —
+    // but every one of them is a 「…円～」 for a different product: deck only,
+    // deck plus corridor, same-day, advance, weekday, weekend, and a dozen
+    // bundles with a café or a boat. There is no single general admission for a
+    // pattern to capture. Picking one would not be reading their price; it would
+    // be choosing a product on the traveller's behalf and labelling the result
+    // 官方參考價.
+    //
+    // So the card says 需要門票 and 查看最新票價 and hands over the links, which
+    // is the whole truth: the ticket exists, it is buyable, and what it costs
+    // depends on which one you want.
+  },
 ];
 
 /**

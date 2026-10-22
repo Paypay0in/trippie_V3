@@ -299,3 +299,41 @@ describe('advanceBookingPlaces', () => {
       .toHaveLength(1);
   });
 });
+
+/**
+ * 「谷歌搜尋結果！是有這個門票的！」 — a KKday page quoting NT$410, against a
+ * card that said nothing at all.
+ *
+ * It said nothing because the catalogue had never heard of the place, which
+ * is a gap in a list rather than a judgement about the ticket.
+ */
+describe('東京晴空塔', () => {
+  it('is recognised by the names a traveller actually types', () => {
+    for (const name of ['東京晴空塔', '晴空塔', 'Tokyo Skytree', '東京スカイツリー']) {
+      expect(findCuratedCommerce(undefined, name), name).toBeTruthy();
+    }
+  });
+
+  it('says a ticket is needed, and where to buy one', () => {
+    const entry = findCuratedCommerce(undefined, '東京晴空塔');
+
+    expect(entry?.admissionRequired).toBe(true);
+    expect(entry?.officialUrl).toContain('tokyo-skytree.jp');
+    expect(entry?.bookingLinks?.map(link => link.provider)).toEqual(['kkday', 'klook']);
+  });
+
+  /*
+    No number, deliberately. The operator states a dozen 「…円～」 figures for
+    different products and no general admission; choosing one would be picking
+    a product for the traveller and calling the result 官方參考價.
+  */
+  it('quotes no price, because the operator states none to quote', () => {
+    expect(findCuratedCommerce(undefined, '東京晴空塔')?.priceSource).toBeUndefined();
+  });
+
+  /* The name rule stays exact: 「塔」 must not drag every tower in with it. */
+  it('does not match some other tower', () => {
+    expect(findCuratedCommerce(undefined, '東京鐵塔')).toBeUndefined();
+    expect(findCuratedCommerce(undefined, '塔')).toBeUndefined();
+  });
+});
