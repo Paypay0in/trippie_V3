@@ -49,3 +49,48 @@ describe('mergeWithUnpushed', () => {
     expect(merged.map(entry => entry.id).sort()).toEqual(['hers', 'his']);
   });
 });
+
+/**
+ * 「為什麼我點進去 上傳照片馬上就被刪掉了」.
+ *
+ * Creations were protected from a read landing before the push; edits to
+ * records the server already holds were not, so 「take the remote copy」 threw
+ * away a change made a second earlier. The photo picker made it constant
+ * rather than rare: opening it hides the document and closing it fires
+ * `visibilitychange`, so the re-read ran between the edit and the push every
+ * single time.
+ */
+describe('an edit that has not been pushed yet', () => {
+  const sent = { id: 'a', photos: [] as string[] };
+  const edited = { id: 'a', photos: ['the-temple'] };
+  const fromServer = { id: 'a', photos: [] as string[] };
+
+  it('survives a read that lands before the push', () => {
+    const merged = mergeWithUnpushed([edited], [fromServer], ['a'], [sent]);
+
+    expect(merged).toEqual([edited]);
+  });
+
+  it('gives way once the push has carried it', () => {
+    const merged = mergeWithUnpushed([edited], [edited], ['a'], [edited]);
+
+    expect(merged).toEqual([edited]);
+  });
+
+  /*
+    A record this device has only ever read is not an edit, and the server's
+    copy is the only word on it — otherwise the other traveller's changes
+    would never arrive.
+  */
+  it('takes the remote copy of a record this device never pushed', () => {
+    const theirs = { id: 'b', photos: ['hers'] };
+    const stale = { id: 'b', photos: [] as string[] };
+
+    expect(mergeWithUnpushed([stale], [theirs], ['b'], [sent])).toEqual([theirs]);
+  });
+
+  /* Without a record of what was pushed, it behaves exactly as it always did. */
+  it('is unchanged when nothing has been pushed yet', () => {
+    expect(mergeWithUnpushed([edited], [fromServer], ['a'])).toEqual([fromServer]);
+  });
+});

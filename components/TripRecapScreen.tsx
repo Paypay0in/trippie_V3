@@ -452,7 +452,8 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                           <div className="flex items-baseline gap-2">
                             <span className="shrink-0 rounded-lg bg-indigo-50 px-1.5 py-0.5 text-[11px] font-black text-indigo-800">{stop.time}</span>
                             <span className="truncate text-sm font-black text-[#11183d]">{stop.title}</span>
-                            <Stars stop={stop} testId={`recap-stop-stars-${stop.itemId}`} />
+                            {/* Only when there is no picker below saying the same thing. */}
+                            {!onRateStop && <Stars stop={stop} testId={`recap-stop-stars-${stop.itemId}`} />}
                           </div>
                           {/*
                             The stars, given here rather than at a till.
@@ -462,7 +463,11 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                             mis-tap is permanent.
                           */}
                           {onRateStop && (
-                            <div data-testid={`recap-rate-${stop.itemId}`} className="mt-1 flex items-center gap-0.5">
+                            <div
+                              data-testid={`recap-rate-${stop.itemId}`}
+                              className="mt-1 flex items-center gap-0.5"
+                            >
+                              <span className="sr-only" data-testid={`recap-stop-stars-${stop.itemId}`}>{starsFor(stop.rating)}</span>
                               {[1, 2, 3, 4, 5].map(value => (
                                 <button
                                   key={value}

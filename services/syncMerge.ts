@@ -28,10 +28,43 @@ export const mergeWithUnpushed = <T extends { id: string }>(
   local: T[],
   remote: T[],
   knownIds: Iterable<string>,
+  /**
+   * What this device last successfully sent, when it is known.
+   *
+   * 「為什麼我點進去 上傳照片馬上就被刪掉了」 — the fourth case, and the one
+   * this function did not have. Creations were protected; *edits* to records
+   * the server already holds were not, so 「take the remote copy」 threw away
+   * a change made a second earlier and not yet pushed.
+   *
+   * The photo picker is what made it constant rather than rare: opening it
+   * hides the document, closing it fires `visibilitychange`, and the re-read
+   * that fires on returning landed between the edit and the debounced push
+   * every single time.
+   *
+   * So: a local record that differs from what was last pushed is newer than
+   * anything the server can be showing, and wins until it has been sent.
+   * Omitted entirely, this behaves exactly as it always did.
+   */
+  lastPushed?: readonly T[],
 ): T[] => {
   const remoteIds = new Set(remote.map(item => item.id));
   const known = new Set(knownIds);
 
   const unpushed = local.filter(item => !remoteIds.has(item.id) && !known.has(item.id));
-  return [...remote, ...unpushed];
+  if (!lastPushed) return [...remote, ...unpushed];
+
+  const sentAs = new Map(lastPushed.map(item => [item.id, JSON.stringify(item)]));
+  const localById = new Map(local.map(item => [item.id, item]));
+  const merged = remote.map(item => {
+    const mine = localById.get(item.id);
+    if (!mine) return item;
+    const sent = sentAs.get(item.id);
+    /*
+      Never seen in a push is not an edit — it is a record this device has
+      only ever read, and the server's copy is the only word on it.
+    */
+    if (sent === undefined) return item;
+    return JSON.stringify(mine) === sent ? item : mine;
+  });
+  return [...merged, ...unpushed];
 };

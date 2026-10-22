@@ -458,6 +458,13 @@ export const useTripSync = ({
   // write. Comparing content also means an idle re-render costs no request.
   const payloadSignature = JSON.stringify({ members, expenses, itinerary, flightAnchors, inspirations, taxRule });
   const payloadRef = useRef({ members, expenses, itinerary, flightAnchors, inspirations, taxRule });
+  /**
+   * What this device last successfully sent.
+   *
+   * Local records that differ from it have been edited since and must survive
+   * a read landing before the debounced push — see `mergeWithUnpushed`.
+   */
+  const lastPushedRef = useRef<{ expenses?: readonly Expense[]; itinerary?: readonly ItineraryItem[] }>({});
   payloadRef.current = { members, expenses, itinerary, flightAnchors, inspirations, taxRule };
 
   /**
@@ -538,6 +545,9 @@ export const useTripSync = ({
           lastWriteRef.current = `${clockNow()} 失敗 — ${result.message}`;
         } else {
           lastWriteRef.current = `${clockNow()} ${countsOf(payloadRef.current)}`;
+          // Recorded only on success: a failed push leaves the local copies
+          // still newer than anything the server holds, which is true.
+          lastPushedRef.current = { expenses: e, itinerary: i };
         }
         refreshDetail();
         setState(result.status === 'error' ? 'error' : 'synced');
@@ -584,8 +594,8 @@ export const useTripSync = ({
           const seen = everSeenRef.current;
           const merged: TripSyncSnapshot = {
             members: remote.data.members,
-            expenses: mergeWithUnpushed(local.expenses, remote.data.expenses, seen.expenses),
-            itinerary: mergeWithUnpushed(local.itinerary, remote.data.itinerary, seen.itinerary),
+            expenses: mergeWithUnpushed(local.expenses, remote.data.expenses, seen.expenses, lastPushedRef.current.expenses),
+            itinerary: mergeWithUnpushed(local.itinerary, remote.data.itinerary, seen.itinerary, lastPushedRef.current.itinerary),
             flightAnchors: mergeWithUnpushed(local.flightAnchors, remote.data.flightAnchors, seen.flightAnchors),
             /*
               Saved places go through the same rule as everything else now.
