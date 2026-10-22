@@ -1,6 +1,7 @@
 
 import express from "express";
 import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
+import { searchPrices } from "./services/priceFromSearch";
 import { readFileSync } from "node:fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -2082,6 +2083,34 @@ ${sentence}
     const name = typeof req.body?.name === "string" ? req.body.name.trim().slice(0, 120) : "";
     const brand = typeof req.body?.brand === "string" ? req.body.brand.trim().slice(0, 60) : "";
     if (!name) { res.status(400).json({ error: "A product is required." }); return; }
+
+    /*
+      The search, when there is one. 「價格的部分 不能也用brave搜尋嗎」.
+
+      Before the model, not after it: the grounding allowance has been spent
+      since the morning of 2026-10-21 and 「比一下台／日價格」 has been
+      answering with a quota notice ever since. A search that returns nothing
+      falls through to the model, which is the better reader when it can run.
+
+      Each quote keeps the page it was read from, and the reply says these
+      came from search results rather than from a shop — the snippet cannot
+      know whether it was pricing the same size.
+    */
+    const search = imageSearchConfig();
+    if (search?.provider === "brave") {
+      try {
+        const [taiwan, japan] = await Promise.all((["台灣", "日本"] as const).map(region =>
+          searchPrices({ name, brand, region, apiKey: search.apiKey }).catch(() => [])));
+        const quotes = [...taiwan.slice(0, 2), ...japan.slice(0, 2)];
+        if (quotes.length > 0) {
+          res.json({ quotes, readAt: new Date().toISOString(), source: "search" });
+          return;
+        }
+      } catch (error) {
+        console.error("Price search failed:", error);
+      }
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) { res.status(503).json({ error: "現在查不到價格。" }); return; }
 
