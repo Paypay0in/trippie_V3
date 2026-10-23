@@ -116,6 +116,14 @@ export const checkPrices = (product: {
   destinationCountry?: string;
   /** Where it is being compared against. */
   homeCountry?: string;
+  /**
+   * Somebody pressed 重新查價 for this one row.
+   *
+   * Opening a list is sixteen rows at once and happens all day; this is one
+   * row and happens when the answer looked wrong. It skips the cache and
+   * spends the extra ways of asking that an ordinary open must not.
+   */
+  refresh?: boolean;
 }): Promise<PriceCheck> => {
   /*
     The pair is part of the key. The same bottle compared 日本/台灣 and
@@ -124,6 +132,7 @@ export const checkPrices = (product: {
   */
   const key = [product.name, product.brand ?? '', product.destinationCountry ?? '', product.homeCountry ?? '']
     .join('|').toLocaleLowerCase();
+  if (product.refresh) { cache.delete(key); pending.delete(key); }
   const cached = cache.get(key);
   if (cached !== undefined) return Promise.resolve(cached);
   const existing = pending.get(key);
@@ -137,6 +146,7 @@ export const checkPrices = (product: {
       brand: product.brand,
       destinationCountry: product.destinationCountry,
       homeCountry: product.homeCountry,
+      ...(product.refresh ? { refresh: true } : {}),
     }),
   })
     .then(async response => {

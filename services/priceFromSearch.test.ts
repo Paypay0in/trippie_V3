@@ -490,6 +490,28 @@ describe('asking a second way', () => {
     expect(ways[ways.length - 1]).toContain('ロキソプロフェンEX Naテープ');
   });
 
+  /*
+    Opening a list asks once per country, however many ways there are.
+
+    Three ways × two countries × sixteen rows is ninety-six searches for one
+    glance at a list, which is how a month's allowance went in a day.
+  */
+  it('asks only one way unless somebody asked harder', async () => {
+    const asked: string[] = [];
+    await searchCandidates({
+      name: 'うるおい線・くまスポット',
+      country: JP,
+      inPlay: PAIR,
+      apiKey: 'k',
+      fetchImpl: (async (url: string) => {
+        asked.push(String(url));
+        return { ok: true, json: async () => web([]) };
+      }) as unknown as typeof fetch,
+    });
+
+    expect(asked).toHaveLength(1);
+  });
+
   /* Fifteen products that answer on the first ask must not pay for a second. */
   it('stops at the first way of asking that answers', async () => {
     const asked: string[] = [];
@@ -518,6 +540,7 @@ describe('asking a second way', () => {
       country: JP,
       inPlay: PAIR,
       apiKey: 'k',
+      harder: true,
       fetchImpl: (async (url: string) => {
         asked.push(String(url));
         return { ok: true, json: async () => web([]) };

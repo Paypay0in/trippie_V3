@@ -165,6 +165,8 @@ const ShoppingListPanel: React.FC<Props> = ({
   const [managing, setManaging] = useState(false);
   /** 全部換成商品圖 — how far through the list it has got. */
   const [swapping, setSwapping] = useState<{ done: number; total: number } | null>(null);
+  /** Why the picture search stopped, when it stopped for a reason. */
+  const [photoTrouble, setPhotoTrouble] = useState('');
   /** Whether the country picker is open. */
   const [pickingCountry, setPickingCountry] = useState(false);
 
@@ -208,6 +210,8 @@ const ShoppingListPanel: React.FC<Props> = ({
       brand: brandOf(item.description),
       destinationCountry: destination?.code,
       homeCountry: home?.code,
+      /* 「重新查價」 is the one place that may ask harder, and for one row. */
+      refresh: true,
     })
       .then(found => setPrices(current => ({ ...current, [item.id]: found })))
       .finally(() => setChecking(null));
@@ -224,10 +228,14 @@ const ShoppingListPanel: React.FC<Props> = ({
   const lookUpImage = (item: ShoppingItem) => {
     if (!onUpdateItem) return;
     setFindingImage(item.id);
+    setPhotoTrouble('');
     void findProductImage({ name: item.name, brand: brandOf(item.description) })
       .then(found => {
         if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
       })
+      .catch(error => setPhotoTrouble((error as { quota?: boolean })?.quota
+        ? '圖片搜尋的額度用完了，稍後再找。'
+        : '現在找不到商品圖片。'))
       .finally(() => setFindingImage(null));
   };
 
@@ -265,10 +273,24 @@ const ShoppingListPanel: React.FC<Props> = ({
   const swapAllPhotos = async () => {
     if (!onUpdateItem || swapping) return;
     const queue = swapTarget;
+    setPhotoTrouble('');
     setSwapping({ done: 0, total: queue.length });
     for (const [at, item] of queue.entries()) {
-      const found = await findProductImage({ name: item.name, brand: brandOf(item.description) })
-        .catch(() => null);
+      /*
+        A refusal stops the batch. Sixteen more requests against an
+        allowance that is spent is sixteen more ways of being told the same
+        thing, and the traveller watching the counter deserves the reason
+        rather than a number that climbs to the end and explains nothing.
+      */
+      let found;
+      try {
+        found = await findProductImage({ name: item.name, brand: brandOf(item.description) });
+      } catch (error) {
+        setPhotoTrouble((error as { quota?: boolean })?.quota
+          ? '圖片搜尋的額度用完了，稍後再找。'
+          : '現在找不到商品圖片。');
+        break;
+      }
       if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
       setSwapping({ done: at + 1, total: queue.length });
     }
@@ -665,6 +687,12 @@ const ShoppingListPanel: React.FC<Props> = ({
                   {wearingAScreenshot.length > 0 ? '全部換成商品圖' : '全部重新找商品圖'}（{swapTarget.length}）
                 </>}
           </button>
+        )}
+
+        {photoTrouble && (
+          <p data-testid="shopping-photo-trouble" className="mb-3 text-[11px] font-bold text-amber-600">
+            {photoTrouble}
+          </p>
         )}
 
         {/* The categories this list actually has. */}

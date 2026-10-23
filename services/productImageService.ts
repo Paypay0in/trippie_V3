@@ -48,14 +48,44 @@ export const findProductImage = (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: product.name, brand: product.brand }),
   })
-    .then(async response => (response.ok ? await response.json() as Record<string, unknown> : {}))
+    .then(async response => {
+      /*
+        The allowance is not an answer about the product.
+
+        A 429 used to fall into the same empty object as 「nothing found」, so
+        an afternoon with no allowance left looked exactly like sixteen
+        products nobody sells a picture of — and the button said 「正在找商品
+        圖」 sixteen times and then stopped, explaining nothing.
+      */
+      if (response.status === 429) {
+        const refused = new Error('image search quota') as Error & { quota: true };
+        refused.quota = true;
+        throw refused;
+      }
+      return response.ok ? await response.json() as Record<string, unknown> : {};
+    })
     .then(payload => {
       const imageUrl = typeof payload.imageUrl === 'string' ? payload.imageUrl : '';
       // Nothing found is a real answer and the common one for a local snack.
       if (!imageUrl) return null;
       return { imageUrl, pageUrl: typeof payload.pageUrl === 'string' ? payload.pageUrl : '' };
     })
-    .catch(() => null)
+    /*
+      Only the refusal travels. A network fault or a shop that would not
+      answer is 「no picture」, which the row already knows how to show; the
+      allowance being spent is not about this product at all and has to
+      reach somebody who can act on it.
+
+      Neither is cached when it throws: 「額度用完了」 becomes false, and a
+      cached refusal would outlive the thing that caused it.
+    */
+    .catch(error => {
+      if ((error as { quota?: boolean })?.quota) {
+        pending.delete(key);
+        throw error;
+      }
+      return null;
+    })
     .then(found => { cache.set(key, found); pending.delete(key); return found; });
 
   pending.set(key, request);

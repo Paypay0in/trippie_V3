@@ -58,3 +58,36 @@ describe('sourceLabel', () => {
     expect(sourceLabel('not a url')).toBe('');
   });
 });
+
+/**
+ * The allowance is not an answer about the product.
+ *
+ * A 429 used to fall into the same empty object as 「nothing found」, so an
+ * afternoon with no allowance left looked exactly like sixteen products
+ * nobody sells a picture of.
+ */
+describe('when the picture search will not answer', () => {
+  it('passes the refusal to the caller', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })));
+
+    await expect(findProductImage({ name: 'x' })).rejects.toMatchObject({ quota: true });
+  });
+
+  /* And does not remember it: the allowance comes back. */
+  it('does not cache the refusal', async () => {
+    const call = vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) }));
+    vi.stubGlobal('fetch', call);
+    await findProductImage({ name: 'y' }).catch(() => undefined);
+
+    await findProductImage({ name: 'y' }).catch(() => undefined);
+
+    expect(call).toHaveBeenCalledTimes(2);
+  });
+
+  /* A shop that would not answer is still just 「no picture」. */
+  it('keeps an ordinary failure quiet', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502, json: async () => ({}) })));
+
+    expect(await findProductImage({ name: 'z' })).toBeNull();
+  });
+});

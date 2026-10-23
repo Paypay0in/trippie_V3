@@ -2182,6 +2182,16 @@ ${sentence}
       Defaulted to 日本 against 台灣 only when the client sent neither, so a
       build that has not been updated yet keeps answering the way it did.
     */
+    /*
+      Whether somebody asked for this, or a list merely opened.
+
+      Opening a list is sixteen rows at once and happens all day; pressing
+      重新查價 is one row and happens when the answer looked wrong. Only the
+      second may spend the extra searches, and only the second may ignore a
+      cached answer.
+    */
+    const harder = req.body?.refresh === true;
+
     const destination = comparisonCountry(req.body?.destinationCountry) ?? comparisonCountry("JP");
     const home = comparisonCountry(req.body?.homeCountry) ?? comparisonCountry("TW");
     const inPlay = destination && home && destination.code !== home.code
@@ -2201,7 +2211,7 @@ ${sentence}
     const READER = "v5-why";
     const cacheKey = `${READER}|${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}`.toLocaleLowerCase();
     const cached = priceCache.get(cacheKey);
-    if (cached && Date.now() - cached.at < PRICE_CACHE_MS) {
+    if (!harder && cached && Date.now() - cached.at < PRICE_CACHE_MS) {
       res.json(cached.body);
       return;
     }
@@ -2240,7 +2250,7 @@ ${sentence}
         for (const country of inPlay) {
           try {
             perCountry.push(await searchCandidates({
-              name, brand, country, inPlay, apiKey: search.apiKey,
+              name, brand, country, inPlay, apiKey: search.apiKey, harder,
             }));
           } catch (error) {
             const status = (error as { status?: number })?.status;
@@ -2595,11 +2605,24 @@ ${brand ? `品牌：${brand}` : ""}
         res.json(found ?? { imageUrl: "", pageUrl: "" });
         return;
       } catch (error) {
-        console.error("Image search failed:", error);
-        res.status(isSearchQuotaError(error) ? 429 : 502).json({
-          error: isSearchQuotaError(error)
-            ? "圖片搜尋的額度用完了。"
+        /*
+          The allowance, said as the allowance.
+
+          `isSearchQuotaError` was written for the model's quota and knows
+          nothing about the image search's: Brave answers 402 when the
+          month is spent and 429 when it means 「not this second」, and both
+          were landing on 「現在找不到商品圖片」 — a sentence about the product,
+          for a problem that has nothing to do with it. The whole list lost
+          its pictures this afternoon and the screen blamed the products.
+        */
+        const status = (error as { status?: number })?.status;
+        const spent = status === 402 || status === 429 || isSearchQuotaError(error);
+        console.error("Image search failed:", status ?? error);
+        res.status(spent ? 429 : 502).json({
+          error: spent
+            ? "圖片搜尋的額度用完了，稍後再找。"
             : "現在找不到商品圖片。",
+          ...(status !== undefined ? { searchStatus: status } : {}),
         });
         return;
       }

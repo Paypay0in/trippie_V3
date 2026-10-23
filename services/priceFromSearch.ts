@@ -470,6 +470,8 @@ export const searchCandidates = async (input: {
   country: ComparisonCountry;
   inPlay: ComparisonCountry[];
   apiKey: string;
+  /** Try every way of asking, not just the first. 「重新查價」 sets this. */
+  harder?: boolean;
   fetchImpl?: typeof fetch;
 }): Promise<SearchCandidate[]> => {
   const call = input.fetchImpl ?? fetch;
@@ -497,7 +499,20 @@ export const searchCandidates = async (input: {
     「ロキソプロフェンEX Naテープ」 needs the second, and the fifteen products
     that found something on the first must not pay for it.
   */
-  for (const query of priceQueries(input.name, input.brand, input.country)) {
+  const ways = priceQueries(input.name, input.brand, input.country);
+  /*
+    One way of asking, unless somebody pressed 重新查價.
+
+    The ladder was written to rescue the two products out of sixteen whose
+    names a shop would never write — and it ran for all sixteen, on every
+    open, in both countries. Three ways × two countries × sixteen rows is
+    ninety-six searches for one glance at a list, which is how a month's
+    allowance went in a day.
+
+    Opening the list asks once. Asking harder is a thing somebody chooses,
+    for the one row they care about.
+  */
+  for (const query of input.harder ? ways : ways.slice(0, 1)) {
     const found = await ask(query);
     if (found.length > 0) return found;
   }
