@@ -20,6 +20,8 @@
  * shows what it showed before.
  */
 
+import { plausiblePrice } from './plausiblePrice';
+
 export interface PagePrice {
   amount: number;
   currency: string;
@@ -320,10 +322,16 @@ export const offersFromText = (html: string, currency: string): PageOffer[] => {
     }
   }
 
-  if (found.length === 0) return [];
+  /*
+    And a last check that it is a price at all. 「蒸氣眼罩 ¥13」 was a number
+    with a currency mark beside a price label, which is exactly what a price
+    looks like, and 13 is not what a box of eye masks costs.
+  */
+  const real = found.filter(amount => plausiblePrice(amount, currency));
+  if (real.length === 0) return [];
   // The lowest, for the same reason an AggregateOffer's low price is taken:
   // the high one is the gift set.
-  return [{ name, amount: Math.min(...found), currency, fromText: true }];
+  return [{ name, amount: Math.min(...real), currency, fromText: true }];
 };
 
 /** The cheapest thing the page offers, for callers with nothing to match on. */

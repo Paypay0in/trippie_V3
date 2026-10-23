@@ -27,6 +27,7 @@ import { ComparisonCountry, hostCountry, hostIsClaimed } from './comparisonCount
 import { productQuery } from './productIdentity';
 import { looksEditorial, looksSecondHand } from './merchantPages';
 import { languageOf, localisedName } from './productNouns';
+import { PLAUSIBLE } from './plausiblePrice';
 
 export interface Money {
   amount: number;
@@ -217,10 +218,6 @@ export const looksLikeAProductPage = (url: string): boolean => {
 };
 
 /** What a thing on a shopping list could plausibly cost, per currency. */
-const PLAUSIBLE: Record<string, { min: number; max: number }> = {
-  TWD: { min: 10, max: 100_000 },
-  JPY: { min: 50, max: 500_000 },
-};
 
 /**
  * Money inside a snippet, with the currency it was written in.

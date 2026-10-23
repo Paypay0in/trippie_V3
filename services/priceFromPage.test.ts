@@ -295,3 +295,13 @@ describe('written only where nothing was published', () => {
     expect((await readPage('https://shop/1', page('<p>販売価格 3,080円</p>'))).offers).toEqual([]);
   });
 });
+
+/* 「蒸氣眼罩 ¥13」 — a currency mark beside a price label, and not a price. */
+describe('a figure that is not a price at all', () => {
+  it('refuses an amount nothing on a shopping list costs', () => {
+    expect(offersFromText('<p>価格 13円</p>', 'JPY')).toEqual([]);
+    expect(offersFromText('<p>価格 980,000円</p>', 'JPY')).toEqual([]);
+    expect(offersFromText('<p>售價 NT$3</p>', 'TWD')).toEqual([]);
+    expect(offersFromText('<p>価格 660円</p>', 'JPY')[0].amount).toBe(660);
+  });
+})
