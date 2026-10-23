@@ -185,7 +185,14 @@ const HAN = /[\u4e00-\u9fff]/;
 const AGGREGATOR = /biggo|findprice|feebee|ecshopping|pricearea|kakaku\.com|coneco|价格网|pricespy|idealo|shopping\.yahoo\.co\.jp\/search/i;
 
 /** Paths that list things rather than being one. */
-const LISTING = /\/(s|search|category|categories|brands?|list|goodsList|tag)(\/|\.|$)|default\.aspx|\/shop\/?$/i;
+/*
+  `store` and `shop` are deliberately absent as path segments. pchome's
+  `/store/DDAD2O` is a storefront and matsukiyo's `/store/p/1` is a product,
+  and no rule about the path tells them apart. A storefront that gets through
+  is caught where it does damage instead — by its own title, in the page
+  reader.
+*/
+const LISTING = /\/(s|search|category|categories|brands?|list|goodsList|tag|tagCategory|collections?)(\/|\.|$)|default\.aspx|\/shop\/?$|\/c\/c\d|\/our-products\//i;
 
 /** A page that is about one product, as far as its URL can say. */
 export const looksLikeAProductPage = (url: string): boolean => {
@@ -211,6 +218,12 @@ export const looksLikeAProductPage = (url: string): boolean => {
     // `?cid=` is a campaign landing page: one banner, many products, one of
     // their prices in the snippet. 青春露 came back ¥2,000 off one.
     if (parsed.searchParams.has('cid')) return false;
+    /*
+      A brand or category filter is a listing wearing a product page's path.
+      `shop.tsuruha.co.jp/9564.html?maker=…` and
+      `cosme.com/anessa/?category_id=220` both priced whatever was first.
+    */
+    if (parsed.searchParams.has('maker') || parsed.searchParams.has('category_id')) return false;
     return true;
   } catch {
     return false;

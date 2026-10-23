@@ -20,6 +20,7 @@
  * shows what it showed before.
  */
 
+import { looksLikeAListingTitle } from './merchantPages';
 import { plausiblePrice } from './plausiblePrice';
 
 export interface PagePrice {
@@ -284,6 +285,13 @@ export const offersFromText = (html: string, currency: string): PageOffer[] => {
   if (!MONEY[currency]) return [];
   const page = stripCode(html);
   const name = titleOf(html);
+  /*
+    A listing says so in its own title, and the written price on one is the
+    cheapest thing it happens to be showing. 「よりどり割(並び順：価格(安い順))」
+    gave ¥666 for a box of eye masks priced ¥1,620 — the comparison-site
+    defect arriving through the door this reader just opened.
+  */
+  if (looksLikeAListingTitle(name)) return [];
   const found: number[] = [];
 
   /*

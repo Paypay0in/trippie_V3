@@ -603,3 +603,40 @@ describe('what the provider answers when it will not', () => {
     await expect(refusing(500)).rejects.toMatchObject({ status: 500 });
   });
 });
+
+/**
+ * Listings that reached the page reader and were priced.
+ *
+ * Seen on 2026-10-23 with the diagnostic: of twenty candidate pages across
+ * four products, more than half were brand indexes, tag pages and store
+ * fronts. They cost a slot a real product page could have had, and three of
+ * them produced a figure.
+ */
+describe('listings wearing a product page’s clothes', () => {
+  it('refuses the shapes the diagnostic found', () => {
+    expect(looksLikeAProductPage('https://shop.cosmed.com.tw/tagCategory/%E5%AE%89%E8%80%90%E6%9B%AC')).toBe(false);
+    expect(looksLikeAProductPage('https://cosme-masadaya.com/collections/anessa')).toBe(false);
+    expect(looksLikeAProductPage('https://iyec.itoyokado.co.jp/shop/sk2/c/c30201/')).toBe(false);
+    expect(looksLikeAProductPage('https://www.sk-ii.jp/our-products/all')).toBe(false);
+    expect(looksLikeAProductPage('https://shop.tsuruha.co.jp/9564.html?maker=4901301')).toBe(false);
+    expect(looksLikeAProductPage('https://www.cosme.com/anessa/?category_id=220')).toBe(false);
+  });
+
+  /*
+    A storefront the path cannot distinguish from a product page is let
+    through here and refused where it does damage — pchome's `/store/DDAD2O`
+    and matsukiyo's `/store/p/1` are the same shape.
+  */
+  it('cannot tell a storefront from a product by its path, and says so', () => {
+    expect(looksLikeAProductPage('https://24h.pchome.com.tw/store/DDAD2O')).toBe(true);
+    expect(looksLikeAProductPage('https://www.matsukiyo.co.jp/store/p/1')).toBe(true);
+  });
+
+  /* And still takes the real ones the same diagnostic found beside them. */
+  it('keeps the product pages', () => {
+    expect(looksLikeAProductPage('https://online.skm.com.tw/product/V110000107440982')).toBe(true);
+    expect(looksLikeAProductPage('https://store.shopping.yahoo.co.jp/soukai/4987241156337.html')).toBe(true);
+    expect(looksLikeAProductPage('https://shop.cosmed.com.tw/SalePage/Index/4863453')).toBe(true);
+    expect(looksLikeAProductPage('https://www.momoshop.com.tw/goods/GoodsDetail.jsp?i_code=10362698')).toBe(true);
+  });
+});

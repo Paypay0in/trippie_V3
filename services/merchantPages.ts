@@ -90,3 +90,19 @@ export const looksSecondHand = (url: string): boolean => {
     return false;
   }
 };
+
+/**
+ * A page that lists things, said in the page's own words.
+ *
+ * The URL rules catch most of them and a shop can always invent a new shape.
+ * What a listing cannot hide is its title: 「メーカー別-サ行-資生堂-アネッサ -
+ * 1ページ目」, 「よりどり割(並び順：価格(安い順))」. Both were read as prices —
+ * ¥1,496 and ¥666 — and the second was the cheapest item on a page sorted by
+ * cheapest, which is the comparison-site defect arriving through a new door.
+ *
+ * Every phrase here was taken off a page that produced a wrong figure.
+ */
+const LISTING_TITLE = /(?:\dページ目|並び順|よりどり|検索結果|商品一覧|一覧|メーカー別|カテゴリ|ランキング|品牌專區|全部商品|搜尋結果|商品列表|分類|系列商品|collections?|category|search results)/i;
+
+export const looksLikeAListingTitle = (name: string): boolean =>
+  LISTING_TITLE.test((name || '').normalize('NFKC'));

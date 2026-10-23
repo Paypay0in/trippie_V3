@@ -7,7 +7,7 @@
  * to something else mentioned in it.
  */
 import { describe, expect, it } from 'vitest';
-import { looksEditorial, looksSecondHand } from './merchantPages';
+import { looksEditorial, looksLikeAListingTitle, looksSecondHand } from './merchantPages';
 
 describe('writing about a thing, or selling it', () => {
   it('knows the article the Founder clicked', () => {
@@ -74,5 +74,29 @@ describe('a flea market is not a shop', () => {
   it('survives something that is not a url', () => {
     expect(looksSecondHand('not a url')).toBe(false);
     expect(looksSecondHand('')).toBe(false);
+  });
+});
+
+/**
+ * A listing says so in its own title.
+ *
+ * Both of these were read as prices once the page reader started reading what
+ * a page writes for people: ¥1,496 off 「メーカー別-サ行-資生堂-アネッサ -
+ * 1ページ目」, and ¥666 off 「よりどり割(並び順：価格(安い順))」 for a box of eye
+ * masks that costs ¥1,620 — the cheapest thing on a page sorted by cheapest,
+ * which is the comparison-site defect arriving through a new door.
+ */
+describe('a page that lists things says so', () => {
+  it('recognises the titles that produced wrong figures', () => {
+    expect(looksLikeAListingTitle('メーカー別-サ行-資生堂-アネッサ - 1ページ目')).toBe(true);
+    expect(looksLikeAListingTitle('「花王 めぐりズム 蒸気でホットアイマスク」よりどり割(並び順：価格(安い順))')).toBe(true);
+    expect(looksLikeAListingTitle('曼秀雷敦 商品一覧')).toBe(true);
+    expect(looksLikeAListingTitle('ANESSA 搜尋結果')).toBe(true);
+  });
+
+  it('leaves an actual product title alone', () => {
+    expect(looksLikeAListingTitle('メンソレータム メルティクリームリップ 無香料 ( 2.4g )')).toBe(false);
+    expect(looksLikeAListingTitle('SK-II 青春露 230ml')).toBe(false);
+    expect(looksLikeAListingTitle('')).toBe(false);
   });
 });
