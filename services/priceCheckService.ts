@@ -156,7 +156,7 @@ export interface PriceCheck {
  * product. It costs one round of searches and buys never having to tell
  * somebody their screen is stale.
  */
-const READING = 'v5-listings';
+const READING = 'v6-search-pages';
 export const PRICE_CACHE_KEY = `trippie_price_cache:${READING}`;
 const CACHE_KEY = PRICE_CACHE_KEY;
 const CACHE_MS = 3 * 24 * 60 * 60 * 1000;

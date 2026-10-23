@@ -58,7 +58,13 @@ export const languageOf = (countryCode: string): NounLanguage => {
 export const PRODUCT_NOUNS: ProductNoun[] = [
   // 臉部保養
   { id: 'face-mask', zh: ['面膜'], ja: ['フェイスマスク', 'シートマスク', 'パック'], ko: ['마스크팩'], en: ['face mask', 'sheet mask'] },
-  { id: 'cleansing-sheet', zh: ['卸妝濕巾', '卸妝棉片'], ja: ['クレンジングシート', 'メイク落としシート'], ko: ['클렌징 티슈'], en: ['cleansing sheet'] },
+  /*
+    Spellings, not synonyms-in-principle. 無印's own Taiwanese shop writes
+    「攜帶用卸妝巾(大容量)/30張」 and the row says 卸妝濕巾, so the match scored
+    zero against the one shop certain to be selling it. A noun the traveller
+    and the shop write differently is the whole reason this table exists.
+  */
+  { id: 'cleansing-sheet', zh: ['卸妝濕巾', '卸妝巾', '卸妝棉片', '卸妝紙巾'], ja: ['クレンジングシート', 'メイク落としシート', 'クレンジングティッシュ'], ko: ['클렌징 티슈'], en: ['cleansing sheet', 'makeup wipes'] },
   { id: 'cleansing-oil', zh: ['卸妝油'], ja: ['クレンジングオイル'], ko: ['클렌징 오일'], en: ['cleansing oil'] },
   { id: 'cleansing-water', zh: ['卸妝水'], ja: ['クレンジングウォーター'], en: ['micellar water'] },
   { id: 'face-wash', zh: ['洗面乳', '洗顏乳', '洗面皂'], ja: ['洗顔フォーム', '洗顔料'], ko: ['클렌징 폼'], en: ['face wash'] },

@@ -192,7 +192,7 @@ const AGGREGATOR = /biggo|findprice|feebee|ecshopping|pricearea|kakaku\.com|cone
   is caught where it does damage instead — by its own title, in the page
   reader.
 */
-const LISTING = /\/(s|search|category|categories|brands?|list|goodsList|tag|tagCategory|collections?)(\/|\.|$)|default\.aspx|\/shop\/?$|\/c\/c\d|\/our-products\//i;
+const LISTING = /\/(s|[^/]*search[^/]*|category|categories|brands?|list|goodsList|tag|tagCategory|collections?)(\/|\.|$)|default\.aspx|\/shop\/?$|\/c\/c\d|\/our-products\//i;
 
 /** A page that is about one product, as far as its URL can say. */
 export const looksLikeAProductPage = (url: string): boolean => {
@@ -214,7 +214,17 @@ export const looksLikeAProductPage = (url: string): boolean => {
     if (LISTING.test(parsed.pathname)) return false;
     // A front page prices nothing, and a search query is somebody else's list.
     if (parsed.pathname.replace(/\/+$/, '') === '') return false;
-    if (parsed.searchParams.has('q') || parsed.searchParams.has('keyword')) return false;
+    /*
+      Any parameter that is a search term, whatever the shop decided to call
+      it. 「卸妝濕巾」 was quoted ¥100 off
+      `askul.co.jp/ksearch/?searchWord=メイク落としシート` — a search results
+      page, where the real answer (¥390) was sitting two rows away from
+      whatever number got read. Naming the parameters one at a time loses to
+      the next shop that invents one.
+    */
+    if ([...parsed.searchParams.keys()].some(key => /search|query|keyword|word|^kw$|^q$/i.test(key))) {
+      return false;
+    }
     // `?cid=` is a campaign landing page: one banner, many products, one of
     // their prices in the snippet. 青春露 came back ¥2,000 off one.
     if (parsed.searchParams.has('cid')) return false;

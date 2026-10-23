@@ -640,3 +640,23 @@ describe('listings wearing a product page’s clothes', () => {
     expect(looksLikeAProductPage('https://www.momoshop.com.tw/goods/GoodsDetail.jsp?i_code=10362698')).toBe(true);
   });
 });
+
+/**
+ * 「卸妝濕巾」 was quoted ¥100 off askul's search results page while the real
+ * answer, ¥390, sat two rows away on the same screen. The shop called its
+ * parameter `searchWord` and its path `/ksearch/`, and both rules named
+ * their shapes one at a time.
+ */
+describe('a search results page, whatever it calls itself', () => {
+  it('refuses a search however the shop spells it', () => {
+    expect(looksLikeAProductPage('https://www.askul.co.jp/ksearch/?searchWord=%E3%83%A1')).toBe(false);
+    expect(looksLikeAProductPage('https://shop.example.com/p/1?keyword=muji')).toBe(false);
+    expect(looksLikeAProductPage('https://shop.example.com/p/1?searchTerm=muji')).toBe(false);
+    expect(looksLikeAProductPage('https://shop.example.com/quicksearch/muji')).toBe(false);
+  });
+
+  it('leaves the parameters a product page actually uses', () => {
+    expect(looksLikeAProductPage('https://www.momoshop.com.tw/goods/GoodsDetail.jsp?i_code=10362698')).toBe(true);
+    expect(looksLikeAProductPage('https://www.anadf.com/tw/itemdetail.aspx?s_cd=4010201885')).toBe(true);
+  });
+});

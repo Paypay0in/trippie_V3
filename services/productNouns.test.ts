@@ -107,3 +107,14 @@ describe('the table itself', () => {
     }
   });
 });
+
+/*
+  無印's own Taiwanese shop writes 「攜帶用卸妝巾(大容量)/30張」, and the row says
+  卸妝濕巾 — so the one shop certain to be selling it scored zero.
+*/
+describe('the spellings a shop actually uses', () => {
+  it('knows 卸妝巾 is 卸妝濕巾', () => {
+    expect(splitNouns('攜帶用卸妝巾(大容量)/30張').concepts).toEqual(['cleansing-sheet']);
+    expect(splitNouns('無印良品 メイク落としシート').concepts).toEqual(['cleansing-sheet']);
+  });
+});
