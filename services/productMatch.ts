@@ -71,6 +71,45 @@ export const sizesIn = (text: string): string[] => {
 };
 
 /**
+ * How many of the thing one listing sells at once.
+ *
+ * 「這個到底為何會給三個的價格」. 爽快ドラッグ publishes
+ * 「エイトフォー ロールオン せっけん ( 45ml*3個セット )」 at ¥2,293, which is its
+ * own product page for a three-pack. The page is right, its structured data
+ * is right, and ¥2,293 printed beside 台灣's single bottle is three times the
+ * answer to the question being asked. 2,293 ÷ 3 is 764 — the single-bottle
+ * price Yahoo draws in a variant picker that no structured data contains.
+ *
+ * Only a word that says 「several of these together」: セット, 組, pack of.
+ * Not 「入り」 or 「枚」 on their own — 「12枚」 of cleansing sheets is one box of
+ * wipes and not twelve of anything, and reading that as a multipack would
+ * divide the price of half the drugstore.
+ *
+ * Null for one, because a 「1セット」 is simply the product. The caller shows
+ * the number rather than dividing by it: a multipack is usually discounted,
+ * so a divided figure is a price the shop does not offer.
+ */
+const PACK = [
+  // 45ml*3個セット, 3本セット, 3点セット, 3セット
+  /(\d+)\s*(?:個|本|枚|点|コ|袋|箱|缶)?\s*セット/i,
+  // 3入組, 3件組, 3瓶組
+  /(\d+)\s*(?:入|件|瓶|支|盒|罐)組/,
+  // pack of 3, 3-pack
+  /pack\s*of\s*(\d+)/i,
+  /(\d+)\s*-?\s?pack(?![a-z])/i,
+];
+
+export const packSizeIn = (text: string): number | null => {
+  const flat = normalise(text);
+  for (const pattern of PACK) {
+    const found = flat.match(pattern);
+    const count = found ? Number(found[1]) : NaN;
+    if (Number.isFinite(count) && count > 1) return count;
+  }
+  return null;
+};
+
+/**
  * How much of the shorter name the two have in common, 0 to 1.
  *
  * Before anything is counted, the category nouns both names contain are taken

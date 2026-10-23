@@ -5,7 +5,7 @@
  * with what that page actually calls its product.
  */
 import { describe, expect, it } from 'vitest';
-import { matchProduct, sizesIn } from './productMatch';
+import { matchProduct, packSizeIn, sizesIn } from './productMatch';
 
 describe('the two that were quoted wrongly', () => {
   /*
@@ -128,5 +128,34 @@ describe('what counts as the same name', () => {
 
   it('says nothing is a match when the page names nothing', () => {
     expect(matchProduct({ name: '卸妝濕巾' }, '   ').confidence).toBe('none');
+  });
+});
+
+/**
+ * 「這個到底為何會給三個的價格」 — 爽快ドラッグ publishes 「45ml*3個セット」 at
+ * ¥2,293, which is a true price for three bottles and three times the answer
+ * to what the list is asking.
+ */
+describe('how many the listing sells at once', () => {
+  it('reads a multipack the shop names', () => {
+    expect(packSizeIn('エイトフォー ロールオン せっけん ( 45ml*3個セット )')).toBe(3);
+    expect(packSizeIn('めぐりズム 2箱セット')).toBe(2);
+    expect(packSizeIn('花王 ビオレ 3本セット')).toBe(3);
+    expect(packSizeIn('資生堂 洗面乳 3入組')).toBe(3);
+    expect(packSizeIn('DHC Lip Cream pack of 5')).toBe(5);
+    expect(packSizeIn('DHC Lip Cream 5-pack')).toBe(5);
+  });
+
+  /*
+    「12枚」 of cleansing sheets is one box of wipes and not twelve of
+    anything. Reading that as a multipack would divide the price of half the
+    drugstore.
+  */
+  it('is not fooled by the count inside a single product', () => {
+    expect(packSizeIn('無印良品 クレンジングシート 12枚')).toBeNull();
+    expect(packSizeIn('Muji 卸妝濕巾 12片裝')).toBeNull();
+    expect(packSizeIn('8x4 SARASARA SWITCH ロールオン 45ml')).toBeNull();
+    expect(packSizeIn('めぐりズム ホットアイマスク 1セット')).toBeNull();
+    expect(packSizeIn('')).toBeNull();
   });
 });

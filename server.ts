@@ -3,7 +3,7 @@ import express from "express";
 import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
 import { searchCandidates, SearchCandidate, SearchedQuote } from "./services/priceFromSearch";
 import { readPage } from "./services/priceFromPage";
-import { matchProduct } from "./services/productMatch";
+import { matchProduct, packSizeIn } from "./services/productMatch";
 import { comparisonCountry } from "./services/comparisonCountries";
 import { readFileSync } from "node:fs";
 import { createServer } from "http";
@@ -2371,6 +2371,15 @@ ${sentence}
                 verified: true,
                 match: best.match.confidence === "exact" ? "exact" as const : "probable" as const,
                 matchReason: best.match.reason,
+                /*
+                  Read off the listing's own name, not the row's: the shop is
+                  the one saying 「45ml*3個セット」. Absent when it sells one,
+                  which is almost always.
+                */
+                ...(() => {
+                  const pack = packSizeIn([best.offer.productName, best.offer.name].filter(Boolean).join(" "));
+                  return pack ? { packSize: pack } : {};
+                })(),
                 placement: candidate.country ? "host" : "mark",
               });
               return;

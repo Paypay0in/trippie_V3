@@ -61,6 +61,16 @@ export interface PriceQuote {
   match?: 'exact' | 'probable';
   /** Why, in words. Shown beside a probable match. */
   matchReason?: string;
+  /**
+   * How many the listing sells at once, when it sells more than one.
+   *
+   * 「這個到底為何會給三個的價格」 — 爽快ドラッグ's ¥2,293 is 「45ml*3個セット」,
+   * which is a true price for three bottles printed beside 台灣's price for
+   * one. Carried rather than divided: a multipack is usually discounted, so
+   * a divided figure is a price the shop does not offer. The screen says
+   * 「3入組」 and the traveller does the rest.
+   */
+  packSize?: number;
 }
 
 /** Why a country has no price, when it has none. */

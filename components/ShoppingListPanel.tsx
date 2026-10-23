@@ -1047,6 +1047,24 @@ const ShoppingListPanel: React.FC<Props> = ({
                                           {quote.shop}
                                         </a>
                                         <span className="ml-1.5 font-black text-[#11183d]">{quoteLabel(quote)}</span>
+                                        {/*
+                                          「這個到底為何會給三個的價格」 —
+                                          爽快ドラッグ's ¥2,293 is 45ml*3個セット,
+                                          a true price for three bottles that
+                                          read as the price of one beside
+                                          台灣's. Said rather than divided: a
+                                          multipack is usually discounted, so
+                                          the divided figure is a price the
+                                          shop does not sell at.
+                                        */}
+                                        {quote.packSize && (
+                                          <span
+                                            data-testid={`shopping-pack-${item.id}`}
+                                            className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-black text-slate-500"
+                                          >
+                                            {quote.packSize}入組
+                                          </span>
+                                        )}
                                         {/* 「那要直接換算：約台幣xxxx」 */}
                                         {home && approxHomeLabel(quote, home.moneyName) && (
                                           <span data-testid={`shopping-approx-${item.id}`} className="ml-1 text-slate-400">
