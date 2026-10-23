@@ -215,6 +215,20 @@ export const localisedName = (name: string, language: NounLanguage): string | nu
     const preferred = noun?.[language]?.[0];
     if (!noun || !preferred) continue;
 
+    /*
+      A name already written in the destination's language is left exactly as
+      it is, even where the table lists another spelling first.
+
+      This was a real regression and a plain one. 「潤唇精華油」 is listed under
+      `lip-oil` beside 「唇油」, and asking for the Chinese of a Chinese name
+      rewrote the row's own words into the table's shorter ones — 台灣's query
+      became 「SHIRO 唇油」 and stopped finding the product it had been finding
+      for days. Translating is for crossing a language. Within one, the
+      traveller's own words are better than ours: they came off the package.
+    */
+    const inTarget = (noun[language] ?? []).filter(spelling => spelling.length >= 2);
+    if (inTarget.some(spelling => written.toLowerCase().includes(spelling.toLowerCase()))) continue;
+
     // The spelling actually present, longest first for the same reason as above.
     const present = LANGUAGES
       .flatMap(other => noun[other] ?? [])

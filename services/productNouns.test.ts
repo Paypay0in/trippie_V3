@@ -61,6 +61,22 @@ describe('writing a name the way the destination writes it', () => {
     and 「this is the Japanese for it」 is worth one where 「I had nothing to
     offer」 is not.
   */
+  /*
+    A regression, found by the Founder the morning after this shipped.
+    「潤唇精華油」 is listed under lip-oil beside 「唇油」, and asking for the
+    Chinese of a Chinese name rewrote his own words into the table's shorter
+    ones — 台灣's query became 「SHIRO 唇油」 and stopped finding a product it
+    had been finding for days.
+  */
+  it('leaves a name already in that language alone', () => {
+    expect(localisedName('潤唇精華油', 'zh')).toBeNull();
+    expect(localisedName('SHIRO 潤唇精華油 柚子香', 'zh')).toBeNull();
+    expect(localisedName('無印良品 クレンジングシート 12枚', 'ja')).toBeNull();
+    expect(localisedName('Muji 卸妝濕巾', 'zh')).toBeNull();
+    // 跨語言還是照翻。
+    expect(localisedName('潤唇精華油', 'ja')).toBe('リップオイル');
+  });
+
   it('says null when it has nothing to offer', () => {
     expect(localisedName('SK-II 青春露', 'ja')).toBeNull();
     expect(localisedName('化粧水', 'ja')).toBeNull();
