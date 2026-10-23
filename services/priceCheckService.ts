@@ -101,11 +101,93 @@ export interface PriceCheck {
   error?: string;
 }
 
+/**
+ * What was already looked up, kept on the device.
+ *
+ * It used to live for the page, which meant every reopen of the list asked
+ * again for sixteen products in two countries — and every deploy of the
+ * server wiped its cache too, so a day of releases cost a day of lookups.
+ * At $5 per thousand searches that is a real number, and none of it bought
+ * an answer anybody did not already have.
+ *
+ * Three days, because a shop's price is not a fact about this afternoon.
+ * Each row still carries 「{date} 查到的價格，僅供參考」, and 重新查價 is the
+ * one thing that ignores all of this — which is what that button is for.
+ *
+ * Per device rather than per trip: the server has no database connection at
+ * all, and giving it one means a service key, a table and a migration for a
+ * cache. This buys most of the same saving for none of that.
+ */
+const CACHE_KEY = 'trippie_price_cache';
+const CACHE_MS = 3 * 24 * 60 * 60 * 1000;
+/** Enough for several trips' lists; beyond that the oldest go. */
+const CACHE_MAX = 300;
+
+interface StoredCheck { at: number; value: PriceCheck }
+
 const cache = new Map<string, PriceCheck>();
 const pending = new Map<string, Promise<PriceCheck>>();
+const storedAt = new Map<string, number>();
 
-/** For tests: the cache lives for the page, which is longer than one case. */
-export const clearPriceCheckCache = () => { cache.clear(); pending.clear(); };
+const readStore = (): Record<string, StoredCheck> => {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) as Record<string, StoredCheck> : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeStore = (store: Record<string, StoredCheck>) => {
+  try {
+    const live = Object.entries(store)
+      .filter(([, held]) => Date.now() - held.at < CACHE_MS)
+      .sort(([, left], [, right]) => right.at - left.at)
+      .slice(0, CACHE_MAX);
+    localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(live)));
+  } catch {
+    /* A full device keeps working; it simply looks things up again. */
+  }
+};
+
+/** Everything still fresh, read once when the module loads. */
+const hydrate = () => {
+  if (typeof localStorage === 'undefined') return;
+  Object.entries(readStore()).forEach(([key, held]) => {
+    if (!held || typeof held.at !== 'number') return;
+    if (Date.now() - held.at >= CACHE_MS) return;
+    if (!held.value || !Array.isArray(held.value.quotes)) return;
+    cache.set(key, held.value);
+    storedAt.set(key, held.at);
+  });
+};
+hydrate();
+
+const remember = (key: string, value: PriceCheck) => {
+  const at = Date.now();
+  cache.set(key, value);
+  storedAt.set(key, at);
+  if (typeof localStorage === 'undefined') return;
+  writeStore({ ...readStore(), [key]: { at, value } });
+};
+
+const forget = (key: string) => {
+  cache.delete(key);
+  storedAt.delete(key);
+  if (typeof localStorage === 'undefined') return;
+  const store = readStore();
+  delete store[key];
+  writeStore(store);
+};
+
+/** For tests, and for 清除快取: the device forgets everything it looked up. */
+export const clearPriceCheckCache = () => {
+  cache.clear();
+  pending.clear();
+  storedAt.clear();
+  try { localStorage.removeItem(CACHE_KEY); } catch { /* nothing to clear */ }
+};
 
 const EMPTY: PriceCheck = { quotes: [], readAt: '' };
 
@@ -132,7 +214,7 @@ export const checkPrices = (product: {
   */
   const key = [product.name, product.brand ?? '', product.destinationCountry ?? '', product.homeCountry ?? '']
     .join('|').toLocaleLowerCase();
-  if (product.refresh) { cache.delete(key); pending.delete(key); }
+  if (product.refresh) { forget(key); pending.delete(key); }
   const cached = cache.get(key);
   if (cached !== undefined) return Promise.resolve(cached);
   const existing = pending.get(key);
@@ -173,7 +255,7 @@ export const checkPrices = (product: {
       A failure is not cached. 「今天用完了」 becomes false tomorrow, and a
       cached refusal would outlive the thing that caused it.
     */
-    .then(result => { if (!result.error) cache.set(key, result); pending.delete(key); return result; });
+    .then(result => { if (!result.error) remember(key, result); pending.delete(key); return result; });
 
   pending.set(key, request);
   return request;
