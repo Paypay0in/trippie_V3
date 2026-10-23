@@ -57,11 +57,6 @@ describe('writing a name the way the destination writes it', () => {
   });
 
   /*
-    `null`, not the name unchanged. The caller spends a search on the answer,
-    and 「this is the Japanese for it」 is worth one where 「I had nothing to
-    offer」 is not.
-  */
-  /*
     A regression, found by the Founder the morning after this shipped.
     「潤唇精華油」 is listed under lip-oil beside 「唇油」, and asking for the
     Chinese of a Chinese name rewrote his own words into the table's shorter
@@ -77,6 +72,11 @@ describe('writing a name the way the destination writes it', () => {
     expect(localisedName('潤唇精華油', 'ja')).toBe('リップオイル');
   });
 
+  /*
+    `null`, not the name unchanged. The caller spends a search on the answer,
+    and 「this is the Japanese for it」 is worth one where 「I had nothing to
+    offer」 is not.
+  */
   it('says null when it has nothing to offer', () => {
     expect(localisedName('SK-II 青春露', 'ja')).toBeNull();
     expect(localisedName('化粧水', 'ja')).toBeNull();

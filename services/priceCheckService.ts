@@ -128,7 +128,27 @@ export interface PriceCheck {
  * all, and giving it one means a service key, a table and a migration for a
  * cache. This buys most of the same saving for none of that.
  */
-const CACHE_KEY = 'trippie_price_cache';
+/**
+ * 「你是不是要清快取」. Yes — and not by hand, every time.
+ *
+ * Within two hours of the cache shipping, four changes landed that alter what
+ * a price check answers: the destination's own word for the thing, the flea
+ * market refused, 「3入組」, and one of those three being wrong. Every device
+ * that had looked at the list was holding the old answers for three days and
+ * would go on showing them, with no sign that they predated the fix. A
+ * traveller cannot know to press 重新查價 for something they cannot see.
+ *
+ * So what was stored is stamped with the reading that produced it. A build
+ * that changes the reading leaves every earlier entry unreadable, and the
+ * next open asks again — once, and then the three days resume.
+ *
+ * Bump this whenever a change alters what a check returns for the same
+ * product. It costs one round of searches and buys never having to tell
+ * somebody their screen is stale.
+ */
+const READING = 'v2-noun-pack-used';
+export const PRICE_CACHE_KEY = `trippie_price_cache:${READING}`;
+const CACHE_KEY = PRICE_CACHE_KEY;
 const CACHE_MS = 3 * 24 * 60 * 60 * 1000;
 /** Enough for several trips' lists; beyond that the oldest go. */
 const CACHE_MAX = 300;
@@ -161,9 +181,31 @@ const writeStore = (store: Record<string, StoredCheck>) => {
   }
 };
 
+/**
+ * What earlier readings left behind.
+ *
+ * Stamping the key makes stale answers unreadable, which is the point, but
+ * unreadable is not gone: the old entries would sit in localStorage taking
+ * up a device's quota for a cache nothing will ever read again.
+ */
+const sweepOldReadings = () => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith('trippie_price_cache') && key !== CACHE_KEY) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    /* A device that will not let us tidy still works. */
+  }
+};
+
 /** Everything still fresh, read once when the module loads. */
 const hydrate = () => {
   if (typeof localStorage === 'undefined') return;
+  sweepOldReadings();
   Object.entries(readStore()).forEach(([key, held]) => {
     if (!held || typeof held.at !== 'number') return;
     if (Date.now() - held.at >= CACHE_MS) return;

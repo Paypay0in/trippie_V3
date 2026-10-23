@@ -8,7 +8,7 @@
  * identical on screen to a checked one.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkPrices, clearPriceCheckCache, quoteLabel, quotesIn } from './priceCheckService';
+import { checkPrices, clearPriceCheckCache, PRICE_CACHE_KEY, quoteLabel, quotesIn } from './priceCheckService';
 
 const quote = (over: Record<string, unknown> = {}) => ({
   countryCode: 'TW', shop: '屈臣氏', amount: 1200, currency: 'TWD',
@@ -123,7 +123,7 @@ describe('remembering between visits', () => {
     const calls = (globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
 
     /* A fresh page, with only the device's own store to go on. */
-    const stored = localStorage.getItem('trippie_price_cache');
+    const stored = localStorage.getItem(PRICE_CACHE_KEY);
     expect(stored).toBeTruthy();
     expect(JSON.parse(stored!)).toHaveProperty(
       'sk-ii 青春露||jp|tw'.replace('||', '||'),
@@ -151,7 +151,7 @@ describe('remembering between visits', () => {
 
     await checkPrices({ name: '雪肌精' });
 
-    expect(JSON.parse(localStorage.getItem('trippie_price_cache') ?? '{}')).not.toHaveProperty('雪肌精|||');
+    expect(JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) ?? '{}')).not.toHaveProperty('雪肌精|||');
   });
 
   /* A full device keeps working; it simply looks things up again. */
@@ -162,5 +162,36 @@ describe('remembering between visits', () => {
 
     expect((await checkPrices({ name: '東京芭娜娜' })).quotes).toHaveLength(1);
     setItem.mockRestore();
+  });
+});
+
+/**
+ * 「你是不是要清快取」.
+ *
+ * Within two hours of the cache shipping, four changes landed that alter what
+ * a check answers. Every device that had opened the list was holding the old
+ * answers for three days with no sign that they predated the fix — and a
+ * traveller cannot know to press 重新查價 for something they cannot see.
+ */
+describe('an answer from a reading that has been replaced', () => {
+  it('stamps what it stores with the reading that produced it', () => {
+    expect(PRICE_CACHE_KEY).toMatch(/^trippie_price_cache:/);
+  });
+
+  it('ignores and clears what an earlier reading left', async () => {
+    localStorage.setItem('trippie_price_cache', JSON.stringify({
+      'sk-ii 青春露||jp|tw': { at: Date.now(), value: { quotes: [], readAt: 'yesterday' } },
+    }));
+
+    /* A fresh page load: the sweep runs when the module is first evaluated. */
+    vi.resetModules();
+    const { checkPrices: fresh, PRICE_CACHE_KEY: key } =
+      await import('./priceCheckService');
+
+    expect(localStorage.getItem('trippie_price_cache')).toBeNull();
+    expect(key).toMatch(/^trippie_price_cache:/);
+    /* And it looks the product up rather than answering from the old store. */
+    expect((await fresh({ name: 'SK-II 青春露', destinationCountry: 'JP', homeCountry: 'TW' })).readAt)
+      .not.toBe('yesterday');
   });
 });
