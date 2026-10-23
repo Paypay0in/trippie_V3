@@ -2284,6 +2284,10 @@ ${sentence}
           results — and the whole answer is held for twelve hours, so only
           the first traveller to open the list waits.
         */
+        /* Diagnostics, asked for explicitly and never by the app. */
+        const explaining = req.body?.explain === true;
+        const explain: unknown[] = [];
+
         const PAGES_PER_COUNTRY = 5;
         const QUOTES_PER_COUNTRY = 2;
 
@@ -2355,6 +2359,31 @@ ${sentence}
               .filter(({ match }) => match.confidence !== "none")
               .sort((left, right) => Number(right.match.confidence === "exact")
                 - Number(left.match.confidence === "exact"));
+
+            /*
+              What was looked at and what happened to it.
+
+              「你要加油 想一想怎麼能做到這件事」 — every lever left is behind a
+              question this endpoint could not answer: which pages did it
+              open, what did they say they were selling, and which rule threw
+              each one away. Four defects today were diagnosed by reading the
+              page by hand because that was the only way to see. Off unless a
+              caller asks, never reached by the app, and no user-visible
+              behaviour depends on it.
+            */
+            if (explaining) {
+              explain.push({
+                country: country.code,
+                url: candidate.url,
+                offers: offers.map(offer => ({
+                  name: [offer.productName, offer.name].filter(Boolean).join(" ").slice(0, 120),
+                  amount: offer.amount,
+                  currency: offer.currency,
+                  fromText: offer.fromText === true,
+                })),
+                verdicts: judged.map(({ match }) => `${match.confidence}: ${match.reason}`),
+              });
+            }
 
             const best = judged[0];
             if (!best) {
@@ -2454,8 +2483,14 @@ ${sentence}
         );
         if (quotes.length > 0) {
           const body = { quotes, byCountry, readAt: new Date().toISOString(), source: "search" };
+          /* Never cached with diagnostics attached, and never cached from one. */
+          if (explaining) { res.json({ ...body, explain }); return; }
           priceCache.set(cacheKey, { at: Date.now(), body });
           res.json(body);
+          return;
+        }
+        if (explaining) {
+          res.json({ quotes: [], byCountry, readAt: new Date().toISOString(), source: "search", explain });
           return;
         }
         /*
