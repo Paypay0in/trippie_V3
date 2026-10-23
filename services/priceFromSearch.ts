@@ -78,6 +78,10 @@ export interface SearchedQuote {
   match?: 'exact' | 'probable';
   /** Why, in words — shown beside a probable match. */
   matchReason?: string;
+  /** How many the listing sells at once, when it sells more than one. */
+  packSize?: number;
+  /** Read off the page rather than out of its structured data. */
+  priceFromText?: boolean;
 }
 
 /** What to ask, in the language that country's shops price in. */
@@ -532,7 +536,17 @@ export const searchCandidates = async (input: {
     Opening the list asks once. Asking harder is a thing somebody chooses,
     for the one row they care about.
   */
-  for (const query of input.harder ? ways : ways.slice(0, 1)) {
+  /*
+    Two, and the second only when the first found nothing.
+
+    「少太多了」. One way of asking was the right answer to a month's allowance
+    going in a day, and it was too blunt: a second search is bought only for
+    a product that is otherwise about to show an empty column, which is the
+    one case where it cannot be wasted. Everything that answers first time
+    costs exactly what it did.
+  */
+  const limit = input.harder ? ways.length : Math.min(2, ways.length);
+  for (const query of ways.slice(0, limit)) {
     const found = await ask(query);
     if (found.length > 0) return found;
   }

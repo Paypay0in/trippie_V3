@@ -2291,7 +2291,14 @@ ${sentence}
           const country = inPlay[at];
           const looking = candidates.slice(0, PAGES_PER_COUNTRY);
           const read = await Promise.all(looking.map(candidate =>
-            readPage(candidate.url).catch(() => ({ reachable: false, price: null, offers: [] }))));
+            /*
+              The country's own currency goes with the request. It is what
+              lets a page that published nothing for machines be read at all:
+              without a currency to insist on, 「$908」 is a number and not an
+              amount, and that number was HK$908.
+            */
+            readPage(candidate.url, undefined, country.currency)
+              .catch(() => ({ reachable: false, price: null, offers: [] }))));
 
           const quotes: SearchedQuote[] = [];
           /*
@@ -2371,6 +2378,12 @@ ${sentence}
                 verified: true,
                 match: best.match.confidence === "exact" ? "exact" as const : "probable" as const,
                 matchReason: best.match.reason,
+                /*
+                  A number beside the word 価格 is a weaker statement than
+                  structured data and is carried as one, so the screen can
+                  say 頁面標示價 rather than letting the two read alike.
+                */
+                ...(best.offer.fromText ? { priceFromText: true } : {}),
                 /*
                   Read off the listing's own name, not the row's: the shop is
                   the one saying 「45ml*3個セット」. Absent when it sells one,

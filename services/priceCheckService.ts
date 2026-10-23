@@ -71,6 +71,16 @@ export interface PriceQuote {
    * 「3入組」 and the traveller does the rest.
    */
   packSize?: number;
+  /**
+   * Whether the figure was read off the page rather than its structured data.
+   *
+   * 「我還是覺得找價格能力要更強」 — eleven of eighteen failures were pages that
+   * opened, matched, and published no machine-readable price: 香奈兒, 安耐曬,
+   * 雪肌精, CANMAKE all write the number for people and not for crawlers.
+   * Reading it is worth doing and is a weaker statement than structured data,
+   * so it says so rather than being printed as the same kind of fact.
+   */
+  priceFromText?: boolean;
 }
 
 /** Why a country has no price, when it has none. */
@@ -146,7 +156,7 @@ export interface PriceCheck {
  * product. It costs one round of searches and buys never having to tell
  * somebody their screen is stale.
  */
-const READING = 'v2-noun-pack-used';
+const READING = 'v3-page-text';
 export const PRICE_CACHE_KEY = `trippie_price_cache:${READING}`;
 const CACHE_KEY = PRICE_CACHE_KEY;
 const CACHE_MS = 3 * 24 * 60 * 60 * 1000;

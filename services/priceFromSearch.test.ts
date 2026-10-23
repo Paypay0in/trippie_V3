@@ -510,12 +510,15 @@ describe('asking a second way', () => {
   });
 
   /*
-    Opening a list asks once per country, however many ways there are.
+    Opening a list asks at most twice per country, however many ways exist.
 
     Three ways × two countries × sixteen rows is ninety-six searches for one
-    glance at a list, which is how a month's allowance went in a day.
+    glance at a list, which is how a month's allowance went in a day. One way
+    fixed that and was too blunt: 「少太多了」. A second is bought only for a
+    product otherwise about to show an empty column — the one case where it
+    cannot be wasted — and the full ladder still waits for 重新查價.
   */
-  it('asks only one way unless somebody asked harder', async () => {
+  it('asks at most twice unless somebody asked harder', async () => {
     const asked: string[] = [];
     await searchCandidates({
       name: 'うるおい線・くまスポット',
@@ -528,7 +531,9 @@ describe('asking a second way', () => {
       }) as unknown as typeof fetch,
     });
 
-    expect(asked).toHaveLength(1);
+    expect(asked).toHaveLength(2);
+    expect(priceQueries('うるおい線・くまスポット', undefined, JP).length)
+      .toBeGreaterThanOrEqual(2);
   });
 
   /* Fifteen products that answer on the first ask must not pay for a second. */

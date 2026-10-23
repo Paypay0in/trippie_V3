@@ -1091,6 +1091,23 @@ const ShoppingListPanel: React.FC<Props> = ({
                                             未比對商品
                                           </span>
                                         )}
+                                        {/*
+                                          A number beside the word 価格 is a
+                                          weaker statement than structured
+                                          data, and eleven of eighteen
+                                          failures were pages that publish
+                                          only the weaker one. Worth reading;
+                                          not worth printing as the same kind
+                                          of fact.
+                                        */}
+                                        {quote.priceFromText && (
+                                          <span
+                                            data-testid={`shopping-page-text-${item.id}`}
+                                            className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-black text-slate-500"
+                                          >
+                                            頁面標示價
+                                          </span>
+                                        )}
                                         {quote.match === 'probable' && (
                                           <span
                                             title={quote.matchReason}

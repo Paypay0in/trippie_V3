@@ -72,6 +72,16 @@ export interface PageOffer {
   currency: string;
   /** schema.org availability, when stated. */
   availability?: string;
+  /**
+   * Whether this was read off the page rather than out of its structured
+   * data.
+   *
+   * A weaker statement and said to be one. Structured data is the shop
+   * answering 「what does this cost」 in a form built for the question; a
+   * number beside the word 価格 is the shop answering a person, and the
+   * screen marks it 頁面標示價 so the two are never read as the same claim.
+   */
+  fromText?: boolean;
 }
 
 /**
@@ -189,6 +199,133 @@ export const offersFromHtml = (html: string): PageOffer[] => {
   return [{ name: title.trim(), amount, currency }];
 };
 
+/**
+ * The price a page writes for people, when it publishes none for machines.
+ *
+ * 「我還是覺得找價格能力要更強」 — measured across twelve real products in two
+ * countries, 24 lookups returned 6 prices. Eleven of the eighteen failures
+ * were this one thing: the page opened, it is the right product, and it
+ * carries no JSON-LD and no Open Graph price. 香奈兒, 安耐曬, 雪肌精, CANMAKE —
+ * the figure is on the screen, in the markup, written for a human.
+ *
+ * This is the snippet problem again and is not the same problem. What made a
+ * snippet unusable was that it is a hundred characters a crawler chose,
+ * arriving with no page and no product behind it. Here the page has already
+ * been opened and already been matched; the only question left is which
+ * number on it is the price.
+ *
+ * Three rules answer that, and each one exists because of a figure that was
+ * wrong before:
+ *
+ * - the caller says which currency this country spends, and only a mark
+ *   naming that currency counts. 「$908」 was HK$908;
+ * - the number must sit beside a word that says it is a price, or inside
+ *   markup that says so. A page is full of numbers;
+ * - a number in a sentence about a condition is not a price.
+ *   「消費滿 NT$3,600」 is the one that got through twice.
+ */
+
+/** Markup that says 「this is the price」 in so many words. */
+const PRICE_MARKUP = [
+  /itemprop\s*=\s*["']price["'][^>]*content\s*=\s*["']([\d.,]+)["']/i,
+  /data-price\s*=\s*["']([\d.,]+)["']/i,
+  /class\s*=\s*["'][^"']*\bprice\b[^"']*["'][^>]*>\s*([^<]{1,40})/i,
+  /id\s*=\s*["'][^"']*price[^"']*["'][^>]*>\s*([^<]{1,40})/i,
+];
+
+/** Words a shop puts beside the number it is charging. */
+const PRICE_WORD = /(?:販売価格|本体価格|通常価格|参考価格|税込価格|価格|税込|お値段|售價|售价|定價|定价|售出價|價格|价格|建議售價|會員價|特價|特价|price)/i;
+
+/** And the ones that mean a condition rather than a price. */
+const NOT_A_PRICE = /(?:まとめ買い|送料|ポイント|クーポン|以上|お一人様|分割|月々|滿|満|折|起|回饋|紅利|運費|freight|shipping|coupon|save)/i;
+
+/**
+ * A money amount written the way that country writes it.
+ *
+ * Deliberately per-currency rather than one pattern with a currency guess:
+ * 「元」 is both 新台幣 and 人民幣, 「$」 is six currencies, and a guess here is
+ * what printed 淘寶's ¥14 as NT$14.
+ */
+const MONEY: Record<string, RegExp> = {
+  JPY: /(?:¥|￥)\s*([\d][\d,]{1,9})|([\d][\d,]{1,9})\s*円/,
+  TWD: /(?:NT\$|NT｜\$|TWD)\s*([\d][\d,]{1,9})|([\d][\d,]{1,9})\s*元/,
+  KRW: /(?:₩|KRW)\s*([\d][\d,]{1,9})|([\d][\d,]{1,9})\s*원/,
+  HKD: /(?:HK\$|HKD)\s*([\d][\d,]{1,9})/,
+  USD: /(?:US\$|USD)\s*([\d][\d,]{1,9})/,
+};
+
+/** Tags whose contents are code rather than page. */
+const stripCode = (html: string): string =>
+  html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ');
+
+const amountOf = (text: string, currency: string): number | null => {
+  const pattern = MONEY[currency];
+  if (!pattern) return null;
+  const found = text.match(pattern);
+  if (!found) return null;
+  const digits = (found[1] ?? found[2] ?? '').replace(/,/g, '');
+  const amount = Number(digits);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
+/** What the page calls itself, which is all the name a written price has. */
+const titleOf = (html: string): string => {
+  const og = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i);
+  if (og) return og[1].trim();
+  return (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').trim();
+};
+
+export const offersFromText = (html: string, currency: string): PageOffer[] => {
+  if (!MONEY[currency]) return [];
+  const page = stripCode(html);
+  const name = titleOf(html);
+  const found: number[] = [];
+
+  /*
+    Markup that names itself first. A shop that writes `itemprop="price"`
+    has answered the question outright, and it is the same statement JSON-LD
+    would have carried had the template bothered to emit any.
+  */
+  for (const pattern of PRICE_MARKUP) {
+    const hit = page.match(pattern);
+    if (!hit) continue;
+    const amount = /^[\d.,]+$/.test(hit[1].trim())
+      ? Number(hit[1].replace(/,/g, ''))
+      : amountOf(hit[1], currency);
+    if (amount && Number.isFinite(amount) && amount > 0) found.push(amount);
+  }
+
+  if (found.length === 0) {
+    /*
+      Otherwise the number has to be standing next to a word that says what
+      it is. The window is short on purpose: a price label and its price are
+      written together, and anything further away is a different sentence.
+    */
+    const text = page.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    /*
+      A few characters before the label as well as after.
+
+      「まとめ買い価格 2,293円」 is the bulk price and the disqualifying word is
+      in front of the label, not behind it — a window that starts at 価格
+      reads it as an ordinary price.
+    */
+    const label = new RegExp(`[^。]{0,10}${PRICE_WORD.source}[^。]{0,24}`, 'gi');
+    for (const near of text.match(label) ?? []) {
+      if (NOT_A_PRICE.test(near)) continue;
+      const amount = amountOf(near, currency);
+      if (amount) found.push(amount);
+    }
+  }
+
+  if (found.length === 0) return [];
+  // The lowest, for the same reason an AggregateOffer's low price is taken:
+  // the high one is the gift set.
+  return [{ name, amount: Math.min(...found), currency, fromText: true }];
+};
+
 /** The cheapest thing the page offers, for callers with nothing to match on. */
 export const priceFromHtml = (html: string): PagePrice | null => {
   const offers = offersFromHtml(html);
@@ -257,6 +394,13 @@ export interface PageReading {
 export const readPage = async (
   url: string,
   fetchImpl: typeof fetch = fetch,
+  /**
+   * What this country spends, when the caller knows.
+   *
+   * Only then is the written page read at all: without a currency to insist
+   * on, 「$908」 is a number and not an amount.
+   */
+  currency?: string,
 ): Promise<PageReading> => {
   const ask = async (agent: string): Promise<string | null> => {
     try {
@@ -274,14 +418,27 @@ export const readPage = async (
   const html = await ask(HONEST) ?? await ask(BROWSER);
   if (html === null) return { reachable: false, price: null, offers: [] };
 
-  const offers = offersFromHtml(html);
+  const structured = offersFromHtml(html);
+  /*
+    The page's own writing, only where it published nothing for machines.
+    Never instead of structured data — that is the stronger statement and is
+    preferred whenever it exists.
+  */
+  const offers = structured.length > 0 || !currency
+    ? structured
+    : offersFromText(html, currency);
   /*
     The price is returned whatever its currency. 「the page says nothing」 and
     「the page says Hong Kong dollars」 are different answers, and only the
     caller can act on the second: falling back to the snippet there would
     relabel HK$908 as NT$908.
   */
-  return { reachable: true, price: priceFromHtml(html), offers };
+  const cheapest = [...offers].sort((left, right) => left.amount - right.amount)[0];
+  return {
+    reachable: true,
+    price: cheapest ? { amount: cheapest.amount, currency: cheapest.currency } : null,
+    offers,
+  };
 };
 
 /** The stated price, for callers that do not care why there is none. */

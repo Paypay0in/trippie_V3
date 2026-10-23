@@ -7,7 +7,7 @@
  * them at once.
  */
 import { describe, expect, it } from 'vitest';
-import { isUsableCurrency, offersFromHtml, priceFromHtml, readPage, readPagePrice } from './priceFromPage';
+import { isUsableCurrency, offersFromHtml, offersFromText, priceFromHtml, readPage, readPagePrice } from './priceFromPage';
 
 const ld = (data: unknown) =>
   `<html><head><script type="application/ld+json">${JSON.stringify(data)}</script></head></html>`;
@@ -211,5 +211,87 @@ describe('introducing ourselves', () => {
     expect(await readPage('https://shop/1', impl))
       .toEqual({ reachable: false, price: null, offers: [] });
     expect(seen).toHaveLength(2);
+  });
+});
+
+/**
+ * 「我還是覺得找價格能力要更強」 — 「少太多了」.
+ *
+ * Measured across twelve real products in two countries: 24 lookups, 6
+ * prices. Eleven of the eighteen failures were pages that opened, matched,
+ * and published no machine-readable price. 香奈兒, 安耐曬, 雪肌精, CANMAKE all
+ * write the figure for people and not for crawlers.
+ */
+describe('the price a page writes for people', () => {
+  it('reads markup that names itself', () => {
+    expect(offersFromText('<span itemprop="price" content="3080">三千八十円</span>', 'JPY'))
+      .toEqual([{ name: '', amount: 3080, currency: 'JPY', fromText: true }]);
+    expect(offersFromText('<div class="product-price">NT$1,400</div>', 'TWD')[0].amount)
+      .toBe(1400);
+  });
+
+  it('reads a number standing beside a word that says it is a price', () => {
+    expect(offersFromText('<p>販売価格 3,080円（税込）</p>', 'JPY')[0].amount).toBe(3080);
+    expect(offersFromText('<p>售價 NT$1,400</p>', 'TWD')[0].amount).toBe(1400);
+  });
+
+  /* The one that got through twice. A condition is not a price. */
+  it('refuses a threshold, a shipping line and a points line', () => {
+    expect(offersFromText('<p>消費滿 NT$3,600 即贈</p>', 'TWD')).toEqual([]);
+    expect(offersFromText('<p>価格 3,000円以上で送料無料</p>', 'JPY')).toEqual([]);
+    expect(offersFromText('<p>まとめ買い価格 2,293円</p>', 'JPY')).toEqual([]);
+  });
+
+  /*
+    Only a mark naming the money this country spends. 「$908」 was HK$908, and
+    「元」 is 人民幣 as readily as 新台幣.
+  */
+  it('insists on the currency it was told to expect', () => {
+    expect(offersFromText('<p>価格 $908</p>', 'JPY')).toEqual([]);
+    expect(offersFromText('<p>售價 ¥14</p>', 'TWD')).toEqual([]);
+    expect(offersFromText('<p>售價 NT$1,400</p>', 'JPY')).toEqual([]);
+  });
+
+  /* A page is full of numbers, and none of the loose ones is money. */
+  it('refuses a number with no price word anywhere near it', () => {
+    expect(offersFromText('<p>容量 45ml　評價 4.6 星　共 1,284 則</p>', 'JPY')).toEqual([]);
+    expect(offersFromText('<p>2026 新上市</p>', 'TWD')).toEqual([]);
+  });
+
+  /* Prices inside a script tag are a template, not the page. */
+  it('does not read the page’s own code', () => {
+    expect(offersFromText('<script>var price = "価格 9999円";</script>', 'JPY')).toEqual([]);
+  });
+
+  it('says nothing for a currency it has no pattern for', () => {
+    expect(offersFromText('<p>price 10 EUR</p>', 'EUR')).toEqual([]);
+  });
+});
+
+describe('written only where nothing was published', () => {
+  const page = (html: string) => (async () => ({ ok: true, text: async () => html })) as unknown as typeof fetch;
+
+  /* Structured data is the stronger statement and keeps winning. */
+  it('prefers what the shop published for machines', async () => {
+    const html = `<p>販売価格 9,999円</p>${ld({
+      '@type': 'Product', offers: { price: 3080, priceCurrency: 'JPY' },
+    })}`;
+
+    const read = await readPage('https://shop/1', page(html), 'JPY');
+
+    expect(read.price).toEqual({ amount: 3080, currency: 'JPY' });
+    expect(read.offers[0].fromText).toBeUndefined();
+  });
+
+  it('falls back to the writing when there is nothing else', async () => {
+    const read = await readPage('https://shop/1', page('<p>販売価格 3,080円</p>'), 'JPY');
+
+    expect(read.price).toEqual({ amount: 3080, currency: 'JPY' });
+    expect(read.offers[0].fromText).toBe(true);
+  });
+
+  /* And not at all when the caller cannot say which money to expect. */
+  it('reads nothing written when no currency was given', async () => {
+    expect((await readPage('https://shop/1', page('<p>販売価格 3,080円</p>'))).offers).toEqual([]);
   });
 });
