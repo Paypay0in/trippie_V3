@@ -46,3 +46,47 @@ export const looksEditorial = (url: string): boolean => {
     return false;
   }
 };
+
+/**
+ * Marketplaces where the seller is a person clearing out a drawer.
+ *
+ * 「請擋二手」. mercari quoted ¥300 for 無印's cleansing sheets against a shop
+ * price several times that, and every check passed: a real product page, a
+ * real price, the right product. It is simply not an answer to the question
+ * the list is asking — 「how much will this cost me in Japan」 means in a shop,
+ * on a shelf, at a price that will still be there next week.
+ *
+ * A used listing is one item, sold once, at whatever one stranger wanted for
+ * it. Printed beside 松本清's price it reads as the same kind of fact and is
+ * not, and a traveller who plans around it finds nothing when they arrive.
+ *
+ * Only platforms that are used goods by default, and only hosts — not paths.
+ * 露天拍賣 and 蝦皮 are full of small shops selling new stock, and refusing
+ * them would cost far more real prices than it saves; a flea market is not
+ * 「anywhere an individual can list」, it is 「where the normal listing is
+ * somebody's own used one」.
+ */
+const SECOND_HAND = new RegExp([
+  // 日本
+  'mercari', 'fril\\.jp', 'rakuma', 'paypayfleamarket', 'auctions\\.yahoo',
+  'aucfan', 'jauce', 'buyee', 'zenmarket', 'sellinall',
+  '2ndstreet', 'hardoff', 'bookoff', 'surugaya', 'mandarake',
+  // 其他
+  'ebay\\.', 'carousell', 'poshmark', 'vinted', 'depop', 'gumtree', 'craigslist',
+].join('|'), 'i');
+
+/**
+ * Whether this listing is somebody reselling their own one.
+ *
+ * Separate from `looksEditorial` because the reason differs and a reader of
+ * this code should see which rule refused a page. Same consequence in the
+ * price search; the picture search does not care, since a used listing's
+ * photograph is still a photograph of the product.
+ */
+export const looksSecondHand = (url: string): boolean => {
+  try {
+    return SECOND_HAND.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};

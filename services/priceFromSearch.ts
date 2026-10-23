@@ -25,7 +25,7 @@
 /** A number with a currency mark, and whether that mark named one country. */
 import { ComparisonCountry, hostCountry, hostIsClaimed } from './comparisonCountries';
 import { productQuery } from './productIdentity';
-import { looksEditorial } from './merchantPages';
+import { looksEditorial, looksSecondHand } from './merchantPages';
 import { languageOf, localisedName } from './productNouns';
 
 export interface Money {
@@ -193,6 +193,12 @@ export const looksLikeAProductPage = (url: string): boolean => {
       with a price, and the price was another product mentioned in the piece.
     */
     if (looksEditorial(url)) return false;
+    /*
+      「請擋二手」. mercari's ¥300 for 無印's cleansing sheets was a real price
+      on a real product page, and it is one stranger's drawer rather than a
+      shelf a traveller can walk up to.
+    */
+    if (looksSecondHand(url)) return false;
     if (LISTING.test(parsed.pathname)) return false;
     // A front page prices nothing, and a search query is somebody else's list.
     if (parsed.pathname.replace(/\/+$/, '') === '') return false;
