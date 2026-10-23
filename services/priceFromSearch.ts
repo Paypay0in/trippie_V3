@@ -27,6 +27,7 @@ import { ComparisonCountry, hostCountry, hostIsClaimed } from './comparisonCount
 import { productQuery } from './productIdentity';
 import { looksEditorial, looksSecondHand } from './merchantPages';
 import { languageOf, localisedName } from './productNouns';
+import { localisedBrand } from './brandNames';
 import { PLAUSIBLE } from './plausiblePrice';
 
 export interface Money {
@@ -151,8 +152,15 @@ export const priceQueries = (
     what it was.
   */
   const localised = localisedName(name, languageOf(country.code));
+  /*
+    And the brand as that market writes it. 「ANESSA 防曬乳 価格 通販」 found
+    four Japanese pages selling 「資生堂 アネッサ」 and matched none of them:
+    the one word meant to be the anchor was the word no listing contained.
+  */
+  const localBrand = brand ? localisedBrand(brand, country.code) : undefined;
 
   const ways = [
+    ...(localBrand ? [priceQuery(localised ?? name, localBrand, country)] : []),
     ...(localised ? [priceQuery(localised, brand, country)] : []),
     priceQuery(name, brand, country),
     priceQuery(relaxedName(name), brand, country),

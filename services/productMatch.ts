@@ -25,6 +25,7 @@
  */
 
 import { splitNouns } from './productNouns';
+import { mentionsBrand } from './brandNames';
 
 export type MatchConfidence = 'exact' | 'probable' | 'none';
 
@@ -139,8 +140,14 @@ const overlap = (wanted: string, offered: string): number => {
   return shared / units.length;
 };
 
+/**
+ * Whether a page's name claims this brand, under any spelling of it.
+ *
+ * 「ANESSA」 and 「アネッサ」 are one company and share no character, so a
+ * literal comparison read the strongest signal available as evidence against.
+ */
 const says = (text: string, brand: string): boolean =>
-  normalise(text).includes(normalise(brand));
+  normalise(text).includes(normalise(brand)) || mentionsBrand(text, brand);
 
 /**
  * Whether an offer is the product that was asked for.

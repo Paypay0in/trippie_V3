@@ -488,8 +488,10 @@ describe('asking a second way', () => {
     const ways = priceQueries('卸妝濕巾', 'Muji', JP);
 
     expect(ways[0]).toContain('クレンジングシート');
-    expect(ways[0]).toContain('Muji');
+    /* And the brand as Japan writes it, which is the same table one layer up. */
+    expect(ways[0]).toContain('無印良品');
     expect(ways.some(way => way.includes('卸妝濕巾'))).toBe(true);
+    expect(ways.some(way => way.includes('Muji'))).toBe(true);
   });
 
   it('leaves the ladder alone for a name it cannot translate', () => {
@@ -504,7 +506,14 @@ describe('asking a second way', () => {
   it('tries without the brand, after everything with it', () => {
     const ways = priceQueries('ロキソプロフェンEX Naテープ', 'Hisamitsu', JP);
 
-    expect(ways[0]).toContain('Hisamitsu');
+    /*
+      And asks in 久光製薬 before it asks in Hisamitsu. This comment used to
+      end 「the one word meant to narrow the search was the word no listing
+      contained」, and dropping the brand was all that could be done about it.
+      The brand table does the thing that was actually wanted.
+    */
+    expect(ways[0]).toContain('久光製薬');
+    expect(ways.some(way => way.includes('Hisamitsu'))).toBe(true);
     expect(ways[ways.length - 1]).not.toContain('Hisamitsu');
     expect(ways[ways.length - 1]).toContain('ロキソプロフェンEX Naテープ');
   });
