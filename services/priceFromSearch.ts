@@ -26,6 +26,7 @@
 import { ComparisonCountry, hostCountry, hostIsClaimed } from './comparisonCountries';
 import { productQuery } from './productIdentity';
 import { looksEditorial } from './merchantPages';
+import { languageOf, localisedName } from './productNouns';
 
 export interface Money {
   amount: number;
@@ -134,7 +135,20 @@ export const priceQueries = (
     answered nothing, because a name alone — 「腮紅」, 「卸妝濕巾」 — finds the
     whole shelf.
   */
+  /*
+    The destination's own word for the thing goes first, when there is one.
+
+    Not an extra rung — a replacement for the top one. Opening a list sends
+    only the first way of asking, so a Japanese query that arrived third
+    would never be sent at all, and 卸妝濕巾 would go on finding nothing in
+    Japan however many rungs were written below it. Where the table has
+    nothing to offer, `localisedName` returns null and the ladder is exactly
+    what it was.
+  */
+  const localised = localisedName(name, languageOf(country.code));
+
   const ways = [
+    ...(localised ? [priceQuery(localised, brand, country)] : []),
     priceQuery(name, brand, country),
     priceQuery(relaxedName(name), brand, country),
     ...(brand?.trim() ? [priceQuery(name, undefined, country)] : []),

@@ -24,6 +24,8 @@
  * rule rejects them for the ordinary reason.
  */
 
+import { splitNouns } from './productNouns';
+
 export type MatchConfidence = 'exact' | 'probable' | 'none';
 
 export interface Match {
@@ -68,18 +70,33 @@ export const sizesIn = (text: string): string[] => {
   return [...found];
 };
 
-/** How much of the shorter name the two have in common, 0 to 1. */
+/**
+ * How much of the shorter name the two have in common, 0 to 1.
+ *
+ * Before anything is counted, the category nouns both names contain are taken
+ * out and replaced by what they mean. 「卸妝濕巾」 and 「クレンジングシート」 share
+ * no character and are the same thing; counted as characters they score zero,
+ * counted as 「cleansing-sheet」 they are one unit that matches. What is left
+ * after the noun is removed — the brand, the model, the size — is still
+ * compared letter by letter, because that is what separates two products that
+ * are both cleansing sheets.
+ */
 const overlap = (wanted: string, offered: string): number => {
-  const wantedLatin = latinWords(wanted);
-  const offeredLatin = new Set(latinWords(offered));
-  const wantedCjk = cjkChars(wanted);
-  const offeredCjk = new Set(cjkChars(offered));
+  const wantedSplit = splitNouns(wanted);
+  const offeredSplit = splitNouns(offered);
 
-  const units = [...wantedLatin, ...wantedCjk];
+  const wantedLatin = latinWords(wantedSplit.rest);
+  const offeredLatin = new Set(latinWords(offeredSplit.rest));
+  const wantedCjk = cjkChars(wantedSplit.rest);
+  const offeredCjk = new Set(cjkChars(offeredSplit.rest));
+  const offeredConcepts = new Set(offeredSplit.concepts);
+
+  const units = [...wantedLatin, ...wantedCjk, ...wantedSplit.concepts];
   if (units.length === 0) return 0;
 
   const shared = wantedLatin.filter(word => offeredLatin.has(word)).length
-    + wantedCjk.filter(char => offeredCjk.has(char)).length;
+    + wantedCjk.filter(char => offeredCjk.has(char)).length
+    + wantedSplit.concepts.filter(concept => offeredConcepts.has(concept)).length;
   return shared / units.length;
 };
 

@@ -60,15 +60,30 @@ describe('size', () => {
   });
 
   /*
-    What this cannot do, said plainly: 「卸妝濕巾」 and 「クレンジングシート」 are
-    the same product and share not one character. Nothing about matching can
-    fix that — the row has to carry the destination's own name for it, which
-    is the enrichment stage, not this one. Until it does, a Japanese shop
-    selling it is correctly judged to be selling something else.
+    This used to be impossible and was tested as such: 「卸妝濕巾」 and
+    「クレンジングシート」 are the same product and share not one character, so
+    counted as characters they scored zero and a Japanese shop selling it was
+    judged to be selling something else.
+
+    `productNouns` is what closed it. The two names are no longer compared as
+    characters at all — the category noun is taken out of each and compared as
+    what it means, and only the brand, model and size are matched literally.
   */
-  it('cannot match across scripts, and does not pretend to', () => {
+  it('matches across scripts where the noun table knows the word', () => {
     expect(matchProduct({ name: '卸妝濕巾', brand: 'Muji' }, 'クレンジングシート 12枚').confidence)
+      .not.toBe('none');
+    expect(matchProduct({ name: '蒸氣眼罩' }, 'めぐりズム ホットアイマスク 12枚').confidence)
+      .not.toBe('none');
+  });
+
+  /*
+    And still refuses two different things, which is the point of translating
+    the noun rather than ignoring it.
+  */
+  it('does not match two different nouns', () => {
+    expect(matchProduct({ name: '卸妝濕巾', brand: 'Muji' }, 'シャンプー 600ml').confidence)
       .toBe('none');
+    expect(matchProduct({ name: '面膜' }, '目薬 15ml').confidence).toBe('none');
   });
 
   it('refuses a different size of the same product', () => {

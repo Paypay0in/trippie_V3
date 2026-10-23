@@ -478,6 +478,25 @@ describe('asking a second way', () => {
   });
 
   /*
+    The destination's own word goes first, not somewhere down the ladder.
+
+    Opening a list sends only the first way of asking, so a Japanese query
+    that arrived third would never be sent — and 卸妝濕巾 would go on finding
+    nothing in Japan however many rungs were written below it.
+  */
+  it('asks in the destination’s own word first', () => {
+    const ways = priceQueries('卸妝濕巾', 'Muji', JP);
+
+    expect(ways[0]).toContain('クレンジングシート');
+    expect(ways[0]).toContain('Muji');
+    expect(ways.some(way => way.includes('卸妝濕巾'))).toBe(true);
+  });
+
+  it('leaves the ladder alone for a name it cannot translate', () => {
+    expect(priceQueries('SK-II 青春露', undefined, JP)[0]).toContain('青春露');
+  });
+
+  /*
     「Hisamitsu ロキソプロフェンEX Naテープ」 found nothing in Japan, where the
     shops write 久光製薬. The one word meant to narrow the search was the word
     no listing contained — so it is dropped, but only last.
