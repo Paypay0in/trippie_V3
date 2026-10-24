@@ -92,6 +92,12 @@ describe('a page that lists things says so', () => {
     expect(looksLikeAListingTitle('「花王 めぐりズム 蒸気でホットアイマスク」よりどり割(並び順：価格(安い順))')).toBe(true);
     expect(looksLikeAListingTitle('曼秀雷敦 商品一覧')).toBe(true);
     expect(looksLikeAListingTitle('ANESSA 搜尋結果')).toBe(true);
+    /*
+      「〜の通販」 is 「mail-order of X」 — a shelf, not a thing. 高島屋's
+      「CHANEL（シャネル） リップカラーの通販」 handed over ¥4,950 for a row that
+      says 唇霜, and リップカラー is lip colour.
+    */
+    expect(looksLikeAListingTitle('CHANEL（シャネル） リップカラーの通販 | TBEAUT - 高島屋')).toBe(true);
   });
 
   it('leaves an actual product title alone', () => {

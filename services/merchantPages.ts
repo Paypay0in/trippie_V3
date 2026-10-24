@@ -102,7 +102,7 @@ export const looksSecondHand = (url: string): boolean => {
  *
  * Every phrase here was taken off a page that produced a wrong figure.
  */
-const LISTING_TITLE = /(?:\dページ目|並び順|よりどり|検索結果|商品一覧|一覧|メーカー別|カテゴリ|ランキング|品牌專區|全部商品|搜尋結果|商品列表|分類|系列商品|collections?|category|search results)/i;
+const LISTING_TITLE = /(?:\dページ目|並び順|よりどり|検索結果|商品一覧|一覧|メーカー別|カテゴリ|ランキング|の通販|品牌專區|全部商品|搜尋結果|商品列表|分類|系列商品|collections?|category|search results)/i;
 
 export const looksLikeAListingTitle = (name: string): boolean =>
   LISTING_TITLE.test((name || '').normalize('NFKC'));
