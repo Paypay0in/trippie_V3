@@ -464,6 +464,19 @@ describe('asking a second way', () => {
     expect(relaxedName('【限定】雪肌精 化粧水（医薬部外品）')).toBe('雪肌精 化粧水');
   });
 
+  /*
+    What kind of thing it is survives the cut, wherever it was standing.
+    Chinese and Japanese put the noun last, so keeping the first five words
+    kept 「PARIS - PARIS LAIT POUR」 and threw away the only word saying this
+    is a body lotion — and the search found nothing, which is what it found.
+  */
+  it('keeps the word that says what the thing is', () => {
+    expect(relaxedName('PARIS - PARIS LAIT POUR LE CORPS 身體乳'))
+      .toContain('身體乳');
+    expect(relaxedName('PARIS - PARIS LAIT POUR LE CORPS 身體乳').split(' ').length)
+      .toBeLessThanOrEqual(5);
+  });
+
   it('cuts a name longer than a shop would write', () => {
     expect(relaxedName('a b c d e f g h')).toBe('a b c d e');
   });

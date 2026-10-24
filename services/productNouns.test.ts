@@ -19,6 +19,7 @@ describe('finding the category noun in a name', () => {
   it('separates what the thing is from which one it is', () => {
     expect(splitNouns('Muji 卸妝濕巾 12片裝')).toEqual({
       concepts: ['cleansing-sheet'],
+      spellings: ['卸妝濕巾'],
       rest: 'Muji 12片裝',
     });
   });
@@ -40,6 +41,7 @@ describe('finding the category noun in a name', () => {
   it('says nothing about a name it does not recognise', () => {
     expect(splitNouns('SK-II Facial Treatment Essence')).toEqual({
       concepts: [],
+      spellings: [],
       rest: 'SK-II Facial Treatment Essence',
     });
   });

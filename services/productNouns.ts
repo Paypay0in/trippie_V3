@@ -76,7 +76,7 @@ export const PRODUCT_NOUNS: ProductNoun[] = [
   { id: 'eye-cream', zh: ['眼霜'], ja: ['アイクリーム'], en: ['eye cream'] },
 
   // 彩妝
-  { id: 'lip-balm', zh: ['護唇膏'], ja: ['リップクリーム'], ko: ['립밤'], en: ['lip balm'] },
+  { id: 'lip-balm', zh: ['護唇膏', '唇霜', '潤唇膏'], ja: ['リップクリーム', 'リップバーム'], ko: ['립밤'], en: ['lip balm'] },
   { id: 'lipstick', zh: ['口紅', '唇膏'], ja: ['口紅', 'リップスティック'], ko: ['립스틱'], en: ['lipstick'] },
   { id: 'lip-oil', zh: ['唇油', '潤唇精華油'], ja: ['リップオイル'], en: ['lip oil'] },
   { id: 'blush', zh: ['腮紅'], ja: ['チーク'], ko: ['블러셔'], en: ['blush'] },
@@ -171,6 +171,15 @@ const SPELLINGS: { text: string; noun: ProductNoun }[] = PRODUCT_NOUNS
 export interface SplitName {
   /** `ProductNoun.id` for each noun found, in the order found. */
   concepts: string[];
+  /**
+   * The words that were actually written, in the order found.
+   *
+   * Parallel to `concepts`. A caller shortening a name needs to put the noun
+   * back the way the traveller wrote it — `relaxedName` briefly rewrote
+   * 「Concealer」 as 「遮瑕膏」, which is translating, and that module's whole
+   * contract is that it does not translate.
+   */
+  spellings: string[];
   /** What was left after taking those words out. Brands, models, sizes. */
   rest: string;
 }
@@ -184,6 +193,7 @@ export interface SplitName {
  */
 export const splitNouns = (text: string): SplitName => {
   const concepts: string[] = [];
+  const spellings: string[] = [];
   let rest = (text || '').normalize('NFKC');
 
   for (const { text: spelling, noun } of SPELLINGS) {
@@ -191,10 +201,11 @@ export const splitNouns = (text: string): SplitName => {
     const at = rest.toLowerCase().indexOf(spelling.toLowerCase());
     if (at === -1) continue;
     concepts.push(noun.id);
+    spellings.push(rest.slice(at, at + spelling.length));
     rest = `${rest.slice(0, at)} ${rest.slice(at + spelling.length)}`;
   }
 
-  return { concepts, rest: rest.replace(/\s+/g, ' ').trim() };
+  return { concepts, spellings, rest: rest.replace(/\s+/g, ' ').trim() };
 };
 
 const BY_ID = new Map(PRODUCT_NOUNS.map(noun => [noun.id, noun]));

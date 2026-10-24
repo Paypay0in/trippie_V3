@@ -26,7 +26,7 @@
 import { ComparisonCountry, hostCountry, hostIsClaimed } from './comparisonCountries';
 import { productQuery } from './productIdentity';
 import { looksEditorial, looksSecondHand } from './merchantPages';
-import { languageOf, localisedName } from './productNouns';
+import { languageOf, localisedName, splitNouns } from './productNouns';
 import { localisedBrand } from './brandNames';
 import { PLAUSIBLE } from './plausiblePrice';
 
@@ -106,15 +106,26 @@ export const priceQuery = (name: string, brand: string | undefined, country: Com
  * which is where a product's name actually lives.
  */
 export const relaxedName = (name: string): string => {
-  const words = (name || '')
+  const plain = (name || '')
     // Bracketed asides are packaging copy: 【限定】, （医薬部外品）.
     .replace(/[（(【\[][^）)】\]]*[）)】\]]/g, ' ')
     .replace(/[・･／/,、|~〜+＋]/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim()
-    .split(' ')
-    .filter(Boolean);
-  return words.slice(0, 5).join(' ');
+    .trim();
+
+  /*
+    What kind of thing it is survives the cut, wherever it was standing.
+
+    Chinese and Japanese put the category noun last — 「PARIS - PARIS LAIT
+    POUR LE CORPS 身體乳」 — so keeping the first five words kept
+    「PARIS - PARIS LAIT POUR」 and threw away the only word that says this is
+    a body lotion. A search for four French words and no noun finds nothing,
+    which is exactly what it found.
+  */
+  const { spellings, rest } = splitNouns(plain);
+  const words = rest.split(' ').filter(Boolean);
+  /* Put back exactly what was written. Shortening is not translating. */
+  return [...words.slice(0, Math.max(2, 5 - spellings.length)), ...spellings].join(' ');
 };
 
 /**

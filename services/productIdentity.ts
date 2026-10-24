@@ -13,6 +13,8 @@
  * something else.
  */
 
+import { mentionsBrand } from './brandNames';
+
 /**
  * The brand out of a note that may also carry a size.
  *
@@ -34,6 +36,15 @@ export const brandOf = (note?: string): string => {
 /**
  * What to search for: brand first, because that is how a shelf is scanned
  * and how a shop writes its own titles.
+ *
+ * Unless the name already says it. 「Chanel 唇霜」 with the brand 「Chanel」 was
+ * being asked for as 「Chanel Chanel 唇霜」, and a repeated word is a word the
+ * search has to find twice. A row typed by hand carries the brand in the name
+ * far more often than one read off a screenshot does.
  */
-export const productQuery = (name: string, note?: string): string =>
-  [brandOf(note), (name ?? '').trim()].filter(Boolean).join(' ').trim();
+export const productQuery = (name: string, note?: string): string => {
+  const written = (name ?? '').trim();
+  const brand = brandOf(note);
+  if (!brand) return written;
+  return mentionsBrand(written, brand) ? written : `${brand} ${written}`.trim();
+};
