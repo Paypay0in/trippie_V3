@@ -131,6 +131,90 @@ export interface ShoppingItem {
   travelRuleNecessity?: EntryNecessity;
 }
 
+/**
+ * How widely something is shared.
+ *
+ * Three states, because the share sheet offers three: 公開 is listed on a
+ * profile and readable by anyone, 僅連結 is readable by whoever holds the
+ * token and listed nowhere, and 私人 is readable by nobody but its owner.
+ *
+ * Deliberately not reusing `CommunityPost.visibility`, which is
+ * `public | friends` and is neither read nor written by any client code —
+ * aligning the two is its own ticket and would quietly change what an
+ * existing post means.
+ */
+export type ShareVisibility = 'public' | 'link' | 'private';
+
+/**
+ * 收藏集 — a list somebody named, as opposed to a bucket the app computed.
+ *
+ * 「東京咖啡地圖」, 「大阪美食口袋名單」. Saved places are grouped by country and
+ * city elsewhere in this app, and that key is a trimmed string: rename a
+ * city, spell it differently, and the group is a different group. A list
+ * somebody shares has to survive being renamed, so it has an identity.
+ *
+ * Private until published. `publishedAt` absent means nobody but the owner
+ * has ever been able to read it, whatever `visibility` says.
+ */
+export interface SavedCollection {
+  id: string;
+  ownerId: string;
+  title: string;
+  description?: string;
+  coverUrl?: string;
+  country: string;
+  city: string;
+  visibility: ShareVisibility;
+  /**
+   * The 公開內容 switches, stored because they are a decision and not a
+   * default. Third-party notes are never published whatever these say —
+   * 「我撰寫的心得筆記」 is the creator's own words and nobody else's.
+   */
+  sharesOwnNotes: boolean;
+  sharesPhotos: boolean;
+  sharesPlaceDetails: boolean;
+  /** Only a 僅連結 collection has one; absent means there is no link to leak. */
+  shareToken?: string;
+  publishedAt?: string;
+  revokedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One place inside a collection, as a snapshot.
+ *
+ * A snapshot rather than a pointer into the owner's own saved places: the
+ * device-wide 收藏 lives only in localStorage, and a recipient's copy must
+ * not change when the creator edits theirs.
+ */
+export interface SavedCollectionItem {
+  id: string;
+  collectionId: string;
+  position: number;
+  placeId?: string;
+  placeName: string;
+  formattedAddress?: string;
+  latitude?: number;
+  longitude?: number;
+  placePhotoUrl?: string;
+  category?: PlaceCategory;
+  country: string;
+  city: string;
+  district?: string;
+  /** Only the owner's own notes. A third party's words are theirs to publish. */
+  notes: SavedExperienceNote[];
+  /**
+   * Lineage, kept even when this collection is itself a re-share.
+   *
+   * A curator may share a place somebody else found, and the latest sharer's
+   * identity must never overwrite the original author's.
+   */
+  sourceCreatorId?: string;
+  sourceCollectionId?: string;
+  sourceInspirationId?: string;
+}
+
 export type ExpenseDisputeStatus = 'open' | 'resolved' | 'withdrawn';
 
 /**
