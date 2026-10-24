@@ -66,10 +66,32 @@ export const migrateLocalOwnership = ({
     return { ...post, creatorId: authenticatedUserId };
   });
   const nextSaved = savedTravelInspirations.map(item => {
-    if (item.savedByUserId !== anonymousUserId) return item;
+    /*
+      Both ids this record carries about its owner, not just one.
+
+      `savedByUserId` says who has it; `sourceCreatorId` says who found it,
+      and for a place typed in or read off a screenshot the two are the same
+      person — the saver. Rewriting only the first left the anonymous id
+      standing as the creator forever, and a merge then carried that dead id
+      outward as the surviving credit.
+
+      A `sourceCreatorId` that is somebody else's is left exactly alone. This
+      only ever renames the person doing the signing in.
+    */
+    const ownsSave = item.savedByUserId === anonymousUserId;
+    const ownsCredit = item.sourceCreatorId === anonymousUserId;
+    if (!ownsSave && !ownsCredit) return item;
     baseDebug.savedInspirationsMatched += 1;
     baseDebug.savedInspirationsMigrated += 1;
-    return { ...item, savedByUserId: authenticatedUserId };
+    if (ownsCredit) baseDebug.provenanceChanged += 1;
+    return {
+      ...item,
+      ...(ownsSave ? { savedByUserId: authenticatedUserId } : {}),
+      ...(ownsCredit ? { sourceCreatorId: authenticatedUserId } : {}),
+      notes: item.notes.map(note => (note.sourceCreatorId === anonymousUserId
+        ? { ...note, sourceCreatorId: authenticatedUserId }
+        : note)),
+    };
   });
   const nextDrafts = drafts.map(draft => {
     if (draft.ownerId !== anonymousUserId) return draft;

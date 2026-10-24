@@ -142,3 +142,62 @@ describe('合併時不能把後來才加的欄位丟掉', () => {
     expect(pair({ category: 'other' }, { category: 'other' }).category).toBe('other');
   });
 });
+
+/**
+ * Who recommended it, when two copies of the same place disagree.
+ *
+ * The fold took the earlier save whole, and a save's timestamp says nothing
+ * about whose recommendation it was. A place typed into the search box
+ * carries 「manual:…」 and the saver's own id as its creator — a statement
+ * that nobody recommended it — so folding a real post's save into an earlier
+ * manual one credited the saver for somebody else's find.
+ *
+ * 「來自 Ann 的東京咖啡地圖」 is what this is for.
+ */
+describe('the credit that survives a fold', () => {
+  const place = (patch: Partial<SavedTravelInspiration>): SavedTravelInspiration => ({
+    id: 'a', savedByUserId: 'me', country: '日本', city: '東京',
+    placeName: 'Onibus Coffee', placeId: 'g-onibus',
+    sourcePostId: '', sourceSliceId: '', sourceCreatorId: '',
+    sourceNoteIds: [], savedAt: '2026-10-01T00:00:00.000Z', notes: [],
+    ...patch,
+  });
+
+  const mine = place({
+    id: 'mine', sourcePostId: 'manual:g-onibus', sourceSliceId: 'manual:g-onibus',
+    sourceCreatorId: 'me', savedAt: '2026-10-01T00:00:00.000Z',
+  });
+  const anns = place({
+    id: 'anns', sourcePostId: 'post-tokyo', sourceSliceId: 'slice-7',
+    sourceCreatorId: 'ann', savedAt: '2026-10-05T00:00:00.000Z',
+  });
+
+  it('prefers a stated source over a typed-in one, whichever came first', () => {
+    for (const pair of [[mine, anns], [anns, mine]]) {
+      const [folded] = mergeTripInspirations(pair);
+      expect(folded.sourcePostId).toBe('post-tokyo');
+      expect(folded.sourceSliceId).toBe('slice-7');
+      expect(folded.sourceCreatorId).toBe('ann');
+    }
+  });
+
+  /* The three ids name one recommendation and move together. */
+  it('never mixes one post with another’s slice', () => {
+    const bens = place({
+      id: 'bens', sourcePostId: 'post-ben', sourceSliceId: 'slice-ben',
+      sourceCreatorId: 'ben', savedAt: '2026-10-09T00:00:00.000Z',
+    });
+    const [folded] = mergeTripInspirations([anns, bens]);
+
+    expect([folded.sourcePostId, folded.sourceSliceId, folded.sourceCreatorId])
+      .toEqual(['post-tokyo', 'slice-7', 'ann']);
+  });
+
+  /* Two typed-in copies have nothing to choose between; the earlier stands. */
+  it('changes nothing when neither states a source', () => {
+    const later = place({ id: 'later', sourcePostId: 'screenshot:x', sourceCreatorId: 'me', savedAt: '2026-10-09T00:00:00.000Z' });
+    const [folded] = mergeTripInspirations([mine, later]);
+
+    expect(folded.sourcePostId).toBe('manual:g-onibus');
+  });
+});

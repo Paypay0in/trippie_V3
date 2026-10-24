@@ -47,6 +47,33 @@ const samePlace = (
  * other did not, and every note from both. Nothing a traveller wrote is dropped
  * because somebody else saved the same restaurant.
  */
+/** 「manual:…」 and 「screenshot:…」 say 「nobody recommended this」. */
+const SYNTHETIC_SOURCE = /^(?:manual|screenshot):/;
+
+const isStatedSource = (
+  record: Pick<SavedTravelInspiration, 'sourcePostId'>,
+): boolean => record.sourcePostId.trim().length > 0
+  && !SYNTHETIC_SOURCE.test(record.sourcePostId);
+
+/**
+ * The creator credit that survives a fold.
+ *
+ * Returned as a patch rather than decided inline, so the three ids that name
+ * one recommendation move together. Splitting them is how a place could end
+ * up crediting one person's post with another person's slice.
+ */
+const pickAttribution = (
+  first: SavedTravelInspiration,
+  second: SavedTravelInspiration,
+): Pick<SavedTravelInspiration, 'sourcePostId' | 'sourceSliceId' | 'sourceCreatorId'> => {
+  const credited = isStatedSource(first) || !isStatedSource(second) ? first : second;
+  return {
+    sourcePostId: credited.sourcePostId,
+    sourceSliceId: credited.sourceSliceId,
+    sourceCreatorId: credited.sourceCreatorId,
+  };
+};
+
 const fold = (
   existing: SavedTravelInspiration,
   incoming: SavedTravelInspiration,
@@ -100,6 +127,20 @@ const fold = (
       : first.categoryRules ?? second.categoryRules,
     notes,
     sourceNoteIds: Array.from(new Set([...first.sourceNoteIds, ...second.sourceNoteIds])),
+    /*
+      Who recommended this, when the two copies disagree.
+
+      `...first` meant the earlier save won, and a save's time says nothing
+      about whose recommendation it was. A place typed into the search box
+      carries 「manual:…」 and the saver's own id as its creator — that is a
+      statement that nobody recommended it — so folding a real post's save
+      into an earlier manual one credited the saver for somebody else's find.
+
+      A stated source beats a synthetic one. Where both are real the earlier
+      stands, because that is the one the traveller saw first, and where both
+      are synthetic nothing changes.
+    */
+    ...pickAttribution(first, second),
   };
 };
 
