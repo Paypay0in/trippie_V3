@@ -38,7 +38,7 @@ const collection = () => newCollection(
   () => '2026-10-24T00:00:00.000Z',
 );
 
-const sheet = (props: Record<string, unknown> = {}) => {
+const sheet = (props: Partial<React.ComponentProps<typeof CollectionShareSheet>> = {}) => {
   const handlers = { onClose: vi.fn(), onPublish: vi.fn(), onUnpublish: vi.fn() };
   render(
     <CollectionShareSheet
@@ -46,7 +46,7 @@ const sheet = (props: Record<string, unknown> = {}) => {
       places={[place()]}
       origin="https://trippie"
       {...handlers}
-      {...(props as never)}
+      {...props}
     />,
   );
   return handlers;
