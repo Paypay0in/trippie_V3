@@ -123,9 +123,23 @@ export const relaxedName = (name: string): string => {
     which is exactly what it found.
   */
   const { spellings, rest } = splitNouns(plain);
-  const words = rest.split(' ').filter(Boolean);
+  const words = rest
+    .split(' ')
+    // 「PARIS - PARIS」 leaves a bare dash, which is a word the search must find.
+    .filter(word => /[\p{L}\p{N}]/u.test(word));
+
+  /*
+    With a noun in hand, two other words are enough and more than two hurt.
+
+    「PARIS - PARIS LAIT POUR LE CORPS 身體乳」 is what the bottle says; what a
+    person types is 「香奈兒 Paris Paris 身體乳」, and 「LAIT POUR LE CORPS」 is
+    French for 身體乳 — the same fact again, in words no Taiwanese shop
+    writes. Without a noun there is nothing to lean on and the old five
+    stands.
+  */
+  const keep = spellings.length > 0 ? 2 : 5;
   /* Put back exactly what was written. Shortening is not translating. */
-  return [...words.slice(0, Math.max(2, 5 - spellings.length)), ...spellings].join(' ');
+  return [...words.slice(0, keep), ...spellings].join(' ');
 };
 
 /**
@@ -170,11 +184,24 @@ export const priceQueries = (
   */
   const localBrand = brand ? localisedBrand(brand, country.code) : undefined;
 
+  /*
+    The short way is second, not fourth.
+
+    Opening a list sends two, and 「CHANEL PARIS PARIS 身體乳」 — the way a
+    person actually types it — was arriving third, behind two spellings of
+    the full packaging copy that neither market writes. A rung nobody reaches
+    is a rung that does not exist.
+  */
+  const brief = relaxedName(localised ?? name);
+
   const ways = [
-    ...(localBrand ? [priceQuery(localised ?? name, localBrand, country)] : []),
-    ...(localised ? [priceQuery(localised, brand, country)] : []),
+    /* Everything this market's own words can supply, in full. */
+    priceQuery(localised ?? name, localBrand ?? brand, country),
+    /* Then the way a person types it. */
+    priceQuery(brief, localBrand ?? brand, country),
+    /* Then exactly what the traveller wrote. */
     priceQuery(name, brand, country),
-    priceQuery(relaxedName(name), brand, country),
+    /* And last, the name with no brand at all — 「腮紅」 finds the shelf. */
     ...(brand?.trim() ? [priceQuery(name, undefined, country)] : []),
   ];
   return [...new Set(ways.filter(Boolean))];

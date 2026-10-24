@@ -460,8 +460,20 @@ describe('the other countries’ comparison sites', () => {
 describe('asking a second way', () => {
   it('drops the typography a package carries', () => {
     expect(relaxedName('うるおい線・くまスポット シニアケアMagic Concealer'))
-      .toBe('うるおい線 くまスポット シニアケアMagic Concealer');
+      .toBe('うるおい線 くまスポット Concealer');
     expect(relaxedName('【限定】雪肌精 化粧水（医薬部外品）')).toBe('雪肌精 化粧水');
+  });
+
+  /*
+    「這兩個我隨便搜都知道價格」. 「PARIS - PARIS LAIT POUR LE CORPS 身體乳」 is
+    what the bottle says; what a person types is 「香奈兒 Paris Paris 身體乳」.
+    「LAIT POUR LE CORPS」 is French for 身體乳 — the same fact again, in words
+    no Taiwanese shop writes — and the bare dash is a word the search has to
+    find too.
+  */
+  it('asks the way a person would type it', () => {
+    expect(relaxedName('PARIS - PARIS LAIT POUR LE CORPS 身體乳'))
+      .toBe('PARIS PARIS 身體乳');
   });
 
   /*
@@ -594,6 +606,8 @@ describe('asking a second way', () => {
     });
 
     expect(asked).toHaveLength(2);
+    /* The short way is second: a rung nobody reaches is a rung that does not exist. */
+    expect(new URL(asked[0]).searchParams.get('q')).toContain('うるおい線・くまスポット');
     expect(new URL(asked[1]).searchParams.get('q')).toContain('うるおい線 くまスポット');
   });
 });
