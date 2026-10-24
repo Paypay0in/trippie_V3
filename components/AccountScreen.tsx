@@ -30,6 +30,14 @@ interface Props {
   likeCounts?: Record<string, number>;
   /** 「這裡要有可以加朋友的欄位」 — rendered on the page that holds your account. */
   friendsPanel?: React.ReactNode;
+  /**
+   * 我的收藏集 — the named lists, injected the way the friends panel is.
+   *
+   * Injected rather than built here because the collection screens own the
+   * publishing decisions, and a second place rendering them would be a second
+   * place deciding what 公開 means.
+   */
+  collectionsPanel?: React.ReactNode;
   trips?: { id: string; name: string; destination?: string; startDate?: string; endDate?: string; coverImage?: string }[];
   onOpenTrip?: (tripId: string) => void;
   onOpenCreatorCenter: () => void;
@@ -61,6 +69,7 @@ const AccountScreen: React.FC<Props> = ({
   commentCounts,
   likeCounts,
   friendsPanel,
+  collectionsPanel,
   trips,
   onOpenTrip,
   onOpenCreatorCenter,
@@ -332,6 +341,7 @@ const AccountScreen: React.FC<Props> = ({
             )}
           </section>
 
+          {collectionsPanel}
           {friendsPanel}
 
           <MyPostsPanel

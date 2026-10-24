@@ -28,6 +28,7 @@ import {
   CommunityPost,
   PostComment,
   PostSlice,
+  SavedCollection,
   SavedTravelInspiration,
   AuthStatus,
   SettlementBatch,
@@ -202,6 +203,20 @@ import { tripsWithFriend } from "./services/tripsWithFriend";
 import { friendProblem } from "./services/friendProblem";
 import { personOrStranger } from "./services/personOrStranger";
 import FriendsPanel from "./components/FriendsPanel";
+import SavedCollectionsPanel from "./components/SavedCollectionsPanel";
+import {
+  loadCollectionMembership,
+  loadSavedCollections,
+  saveCollectionMembership,
+  saveSavedCollections,
+} from "./services/savedCollectionPersistence";
+import {
+  newCollection,
+  publishCollection,
+  unpublishCollection,
+} from "./services/collectionLifecycle";
+import { publishableItems } from "./services/collectionPublish";
+import { replaceCollectionItems, saveCollection } from "./services/savedCollectionSync";
 import FriendProfileScreen from "./components/FriendProfileScreen";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
@@ -741,6 +756,16 @@ const App: React.FC = () => {
   const [savedTravelInspirations, setSavedTravelInspirations] = useState<
     SavedTravelInspiration[]
   >(loadSavedTravelInspirations);
+  /*
+    收藏集 — the named lists, and which saved places each one holds.
+
+    Local, like the places they draw from. A collection nobody has published
+    is nobody else's business, and keeping it on the device until then is the
+    cheapest honest reading of 「private by default」. Publishing is what talks
+    to the server.
+  */
+  const [savedCollections, setSavedCollections] = useState(loadSavedCollections);
+  const [collectionMembership, setCollectionMembership] = useState(loadCollectionMembership);
   const [communityView, setCommunityView] = useState<
     "home" | "create" | "detail"
   >("home");
@@ -1950,6 +1975,64 @@ const App: React.FC = () => {
       }));
     }
   }, [savedTravelInspirations]);
+
+  /* The named lists, and their contents, beside the places they draw from. */
+  useEffect(() => { saveSavedCollections(savedCollections); }, [savedCollections]);
+  useEffect(() => { saveCollectionMembership(collectionMembership); }, [collectionMembership]);
+
+  /*
+    Creating, publishing, and taking back a 收藏集.
+
+    The lifecycle decisions are all in `collectionLifecycle`; these three are
+    only the wiring. Publishing is the one that leaves the device, and it
+    sends a snapshot built by `publishableItems` — the same function the
+    preview renders, so what was previewed is what goes.
+  */
+  const handleCreateCollection = (title: string) => {
+    /*
+      Named after where the traveller is planning, when the app knows. A
+      collection with no place attached is still a collection; this only
+      spares somebody typing 「東京」 twice.
+    */
+    const draftCountry = tripDestinationDraft?.destinationCountry || "";
+    const draftCity = tripDestinationDraft?.destination || "";
+    setSavedCollections(current => [
+      newCollection({ title, country: draftCountry, city: draftCity }, currentUserId, generateId),
+      ...current,
+    ]);
+  };
+
+  const handlePublishCollection = (collection: SavedCollection) => {
+    const published = publishCollection(
+      collection,
+      collection.visibility === "private" ? "public" : collection.visibility,
+    );
+    setSavedCollections(current =>
+      current.map(entry => (entry.id === published.id ? published : entry)));
+
+    const held = (collectionMembership[published.id] ?? [])
+      .map(id => savedTravelInspirations.find(place => place.id === id))
+      .filter((place): place is SavedTravelInspiration => Boolean(place));
+    void saveCollection(published).then(result => {
+      if (result.status !== "ok") return undefined;
+      return replaceCollectionItems(
+        published.id,
+        publishableItems(held, published, generateId),
+      );
+    });
+  };
+
+  const handleUnpublishCollection = (collection: SavedCollection) => {
+    const revoked = unpublishCollection(collection);
+    setSavedCollections(current =>
+      current.map(entry => (entry.id === revoked.id ? revoked : entry)));
+    /*
+      The places stay on the server and the row is simply no longer readable:
+      `read_public_collection` refuses a revoked collection from the next
+      request onward. Deleting them would take away what the owner still owns.
+    */
+    void saveCollection(revoked);
+  };
   useEffect(() => {
     setSavePipelineDebug((current) => ({
       ...current,
@@ -7294,6 +7377,27 @@ const App: React.FC = () => {
               saverCounts={saverCountsByPost(savedTravelInspirations)}
               commentCounts={commentCounts(postComments)}
               likeCounts={likeCountsFromDevice(loadLikedPosts())}
+              collectionsPanel={
+                <SavedCollectionsPanel
+                  collections={savedCollections}
+                  places={savedTravelInspirations}
+                  membership={collectionMembership}
+                  origin={typeof window !== "undefined" ? window.location.origin : ""}
+                  onCreate={handleCreateCollection}
+                  onPublish={handlePublishCollection}
+                  onUnpublish={handleUnpublishCollection}
+                  /*
+                    Opens the destination this place belongs to, which is the
+                    screen that already knows how to show a saved place. A
+                    second detail view would be a second place deciding what a
+                    saved place looks like.
+                  */
+                  onOpenPlace={(place) => setSelectedSavedDestination({
+                    country: place.country,
+                    city: place.city,
+                  })}
+                />
+              }
               friendsPanel={
                 <FriendsPanel
                   myEmail={authUser?.email}
