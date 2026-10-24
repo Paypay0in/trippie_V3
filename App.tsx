@@ -29,6 +29,7 @@ import {
   PostComment,
   PostSlice,
   SavedCollection,
+  SavedCollectionItem,
   SavedTravelInspiration,
   AuthStatus,
   SettlementBatch,
@@ -204,6 +205,7 @@ import { friendProblem } from "./services/friendProblem";
 import { personOrStranger } from "./services/personOrStranger";
 import FriendsPanel from "./components/FriendsPanel";
 import SavedCollectionsPanel from "./components/SavedCollectionsPanel";
+import PublicCollectionView from "./components/PublicCollectionView";
 import {
   loadCollectionMembership,
   loadSavedCollections,
@@ -216,7 +218,15 @@ import {
   unpublishCollection,
 } from "./services/collectionLifecycle";
 import { publishableItems } from "./services/collectionPublish";
-import { replaceCollectionItems, saveCollection } from "./services/savedCollectionSync";
+import { savedFromCollection } from "./services/collectionSave";
+import { mergeTripInspirations } from "./services/inspirationMerge";
+import {
+  PublicCollection,
+  readPublicCollection,
+  replaceCollectionItems,
+  saveCollection,
+} from "./services/savedCollectionSync";
+import { collectionFromUrl } from "./services/collectionLifecycle";
 import FriendProfileScreen from "./components/FriendProfileScreen";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
@@ -765,6 +775,20 @@ const App: React.FC = () => {
     to the server.
   */
   const [savedCollections, setSavedCollections] = useState(loadSavedCollections);
+  /*
+    Somebody else's collection, when the app was opened on their link.
+
+    Read once from the address, like `?join=`. `visiting` holds what the
+    server handed back; `undefined` while it is being fetched and `null` when
+    the link opens onto nothing — which is the same answer for private,
+    never published, revoked and wrongly-tokened, because 「you may not see
+    this」 tells a stranger that something is there.
+  */
+  const [visitingLink] = useState(() => (typeof window === "undefined"
+    ? undefined
+    : collectionFromUrl(window.location.search)));
+  const [visiting, setVisiting] = useState<PublicCollection | null | undefined>(undefined);
+  const [visitClosed, setVisitClosed] = useState(false);
   const [collectionMembership, setCollectionMembership] = useState(loadCollectionMembership);
   const [communityView, setCommunityView] = useState<
     "home" | "create" | "detail"
@@ -1979,6 +2003,36 @@ const App: React.FC = () => {
   /* The named lists, and their contents, beside the places they draw from. */
   useEffect(() => { saveSavedCollections(savedCollections); }, [savedCollections]);
   useEffect(() => { saveCollectionMembership(collectionMembership); }, [collectionMembership]);
+
+  /* The link somebody was sent, fetched once. */
+  useEffect(() => {
+    if (!visitingLink) return;
+    let stopped = false;
+    void readPublicCollection(visitingLink.id, visitingLink.token).then(result => {
+      if (stopped) return;
+      setVisiting(result.status === "ok" ? result.data : null);
+    });
+    return () => { stopped = true; };
+  }, [visitingLink]);
+
+  /*
+    Saving somebody else's places into this traveller's own collection.
+
+    Whole records rather than references: a reference would make the
+    creator's later edit rewrite somebody else's notebook. The merge that
+    follows folds a place they already hold rather than listing it twice,
+    and it is the same merge the rest of the saved list uses.
+  */
+  const handleSaveFromCollection = (items: SavedCollectionItem[]) => {
+    if (!visiting) return;
+    const saved = savedFromCollection(items, {
+      savedByUserId: currentUserId,
+      collectionId: visiting.id,
+      publisherId: visiting.ownerId,
+      makeId: generateId,
+    });
+    setSavedTravelInspirations(current => mergeTripInspirations([...current, ...saved]));
+  };
 
   /*
     Creating, publishing, and taking back a 收藏集.
@@ -7198,6 +7252,32 @@ const App: React.FC = () => {
         onResolveItem={resolveSavedTravelInspiration}
         onOpenCommunityPost={openSourceCommunityPost}
         onCreateTrip={handleCreateTripFromSavedDestination}
+      />
+    );
+  }
+
+  /*
+    Somebody else's collection, over whatever this app was showing.
+
+    Before every other branch, because the person who opened this link came
+    for one thing and may not have an account at all. Closing it returns them
+    to the app they were already in rather than to a dead end.
+  */
+  if (visitingLink && !visitClosed) {
+    return (
+      <PublicCollectionView
+        collection={visiting ?? undefined}
+        notFound={visiting === null}
+        loading={visiting === undefined}
+        held={savedTravelInspirations}
+        signedIn={authStatus === "authenticated"}
+        onSignIn={() => {
+          setAppSection("profile");
+          setAccountView("landing");
+          setVisitClosed(true);
+        }}
+        onSave={handleSaveFromCollection}
+        onClose={() => setVisitClosed(true)}
       />
     );
   }
