@@ -3,6 +3,7 @@ import express from "express";
 import { imageSearchConfig, searchProductImage } from "./services/productImageSearch";
 import { searchCandidates, SearchCandidate, SearchedQuote } from "./services/priceFromSearch";
 import { readPage } from "./services/priceFromPage";
+import { isTrustedShop } from "./services/trustedShops";
 import { matchProduct, packSizeIn } from "./services/productMatch";
 import { comparisonCountry } from "./services/comparisonCountries";
 import { readFileSync } from "node:fs";
@@ -2192,6 +2193,25 @@ ${sentence}
     */
     const harder = req.body?.refresh === true;
 
+    /*
+      Pages the traveller named, one per country.
+
+      「這兩個我隨便搜都知道價格」 — Chanel publishes no price anywhere a
+      program can reach, and he can produce the right page in thirty seconds.
+      Where a row carries one, that page is read instead of searching: no
+      query, no ranking, no match, because a page a person chose has already
+      answered the only question those stages exist to answer.
+    */
+    const pinned: Record<string, string> = {};
+    const givenUrls = req.body?.priceUrls;
+    if (givenUrls && typeof givenUrls === "object") {
+      for (const [code, url] of Object.entries(givenUrls as Record<string, unknown>)) {
+        if (typeof url === "string" && /^https:\/\//.test(url.trim())) {
+          pinned[String(code).toUpperCase()] = url.trim();
+        }
+      }
+    }
+
     const destination = comparisonCountry(req.body?.destinationCountry) ?? comparisonCountry("JP");
     const home = comparisonCountry(req.body?.homeCountry) ?? comparisonCountry("TW");
     const inPlay = destination && home && destination.code !== home.code
@@ -2209,7 +2229,7 @@ ${sentence}
       the deploy that fixed it.
     */
     const READER = "v5-why";
-    const cacheKey = `${READER}|${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}`.toLocaleLowerCase();
+    const cacheKey = `${READER}|${name}|${brand}|${inPlay.map(entry => entry.code).join('-')}|${Object.entries(pinned).sort().map(([code, url]) => `${code}=${url}`).join(',')}`.toLocaleLowerCase();
     const cached = priceCache.get(cacheKey);
     if (!harder && cached && Date.now() - cached.at < PRICE_CACHE_MS) {
       res.json(cached.body);
@@ -2293,7 +2313,61 @@ ${sentence}
 
         const perCountryQuotes = await Promise.all(perCountry.map(async (candidates, at) => {
           const country = inPlay[at];
-          const looking = candidates.slice(0, PAGES_PER_COUNTRY);
+
+          /*
+            A page the traveller named answers for itself.
+
+            Read whole: no match gate, because the question 「is this the
+            product」 was settled by the person who pasted the address, and no
+            ranking, because there is nothing to rank. The cheapest offer on
+            it is taken, which is the same rule a shop's own page gets.
+          */
+          const chosen = pinned[country.code];
+          if (chosen) {
+            const read = await readPage(chosen, undefined, country.currency)
+              .catch(() => ({ reachable: false, price: null, offers: [] }));
+            const offer = [...read.offers]
+              .filter(entry => entry.currency === country.currency)
+              .sort((left, right) => left.amount - right.amount)[0];
+            return {
+              countryCode: country.code,
+              gtin: offer?.gtin,
+              quotes: (offer
+                ? [{
+                  countryCode: country.code,
+                  shop: (() => { try { return new URL(chosen).hostname.replace(/^www\./, ""); } catch { return country.displayName; } })(),
+                  amount: offer.amount,
+                  currency: offer.currency,
+                  sourceUrl: chosen,
+                  verified: true,
+                  match: "exact" as const,
+                  matchReason: "你指定的商品頁",
+                  ...(offer.fromText ? { priceFromText: true } : {}),
+                  placement: "host" as const,
+                }]
+                : []) as SearchedQuote[],
+              status: offer
+                ? "ok" as const
+                : read.reachable
+                  ? "found_no_price" as const
+                  : "not_found" as const,
+            };
+          }
+          /*
+            Spend the page-open budget on shops this market's travellers
+            would name.
+
+            Five pages per country is a budget, and the diagnostic showed it
+            going on department-store brand indexes while 松本清 sat further
+            down the list. The search stays open — a shop nobody listed is
+            still allowed to answer, which is how 無印's own storefront and
+            every market this app has not thought about keep working — but it
+            is opened after the ones we recognise rather than instead of them.
+          */
+          const looking = [...candidates]
+            .sort((left, right) => Number(isTrustedShop(right.host, country.code))
+              - Number(isTrustedShop(left.host, country.code)))
+            .slice(0, PAGES_PER_COUNTRY);
           const read = await Promise.all(looking.map(candidate =>
             /*
               The country's own currency goes with the request. It is what

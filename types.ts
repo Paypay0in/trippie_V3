@@ -109,6 +109,23 @@ export interface ShoppingItem {
    * shot; one with a page behind it can be recognised as wrong.
    */
   photoSource?: string;
+  /**
+   * Product pages the traveller named, when the search cannot find them.
+   *
+   * 「這兩個我隨便搜都知道價格」 — about two CHANEL rows. Chanel's own site
+   * publishes no price at all, not even one written for a person, and every
+   * Japanese page a search returns is a department store's brand index.
+   * Nothing about searching better reaches it, and he can produce the right
+   * page in thirty seconds.
+   *
+   * So the row may carry one page per country, and the lookup reads those
+   * instead of searching. Not a defeat: some products are not worth a
+   * program guessing at, and a page a person chose is a better answer than
+   * any ranking.
+   *
+   * Keyed by ISO country code: 「JP」, 「TW」.
+   */
+  priceUrls?: Record<string, string>;
   sourceType?: 'travel_rules';
   travelRuleActionType?: EntryActionType;
   travelRuleNecessity?: EntryNecessity;

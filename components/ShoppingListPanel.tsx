@@ -210,6 +210,7 @@ const ShoppingListPanel: React.FC<Props> = ({
       brand: brandOf(item.description),
       destinationCountry: destination?.code,
       homeCountry: home?.code,
+      ...(item.priceUrls ? { priceUrls: item.priceUrls } : {}),
       /* 「重新查價」 is the one place that may ask harder, and for one row. */
       refresh: true,
     })
@@ -384,6 +385,7 @@ const ShoppingListPanel: React.FC<Props> = ({
           brand: brandOf(item.description),
           destinationCountry: destination?.code,
           homeCountry: home?.code,
+          ...(item.priceUrls ? { priceUrls: item.priceUrls } : {}),
         })
           .catch(() => null);
         if (stopped) break;
@@ -931,6 +933,45 @@ const ShoppingListPanel: React.FC<Props> = ({
                           >
                             {checking === item.id ? '查價中…' : '重新查價'}
                           </button>
+                          {/*
+                            「這兩個我隨便搜都知道價格」.
+
+                            Chanel publishes no price anywhere a program can
+                            reach — not even one written for a person — and
+                            every page a search returns for it is a department
+                            store's brand index. Nothing about searching
+                            better reaches it, and he can produce the right
+                            page in thirty seconds. So he can.
+
+                            One page per country, and from then on the lookup
+                            reads that page instead of searching.
+                          */}
+                          {onUpdateItem && pair.map(country => (
+                            <button
+                              key={`pin-${country.code}`}
+                              type="button"
+                              data-testid={`shopping-pin-${country.code}-${item.id}`}
+                              onClick={() => {
+                                const held = item.priceUrls ?? {};
+                                const given = window.prompt(
+                                  `貼上${country.displayName}的商品頁網址（留空則清除，改回自動搜尋）`,
+                                  held[country.code] ?? '',
+                                );
+                                if (given === null) return;
+                                const url = given.trim();
+                                const next = { ...held };
+                                if (url) next[country.code] = url; else delete next[country.code];
+                                onUpdateItem(item.id, {
+                                  priceUrls: Object.keys(next).length > 0 ? next : undefined,
+                                });
+                              }}
+                              className="rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-slate-500 ring-1 ring-slate-200"
+                            >
+                              {item.priceUrls?.[country.code]
+                                ? `${country.displayName}：已指定網址`
+                                : `指定${country.displayName}網址`}
+                            </button>
+                          ))}
                           {/*
                             One row's picture, for when the batch found the
                             wrong bottle or he wants a different one.

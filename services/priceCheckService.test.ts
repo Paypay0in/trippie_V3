@@ -125,9 +125,8 @@ describe('remembering between visits', () => {
     /* A fresh page, with only the device's own store to go on. */
     const stored = localStorage.getItem(PRICE_CACHE_KEY);
     expect(stored).toBeTruthy();
-    expect(JSON.parse(stored!)).toHaveProperty(
-      'sk-ii 青春露||jp|tw'.replace('||', '||'),
-    );
+    /* The pinned-page segment is part of the key and empty when none is set. */
+    expect(Object.keys(JSON.parse(stored!))[0]).toBe('sk-ii 青春露||jp|tw|');
 
     await checkPrices({ name: 'SK-II 青春露', destinationCountry: 'JP', homeCountry: 'TW' });
     expect((globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls)
@@ -151,7 +150,7 @@ describe('remembering between visits', () => {
 
     await checkPrices({ name: '雪肌精' });
 
-    expect(JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) ?? '{}')).not.toHaveProperty('雪肌精|||');
+    expect(JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) ?? '{}')).not.toHaveProperty('雪肌精||||');
   });
 
   /* A full device keeps working; it simply looks things up again. */
@@ -180,7 +179,7 @@ describe('an answer from a reading that has been replaced', () => {
 
   it('ignores and clears what an earlier reading left', async () => {
     localStorage.setItem('trippie_price_cache', JSON.stringify({
-      'sk-ii 青春露||jp|tw': { at: Date.now(), value: { quotes: [], readAt: 'yesterday' } },
+      'sk-ii 青春露||jp|tw|': { at: Date.now(), value: { quotes: [], readAt: 'yesterday' } },
     }));
 
     /* A fresh page load: the sweep runs when the module is first evaluated. */
@@ -193,5 +192,49 @@ describe('an answer from a reading that has been replaced', () => {
     /* And it looks the product up rather than answering from the old store. */
     expect((await fresh({ name: 'SK-II 青春露', destinationCountry: 'JP', homeCountry: 'TW' })).readAt)
       .not.toBe('yesterday');
+  });
+});
+
+/**
+ * 「這兩個我隨便搜都知道價格」.
+ *
+ * Chanel publishes no price anywhere a program can reach, and every page a
+ * search returns for it is a department store's brand index. A page a person
+ * chose is a better answer than any ranking, so a row may carry one per
+ * country — and the same row with a page pinned is a different question from
+ * the same row without one.
+ */
+describe('a page the traveller named', () => {
+  it('sends it and keys the cache on it', async () => {
+    await checkPrices({
+      name: 'Chanel 唇霜',
+      destinationCountry: 'JP',
+      homeCountry: 'TW',
+      priceUrls: { JP: 'https://shop.example.jp/item/1' },
+    });
+
+    const body = JSON.parse(
+      (globalThis.fetch as unknown as { mock: { calls: [string, { body: string }][] } })
+        .mock.calls.at(-1)![1].body,
+    );
+    expect(body.priceUrls).toEqual({ JP: 'https://shop.example.jp/item/1' });
+
+    const keys = Object.keys(JSON.parse(localStorage.getItem(PRICE_CACHE_KEY) ?? '{}'));
+    expect(keys.some(key => key.includes('jp=https://shop.example.jp/item/1'))).toBe(true);
+  });
+
+  it('does not answer a pinned row from the unpinned row’s cache', async () => {
+    await checkPrices({ name: '雪肌精 化妝水', destinationCountry: 'JP', homeCountry: 'TW' });
+    const before = (globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
+
+    await checkPrices({
+      name: '雪肌精 化妝水',
+      destinationCountry: 'JP',
+      homeCountry: 'TW',
+      priceUrls: { JP: 'https://shop.example.jp/item/2' },
+    });
+
+    expect((globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls.length)
+      .toBe(before + 1);
   });
 });

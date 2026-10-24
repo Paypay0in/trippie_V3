@@ -156,7 +156,7 @@ export interface PriceCheck {
  * product. It costs one round of searches and buys never having to tell
  * somebody their screen is stale.
  */
-const READING = 'v11-tsuhan';
+const READING = 'v12-trusted-pinned';
 export const PRICE_CACHE_KEY = `trippie_price_cache:${READING}`;
 const CACHE_KEY = PRICE_CACHE_KEY;
 const CACHE_MS = 3 * 24 * 60 * 60 * 1000;
@@ -268,14 +268,27 @@ export const checkPrices = (product: {
    * spends the extra ways of asking that an ordinary open must not.
    */
   refresh?: boolean;
+  /**
+   * Product pages the traveller named, one per country code.
+   *
+   * 「這兩個我隨便搜都知道價格」. Where one exists the server reads it instead
+   * of searching, so it is part of the key: the same row with a page pinned
+   * is a different question from the same row without one.
+   */
+  priceUrls?: Record<string, string>;
 }): Promise<PriceCheck> => {
   /*
     The pair is part of the key. The same bottle compared 日本/台灣 and
     日本/香港 are two different questions, and answering the second from the
     first's cache is how a Hong Kong price appears under 台灣價格.
   */
-  const key = [product.name, product.brand ?? '', product.destinationCountry ?? '', product.homeCountry ?? '']
-    .join('|').toLocaleLowerCase();
+  const key = [
+    product.name,
+    product.brand ?? '',
+    product.destinationCountry ?? '',
+    product.homeCountry ?? '',
+    Object.entries(product.priceUrls ?? {}).sort().map(([code, url]) => `${code}=${url}`).join(','),
+  ].join('|').toLocaleLowerCase();
   if (product.refresh) { forget(key); pending.delete(key); }
   const cached = cache.get(key);
   if (cached !== undefined) return Promise.resolve(cached);
@@ -291,6 +304,9 @@ export const checkPrices = (product: {
       destinationCountry: product.destinationCountry,
       homeCountry: product.homeCountry,
       ...(product.refresh ? { refresh: true } : {}),
+      ...(product.priceUrls && Object.keys(product.priceUrls).length > 0
+        ? { priceUrls: product.priceUrls }
+        : {}),
     }),
   })
     .then(async response => {
