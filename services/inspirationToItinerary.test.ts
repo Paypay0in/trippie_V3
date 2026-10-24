@@ -100,3 +100,33 @@ describe('一次加入選取的那幾個', () => {
     expect(new Set(items.map(item => item.id)).size).toBe(3);
   });
 });
+
+/**
+ * 「來自 Ann 的東京咖啡地圖」.
+ *
+ * A place somebody recommended without writing anything about it used to
+ * arrive on the itinerary with nobody's name on it: the only attribution an
+ * item carried lived inside its note objects, and a bare recommendation has
+ * no notes.
+ */
+describe('who found the place', () => {
+  const group = (patch: Partial<TripInspirationPlaceGroup>): TripInspirationPlaceGroup => ({
+    id: 'g1', placeName: 'Onibus Coffee', country: '日本', city: '東京',
+    inspirationIds: ['i1'], experienceNotes: [], missingPlaceIdentity: false,
+    matchBasis: 'country', ...patch,
+  });
+
+  it('carries the creator onto the item', () => {
+    const item = inspirationGroupToItineraryItem(
+      group({ sourceCreatorId: 'ann' }), () => 'x',
+    );
+
+    expect(item.sourceCreatorId).toBe('ann');
+  });
+
+  /* A place the traveller typed in themselves has no creator to name. */
+  it('names nobody when nobody recommended it', () => {
+    expect(inspirationGroupToItineraryItem(group({}), () => 'x'))
+      .not.toHaveProperty('sourceCreatorId');
+  });
+});

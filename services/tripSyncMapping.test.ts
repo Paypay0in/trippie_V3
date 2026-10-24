@@ -399,3 +399,33 @@ describe('the shopping list', () => {
     expect(fromShoppingRow(bought).isPurchased).toBe(true);
   });
 });
+
+/**
+ * 「這兩個我隨便搜都知道價格」 — the product page a traveller names when the
+ * search cannot find it. It lived in the local draft only until migration
+ * 0032 ran, so a cloud reload dropped it.
+ */
+describe('a product page the traveller named', () => {
+  const item = (patch: Partial<ShoppingItem> = {}): ShoppingItem => ({
+    id: 's1', name: 'Chanel 唇霜', isPurchased: false, phase: 'during', ...patch,
+  });
+
+  it('carries it out and back', () => {
+    const row = toShoppingRow(item({ priceUrls: { JP: 'https://shop.example.jp/1' } }), 't1');
+
+    expect(row.price_urls).toEqual({ JP: 'https://shop.example.jp/1' });
+    expect(fromShoppingRow(row).priceUrls).toEqual({ JP: 'https://shop.example.jp/1' });
+  });
+
+  /* Absent rather than empty: a row says 「nobody said」 by holding null. */
+  it('says nothing when nobody named one', () => {
+    expect(toShoppingRow(item(), 't1').price_urls).toBeNull();
+    expect(toShoppingRow(item({ priceUrls: {} }), 't1').price_urls).toBeNull();
+    expect(fromShoppingRow(toShoppingRow(item(), 't1'))).not.toHaveProperty('priceUrls');
+  });
+
+  it('survives a row written before the column existed', () => {
+    const legacy = { ...toShoppingRow(item(), 't1'), price_urls: null };
+    expect(fromShoppingRow(legacy)).not.toHaveProperty('priceUrls');
+  });
+});

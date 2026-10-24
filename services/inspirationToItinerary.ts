@@ -50,6 +50,14 @@ export const inspirationGroupToItineraryItem = (
     */
     ...(group.inspirationIds.length > 0 ? { sourceInspirationIds: [...group.inspirationIds] } : {}),
     ...(notes.length > 0 ? { savedTravelNotes: notes } : {}),
+    /*
+      And who found it, which the notes alone could not say.
+
+      A place somebody recommended without writing anything about it used to
+      arrive here with nobody's name on it, because the only attribution an
+      item carried lived inside its note objects.
+    */
+    ...(group.sourceCreatorId ? { sourceCreatorId: group.sourceCreatorId } : {}),
     origin: 'saved_inspiration',
   };
 };

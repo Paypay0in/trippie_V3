@@ -163,6 +163,15 @@ const normalizeItinerary = (value: unknown): ItineraryItem[] | undefined => {
       : undefined,
     date: typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) ? item.date : undefined,
     isCompleted: typeof item.isCompleted === 'boolean' ? item.isCompleted : undefined,
+    /*
+      Who found this place. Validated like every other optional string here
+      rather than riding through on the spread, so a blank cannot become a
+      creator nobody can resolve.
+    */
+    sourceCreatorId: typeof item.sourceCreatorId === 'string' && item.sourceCreatorId.trim()
+      ? item.sourceCreatorId : undefined,
+    sourceCollectionId: typeof item.sourceCollectionId === 'string' && item.sourceCollectionId.trim()
+      ? item.sourceCollectionId : undefined,
     placeId: typeof item.placeId === 'string' && item.placeId ? item.placeId : undefined,
     address: typeof item.address === 'string' && item.address ? item.address : undefined,
     latitude: typeof item.latitude === 'number' && Number.isFinite(item.latitude) && item.latitude >= -90 && item.latitude <= 90 ? item.latitude : undefined,

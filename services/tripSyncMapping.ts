@@ -272,6 +272,10 @@ export interface ItineraryItemRow {
   origin: string | null;
   linked_expense_id: string | null;
   derived_from_flight_anchor_id: string | null;
+  /** Who originally shared this place; see `0033`. Never the saver. */
+  source_creator_id: string | null;
+  /** The shared collection or trip it came from; see `0033`. */
+  source_collection_id: string | null;
   source_inspiration_ids: unknown;
   saved_travel_notes: unknown;
   /** The traveller's own photographs of the stop. See `0029`. */
@@ -313,6 +317,8 @@ export const toItineraryRow = (item: ItineraryItem, tripId: string): ItineraryIt
   origin: item.origin ?? null,
   linked_expense_id: item.linkedExpenseId ?? null,
   derived_from_flight_anchor_id: item.derivedFromFlightAnchorId ?? null,
+  source_creator_id: item.sourceCreatorId ?? null,
+  source_collection_id: item.sourceCollectionId ?? null,
   source_inspiration_ids: item.sourceInspirationIds ?? [],
   saved_travel_notes: item.savedTravelNotes ?? [],
   // Null rather than 'shared', so a row written by an older client and a row
@@ -353,6 +359,8 @@ export const fromItineraryRow = (row: ItineraryItemRow): ItineraryItem => ({
   origin: (row.origin as ItineraryItem['origin']) ?? undefined,
   linkedExpenseId: row.linked_expense_id ?? undefined,
   derivedFromFlightAnchorId: row.derived_from_flight_anchor_id ?? undefined,
+  ...(row.source_creator_id ? { sourceCreatorId: row.source_creator_id } : {}),
+  ...(row.source_collection_id ? { sourceCollectionId: row.source_collection_id } : {}),
   sourceInspirationIds: Array.isArray(row.source_inspiration_ids)
     ? (row.source_inspiration_ids as string[])
     : undefined,
@@ -630,6 +638,14 @@ export interface ShoppingItemRow {
   estimated_currency: string | null;
   photo: string | null;
   photo_source: string | null;
+  /**
+   * Product pages the traveller named, keyed by ISO country code.
+   *
+   * 「這兩個我隨便搜都知道價格」 — a page a person chose, read instead of
+   * searching. Null rather than an empty object when nobody named one, so a
+   * row says 「nobody said」 the way every other optional column here does.
+   */
+  price_urls: Record<string, string> | null;
 }
 
 export const toShoppingRow = (item: ShoppingItem, tripId: string): ShoppingItemRow => ({
@@ -647,6 +663,9 @@ export const toShoppingRow = (item: ShoppingItem, tripId: string): ShoppingItemR
   estimated_currency: item.estimatedCurrency ?? null,
   photo: item.photo ?? null,
   photo_source: item.photoSource ?? null,
+  price_urls: item.priceUrls && Object.keys(item.priceUrls).length > 0
+    ? item.priceUrls
+    : null,
 });
 
 export const fromShoppingRow = (row: ShoppingItemRow): ShoppingItem => ({
@@ -665,4 +684,8 @@ export const fromShoppingRow = (row: ShoppingItemRow): ShoppingItem => ({
   ...(row.estimated_currency ? { estimatedCurrency: row.estimated_currency } : {}),
   ...(row.photo ? { photo: row.photo } : {}),
   ...(row.photo_source ? { photoSource: row.photo_source } : {}),
+  ...(row.price_urls && typeof row.price_urls === 'object'
+    && Object.keys(row.price_urls).length > 0
+    ? { priceUrls: row.price_urls }
+    : {}),
 });

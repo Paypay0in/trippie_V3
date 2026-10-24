@@ -35,6 +35,18 @@ export interface PlaceCoordinates {
   longitude: number;
 }
 
+/** 「manual:…」 and 「screenshot:…」 say 「nobody recommended this」. */
+const SYNTHETIC_SOURCE = /^(?:manual|screenshot):/;
+
+const statedCreator = (
+  item: Pick<SavedTravelInspiration, 'sourcePostId' | 'sourceCreatorId'>,
+): string | undefined => {
+  const post = (item.sourcePostId ?? '').trim();
+  const creator = (item.sourceCreatorId ?? '').trim();
+  if (!post || !creator || SYNTHETIC_SOURCE.test(post)) return undefined;
+  return creator;
+};
+
 export interface TripInspirationPlaceGroup {
   /** Stable, data-derived id. Never an array index. */
   id: string;
@@ -51,6 +63,17 @@ export interface TripInspirationPlaceGroup {
   inspirationIds: string[];
   /** Notes keep their original attribution; nothing is merged away. */
   experienceNotes: SavedExperienceNote[];
+  /**
+   * Who originally shared this place, when somebody else did.
+   *
+   * Grouping used to drop this, and it is the only place a creator's name
+   * survives for a place nobody wrote a note about — the notes carry their
+   * own attribution, a bare recommendation carries none. Absent when the
+   * traveller found it themselves: a record saved by typing into the search
+   * box names the saver as its creator, which is a statement that nobody
+   * recommended it.
+   */
+  sourceCreatorId?: string;
   /** True when the saved data has neither a placeId nor usable coordinates. */
   missingPlaceIdentity: boolean;
   /** 🏷️ 景點 / 餐廳 / … See `placeCategory`. */
@@ -339,6 +362,13 @@ export const groupInspirationsByPlace = (
         placePhotoUrl: item.placePhotoUrl,
         inspirationIds: [],
         experienceNotes: [],
+        /*
+          A creator credit only where one was actually stated. 「manual:…」 and
+          「screenshot:…」 mean 「nobody recommended this」, and carrying the
+          saver's own id forward as a creator is how 「來自 X」 ends up naming
+          the person reading it.
+        */
+        sourceCreatorId: statedCreator(item),
         missingPlaceIdentity: true,
         // 「有出現 但又消失了 沒有穩定存在」. See the merge below for why this
         // cannot simply take the first record's value.

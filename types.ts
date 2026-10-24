@@ -965,6 +965,20 @@ export interface ItineraryItem {
    */
   savedTravelNotes?: SavedExperienceNote[];
   /**
+   * Who originally shared this place, when somebody else did.
+   *
+   * 「來自 Ann 的東京咖啡地圖」 is the line the place detail screen prints, and
+   * until this existed the creator's identity lived only inside each note
+   * object — so a place somebody recommended without writing anything about
+   * it arrived with nobody's name on it.
+   *
+   * Never the saver, and never the traveller themselves. A place found by
+   * typing into the search box has no creator and this is absent.
+   */
+  sourceCreatorId?: string;
+  /** The shared collection or trip it was taken from, for that same line. */
+  sourceCollectionId?: string;
+  /**
    * Whether the ticket or table this stop needs has been arranged.
    *
    * 「並且像代辦清單 要可以打勾的」. The list of places needing one is derived from
