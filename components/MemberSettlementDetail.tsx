@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Users, X } from 'lucide-react';
 import { Expense, TripMember } from '../types';
 import { getCategoryIcon } from '../constants';
-import { buildMemberPositions, describeExpense, settlementExpenses } from '../services/memberSettlementDetail';
+import { buildMemberPositions, describeExpense, settlementExpenses, settlementImbalances } from '../services/memberSettlementDetail';
 
 /**
  * 成員結算明細 — everybody's position on one screen.
@@ -65,6 +65,19 @@ const MemberSettlementDetail: React.FC<Props> = ({
     () => settlementExpenses(expenses, members, ownerMemberId),
     [expenses, members, ownerMemberId],
   );
+  /*
+    「為何這兩個數字不一樣」 — 應付 NT$894 against 應收 NT$890.
+
+    Everybody's net must sum to zero. It cannot when one bill's 「who paid」
+    and 「who owes」 disagree, and the calculator permits that on purpose: it
+    will not silently rewrite somebody's figures. That is the right call and
+    it told nobody, so the page showed two numbers that could not both be
+    true and said nothing about it.
+  */
+  const imbalances = React.useMemo(
+    () => settlementImbalances(expenses, ownerMemberId),
+    [expenses, ownerMemberId],
+  );
   const toneOf = (memberId: string) =>
     AVATAR_TONES[Math.max(0, members.findIndex(member => member.id === memberId)) % AVATAR_TONES.length];
 
@@ -94,6 +107,35 @@ const MemberSettlementDetail: React.FC<Props> = ({
           <p className="mt-0.5 text-xs font-medium text-slate-400">{dateRange}</p>
         </div>
       </div>
+
+      {imbalances.length > 0 && (
+        <div
+          data-testid="settlement-imbalance"
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-4"
+        >
+          <p className="text-sm font-black text-amber-700">這些金額對不起來，結算可能不準</p>
+          <ul className="mt-2 space-y-2">
+            {imbalances.map(({ expense, paid, owed, difference }) => (
+              <li key={expense.id}>
+                <button
+                  type="button"
+                  data-testid={`settlement-imbalance-${expense.id}`}
+                  onClick={() => onOpenExpense?.(expense)}
+                  className="w-full text-left text-[12px] text-amber-700"
+                >
+                  <span className="font-bold underline">{expense.description || '未命名支出'}</span>
+                  <span className="ml-1 text-amber-600">
+                    有人付了 {money(paid, currency)}，但分攤加起來是 {money(owed, currency)}
+                    （差 {money(Math.abs(difference), currency)}）
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {/* Never repaired automatically: whose number is wrong is his to say. */}
+          <p className="mt-2 text-[11px] text-amber-600">點一下可以打開那筆支出確認。</p>
+        </div>
+      )}
 
       <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
         <div className="flex items-center justify-between">

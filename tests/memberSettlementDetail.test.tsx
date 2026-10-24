@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import MemberSettlementDetail from '../components/MemberSettlementDetail';
-import { buildMemberPositions, describeExpense, settlementExpenses } from '../services/memberSettlementDetail';
+import { buildMemberPositions, describeExpense, settlementExpenses, settlementImbalances } from '../services/memberSettlementDetail';
 import { Category, Expense, TripMember } from '../types';
 
 const GINA = 'seat-gina';
@@ -188,5 +188,83 @@ describe('自己付給自己的帳', () => {
     page({ expenses: [ownBill] });
 
     expect(screen.getByText('這趟還沒有需要分攤的支出')).toBeTruthy();
+  });
+});
+
+/**
+ * 「為何這兩個數字不一樣」 — 應付 NT$894 against 應收 NT$890.
+ *
+ * Everybody's net must sum to zero; that is the one invariant this page
+ * rests on. It cannot hold when a single bill's 「who paid」 and 「who owes」
+ * disagree, and the calculator permits exactly that: it will not silently
+ * rewrite somebody's figures. The right call, told to nobody — so the page
+ * showed two numbers that could not both be true and said nothing.
+ */
+describe('對不起來的帳', () => {
+  /* 894 paid against 890 owed, which is the Founder's screen exactly. */
+  const lopsided = bill({
+    id: 'e-odd', category: Category.FOOD, description: '黑船亭 洋食料理', date: '2026-10-02',
+    amount: 894, twdAmount: 894, payerId: ANN, beneficiaries: [ANN, GINA],
+    splitMethod: 'EXACT', splitAllocations: { [ANN]: 445, [GINA]: 445 },
+  });
+
+  it('names the bill, both totals, and the gap', () => {
+    const [issue] = settlementImbalances([lopsided], ANN);
+
+    expect(issue.expense.id).toBe('e-odd');
+    expect(issue.paid).toBe(894);
+    expect(issue.owed).toBe(890);
+    expect(issue.difference).toBe(4);
+  });
+
+  it('says nothing about a bill that adds up', () => {
+    expect(settlementImbalances(ledger, ANN)).toEqual([]);
+  });
+
+  /* A rounding remainder is not a mistake; 0.5 is the tolerance. */
+  it('ignores a gap smaller than the tolerance', () => {
+    const rounded = bill({
+      id: 'e-round', amount: 100, twdAmount: 100, payerId: ANN,
+      beneficiaries: [ANN, GINA], splitMethod: 'EXACT',
+      splitAllocations: { [ANN]: 50, [GINA]: 49.7 },
+    });
+
+    expect(settlementImbalances([rounded], ANN)).toEqual([]);
+  });
+
+  it('shows it on the page, and opens the bill when tapped', async () => {
+    const onOpenExpense = vi.fn();
+    page({ expenses: [...ledger, lopsided], onOpenExpense });
+
+    const banner = screen.getByTestId('settlement-imbalance');
+    expect(within(banner).getByText(/黑船亭 洋食料理/)).toBeTruthy();
+    expect(banner.textContent).toContain('差');
+
+    await userEvent.click(screen.getByTestId('settlement-imbalance-e-odd'));
+    expect(onOpenExpense).toHaveBeenCalledWith(lopsided);
+  });
+
+  it('stays out of the way when every bill adds up', () => {
+    page();
+    expect(screen.queryByTestId('settlement-imbalance')).toBeNull();
+  });
+});
+
+/**
+ * 兌換 is not a shared cost and 朋友代買 is counted by the receivable flow, so
+ * `calculateTripDebts` has always excluded both. This page did not — the same
+ * question answered two ways, which is this codebase's recurring defect.
+ */
+describe('不屬於分帳的帳', () => {
+  it('leaves 兌換 and 朋友代買 out of everybody’s position', () => {
+    const noise = [
+      bill({ id: 'e-fx', category: Category.EXCHANGE, description: '換日幣', amount: 10000, twdAmount: 10000, payerId: ANN, beneficiaries: [GINA] }),
+      bill({ id: 'e-proxy', category: Category.HELP_BUY, description: '幫 Gina 代買', amount: 2000, twdAmount: 2000, payerId: ANN, beneficiaries: [GINA] }),
+    ];
+
+    const before = buildMemberPositions(ledger, members, ANN);
+    const after = buildMemberPositions([...ledger, ...noise], members, ANN);
+
+    expect(after.map(row => row.net)).toEqual(before.map(row => row.net));
   });
 });

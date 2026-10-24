@@ -1,5 +1,5 @@
 import { Expense, TripMember } from '../types';
-import { calculateExpenseLedger } from './splitCalculator';
+import { SPLIT_TOLERANCE, calculateExpenseLedger, isSplitRelevant } from './splitCalculator';
 import { buildMinimumSettlementTransfers } from './minimumSettlement';
 
 /**
@@ -39,7 +39,7 @@ export const buildMemberPositions = (
   const net: Record<string, number> = {};
   members.forEach(member => { net[member.id] = 0; });
 
-  expenses.forEach(expense => {
+  expenses.filter(isSplitRelevant).forEach(expense => {
     if (!Number.isFinite(expense.twdAmount)) return;
     const { responsibility, paid } = calculateExpenseLedger(expense, ownerMemberId);
     /*
@@ -74,6 +74,56 @@ export const buildMemberPositions = (
       .filter((row): row is { member: TripMember; amount: number } => Boolean(row)),
   }));
 };
+
+/**
+ * A bill whose two sides do not agree.
+ *
+ * 「為何這兩個數字不一樣」 — 應付 NT$894 against 應收 NT$890. Everybody's net
+ * must sum to zero; that is the one invariant this whole page rests on, and
+ * it had been quietly broken by four dollars.
+ *
+ * It breaks when a single bill's 「who paid」 and 「who owes」 do not add up to
+ * the same money, and the calculator permits that on purpose:
+ * `normalizePayerAllocations` returns stored amounts untouched when they miss
+ * the total by more than `SPLIT_TOLERANCE`, and EXACT shares are never
+ * rescaled. Both are the right call — the app must not silently rewrite
+ * somebody's figures — but neither told anyone.
+ *
+ * So this asks the invariant's own question of each bill, which is why it
+ * lives here beside the positions rather than in the calculator: it covers
+ * both sides at once, where `detectAllocationIssue` only inspects the
+ * responsibility side and would have missed a payer split that does not add
+ * up.
+ *
+ * Reporting only. Whose number is wrong is the traveller's to say.
+ */
+export interface SettlementImbalance {
+  expense: Expense;
+  /** What the payers are recorded as having put in. */
+  paid: number;
+  /** What the sharers are recorded as owing. */
+  owed: number;
+  /** `paid - owed`, rounded. Positive means more was paid than anyone owes. */
+  difference: number;
+}
+
+export const settlementImbalances = (
+  expenses: Expense[],
+  ownerMemberId?: string,
+): SettlementImbalance[] => expenses
+  .filter(isSplitRelevant)
+  .filter(expense => Number.isFinite(expense.twdAmount))
+  .map(expense => {
+    const { responsibility, paid } = calculateExpenseLedger(expense, ownerMemberId);
+    /* A bill nobody is responsible for is nobody's debt; see above. */
+    if (Object.keys(responsibility).length === 0) return undefined;
+    const paidTotal = Object.values(paid).reduce((sum, amount) => sum + (Number.isFinite(amount) ? amount : 0), 0);
+    const owedTotal = Object.values(responsibility).reduce((sum, amount) => sum + (Number.isFinite(amount) ? amount : 0), 0);
+    const difference = round(paidTotal - owedTotal);
+    if (Math.abs(difference) <= SPLIT_TOLERANCE) return undefined;
+    return { expense, paid: round(paidTotal), owed: round(owedTotal), difference };
+  })
+  .filter((entry): entry is SettlementImbalance => entry !== undefined);
 
 /**
  * The bills this settlement is actually about.
