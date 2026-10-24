@@ -305,3 +305,42 @@ describe('a figure that is not a price at all', () => {
     expect(offersFromText('<p>価格 660円</p>', 'JPY')[0].amount).toBe(660);
   });
 })
+
+/**
+ * A JAN names the product itself in a way no language does.
+ *
+ * The box of 無印 wipes is 4550002547738 in Tokyo and in Taipei, whatever
+ * either shop writes on the shelf — so a country that found nothing can ask
+ * for the number the other country's page published, and needs no brand
+ * table and no name comparison to trust the answer.
+ */
+describe('the barcode a page publishes', () => {
+  it('keeps a real barcode', () => {
+    expect(offersFromHtml(ld({
+      '@type': 'Product', gtin13: '4901301332332',
+      offers: { price: 2293, priceCurrency: 'JPY' },
+    }))[0].gtin).toBe('4901301332332');
+  });
+
+  it('accepts the other shapes of the same thing', () => {
+    expect(offersFromHtml(ld({
+      '@type': 'Product', ean: '45500025', offers: { price: 390, priceCurrency: 'JPY' },
+    }))[0].gtin).toBe('45500025');
+  });
+
+  /*
+    And refuses a shop's own filing number. online.skm.com.tw publishes
+    「V110000107440982」 as its sku; searching for that finds that one shop or
+    nothing at all.
+  */
+  it('refuses a number that is not a barcode', () => {
+    expect(offersFromHtml(ld({
+      '@type': 'Product', sku: 'V110000107440982',
+      offers: { price: 6210, priceCurrency: 'TWD' },
+    }))[0].gtin).toBeUndefined();
+    expect(offersFromHtml(ld({
+      '@type': 'Product', gtin13: '12345',
+      offers: { price: 100, priceCurrency: 'JPY' },
+    }))[0].gtin).toBeUndefined();
+  });
+});

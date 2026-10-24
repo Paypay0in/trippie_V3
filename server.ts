@@ -2318,6 +2318,8 @@ ${sentence}
           */
           let pricedSomethingElse = false;
           let pricedNothing = false;
+          /** The JAN/EAN of the thing this country confirmed it was looking at. */
+          let barcodeSeen: string | undefined;
 
           looking.forEach((candidate, index) => {
             const { reachable, offers } = read[index];
@@ -2424,6 +2426,7 @@ ${sentence}
                 })(),
                 placement: candidate.country ? "host" : "mark",
               });
+              if (best.offer.gtin) barcodeSeen = best.offer.gtin;
               return;
             }
 
@@ -2463,6 +2466,11 @@ ${sentence}
           return {
             countryCode: country.code,
             quotes: kept,
+            /*
+              The barcode off whatever page this country did verify, for the
+              country that verified nothing to search by.
+            */
+            gtin: barcodeSeen,
             status: searchTrouble.get(country.code)
               ?? (kept.length > 0
               ? "ok" as const
@@ -2473,6 +2481,74 @@ ${sentence}
                   : "not_found" as const),
           };
         }));
+
+        /*
+          The barcode bridge.
+
+          A JAN/EAN names the product itself in a way no language does: the
+          box of 無印 wipes is 4550002547738 in Tokyo and in Taipei, whatever
+          either shop writes on the shelf. So when one country verified a
+          page that published a barcode and the other country found nothing,
+          the barcode is what the other country is asked for — and the answer
+          needs no translating, no brand table and no name comparison,
+          because a page publishing that same barcode is selling that same
+          thing.
+
+          One extra search, for a column that was about to be empty. Never
+          for a product that already has both.
+        */
+        const barcode = perCountryQuotes.map(found => found.gtin).find(Boolean);
+        if (barcode) {
+          for (const found of perCountryQuotes) {
+            if (found.status === "ok" || searchTrouble.has(found.countryCode)) continue;
+            const country = inPlay.find(entry => entry.code === found.countryCode);
+            if (!country) continue;
+
+            let byBarcode: Awaited<ReturnType<typeof searchCandidates>> = [];
+            try {
+              byBarcode = await searchCandidates({
+                name: barcode, country, inPlay, apiKey: search.apiKey,
+              });
+            } catch {
+              continue;
+            }
+
+            for (const candidate of byBarcode.slice(0, 3)) {
+              const read = await readPage(candidate.url, undefined, country.currency)
+                .catch(() => ({ reachable: false, price: null, offers: [] }));
+              if (!read.reachable) continue;
+              /*
+                Only a page that publishes the same barcode. A search for a
+                number also returns pages that merely mention it, and the
+                whole value of this route is that identity is certain rather
+                than argued.
+              */
+              const same = read.offers.find(offer => offer.gtin === barcode);
+              if (!same) continue;
+              const stating = inPlay.find(entry => entry.currency === same.currency);
+              if (!stating || stating.code !== country.code) continue;
+
+              found.quotes.push({
+                countryCode: country.code,
+                shop: candidate.host,
+                amount: same.amount,
+                currency: same.currency,
+                sourceUrl: candidate.url,
+                verified: true,
+                match: "exact" as const,
+                matchReason: `條碼相符（${barcode}）`,
+                ...(same.fromText ? { priceFromText: true } : {}),
+                ...(() => {
+                  const pack = packSizeIn([same.productName, same.name].filter(Boolean).join(" "));
+                  return pack ? { packSize: pack } : {};
+                })(),
+                placement: candidate.country ? "host" as const : "mark" as const,
+              });
+              found.status = "ok" as const;
+              break;
+            }
+          }
+        }
 
         const quotes = await withHomeAmount(
           perCountryQuotes.flatMap(found => found.quotes),

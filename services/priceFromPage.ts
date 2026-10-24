@@ -85,6 +85,17 @@ export interface PageOffer {
    * screen marks it 頁面標示價 so the two are never read as the same claim.
    */
   fromText?: boolean;
+  /**
+   * The product's barcode, when the page publishes one.
+   *
+   * A JAN/EAN names the thing itself in a way no language does: the box of
+   * 無印 wipes is 4550002547738 in Tokyo and in Taipei, whatever either shop
+   * writes on the shelf. Measured on 2026-10-23, Japanese drugstore pages
+   * publish `gtin13` routinely and Taiwanese pages publish their own internal
+   * SKU instead — so this bridges one way far more often than the other,
+   * which is still the direction that needed bridging.
+   */
+  gtin?: string;
 }
 
 /**
@@ -157,9 +168,18 @@ export const offersFromHtml = (html: string): PageOffer[] => {
       const offerName = Array.isArray(node.offers)
         ? textOf((node.offers[0] as Record<string, unknown>)?.name)
         : textOf((node.offers as Record<string, unknown>)?.name);
+      /*
+        Only a real barcode shape. A `sku` is the shop's own filing number —
+        online.skm.com.tw publishes 「V110000107440982」 — and searching for it
+        finds that one shop or nothing.
+      */
+      const barcode = [node.gtin13, node.gtin, node.gtin12, node.gtin8, node.ean]
+        .map(textOf)
+        .find(value => /^\d{8}$|^\d{12,14}$/.test(value));
       found.push({
         name: offerName || textOf(node.name),
         ...(textOf(node.name) ? { productName: textOf(node.name) } : {}),
+        ...(barcode ? { gtin: barcode } : {}),
         ...price,
       });
     }
