@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, Globe, Link2, Lock, Plus, Share2 } from 'lucide-react';
+import { Check, ChevronRight, Globe, Link2, Lock, Plus, Share2 } from 'lucide-react';
 import { PlaceCategory, SavedCollection, SavedTravelInspiration } from '../types';
 /*
   The tag's name, from the one place that names tags. A second copy drifts:
@@ -35,6 +35,14 @@ interface Props {
   onUnpublish: (collection: SavedCollection) => void;
   /** Absent and the list is read-only, like every other panel here. */
   onOpenPlace?: (place: SavedTravelInspiration) => void;
+  /**
+   * Which saved places a collection holds, replaced whole.
+   *
+   * Whole rather than add-one/remove-one, because the order is part of what
+   * is being published and a list that can only be appended to is a list
+   * nobody can arrange.
+   */
+  onChangeMembership?: (collectionId: string, placeIds: string[]) => void;
 }
 
 const badgeFor = (collection: SavedCollection) => {
@@ -56,11 +64,15 @@ const SavedCollectionsPanel: React.FC<Props> = ({
   onPublish,
   onUnpublish,
   onOpenPlace,
+  onChangeMembership,
 }) => {
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [sharingId, setSharingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [title, setTitle] = React.useState('');
+  /** Which collection is having places picked for it, and the search box. */
+  const [picking, setPicking] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState('');
 
   const byId = React.useMemo(
     () => new Map(places.map(place => [place.id, place])),
@@ -91,6 +103,17 @@ const SavedCollectionsPanel: React.FC<Props> = ({
 
   if (open) {
     const held = placesIn(open.id);
+    /*
+      Everything this account has saved, narrowed by the search box. Places
+      already in the collection stay listed and ticked, so taking one out is
+      the same gesture as putting it in.
+    */
+    const needle = query.trim().toLocaleLowerCase();
+    const pickable = places.filter(place => {
+      if (!needle) return true;
+      return [place.resolvedPlaceName, place.placeName, place.city, place.district, place.country]
+        .some(field => (field ?? '').toLocaleLowerCase().includes(needle));
+    });
     /*
       Counted from the places themselves rather than stored on the
       collection. A tag can change on a place at any time, and a number
@@ -127,6 +150,74 @@ const SavedCollectionsPanel: React.FC<Props> = ({
               {badgeFor(open).icon}{badgeFor(open).label}
             </span>
           </div>
+
+          {/*
+            The action the whole feature was waiting on.
+
+            A collection with nothing in it cannot be previewed, published or
+            saved from, so every screen downstream of this one was running on
+            an empty list until there was a way to fill it.
+          */}
+          {onChangeMembership && (
+            <button
+              type="button"
+              data-testid="collection-add-places"
+              onClick={() => { setPicking(picking === open.id ? null : open.id); setQuery(''); }}
+              className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-xl bg-white text-[13px] font-black text-[#5b3df5] ring-1 ring-violet-200"
+            >
+              <Plus size={14} />{picking === open.id ? '收起' : '加入地點'}
+            </button>
+          )}
+
+          {picking === open.id && onChangeMembership && (
+            <div className="mt-2 rounded-xl bg-slate-50 p-2" data-testid="collection-picker">
+              <input
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="搜尋你收藏的地點"
+                aria-label="搜尋你收藏的地點"
+                className="w-full rounded-lg bg-white px-2.5 py-2 text-[12px] outline-none"
+              />
+              <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+                {pickable.map(place => {
+                  const inside = (membership[open.id] ?? []).includes(place.id);
+                  const name = place.resolvedPlaceName || place.placeName;
+                  return (
+                    <button
+                      key={place.id}
+                      type="button"
+                      data-testid={`collection-pick-${place.id}`}
+                      onClick={() => {
+                        const held = membership[open.id] ?? [];
+                        onChangeMembership(
+                          open.id,
+                          inside ? held.filter(id => id !== place.id) : [...held, place.id],
+                        );
+                      }}
+                      className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
+                        inside ? 'bg-violet-50' : 'bg-white'
+                      }`}
+                    >
+                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${inside ? 'bg-[#5b3df5] text-white' : 'bg-slate-100'}`}>
+                        {inside && <Check size={11} />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px] font-bold text-[#11183d]">{name}</span>
+                        <span className="block truncate text-[10px] text-slate-400">
+                          {[place.district, place.city, place.country].filter(Boolean).join('・')}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+                {pickable.length === 0 && (
+                  <p className="px-2 py-3 text-center text-[11px] text-slate-400">
+                    {query.trim() ? '找不到符合的收藏地點。' : '你還沒有收藏任何地點。'}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           <button
             type="button"

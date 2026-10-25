@@ -32,7 +32,10 @@ const food = publishCollection(
 );
 
 const panel = (props: Partial<React.ComponentProps<typeof SavedCollectionsPanel>> = {}) => {
-  const handlers = { onCreate: vi.fn(), onPublish: vi.fn(), onUnpublish: vi.fn(), onOpenPlace: vi.fn() };
+  const handlers = {
+    onCreate: vi.fn(), onPublish: vi.fn(), onUnpublish: vi.fn(),
+    onOpenPlace: vi.fn(), onChangeMembership: vi.fn(),
+  };
   render(
     <SavedCollectionsPanel
       collections={[coffee, food]}
@@ -127,5 +130,72 @@ describe('一個收藏集打開之後', () => {
     await userEvent.click(screen.getByTestId('collection-row-c2'));
 
     expect(screen.getByTestId('collection-detail').textContent).toContain('還沒有地點');
+  });
+});
+
+/**
+ * The action the whole feature was waiting on.
+ *
+ * A collection with nothing in it cannot be previewed, published or saved
+ * from, so every screen downstream was running on an empty list until there
+ * was a way to fill one.
+ */
+describe('把地點加進收藏集', () => {
+  const open = async (props: Partial<React.ComponentProps<typeof SavedCollectionsPanel>> = {}) => {
+    const handlers = panel({ membership: { c1: ['p1'], c2: [] }, ...props });
+    await userEvent.click(screen.getByTestId('collection-row-c1'));
+    await userEvent.click(screen.getByTestId('collection-add-places'));
+    return handlers;
+  };
+
+  it('lists every saved place, ticking the ones already in', async () => {
+    await open();
+
+    expect(screen.getByTestId('collection-picker')).toBeTruthy();
+    expect(screen.getByTestId('collection-pick-p1')).toBeTruthy();
+    expect(screen.getByTestId('collection-pick-p3')).toBeTruthy();
+  });
+
+  it('puts one in', async () => {
+    const { onChangeMembership } = await open();
+
+    await userEvent.click(screen.getByTestId('collection-pick-p2'));
+    expect(onChangeMembership).toHaveBeenCalledWith('c1', ['p1', 'p2']);
+  });
+
+  /* Taking one out is the same gesture as putting it in. */
+  it('takes one out', async () => {
+    const { onChangeMembership } = await open();
+
+    await userEvent.click(screen.getByTestId('collection-pick-p1'));
+    expect(onChangeMembership).toHaveBeenCalledWith('c1', []);
+  });
+
+  it('narrows by what was typed', async () => {
+    await open();
+
+    await userEvent.type(screen.getByLabelText('搜尋你收藏的地點'), 'p2');
+    expect(screen.queryByTestId('collection-pick-p1')).toBeNull();
+    expect(screen.getByTestId('collection-pick-p2')).toBeTruthy();
+  });
+
+  it('says when a search matches nothing', async () => {
+    await open();
+
+    await userEvent.type(screen.getByLabelText('搜尋你收藏的地點'), '京都');
+    expect(screen.getByTestId('collection-picker').textContent).toContain('找不到符合的收藏地點');
+  });
+
+  it('says when there is nothing saved at all', async () => {
+    await open({ places: [] });
+    expect(screen.getByTestId('collection-picker').textContent).toContain('還沒有收藏任何地點');
+  });
+
+  /* A panel with no way to change membership does not offer to. */
+  it('offers nothing when it cannot save', async () => {
+    panel({ onChangeMembership: undefined });
+    await userEvent.click(screen.getByTestId('collection-row-c1'));
+
+    expect(screen.queryByTestId('collection-add-places')).toBeNull();
   });
 });

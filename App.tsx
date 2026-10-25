@@ -2071,6 +2071,24 @@ const App: React.FC = () => {
     ]);
   };
 
+  /**
+   * Which saved places a collection holds.
+   *
+   * Replaced whole rather than added to one at a time: the order is part of
+   * what gets published, and a list that can only be appended to is a list
+   * nobody can arrange. An empty collection keeps no entry at all, so the
+   * store says 「nothing in it」 by having nothing rather than by holding an
+   * empty array.
+   */
+  const handleChangeCollectionMembership = (collectionId: string, placeIds: string[]) => {
+    setCollectionMembership((current) => {
+      const next = { ...current };
+      if (placeIds.length === 0) delete next[collectionId];
+      else next[collectionId] = Array.from(new Set(placeIds));
+      return next;
+    });
+  };
+
   const handlePublishCollection = (collection: SavedCollection) => {
     const published = publishCollection(
       collection,
@@ -7548,6 +7566,7 @@ const App: React.FC = () => {
                   onCreate={handleCreateCollection}
                   onPublish={handlePublishCollection}
                   onUnpublish={handleUnpublishCollection}
+                  onChangeMembership={handleChangeCollectionMembership}
                   /*
                     Opens the destination this place belongs to, which is the
                     screen that already knows how to show a saved place. A
