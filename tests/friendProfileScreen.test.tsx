@@ -90,14 +90,19 @@ describe('好友的主頁', () => {
     const user = userEvent.setup();
     const h = open();
 
+    /* 遊記 is a tab now: a profile leads with what they published. */
+    await user.click(screen.getByTestId('friend-profile-tab-posts'));
     await user.click(screen.getByTestId('friend-post-p1'));
 
     expect(h.onOpenPost).toHaveBeenCalledWith('p1');
   });
 
   /* An answer about them, not a question about whether the screen works. */
-  it('says so when they have shared nothing', () => {
+  it('says so when they have shared nothing', async () => {
+    const user = userEvent.setup();
     open({ posts: [] });
+
+    await user.click(screen.getByTestId('friend-profile-tab-posts'));
 
     expect(screen.getByTestId('friend-no-posts').textContent).toContain('Ann');
   });

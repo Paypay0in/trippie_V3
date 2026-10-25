@@ -2,7 +2,7 @@
 import { OVERLAY } from '../constants/layers';
 import React, { useState, useEffect } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { X, Camera, QrCode, Users, Share2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { X, Camera, QrCode, Users, Share2, CheckCircle, AlertTriangle, Globe } from 'lucide-react';
 import { inviteTokenFromUrl } from '../services/tripInvites';
 
 interface Props {
@@ -13,6 +13,15 @@ interface Props {
   onScanToken: (token: string) => void;
   /** Opens 旅伴管理, where a link for one named seat is actually minted. */
   onManageTravelers: () => void;
+  /**
+   * Opens 分享設定 — publishing the trip for strangers to read.
+   *
+   * A different thing from this modal and kept visibly apart from it. An
+   * invite adds a traveller, who sees the bills; publishing adds a reader,
+   * who sees the days. Collapsing the two into one 分享 button is how
+   * somebody publishes their spending by meaning to invite a friend.
+   */
+  onOpenPublicShare?: () => void;
 }
 
 /**
@@ -35,6 +44,7 @@ const QRShareModal: React.FC<Props> = ({
   currentTripName,
   onScanToken,
   onManageTravelers,
+  onOpenPublicShare,
 }) => {
   const [mode, setMode] = useState<'show' | 'scan'>('show');
   const [scanError, setScanError] = useState('');
@@ -143,6 +153,21 @@ const QRShareModal: React.FC<Props> = ({
               >
                 <Share2 size={16} /> 前往旅伴管理
               </button>
+              {onOpenPublicShare && (
+                <>
+                  <p className="mt-5 text-center text-[11px] font-bold text-slate-400">
+                    想讓別人參考這個行程，而不是一起記帳？
+                  </p>
+                  <button
+                    type="button"
+                    data-testid="qr-share-open-public"
+                    onClick={() => { onClose(); onOpenPublicShare(); }}
+                    className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-black text-[#5b3df5] ring-1 ring-violet-200"
+                  >
+                    <Globe size={16} /> 公開分享這個行程
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div className="flex w-full flex-col items-center animate-fade-in">

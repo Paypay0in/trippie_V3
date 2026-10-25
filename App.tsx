@@ -35,6 +35,10 @@ import {
   SettlementBatch,
   FrozenSettlementResult,
   ExpenseProposal,
+  PublicProfileCounts,
+  PublishedTrip,
+  PublishedTripCard,
+  PublishedTripStop,
 } from "./types";
 import {
   fetchTaxRefundRules,
@@ -206,6 +210,9 @@ import { personOrStranger } from "./services/personOrStranger";
 import FriendsPanel from "./components/FriendsPanel";
 import SavedCollectionsPanel from "./components/SavedCollectionsPanel";
 import PublicCollectionView from "./components/PublicCollectionView";
+import PublicTripView from "./components/PublicTripView";
+import AddStopToTripSheet from "./components/AddStopToTripSheet";
+import TripShareSheet from "./components/TripShareSheet";
 import {
   loadCollectionMembership,
   loadSavedCollections,
@@ -227,6 +234,20 @@ import {
   saveCollection,
 } from "./services/savedCollectionSync";
 import { collectionFromUrl } from "./services/collectionLifecycle";
+import {
+  saveTripShareState,
+  listPublicTrips,
+  readPublicProfileCounts,
+  readPublicTrip,
+} from "./services/tripPublishSync";
+import type { TripShareFields } from "./services/tripPublishing";
+import {
+  stopAsCollectionItem,
+  stopToItineraryItem,
+  tripFromUrl,
+} from "./services/tripPublishing";
+import type { PublishedCollectionCard } from "./components/PublishedCards";
+import { listPublicCollections } from "./services/savedCollectionSync";
 import FriendProfileScreen from "./components/FriendProfileScreen";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
@@ -797,6 +818,33 @@ const App: React.FC = () => {
   const [visiting, setVisiting] = useState<PublicCollection | null | undefined>(undefined);
   const [visitClosed, setVisitClosed] = useState(false);
   /*
+    Somebody else's trip, when the app was opened on their `?tr=` link.
+
+    The same three states as a collection visit, for the same reasons:
+    `undefined` while it is being fetched, `null` when the link opens onto
+    nothing — private, unpublished, revoked and wrongly-tokened all land
+    there, because 「you may not see this」 tells a stranger something is there.
+  */
+  const [visitingTripLink] = useState(() => (typeof window === "undefined"
+    ? undefined
+    : tripFromUrl(window.location.search)));
+  const [visitingTrip, setVisitingTrip] = useState<PublishedTrip | null | undefined>(undefined);
+  const [tripVisitClosed, setTripVisitClosed] = useState(false);
+  /* One stop of theirs, on its way onto a day of the visitor's own. */
+  const [addingStop, setAddingStop] = useState<PublishedTripStop | null>(null);
+  /*
+    What the profile being read has published, and the server's own figures.
+
+    Asked of the server rather than counted here: this device has no way to
+    know how many trips a stranger has, and a profile that states a number it
+    invented is a profile lying about somebody.
+  */
+  const [profilePublished, setProfilePublished] = useState<{
+    trips: PublishedTripCard[];
+    collections: PublishedCollectionCard[];
+    counts?: PublicProfileCounts;
+  }>({ trips: [], collections: [] });
+  /*
     我的紀錄 at a place, as opposed to at a stop on a plan.
 
     「這家店是分帳 因此我沒有原始帳目的紀錄 我就就不能傳圖跟做備注」 — the bill
@@ -904,6 +952,8 @@ const App: React.FC = () => {
 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  /* 分享設定 for the open trip — publishing, as opposed to inviting. */
+  const [isTripShareOpen, setIsTripShareOpen] = useState(false);
 
   const [currentPhase, setCurrentPhase] = useState<Phase>("pre");
   const [workspaceSection, setWorkspaceSection] =
@@ -2030,6 +2080,44 @@ const App: React.FC = () => {
     return () => { stopped = true; };
   }, [visitingLink]);
 
+  /* The trip link somebody was sent, fetched once. */
+  useEffect(() => {
+    if (!visitingTripLink) return;
+    let stopped = false;
+    void readPublicTrip(visitingTripLink.id, visitingTripLink.token).then(result => {
+      if (stopped) return;
+      setVisitingTrip(result.status === "ok" ? result.data : null);
+    });
+    return () => { stopped = true; };
+  }, [visitingTripLink]);
+
+  /*
+    What the person whose profile is open has published.
+
+    Cleared first, so the previous person's trips never sit under the next
+    person's name for the length of a request — a profile briefly showing
+    somebody else's holidays is worse than one that shows none.
+  */
+  useEffect(() => {
+    if (!profileFriend) { setProfilePublished({ trips: [], collections: [] }); return; }
+    const who = profileFriend.id;
+    let stopped = false;
+    setProfilePublished({ trips: [], collections: [] });
+    void Promise.all([
+      listPublicTrips(who),
+      listPublicCollections(who),
+      readPublicProfileCounts(who),
+    ]).then(([trips, collections, counts]) => {
+      if (stopped) return;
+      setProfilePublished({
+        trips: trips.status === "ok" ? trips.data : [],
+        collections: collections.status === "ok" ? collections.data : [],
+        ...(counts.status === "ok" ? { counts: counts.data } : {}),
+      });
+    });
+    return () => { stopped = true; };
+  }, [profileFriend]);
+
   /*
     Saving somebody else's places into this traveller's own collection.
 
@@ -2048,6 +2136,101 @@ const App: React.FC = () => {
     });
     setSavedTravelInspirations(current => mergeTripInspirations([...current, ...saved]));
   };
+
+  /*
+    Saving places off somebody else's published trip.
+
+    Routed through the same `savedFromCollection` the collection link uses,
+    via `stopAsCollectionItem`. Two save paths would be two answers about
+    attribution, and the one that drifts is always the newer one.
+  */
+  const handleSaveFromPublishedTrip = (stops: PublishedTripStop[]) => {
+    if (!visitingTrip) return;
+    const items = stops.map((stop, index) => stopAsCollectionItem(stop, visitingTrip, index));
+    const saved = savedFromCollection(items, {
+      savedByUserId: currentUserId,
+      collectionId: visitingTrip.id,
+      publisherId: visitingTrip.ownerId,
+      makeId: generateId,
+    });
+    setSavedTravelInspirations(current => mergeTripInspirations([...current, ...saved]));
+  };
+
+  /*
+    One of their stops, onto a day of this traveller's own.
+
+    The item is built by the one converter that builds items and then written
+    through `handleAddItineraryItems`, which is how every other route adds to
+    a day — including the undated case, where the planner already knows where
+    to put a place picked off a list.
+  */
+  const handleAddStopToTrip = (
+    stop: PublishedTripStop,
+    choice: { tripId: string; date?: string; remark?: string },
+  ) => {
+    if (!visitingTrip) return;
+    const item = stopToItineraryItem(
+      stop, visitingTrip, generateId, choice.date, choice.remark,
+    );
+    /*
+      Written to the stored trip, and to the live itinerary only when that
+      trip is the one on screen.
+
+      Both, because they are two copies of the same day: `setItinerary` alone
+      is lost for any other trip, and `setDrafts` alone leaves the open screen
+      showing a day that is missing what was just added until it reloads.
+    */
+    setDrafts((current) => current.map((draft) => (draft.id === choice.tripId
+      ? {
+          ...draft,
+          itinerary: [...(draft.itinerary ?? []), item],
+          updatedAt: new Date().toISOString(),
+        }
+      : draft)));
+    if (activeDraftId === choice.tripId) setItinerary((current) => [...current, item]);
+    setAddingStop(null);
+    showToast(`已把 ${stop.title} 加入行程`);
+  };
+
+  /*
+    Publishing the open trip, and taking it back.
+
+    The share state is written by its own narrow update rather than riding on
+    the ordinary trip save: those columns arrived in `0036`, and a whole-row
+    upsert carrying a column the database has not got yet does not fail at
+    「publishing is unavailable」, it fails at 「this trip no longer syncs」.
+
+    The local copy is updated whatever the server says, and the failure is
+    said out loud. A sheet that closes on an error leaves somebody believing
+    they published something that is not there.
+  */
+  const applyTripShareState = (
+    next: TripShareFields, succeeded: string, failed: string,
+  ) => {
+    setDrafts((current) => current.map((draft) => (draft.id === next.id
+      ? { ...draft, ...next } as TripDraft
+      : draft)));
+    void saveTripShareState(next).then((result) => {
+      showToast(result.status === "ok" ? succeeded : `${failed}：${
+        result.status === "error" ? result.message : "目前連不上伺服器"
+      }`);
+    });
+  };
+
+  /*
+    The trip 分享設定 is about: the stored draft, not the live form fields.
+
+    The draft is what `saveTripShareState` writes against and what the publish
+    columns live on. Building one here out of the screen's own state would
+    make the sheet publish a trip that exists nowhere else.
+  */
+  const activeTripForSharing = drafts.find((draft) => draft.id === activeDraftId);
+
+  const handlePublishTrip = (next: TripShareFields) =>
+    applyTripShareState(next, "行程已公開，連結可以分享了", "公開失敗");
+
+  const handleUnpublishTrip = (next: TripShareFields) =>
+    applyTripShareState(next, "已取消公開，連結不再有效", "取消公開失敗");
 
   /*
     Creating, publishing, and taking back a 收藏集.
@@ -7403,6 +7586,47 @@ const App: React.FC = () => {
     );
   }
 
+  /*
+    Somebody else's trip, when the app was opened on their link.
+
+    Above the app rather than inside it, like the collection link: whoever
+    opened this has not chosen a section, and closing it drops them into the
+    app they were already in rather than a dead end.
+  */
+  if (visitingTripLink && !tripVisitClosed) {
+    return (
+      <>
+        <PublicTripView
+          trip={visitingTrip ?? undefined}
+          notFound={visitingTrip === null}
+          loading={visitingTrip === undefined}
+          savedStopIds={savedTravelInspirations
+            .map((place) => place.placeId)
+            .filter((id): id is string => Boolean(id))}
+          signedIn={authStatus === "authenticated"}
+          onSignIn={() => {
+            setAppSection("profile");
+            setAccountView("landing");
+            setTripVisitClosed(true);
+          }}
+          onSaveStop={(stop) => handleSaveFromPublishedTrip([stop])}
+          onSaveTrip={handleSaveFromPublishedTrip}
+          onAddStopToTrip={(stop) => setAddingStop(stop)}
+          onClose={() => setTripVisitClosed(true)}
+        />
+        {addingStop && (
+          <AddStopToTripSheet
+            stop={addingStop}
+            sourceLabel={visitingTrip ? `來自 ${visitingTrip.name}` : undefined}
+            trips={drafts}
+            onAdd={(choice) => handleAddStopToTrip(addingStop, choice)}
+            onClose={() => setAddingStop(null)}
+          />
+        )}
+      </>
+    );
+  }
+
   if (
     appSection === "community" ||
     appSection === "services" ||
@@ -7429,6 +7653,21 @@ const App: React.FC = () => {
               [...drafts, ...tripHistory] as never,
               profileFriend.id,
             )}
+            publishedTrips={profilePublished.trips}
+            publishedCollections={profilePublished.collections}
+            counts={profilePublished.counts}
+            /*
+              Their published trip, opened the way a stranger opens it: by
+              its own link. The reader's screen is `PublicTripView`, which
+              applies their 公開內容 switches — opening it as a trip of this
+              traveller's own would show fields they never shared.
+            */
+            onOpenPublishedTrip={(tripId) => {
+              window.location.search = `?tr=${encodeURIComponent(tripId)}`;
+            }}
+            onOpenPublishedCollection={(collectionId) => {
+              window.location.search = `?c=${encodeURIComponent(collectionId)}`;
+            }}
             onBack={() => setProfileFriend(null)}
             onOpenPost={(postId) => {
               if (!communityPosts.some((post) => post.id === postId)) return;
@@ -8225,7 +8464,18 @@ const App: React.FC = () => {
           }
           onScanToken={handleScanInviteToken}
           onManageTravelers={() => setIsCompanionsOpen(true)}
+          onOpenPublicShare={activeDraftId ? () => setIsTripShareOpen(true) : undefined}
         />
+        {isTripShareOpen && activeTripForSharing && (
+          <TripShareSheet
+            trip={activeTripForSharing}
+            itinerary={itinerary}
+            origin={typeof window !== "undefined" ? window.location.origin : ""}
+            onClose={() => setIsTripShareOpen(false)}
+            onPublish={handlePublishTrip}
+            onUnpublish={handleUnpublishTrip}
+          />
+        )}
       </div>
     );
   }
@@ -9357,7 +9607,18 @@ const App: React.FC = () => {
             }
             onScanToken={handleScanInviteToken}
             onManageTravelers={() => setIsCompanionsOpen(true)}
+            onOpenPublicShare={activeDraftId ? () => setIsTripShareOpen(true) : undefined}
           />
+          {isTripShareOpen && activeTripForSharing && (
+            <TripShareSheet
+              trip={activeTripForSharing}
+              itinerary={itinerary}
+              origin={typeof window !== "undefined" ? window.location.origin : ""}
+              onClose={() => setIsTripShareOpen(false)}
+              onPublish={handlePublishTrip}
+              onUnpublish={handleUnpublishTrip}
+            />
+          )}
           {isGlobalActionOpen && (
             <GlobalActionSheet
               context={workspaceSection === "records" ? "wallet" : "travel"}

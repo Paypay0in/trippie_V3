@@ -640,6 +640,90 @@ export interface Trip {
   travelRules?: TravelRules;
   travelRuleTaskState?: TravelRuleTaskState;
   travelRulesChecklistMigrationVersion?: number;
+
+  /**
+   * Whether anybody outside this trip may read its itinerary.
+   *
+   * Separate from membership, and deliberately so. `trip_invites` adds a
+   * person as a member and a member sees the bills; publishing grants reading
+   * of the days and nothing else — no expenses, no settlement, no companion
+   * names. A visitor is a reader, not a traveller.
+   *
+   * Absent means private, which is what every trip written before this field
+   * existed was and must remain.
+   */
+  visibility?: ShareVisibility;
+  /** The 公開內容 switches. Absent means the generous default the sheet shows. */
+  sharesOwnNotes?: boolean;
+  sharesPhotos?: boolean;
+  sharesPlaceDetails?: boolean;
+  /** Only a 僅連結 trip has one; absent means there is no link to leak. */
+  shareToken?: string;
+  publishedAt?: string;
+  /** Revoked is not deleted: the link stops answering, the trip stays yours. */
+  revokedAt?: string;
+}
+
+/**
+ * One stop of somebody else's published trip, as a visitor receives it.
+ *
+ * Not an `ItineraryItem`. A visitor's payload is a different thing from a
+ * traveller's row — the owner's 公開內容 switches have already been applied to
+ * it by `read_public_trip`, so a withheld note is absent here rather than
+ * present and hidden, and there is no completion flag, no linked expense, no
+ * pin. Reusing `ItineraryItem` would invite a screen to reach for a field the
+ * server never sent and quietly show a blank where a traveller sees content.
+ */
+export interface PublishedTripStop {
+  id: string;
+  date?: string;
+  time: string;
+  title: string;
+  type: ItineraryItem['type'];
+  durationMinutes?: number;
+  rating?: number;
+  placeId?: string;
+  location?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  /** The owner's own words, when 心得筆記 is shared. */
+  notes?: string;
+  /** The owner's own photographs, when 照片 is shared. */
+  photos?: string[];
+}
+
+/** Somebody else's published trip, as the 公開行程頁 reads it. */
+export interface PublishedTrip {
+  id: string;
+  ownerId: string;
+  name: string;
+  destination?: string;
+  startDate?: string;
+  endDate?: string;
+  publishedAt?: string;
+  stops: PublishedTripStop[];
+}
+
+/** A card in 「公開的旅行列表」 — enough to list a trip without opening it. */
+export interface PublishedTripCard {
+  id: string;
+  name: string;
+  destination?: string;
+  startDate?: string;
+  endDate?: string;
+  publishedAt?: string;
+  stopCount: number;
+  saveCount: number;
+  coverPhoto?: string;
+}
+
+/** The three figures under somebody's name on their profile. */
+export interface PublicProfileCounts {
+  tripCount: number;
+  cityCount: number;
+  collectionCount: number;
+  saveCount: number;
 }
 
 export interface PassportProfile {
