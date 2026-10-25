@@ -14,7 +14,7 @@
  * 「去的時間」 is a date the traveller can recognise, and a completion checkbox
  * is only ever ticked by the people who tick checkboxes.
  */
-import { ItineraryItem, SavedTravelInspiration, Trip } from '../types';
+import { Expense, ItineraryItem, SavedTravelInspiration, Trip } from '../types';
 
 export interface PlaceVisit {
   /** The day it was on the plan, `YYYY-MM-DD`. */
@@ -70,11 +70,13 @@ const isPast = (date: string, today: string): boolean =>
  * @param trips the traveller's own finished and in-progress journeys.
  * @param today `YYYY-MM-DD`; a day that has not arrived is not a visit.
  * @param stated what the traveller has said themselves. See `statedVisits`.
+ * @param expenses bills already tied to a place. See below.
  */
 export const visitsByPlace = (
   trips: Array<Pick<Trip, 'name' | 'itinerary'>>,
   today: string,
   stated: Readonly<Record<string, string>> = {},
+  expenses: Array<Pick<Expense, 'date' | 'merchantPlaceId'>> = [],
 ): Map<string, PlaceVisit> => {
   const visits = new Map<string, PlaceVisit>();
 
@@ -90,6 +92,32 @@ export const visitsByPlace = (
   */
   Object.entries(stated).forEach(([key, date]) => {
     if (date) visits.set(key, { date, stated: true });
+  });
+
+  /*
+    A bill is a visit. 「已訪太少了吧 有缺」.
+
+    This answered two questions — 「did a trip take you there」 and 「did you
+    say so」 — and ignored the third, which is the most certain of the three:
+    somebody who paid at a place was standing in it. 「哪一筆是在這裡花的？」
+    writes `merchantPlaceId` onto the bill, and that is the traveller
+    themselves saying which door the money went through.
+
+    Only a stated `merchantPlaceId`. `spendAtPlace` will also match a bill by
+    its merchant name or its street number, which is right for 「what did this
+    place cost」 and too loose for 「was I here」 — a near-miss there shows a
+    number beside the wrong shop, and a near-miss here writes 已訪 onto a
+    restaurant somebody has never been to.
+  */
+  expenses.forEach(expense => {
+    const placeId = (expense.merchantPlaceId || '').trim();
+    const date = (expense.date || '').trim();
+    if (!placeId || !date) return;
+    const key = `place:${placeId}`;
+    const existing = visits.get(key);
+    if (!existing || existing.stated || existing.date < date) {
+      visits.set(key, { date });
+    }
   });
 
   trips.forEach(trip => {

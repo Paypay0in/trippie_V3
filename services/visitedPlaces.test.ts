@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { visitLabel, visitOf, visitsByPlace } from './visitedPlaces';
-import { ItineraryItem, SavedTravelInspiration, Trip } from '../types';
+import { Category, Expense, ItineraryItem, SavedTravelInspiration, Trip } from '../types';
 
 const TODAY = '2026-10-14';
 
@@ -168,3 +168,61 @@ describe('a stop that was ticked 完成', () => {
     expect(visits.get('place:ChIJ-matsuchi')?.date).toBe('2026-10-19');
   });
 });
+
+/**
+ * 「已訪太少了吧 有缺」.
+ *
+ * This answered two questions — 「did a trip take you there」 and 「did you say
+ * so」 — and ignored the third, which is the most certain of the three:
+ * somebody who paid at a place was standing in it.
+ */
+describe('一筆帳就是一次造訪', () => {
+  const today = '2026-10-25';
+  const bill = (over: Partial<Expense> = {}): Expense => ({
+    id: 'e1', description: '壽司', amount: 4000, twdAmount: 965, currency: 'JPY',
+    exchangeRate: 0.24, category: Category.FOOD, phase: 'during', date: '2026-10-22',
+    payerId: 'me', beneficiaries: [], splitMethod: 'EQUAL', splitAllocations: {},
+    merchantPlaceId: 'g-sushi', ...over,
+  } as Expense);
+
+  it('marks the place the money went through', () => {
+    const visits = visitsByPlace([], today, {}, [bill()]);
+
+    expect(visits.get('place:g-sushi')?.date).toBe('2026-10-22');
+  });
+
+  /*
+    Only a stated `merchantPlaceId`. A bill matched by merchant name is right
+    for 「what did this place cost」 and too loose for 「was I here」: a
+    near-miss there shows a number beside the wrong shop, and a near-miss
+    here writes 已訪 onto a restaurant somebody has never been to.
+  */
+  it('ignores a bill that names no place', () => {
+    expect(visitsByPlace([], today, {}, [bill({ merchantPlaceId: undefined })]).size).toBe(0);
+    expect(visitsByPlace([], today, {}, [bill({ merchantPlaceId: '  ' })]).size).toBe(0);
+    expect(visitsByPlace([], today, {}, [bill({ date: '' })]).size).toBe(0);
+  });
+
+  /* 「上次去是什麼時候」 is about the last time. */
+  it('keeps the most recent of several bills', () => {
+    const visits = visitsByPlace([], today, {}, [
+      bill({ id: 'e1', date: '2026-10-20' }),
+      bill({ id: 'e2', date: '2026-10-23' }),
+    ]);
+
+    expect(visits.get('place:g-sushi')?.date).toBe('2026-10-23');
+  });
+
+  /* A trip still wins over a tick, and a bill is not a tick. */
+  it('does not overwrite what a trip recorded later', () => {
+    const trips = [{
+      name: '東京', itinerary: [{
+        id: 'i1', time: '', title: '壽司', location: '壽司', notes: '', type: 'FOOD',
+        placeId: 'g-sushi', date: '2026-10-24',
+      } as ItineraryItem],
+    }];
+
+    expect(visitsByPlace(trips, today, {}, [bill()]).get('place:g-sushi')?.date)
+      .toBe('2026-10-24');
+  });
+})

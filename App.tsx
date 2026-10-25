@@ -7245,6 +7245,15 @@ const App: React.FC = () => {
           [...tripHistory, { name: currentTripName, itinerary }],
           new Date().toISOString().slice(0, 10),
           statedVisits,
+          /*
+            「已訪太少了吧 有缺」 — a bill tied to a place is the traveller
+            saying which door the money went through, and it was the one
+            signal this chip ignored.
+
+            Every trip's bills, not only the open one: a place paid for in
+            March is still a place he has been.
+          */
+          [...tripHistory.flatMap((trip) => trip.expenses ?? []), ...expenses],
         )}
         /*
           「下方兩個我去過了」 — a place no trip in this app ever took him to.
