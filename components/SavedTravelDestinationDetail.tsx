@@ -17,6 +17,8 @@ import AddPlaceByName from './AddPlaceByName';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
 import { spendAtPlace, spendSentence } from '../services/spendAtPlace';
+import { placeJournalKey } from '../services/journalSync';
+import { placeIdentities } from '../services/visitedPlaces';
 import PlaceThumbnail from './PlaceThumbnail';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { dayMapSrc } from '../services/dayMapImage';
@@ -108,6 +110,14 @@ type Props = {
    * the sentence it always gave rather than one claiming whose money it was.
    */
   viewerMemberId?: string;
+  /**
+   * 我的紀錄 at each place, keyed by `placeJournalKey`.
+   *
+   * Private to the reader — the row policy on `itinerary_journals` is
+   * `author_id = auth.uid()` and nothing here can widen that.
+   */
+  placeJournals?: Record<string, { text: string; photos?: string[] }>;
+  onSaveMyRecord?: (placeKey: string, next: { text: string; photos: string[] }) => void;
   ownerMemberId?: string;
   memberNames?: Record<string, string>;
   /**
@@ -127,7 +137,18 @@ type Props = {
  */
 const NOTE_PREVIEW = 4;
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], myTrips = [], journals = {}, onLinkExpense, viewerUserId, viewerMemberId, ownerMemberId, memberNames = {},
+/**
+ * The one key a place's private record hangs on.
+ *
+ * `placeIdentities` is this project's single rule for 「are these two records
+ * the same place」, and its first identity is the most stable one available —
+ * a Google place id where there is one. A second rule living here would file
+ * the memory under a key the 已訪 chip disagrees with.
+ */
+const journalKeyFor = (place: Parameters<typeof placeIdentities>[0]): string =>
+  placeIdentities(place)[0] ?? '';
+
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], myTrips = [], journals = {}, onLinkExpense, viewerUserId, viewerMemberId, ownerMemberId, memberNames = {}, placeJournals = {}, onSaveMyRecord,
 }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
@@ -764,6 +785,19 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             sourceCreatorId: open.savedByUserId,
             type: 'other', text,
           } as SavedExperienceNote]) : undefined}
+          /*
+            我的紀錄 — the evening rather than the shop, and private.
+
+            「這家店是分帳 因此我沒有原始帳目的紀錄 我就就不能傳圖跟做備注」:
+            the bill belongs to whoever paid it, so this is what the person
+            who ate there gets instead.
+          */
+          myRecordText={placeJournals[placeJournalKey(journalKeyFor(open))]?.text ?? ''}
+          myRecordPhotos={placeJournals[placeJournalKey(journalKeyFor(open))]?.photos ?? []}
+          {...(onSaveMyRecord ? {
+            onSaveMyRecord: (next: { text: string; photos: string[] }) =>
+              onSaveMyRecord(journalKeyFor(open), next),
+          } : {})}
           onClose={() => setOpenPlaceId(null)}
         />
       );

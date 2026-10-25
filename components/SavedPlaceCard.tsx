@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, NotebookPen, Sparkles, Star, Users, X } from 'lucide-react';
 import PlaceSourceCredit from './PlaceSourceCredit';
+import MyPlaceRecord from './MyPlaceRecord';
 import { PlaceCredit } from '../services/collectionCredits';
 import { SavedExperienceNote } from '../types';
 import { MappablePlace, placeCopyText, placeDirectionsUrl, placeMapsUrl } from '../services/placeLinks';
@@ -74,6 +75,17 @@ interface Props {
    */
   onAddNote?: (text: string) => void;
   /**
+   * 我的紀錄 — what this traveller wants to remember, whoever paid.
+   *
+   * 「這家店是分帳 因此我沒有原始帳目的紀錄 我就就不能傳圖跟做備注」. Kept
+   * apart from `onAddNote`, which writes a line onto the saved place and is
+   * about the place; this is about the evening, is private, and carries
+   * photographs.
+   */
+  myRecordText?: string;
+  myRecordPhotos?: string[];
+  onSaveMyRecord?: (next: { text: string; photos: string[] }) => void;
+  /**
    * What was spent here, when the caller has a ledger to read.
    *
    * Passed in rather than looked up: the card is opened from three screens
@@ -91,7 +103,7 @@ interface Props {
   onClose: () => void;
 }
 
-const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, viewerUserId, spend = [], myRecord = [], visited = false, onAddNote, onClose }) => {
+const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, viewerUserId, spend = [], myRecord = [], visited = false, onAddNote, myRecordText = '', myRecordPhotos = [], onSaveMyRecord, onClose }) => {
   /** The photograph being looked at, full screen. */
   const [viewing, setViewing] = useState<{ photos: string[]; index: number } | null>(null);
   /*
@@ -413,6 +425,21 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
             the reader's own rather than a traveller's — the same rule the
             split above reads, not a second idea of whose a note is.
           */}
+          {/*
+            A record of the evening, beside the note about the place.
+
+            Separate on purpose: 「寫一則我的備註」 is a line about the shop
+            that travels with the saved place, and this is what happened the
+            night somebody else paid. Running them together would make the
+            private one look publishable.
+          */}
+          {(onSaveMyRecord || myRecordText || myRecordPhotos.length > 0) && (
+            <MyPlaceRecord
+              text={myRecordText}
+              photos={myRecordPhotos}
+              {...(onSaveMyRecord ? { onSave: onSaveMyRecord } : {})}
+            />
+          )}
           {onAddNote && (
             <div className="mt-2">
               {!writing ? (

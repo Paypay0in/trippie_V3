@@ -331,7 +331,14 @@ import TripPlanOverview from "./components/TripPlanOverview";
 import TripLiveOverview from "./components/TripLiveOverview";
 import TripRecapScreen from "./components/TripRecapScreen";
 import TripWays from "./components/TripWays";
-import { JournalsByItem, fetchTripJournals, saveJournal } from "./services/journalSync";
+import {
+  JournalsByItem,
+  PLACE_JOURNAL_TRIP_ID,
+  fetchPlaceJournals,
+  fetchTripJournals,
+  placeJournalKey,
+  saveJournal,
+} from "./services/journalSync";
 import { resolvePlace } from "./services/placeService";
 import {
   fetchPreparationSuggestions,
@@ -789,6 +796,14 @@ const App: React.FC = () => {
     : collectionFromUrl(window.location.search)));
   const [visiting, setVisiting] = useState<PublicCollection | null | undefined>(undefined);
   const [visitClosed, setVisitClosed] = useState(false);
+  /*
+    我的紀錄 at a place, as opposed to at a stop on a plan.
+
+    「這家店是分帳 因此我沒有原始帳目的紀錄 我就就不能傳圖跟做備注」 — the bill
+    belongs to whoever paid it, so this is what the person who ate there
+    gets instead. Private: the row policy is `author_id = auth.uid()`.
+  */
+  const [placeJournals, setPlaceJournals] = useState<JournalsByItem>({});
   const [collectionMembership, setCollectionMembership] = useState(loadCollectionMembership);
   const [communityView, setCommunityView] = useState<
     "home" | "create" | "detail"
@@ -4759,6 +4774,51 @@ const App: React.FC = () => {
     return () => { cancelled = true; };
   }, [activeDraftId, currentLoadedTripId, authUser?.id]);
 
+  /*
+    The private records that hang on places rather than on stops.
+
+    Fetched once per sign-in rather than per trip, because a place journal
+    belongs to no journey — 「這家店是分帳」 is about a restaurant, not about
+    which week somebody was in Tokyo.
+  */
+  useEffect(() => {
+    if (!authUser?.id) { setPlaceJournals({}); return; }
+    let cancelled = false;
+    void fetchPlaceJournals().then((result) => {
+      if (cancelled || result.status !== "ok") return;
+      setPlaceJournals(result.data);
+    });
+    return () => { cancelled = true; };
+  }, [authUser?.id]);
+
+  /**
+   * Writes one, and keeps the screen honest while the network answers.
+   *
+   * Written through the same `saveJournal` the itinerary uses — emptying it
+   * of both words and pictures deletes the row, which is what 「清除紀錄」
+   * says it does.
+   */
+  const handleSaveMyPlaceRecord = (
+    placeKey: string,
+    next: { text: string; photos: string[] },
+  ) => {
+    if (!authUser?.id || !placeKey.trim()) return;
+    const key = placeJournalKey(placeKey);
+    setPlaceJournals((current) => {
+      const kept = { ...current };
+      if (!next.text.trim() && next.photos.length === 0) delete kept[key];
+      else kept[key] = { text: next.text, photos: next.photos };
+      return kept;
+    });
+    void saveJournal({
+      tripId: PLACE_JOURNAL_TRIP_ID,
+      itemId: key,
+      authorId: authUser.id,
+      text: next.text,
+      photos: next.photos,
+    });
+  };
+
   const tripSyncState = useTripSync({
     // The same trip id the rest of the screen uses. A trip opened from history
     // has no draft id, and keying sync on the draft alone left those trips
@@ -7215,6 +7275,8 @@ const App: React.FC = () => {
         memberNames={Object.fromEntries(
           settlementMembers.map((member) => [member.id, member.name]),
         )}
+        placeJournals={placeJournals}
+        {...(authUser?.id ? { onSaveMyRecord: handleSaveMyPlaceRecord } : {})}
         /*
           The open trip's bills plus everything already filed, so a place
           visited on a finished trip still shows what it cost.
