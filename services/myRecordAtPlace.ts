@@ -39,7 +39,14 @@ export interface MyVisitRecord {
 export const myRecordAtPlace = (
   place: Pick<SavedTravelInspiration, 'placeId' | 'placeName'>,
   trips: Array<{ name?: string; itinerary?: ItineraryItem[] }>,
-  journals: Readonly<Record<string, { text: string }>> = {},
+  /*
+    The private journal, which has carried photographs since `0030` and whose
+    photographs this had never read. 「這家店是分帳 因此我沒有原始帳目的紀錄 我
+    就就不能傳圖跟做備注」 — at a place somebody else paid for, the journal is
+    the only record of the evening that belongs to the reader, and half of it
+    was being thrown away on the way to the screen.
+  */
+  journals: Readonly<Record<string, { text: string; photos?: string[] }>> = {},
 ): MyVisitRecord[] => {
   const wanted = new Set(placeIdentities(place));
   if (wanted.size === 0) return [];
@@ -48,8 +55,14 @@ export const myRecordAtPlace = (
   trips.forEach(trip => {
     (trip.itinerary || []).forEach(item => {
       if (!placeIdentities(item).some(key => wanted.has(key))) return;
-      const diary = journals[item.id]?.text?.trim();
-      const photos = item.photos ?? [];
+      const journal = journals[item.id];
+      const diary = journal?.text?.trim();
+      /*
+        The stop's photographs and the journal's, in that order and without
+        repeating one. Two piles of the traveller's own pictures of the same
+        evening is the kind of duplication this card exists to collapse.
+      */
+      const photos = Array.from(new Set([...(item.photos ?? []), ...(journal?.photos ?? [])]));
       if (typeof item.rating !== 'number' && photos.length === 0 && !diary) return;
       records.push({
         itemId: item.id,

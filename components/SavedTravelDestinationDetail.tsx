@@ -94,7 +94,7 @@ type Props = {
    * can show what happened when they went. See `myRecordAtPlace`.
    */
   myTrips?: Array<{ name?: string; itinerary?: ItineraryItem[] }>;
-  journals?: Record<string, { text: string }>;
+  journals?: Record<string, { text: string; photos?: string[] }>;
   /**
    * Who is reading, so the card that opens a place can tell the reader's own
    * notes from another traveller's. 「我覺得要區分」.

@@ -96,3 +96,50 @@ describe('myRecordSummary', () => {
     ])).toBe('★★★★★ · 3 張照片');
   });
 });
+
+/**
+ * 「這家店是分帳 因此我沒有原始帳目的紀錄 我就就不能傳圖跟做備注」.
+ *
+ * At a place somebody else paid for, the private journal is the only record
+ * of the evening that belongs to the reader — and its photographs, carried
+ * in `itinerary_journals.photos` since 0030, were being thrown away on the
+ * way to this screen.
+ */
+describe('日誌裡的照片', () => {
+  const place = { placeId: 'g-ks', placeName: "K's cafe" };
+  const trip = (item: Partial<ItineraryItem>) => ([{
+    name: '東京',
+    itinerary: [{
+      id: 'i1', time: '', title: "K's cafe", location: "K's cafe", notes: '',
+      type: 'FOOD', placeId: 'g-ks', date: '2026-10-24', ...item,
+    } as ItineraryItem],
+  }]);
+
+  it('shows the journal’s photographs', () => {
+    const [record] = myRecordAtPlace(place, trip({}), {
+      i1: { text: '朋友請客', photos: ['shot-a'] },
+    });
+
+    expect(record.photos).toEqual(['shot-a']);
+    expect(record.diary).toBe('朋友請客');
+  });
+
+  /* Two piles of the same evening is the duplication this card collapses. */
+  it('does not repeat a photograph both sides hold', () => {
+    const [record] = myRecordAtPlace(place, trip({ photos: ['shot-a', 'shot-b'] }), {
+      i1: { text: '', photos: ['shot-b', 'shot-c'] },
+    });
+
+    expect(record.photos).toEqual(['shot-a', 'shot-b', 'shot-c']);
+  });
+
+  /* A journal with photographs and no words is still a record of going. */
+  it('counts a wordless journal as a record', () => {
+    expect(myRecordAtPlace(place, trip({}), { i1: { text: '', photos: ['shot-a'] } }))
+      .toHaveLength(1);
+  });
+
+  it('still says nothing about a stop nobody recorded', () => {
+    expect(myRecordAtPlace(place, trip({}), {})).toEqual([]);
+  });
+});
