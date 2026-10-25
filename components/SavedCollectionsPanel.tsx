@@ -1,6 +1,12 @@
 import React from 'react';
 import { ChevronRight, Globe, Link2, Lock, Plus, Share2 } from 'lucide-react';
 import { PlaceCategory, SavedCollection, SavedTravelInspiration } from '../types';
+/*
+  The tag's name, from the one place that names tags. A second copy drifts:
+  this file had 「咖啡廳」 where `placeCategory` says 「咖啡」, which is two
+  answers to 「what is this place」 waiting to disagree on screen.
+*/
+import { CATEGORY_LABELS } from '../services/placeCategory';
 import { isPublished } from '../services/collectionLifecycle';
 import CollectionShareSheet from './CollectionShareSheet';
 
@@ -30,17 +36,6 @@ interface Props {
   /** Absent and the list is read-only, like every other panel here. */
   onOpenPlace?: (place: SavedTravelInspiration) => void;
 }
-
-/** 咖啡廳 28・甜點 4・早午餐 3 — the facets the mock shows under a collection. */
-const CATEGORY_LABELS: Record<PlaceCategory, string> = {
-  food: '餐廳',
-  cafe: '咖啡廳',
-  stay: '住宿',
-  sight: '景點',
-  shop: '購物',
-  transport: '交通',
-  other: '其他',
-};
 
 const badgeFor = (collection: SavedCollection) => {
   if (!isPublished(collection)) {

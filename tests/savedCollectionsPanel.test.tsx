@@ -98,7 +98,8 @@ describe('一個收藏集打開之後', () => {
     const detail = screen.getByTestId('collection-detail');
 
     expect(within(detail).getByText('東京咖啡地圖')).toBeTruthy();
-    expect(detail.textContent).toContain('咖啡廳 2');
+    /* 「咖啡」, from `placeCategory`, which is the one place that names tags. */
+    expect(detail.textContent).toContain('咖啡 2');
     expect(detail.textContent).toContain('餐廳 1');
     expect(screen.getByTestId('collection-place-p1')).toBeTruthy();
   });

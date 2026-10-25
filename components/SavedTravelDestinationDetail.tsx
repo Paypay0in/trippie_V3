@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { OVERLAY } from '../constants/layers';
 import { ChevronRight, Ellipsis, MapPin, NotebookPen, Plus, Receipt } from 'lucide-react';
-import { CommunityPost, Expense, ItineraryItem, SavedExperienceNote, SavedTravelInspiration } from '../types';
+import { CommunityPost, Expense, ItineraryItem, PlaceCategory, SavedExperienceNote, SavedTravelInspiration } from '../types';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { keepDistinctNotes } from '../services/distinctNotes';
@@ -18,6 +18,7 @@ import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
 import { spendAtPlace, spendSentence } from '../services/spendAtPlace';
 import { placeJournalKey } from '../services/journalSync';
+import { VisitFilter, categoriesIn, filterSavedPlaces } from '../services/savedPlaceFilters';
 import { placeIdentities } from '../services/visitedPlaces';
 import PlaceThumbnail from './PlaceThumbnail';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
@@ -154,7 +155,30 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
   */
+  /*
+    「分類｜全部｜已訪｜待訪」.
+
+    Forty-seven saved places in one scroll is a list nobody reads to the
+    bottom. Two questions get asked of a collection this size — 「what kind of
+    thing」 and 「have I been」 — and they are asked together, so both chips
+    narrow at once rather than one replacing the other.
+
+    Filtered before the clustering, so the areas are the areas of what is on
+    screen. Filtering afterwards would leave headings standing over nothing.
+  */
+  const [category, setCategory] = useState<PlaceCategory | 'all'>('all');
+  const [visitFilter, setVisitFilter] = useState<VisitFilter>('all');
+
+  /* Only the tags this destination actually holds; an empty chip is a dead tap. */
+  const categoriesHere = useMemo(() => categoriesIn(items), [items]);
+
+  const shown = useMemo(
+    () => filterSavedPlaces(items, { category, visited: visitFilter }, visits),
+    [items, category, visitFilter, visits],
+  );
+
   const { ordered, areaOf } = useMemo(() => {
+    const items = shown;
     const { clusters, unlocated } = clusterSavedPlaces(
       items.map(item => ({
         id: item.id,
@@ -179,7 +203,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
     const rest = unlocated.map(place => items.find(item => item.id === place.id)!).filter(Boolean);
 
     return { ordered: [...placed, ...rest], areaOf: byId };
-  }, [items, country]);
+  }, [shown, country]);
 
   /*
     「點下去要有地圖資訊」 — the card carried a 「⋯」 menu and nothing else, so the
@@ -402,6 +426,74 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
       )}
     </section>
     <section className="space-y-3 p-4">
+      {/*
+        「分類｜全部｜已訪｜待訪」.
+
+        Both rows narrow at once rather than one replacing the other, because
+        「哪些咖啡廳我還沒去」 is one question and answering it with two
+        mutually exclusive filters would mean asking it twice.
+
+        Counts on the chips, so a tap that leads nowhere is visible before it
+        is taken.
+      */}
+      {items.length > 1 && (
+        <div className="space-y-2" data-testid="saved-filters">
+          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+            {([['all', '全部'], ['visited', '已訪'], ['not', '待訪']] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                data-testid={`saved-filter-${value}`}
+                aria-pressed={visitFilter === value}
+                onClick={() => setVisitFilter(value)}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-black ${
+                  visitFilter === value ? 'bg-[#5b3df5] text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {categoriesHere.length > 1 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              <button
+                type="button"
+                data-testid="saved-category-all"
+                aria-pressed={category === 'all'}
+                onClick={() => setCategory('all')}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-black ${
+                  category === 'all' ? 'bg-violet-100 text-[#5b3df5]' : 'bg-white text-slate-500 ring-1 ring-slate-200'
+                }`}
+              >
+                分類
+              </button>
+              {categoriesHere.map(([key, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  data-testid={`saved-category-${key}`}
+                  aria-pressed={category === key}
+                  onClick={() => setCategory(current => (current === key ? 'all' : key))}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-black ${
+                    category === key ? 'bg-violet-100 text-[#5b3df5]' : 'bg-white text-slate-500 ring-1 ring-slate-200'
+                  }`}
+                >
+                  {CATEGORY_LABELS[key] ?? '其他'} {count}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {/*
+        An empty result is the filter's doing, and says so — otherwise a
+        collection of forty-seven places reads as having lost them.
+      */}
+      {ordered.length === 0 && items.length > 0 && (
+        <p data-testid="saved-filter-empty" className="rounded-2xl bg-white p-6 text-center text-[12px] text-slate-400">
+          這個篩選底下沒有地點。
+        </p>
+      )}
       {ordered.map((item, index) => {
         /*
           「收藏裡也要分區」 — the same grouping the planner shows, from the same
