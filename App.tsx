@@ -7205,6 +7205,17 @@ const App: React.FC = () => {
         */
         viewerUserId={userId}
         /*
+          Who is reading, and what the travellers are called.
+
+          「因為這個餐廳是朋友結帳」 — without these the saved place reported
+          the whole bill as this traveller's spending.
+        */
+        viewerMemberId={viewerMemberId}
+        ownerMemberId={activeOwnerMemberId}
+        memberNames={Object.fromEntries(
+          settlementMembers.map((member) => [member.id, member.name]),
+        )}
+        /*
           The open trip's bills plus everything already filed, so a place
           visited on a finished trip still shows what it cost.
         */

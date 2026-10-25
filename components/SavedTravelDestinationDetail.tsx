@@ -16,7 +16,7 @@ import { myRecordAtPlace, myRecordSummary } from '../services/myRecordAtPlace';
 import AddPlaceByName from './AddPlaceByName';
 import ScreenshotItineraryIntake from './ScreenshotItineraryIntake';
 import type { ItinerarySlice } from '../services/itineraryImageSlices';
-import { spendAtPlace, spendSummary } from '../services/spendAtPlace';
+import { spendAtPlace, spendSentence } from '../services/spendAtPlace';
 import PlaceThumbnail from './PlaceThumbnail';
 import { fetchPlaceBasics, summarizePlaceBasics } from '../services/placeBasicsService';
 import { dayMapSrc } from '../services/dayMapImage';
@@ -101,6 +101,16 @@ type Props = {
    */
   viewerUserId?: string;
   /**
+   * Which member is reading, and what the members are called.
+   *
+   * 「因為這個餐廳是朋友結帳」 — without these the card reported the whole bill
+   * as this traveller's spending. Optional: a caller that does not know gets
+   * the sentence it always gave rather than one claiming whose money it was.
+   */
+  viewerMemberId?: string;
+  ownerMemberId?: string;
+  memberNames?: Record<string, string>;
+  /**
    * Binds a bill to this place, by filling in the `merchantPlaceId` the
    * receipt scan could not.
    */
@@ -117,7 +127,7 @@ type Props = {
  */
 const NOTE_PREVIEW = 4;
 
-const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], myTrips = [], journals = {}, onLinkExpense, viewerUserId,
+const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], myTrips = [], journals = {}, onLinkExpense, viewerUserId, viewerMemberId, ownerMemberId, memberNames = {},
 }) => {
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
@@ -237,6 +247,14 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
   const [openNotes, setOpenNotes] = useState<Set<string>>(new Set());
   const [image, setImage] = useState<DestinationImage | null>(null);
   const [removeTarget, setRemoveTarget] = useState<SavedTravelInspiration | null>(null);
+  /**
+   * Which member is reading, and what everybody is called.
+   *
+   * 「因為這個餐廳是朋友結帳」 — without these the card reported the whole
+   * bill as this traveller's spending. Optional: a caller that does not know
+   * gets the sentence it always got rather than one claiming whose money it
+   * was.
+   */
   /** Which card is asking 「哪一筆是在這裡花的？」. */
   const [linkingId, setLinkingId] = useState<string | null>(null);
   /*
@@ -560,7 +578,8 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             const onlyAuthor = authors.size === 1 && notesOf(item).length > 1 ? sources[0] : null;
             const expanded = openNotes.has(item.id);
             const shown = expanded ? notesOf(item) : notesOf(item).slice(0, NOTE_PREVIEW);
-            const spend = spendAtPlace(item, expenses);
+            const spend = spendAtPlace(item, expenses, viewerMemberId, ownerMemberId);
+            const sentence = spendSentence(spend, viewerMemberId, id => memberNames[id]);
             const myHere = myRecordAtPlace(item, myTrips, journals);
             return <>
             {/*
@@ -609,9 +628,26 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   copy of a thing one tap away earns none of the room it takes
                   in a list somebody is scrolling.
                 */}
-                <span className="flex min-w-0 items-center gap-1 text-[11px] font-black text-emerald-800">
-                  <Receipt size={11} className="shrink-0" />
-                  <span className="truncate">你在這裡花過 {spendSummary(spend)}</span>
+                {/*
+                  What the money was, and whose it was.
+
+                  「因為這個餐廳是朋友結帳」 — this used to read 「你在這裡花過
+                  NT$965」 off the whole bill for a meal somebody else paid
+                  for. He spent none of it and owes part of it; those are
+                  different sentences.
+                */}
+                <span className="flex min-w-0 flex-col gap-0.5 text-[11px] font-black text-emerald-800">
+                  <span className="flex min-w-0 items-center gap-1">
+                    <Receipt size={11} className="shrink-0" />
+                    <span className="truncate">
+                      {sentence?.lead} {sentence?.total}
+                    </span>
+                  </span>
+                  {sentence?.detail && (
+                    <span data-testid={`spend-detail-${item.id}`} className="truncate pl-4 font-bold text-emerald-700">
+                      {sentence.detail}
+                    </span>
+                  )}
                 </span>
                 <button
                   type="button"
@@ -706,7 +742,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
           }}
           notes={open.notes}
           viewerUserId={viewerUserId}
-          spend={spendAtPlace(open, expenses)}
+          spend={spendAtPlace(open, expenses, viewerMemberId, ownerMemberId)}
           /*
             「若在收藏中 有這個地點 應該要在收藏中可以看到我去的紀錄」 — the stars,
             the photographs and the journal written on the day.

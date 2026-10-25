@@ -41,6 +41,7 @@
  * it — a Japanese street number （2-13-13） appearing in both, full-width
  * digits folded, is the shop and not the chain.
  */
+import { calculateExpenseLedger, isSplitRelevant } from './splitCalculator';
 import { Expense, ReceiptItem, SavedTravelInspiration } from '../types';
 import { distanceInKm } from './tripInspirationSelection';
 
@@ -107,9 +108,43 @@ export interface SpendAtPlace {
   merchant?: string;
   /** What the traveller thought of it, one to five, when they said. */
   rating?: number;
+  /**
+   * Who put the money down, when it was not the person reading.
+   *
+   * 「因為這個餐廳是朋友結帳」. Until this existed the card said 「你在這裡花過
+   * NT$965」 off `twdAmount`, which is the whole bill — so a meal a friend
+   * paid for was printed as money this traveller spent. They spent none of
+   * it; they owe part of it, and those are different sentences.
+   */
+  payerId?: string;
+  /**
+   * What the reader owes on it, where a split says.
+   *
+   * Taken from `calculateExpenseLedger`, the same ledger the settlement page
+   * reads. A second way of working out a share is a second answer, and this
+   * codebase has been bitten by that shape more than by anything else.
+   */
+  yourShare?: number;
 }
 
 const clean = (value?: string): string => (value || '').trim();
+
+/**
+ * What this reader owes on one bill, from the ledger everything else reads.
+ *
+ * Absent rather than zero when the split does not name them: 「0」 is a claim
+ * that they owe nothing, and 「nothing said」 is not that claim.
+ */
+const shareOf = (
+  expense: Expense,
+  viewerMemberId: string,
+  ownerMemberId?: string,
+): { yourShare?: number } => {
+  if (!isSplitRelevant(expense)) return {};
+  const { responsibility } = calculateExpenseLedger(expense, ownerMemberId);
+  const owed = responsibility[viewerMemberId];
+  return Number.isFinite(owed) ? { yourShare: Math.round(owed as number) } : {};
+};
 
 /**
  * Every bill recorded at this place, most recent first.
@@ -121,6 +156,15 @@ const clean = (value?: string): string => (value || '').trim();
 export const spendAtPlace = (
   place: Pick<SavedTravelInspiration, 'placeId' | 'latitude' | 'longitude' | 'placeName' | 'resolvedPlaceName' | 'formattedAddress'>,
   expenses: Expense[],
+  /**
+   * Which member is reading, so a bill can say what they owe on it.
+   *
+   * Optional: every caller that does not know simply gets what it always
+   * got, and the card falls back to 「這裡消費」 rather than claiming anything
+   * about whose money it was.
+   */
+  viewerMemberId?: string,
+  ownerMemberId?: string,
 ): SpendAtPlace[] => {
   const placeId = clean(place.placeId);
   const here = typeof place.latitude === 'number' && typeof place.longitude === 'number'
@@ -201,6 +245,8 @@ export const spendAtPlace = (
         ? { exchangeRate: expense.exchangeRate } : {}),
       ...(clean(expense.merchant) ? { merchant: clean(expense.merchant) } : {}),
       ...(typeof expense.rating === 'number' && expense.rating > 0 ? { rating: expense.rating } : {}),
+      ...(clean(expense.payerId) ? { payerId: clean(expense.payerId) } : {}),
+      ...(viewerMemberId ? shareOf(expense, viewerMemberId, ownerMemberId) : {}),
     }))
     // 「上次在這裡花了多少」 is asked about the last time, not the first.
     .sort((left, right) => right.date.localeCompare(left.date));
@@ -212,4 +258,60 @@ export const spendSummary = (spend: SpendAtPlace[]): string => {
   const total = spend.reduce((sum, entry) => sum + (Number.isFinite(entry.twdAmount) ? entry.twdAmount : 0), 0);
   const money = `NT$ ${Math.round(total).toLocaleString()}`;
   return spend.length > 1 ? `${money}・${spend.length} 筆` : money;
+};
+
+/**
+ * What to say about the money, given who paid it.
+ *
+ * 「因為這個餐廳是朋友結帳」. 「你在這裡花過 NT$965」 is false for a meal
+ * somebody else paid for — the reader spent none of it and owes part of it,
+ * and those are different sentences.
+ *
+ * Three answers, and the third is the honest default: where nothing says who
+ * paid, this reports the bill without claiming whose money it was.
+ */
+export interface SpendSentence {
+  /** 「你在這裡花過」 / 「這裡消費」. */
+  lead: string;
+  /** 「NT$ 965」. */
+  total: string;
+  /** 「Sherry 先付・你分攤 NT$ 482」, when somebody else put the money down. */
+  detail?: string;
+}
+
+export const spendSentence = (
+  spend: SpendAtPlace[],
+  viewerMemberId?: string,
+  nameOf?: (memberId: string) => string | undefined,
+): SpendSentence | undefined => {
+  if (spend.length === 0) return undefined;
+  const total = spendSummary(spend);
+
+  /*
+    Whether any of it was this reader's money. One bill they paid is enough
+    to keep the old sentence true; what the others cost is in the detail.
+  */
+  const paidAny = viewerMemberId
+    ? spend.some(entry => !entry.payerId || entry.payerId === viewerMemberId)
+    : true;
+  if (!viewerMemberId || paidAny) return { lead: '你在這裡花過', total };
+
+  const owed = spend.reduce(
+    (sum, entry) => sum + (Number.isFinite(entry.yourShare) ? (entry.yourShare as number) : 0),
+    0,
+  );
+  const payers = Array.from(new Set(
+    spend.map(entry => entry.payerId).filter((id): id is string => Boolean(id)),
+  ));
+  const who = payers.length === 1 ? nameOf?.(payers[0]) : undefined;
+
+  return {
+    lead: '這裡消費',
+    total,
+    detail: [
+      who ? `${who} 先付` : '別人先付',
+      /* Said only where the split named them; 0 is a claim, absence is not. */
+      owed > 0 ? `你分攤 NT$ ${owed.toLocaleString()}` : undefined,
+    ].filter(Boolean).join('・'),
+  };
 };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { spendAtPlace, spendSummary } from './spendAtPlace';
-import { Expense, SavedTravelInspiration } from '../types';
+import { spendAtPlace, spendSentence, spendSummary } from './spendAtPlace';
+import { Category, Expense, SavedTravelInspiration } from '../types';
 
 /**
  * 「這個可以 match 到我收藏的店舖中，能讓收藏清單中看到我在記帳下寫的備註嗎與圖片嗎？」
@@ -216,5 +216,73 @@ describe('spendSummary', () => {
 
   it('is empty when nothing was spent there', () => {
     expect(spendSummary([])).toBe('');
+  });
+});
+
+/**
+ * 「這個可以連結到分帳的紀錄嗎。因為這個餐廳是朋友結帳」.
+ *
+ * It could, and once linked the card said 「你在這裡花過 NT$965」 off the
+ * whole bill. He spent none of it. He owes part of it. Those are different
+ * sentences and the card was telling the wrong one.
+ */
+describe('誰結的帳', () => {
+  const ME = 'me';
+  const FRIEND = 'sherry';
+  const sushi = (over: Partial<Expense> = {}): Expense => ({
+    id: 'e1', description: '壽司', amount: 4000, twdAmount: 965, currency: 'JPY',
+    exchangeRate: 0.24, category: Category.FOOD, phase: 'during', date: '2026-10-22',
+    payerId: FRIEND, beneficiaries: [ME, FRIEND], splitMethod: 'EQUAL',
+    splitAllocations: {}, merchantPlaceId: 'g-sushi', ...over,
+  } as Expense);
+
+  const here = { placeId: 'g-sushi', placeName: 'Sushi no Wa' };
+
+  it('carries who paid and what the reader owes', () => {
+    const [entry] = spendAtPlace(here, [sushi()], ME);
+
+    expect(entry.payerId).toBe(FRIEND);
+    expect(entry.yourShare).toBe(483);
+  });
+
+  /* 0 is a claim that they owe nothing; absence is not that claim. */
+  it('says nothing about a share the split did not name', () => {
+    const [entry] = spendAtPlace(here, [sushi({ beneficiaries: [FRIEND] })], ME);
+
+    expect(entry).not.toHaveProperty('yourShare');
+  });
+
+  it('keeps 你在這裡花過 for a bill the reader paid', () => {
+    const sentence = spendSentence(spendAtPlace(here, [sushi({ payerId: ME })], ME), ME);
+
+    expect(sentence?.lead).toBe('你在這裡花過');
+    expect(sentence?.detail).toBeUndefined();
+  });
+
+  it('names the payer and the share when somebody else paid', () => {
+    const sentence = spendSentence(
+      spendAtPlace(here, [sushi()], ME),
+      ME,
+      id => (id === FRIEND ? 'Sherry' : undefined),
+    );
+
+    expect(sentence?.lead).toBe('這裡消費');
+    expect(sentence?.total).toBe('NT$ 965');
+    expect(sentence?.detail).toBe('Sherry 先付・你分攤 NT$ 483');
+  });
+
+  /* A name nobody can resolve is 「別人」, never a guess. */
+  it('says 別人先付 when the payer has no name here', () => {
+    const sentence = spendSentence(spendAtPlace(here, [sushi()], ME), ME);
+
+    expect(sentence?.detail).toContain('別人先付');
+  });
+
+  /*
+    A caller that does not know who is reading gets what it always got,
+    rather than a sentence claiming whose money it was.
+  */
+  it('falls back to the old sentence when nobody said who is reading', () => {
+    expect(spendSentence(spendAtPlace(here, [sushi()]))?.lead).toBe('你在這裡花過');
   });
 });
