@@ -556,3 +556,49 @@ describe('我的精選', () => {
     expect(text).toContain('NT$ 946');
   });
 });
+
+/**
+ * 「點這個 要打開地點記錄等」.
+ *
+ * 旅程亮點 named three stops and did nothing when tapped. Everything worth
+ * reaching about a stop — the stars, the photographs, the diary — already
+ * lived on that stop in 每日行程, so the highlight walks to it rather than
+ * growing a second place to keep the same record.
+ */
+describe('following a highlight', () => {
+  const trip = () => {
+    const rated = stop({ id: 'k', title: 'Kurofunetei', date: '2026-10-19', latitude: 35.71, longitude: 139.77 });
+    open(
+      [stop({ id: 'a', date: '2026-10-18' }), rated],
+      [bill({ merchant: 'Kurofunetei', rating: 5, date: '2026-10-19', merchantLatitude: 35.71, merchantLongitude: 139.77 })],
+    );
+  };
+
+  it('opens 每日行程 on the day that holds the stop', () => {
+    trip();
+
+    fireEvent.click(screen.getByTestId('recap-highlight-k'));
+
+    expect(screen.getByTestId('recap-stop-k')).toBeTruthy();
+    /* The right day: the other day's stop is not on screen. */
+    expect(screen.queryByTestId('recap-stop-a')).toBeNull();
+  });
+
+  /* A day of eight stops is not an answer to a tap on one of them. */
+  it('marks which stop was meant', () => {
+    trip();
+
+    fireEvent.click(screen.getByTestId('recap-highlight-k'));
+
+    expect(screen.getByTestId('recap-stop-k').getAttribute('data-followed')).toBe('true');
+  });
+
+  it('reaches the stop from 我的精選 too', () => {
+    trip();
+
+    fireEvent.click(screen.getByText('我的精選'));
+    fireEvent.click(screen.getByTestId('recap-pick-meal'));
+
+    expect(screen.getByTestId('recap-stop-k').getAttribute('data-followed')).toBe('true');
+  });
+});

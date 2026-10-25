@@ -315,3 +315,14 @@ export const buildTripRecap = (
 /** 「★★★★」 — as many as were given, never a rounded half. */
 export const starsFor = (rating?: number): string =>
   typeof rating === 'number' && rating > 0 ? '★'.repeat(Math.min(5, Math.round(rating))) : '';
+
+/**
+ * Which day holds a stop, or -1.
+ *
+ * 旅程亮點 names a stop but keeps nothing about it; everything a traveller
+ * wants there — the stars, the photographs, the diary — is on that stop in
+ * 每日行程. One function so the highlight and the day agree about where a
+ * stop lives.
+ */
+export const dayOfStop = (recap: TripRecap, itemId: string): number =>
+  recap.days.findIndex(day => day.stops.some(stop => stop.itemId === itemId));

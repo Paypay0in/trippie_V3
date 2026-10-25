@@ -15,11 +15,11 @@
  *   nobody rated shows none — and a section with nothing rated in it says so
  *   rather than ranking the stops by something else and calling them 亮點.
  */
-import React, { useMemo, useState } from 'react';
-import { ArrowLeft, CalendarRange, ImagePlus, MapPin, NotebookPen, Plus, Receipt, ShoppingBag, Sparkles, Star, UtensilsCrossed, Wallet } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, CalendarRange, ChevronRight, ImagePlus, MapPin, NotebookPen, Plus, Receipt, ShoppingBag, Sparkles, Star, UtensilsCrossed, Wallet } from 'lucide-react';
 import { RECEIPT_PHOTO, readAndDownscale } from '../services/postPhotos';
 import { Expense, Trip, TripMember } from '../types';
-import { RecapStop, buildTripRecap, isGettingThere, starsFor } from '../services/tripRecap';
+import { RecapStop, buildTripRecap, dayOfStop, isGettingThere, starsFor } from '../services/tripRecap';
 import { ITINERARY_PREFIX, buildTripAreas } from '../services/tripAreas';
 import { dayMapSrc } from '../services/dayMapImage';
 import { CATEGORY_LABELS } from '../services/placeCategory';
@@ -131,6 +131,37 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
    * nearly enough to read a receipt, which is most of why one was taken.
    */
   const [viewing, setViewing] = useState<{ photos: string[]; index: number } | null>(null);
+  /**
+   * The stop a highlight was followed to, marked until it has been seen.
+   *
+   * 「點這個 要打開地點記錄等」 — 旅程亮點 named three stops and did nothing
+   * when tapped, while everything worth reaching about a stop (the stars, the
+   * photographs, the diary) was a tab away in 每日行程. Rather than build a
+   * second place to keep a record, the highlight walks to the one that
+   * exists — and says which stop it meant, because a day of eight stops is
+   * not an answer to a tap on one.
+   */
+  const [followed, setFollowed] = useState<string | null>(null);
+
+  const followedRef = useRef<HTMLLIElement | null>(null);
+
+  /* A stop halfway down a day is not reached by changing the tab alone. */
+  useEffect(() => {
+    if (!followed) return;
+    followedRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    /* The mark fades; it says which stop was meant, it is not a selection. */
+    const timer = setTimeout(() => setFollowed(null), 2400);
+    return () => clearTimeout(timer);
+  }, [followed]);
+
+  const followHighlight = (itemId: string) => {
+    const at = dayOfStop(recap, itemId);
+    /* No day holds it — the tab would open on a stop that is not there. */
+    if (at < 0) return;
+    setTab('days');
+    setDay(at);
+    setFollowed(itemId);
+  };
 
   /*
     The areas, from the same grouping the collection screen uses. 新宿區 4個景點
@@ -352,18 +383,26 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
               {recap.highlights.length > 0 ? (
                 <ol data-testid="recap-highlights" className="mt-3 space-y-2">
                   {recap.highlights.map((stop, index) => (
-                    <li key={stop.itemId} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-[11px] font-black text-white">
-                        {index + 1}
-                      </span>
-                      {stop.photo && <img src={stop.photo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black text-[#11183d]">{stop.title}</div>
-                        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
-                          <Stars stop={stop} testId={`recap-highlight-stars-${stop.itemId}`} />
-                          {stop.location && <span className="truncate">{stop.location}</span>}
+                    <li key={stop.itemId}>
+                      <button
+                        type="button"
+                        data-testid={`recap-highlight-${stop.itemId}`}
+                        onClick={() => followHighlight(stop.itemId)}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 text-left shadow-sm"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-[11px] font-black text-white">
+                          {index + 1}
+                        </span>
+                        {stop.photo && <img src={stop.photo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />}
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-black text-[#11183d]">{stop.title}</div>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
+                            <Stars stop={stop} testId={`recap-highlight-stars-${stop.itemId}`} />
+                            {stop.location && <span className="truncate">{stop.location}</span>}
+                          </div>
                         </div>
-                      </div>
+                        <ChevronRight size={16} className="shrink-0 text-slate-300" />
+                      </button>
                     </li>
                   ))}
                 </ol>
@@ -470,8 +509,10 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                       <li
                         key={stop.itemId}
                         data-testid={`recap-stop-${stop.itemId}`}
+                        data-followed={followed === stop.itemId ? 'true' : undefined}
+                        ref={followed === stop.itemId ? followedRef : undefined}
                         /* The rail: a day is a sequence, and the line says so. */
-                        className="relative flex gap-3 rounded-2xl border border-slate-100 bg-white px-3 py-2.5 pl-6 shadow-sm before:absolute before:left-3 before:top-5 before:h-2 before:w-2 before:-translate-x-1/2 before:rounded-full before:bg-violet-500 after:absolute after:left-3 after:top-7 after:bottom-0 after:w-px after:-translate-x-1/2 after:bg-violet-100 last:after:hidden"
+                        className={`relative flex gap-3 rounded-2xl border bg-white px-3 py-2.5 pl-6 shadow-sm ${followed === stop.itemId ? 'border-violet-300 ring-2 ring-violet-200' : 'border-slate-100'} before:absolute before:left-3 before:top-5 before:h-2 before:w-2 before:-translate-x-1/2 before:rounded-full before:bg-violet-500 after:absolute after:left-3 after:top-7 after:bottom-0 after:w-px after:-translate-x-1/2 after:bg-violet-100 last:after:hidden`}
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline gap-2">
@@ -690,7 +731,13 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
               <section key={label} className={CARD}>
                 <h3 className="font-black text-[#11183d]">{label}</h3>
                 {stop ? (
-                  <div data-testid={testId} className="mt-3 flex items-center gap-3">
+                  /* Same gesture as 旅程亮點: the card names a stop, so it reaches it. */
+                  <button
+                    type="button"
+                    data-testid={testId}
+                    onClick={() => followHighlight(stop.itemId)}
+                    className="mt-3 flex w-full items-center gap-3 text-left"
+                  >
                     {/*
                       「就要有縮圖」, and the traveller's own picture first.
 
@@ -729,7 +776,8 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                         </p>
                       )}
                     </div>
-                  </div>
+                    <ChevronRight size={16} className="shrink-0 text-slate-300" />
+                  </button>
                 ) : (
                   <p data-testid={`${testId}-empty`} className="mt-2 text-[11px] leading-5 text-slate-500">
                     還沒有評分過{label === '最愛餐廳' ? '餐廳' : '景點'}。
