@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, NotebookPen, Sparkles, Star, Users, X } from 'lucide-react';
+import PlaceSourceCredit from './PlaceSourceCredit';
+import { PlaceCredit } from '../services/collectionCredits';
 import { SavedExperienceNote } from '../types';
 import { MappablePlace, placeCopyText, placeDirectionsUrl, placeMapsUrl } from '../services/placeLinks';
 import { navigationProviderFor } from '../services/navigationProvider';
@@ -30,6 +32,16 @@ import { fetchPlaceReviews, PlaceReview } from '../services/placeReviewsService'
 
 interface Props {
   place: MappablePlace;
+  /**
+   * Who recommended this place, when somebody did.
+   *
+   * 「來自 Ann 的東京咖啡地圖」. Passed in rather than resolved here: the names
+   * behind the ids come off the network, and a card that fetched its own
+   * would ask again every time one scrolled past.
+   */
+  credit?: PlaceCredit;
+  /** Opens the collection it came from. Absent and the credit is text. */
+  onOpenSource?: (collectionId: string) => void;
   /** Every point saved with the place. Nothing is collapsed here. */
   notes: SavedExperienceNote[];
   /**
@@ -79,7 +91,7 @@ interface Props {
   onClose: () => void;
 }
 
-const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [], myRecord = [], visited = false, onAddNote, onClose }) => {
+const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, viewerUserId, spend = [], myRecord = [], visited = false, onAddNote, onClose }) => {
   /** The photograph being looked at, full screen. */
   const [viewing, setViewing] = useState<{ photos: string[]; index: number } | null>(null);
   /*
@@ -457,6 +469,18 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, viewerUserId, spend = [
             of thing on the card, after Google's record and the reader's own
             line, and running them together makes all three less trustworthy.
           */}
+          {/*
+            Who it came from, above their words.
+
+            The credit belongs with the notes rather than with Google's
+            record: both are 「somebody told me about this」, and the thing
+            separating them from the place's own facts is exactly that.
+          */}
+          {credit && (
+            <div className="mt-4">
+              <PlaceSourceCredit credit={credit} onOpenSource={onOpenSource} />
+            </div>
+          )}
           {theirs.length > 0 && (
             <div data-testid="saved-place-traveller-notes" className="mt-4 space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
               <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
