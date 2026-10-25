@@ -8,7 +8,7 @@
  * never made.
  */
 import { describe, expect, it } from 'vitest';
-import { ownNotes, publishableItem, publishableItems, statedCreatorOf } from './collectionPublish';
+import { itemsForLink, ownNotes, publishableItem, publishableItems, statedCreatorOf } from './collectionPublish';
 import { SavedExperienceNote, SavedTravelInspiration } from '../types';
 
 const ME = 'me';
@@ -143,5 +143,40 @@ describe('a whole collection', () => {
 
   it('drops a record with no name to publish', () => {
     expect(publishableItems([place({ placeName: '  ' })], collection(), makeId)).toEqual([]);
+  });
+});
+
+/**
+ * 「發布之後再改成員，線上那份不會跟著變」.
+ *
+ * The snapshot a link reads follows the list. The owner cannot see the
+ * difference — their own screen reads the local list — so the rule has to
+ * hold without anybody checking it.
+ */
+describe('itemsForLink', () => {
+  const shared = (patch = {}) => collection({ visibility: 'public', ...patch }) as never;
+
+  it('rewrites the snapshot from whatever the list now holds', () => {
+    const items = itemsForLink(shared(), [place({ id: 'a' }), place({ id: 'b' })], makeId);
+
+    expect(items?.map(item => item.sourceInspirationId)).toEqual(['a', 'b']);
+  });
+
+  /* An emptied public collection is an empty snapshot, not a stale one. */
+  it('publishes an empty list as empty', () => {
+    expect(itemsForLink(shared(), [], makeId)).toEqual([]);
+  });
+
+  it('sends nothing at all for a private collection', () => {
+    expect(itemsForLink(shared({ visibility: 'private' }), [place()], makeId)).toBeNull();
+  });
+
+  /*
+    Revoked is not deleted. An empty upload here would take away what the
+    owner still owns, on a collection they may yet publish again.
+  */
+  it('sends nothing at all for a revoked one', () => {
+    const revoked = shared({ revokedAt: '2026-10-20T00:00:00.000Z' });
+    expect(itemsForLink(revoked, [place()], makeId)).toBeNull();
   });
 });

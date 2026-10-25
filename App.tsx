@@ -217,7 +217,7 @@ import {
   publishCollection,
   unpublishCollection,
 } from "./services/collectionLifecycle";
-import { publishableItems } from "./services/collectionPublish";
+import { itemsForLink } from "./services/collectionPublish";
 import { savedFromCollection } from "./services/collectionSave";
 import { mergeTripInspirations } from "./services/inspirationMerge";
 import {
@@ -2087,6 +2087,33 @@ const App: React.FC = () => {
       else next[collectionId] = Array.from(new Set(placeIds));
       return next;
     });
+
+    /*
+      A published collection is a link somebody already holds, so the snapshot
+      behind it follows the list rather than staying at whatever was in it the
+      moment 分享 was pressed. Two copies, one older, is the shape that has
+      cost this project a day at a time — and the owner would have no way to
+      see the difference, because their own screen reads the local list.
+    */
+    const published = savedCollections.find(entry => entry.id === collectionId);
+    if (published) void pushCollectionItems(published, placeIds);
+  };
+
+  /**
+   * The snapshot a link reads, rewritten from a list of saved places.
+   *
+   * The one place that decides what leaves this device for a collection —
+   * `publishableItems` still decides what a stranger may see, and a
+   * collection nobody can open is never uploaded at all.
+   */
+  const pushCollectionItems = async (collection: SavedCollection, placeIds: string[]) => {
+    const held = placeIds
+      .map(id => savedTravelInspirations.find(place => place.id === id))
+      .filter((place): place is SavedTravelInspiration => Boolean(place));
+    const items = itemsForLink(collection, held, generateId);
+    /* Private or revoked: nothing it holds has any business on the server. */
+    if (!items) return;
+    await replaceCollectionItems(collection.id, items);
   };
 
   const handlePublishCollection = (collection: SavedCollection) => {
@@ -2097,15 +2124,9 @@ const App: React.FC = () => {
     setSavedCollections(current =>
       current.map(entry => (entry.id === published.id ? published : entry)));
 
-    const held = (collectionMembership[published.id] ?? [])
-      .map(id => savedTravelInspirations.find(place => place.id === id))
-      .filter((place): place is SavedTravelInspiration => Boolean(place));
     void saveCollection(published).then(result => {
       if (result.status !== "ok") return undefined;
-      return replaceCollectionItems(
-        published.id,
-        publishableItems(held, published, generateId),
-      );
+      return pushCollectionItems(published, collectionMembership[published.id] ?? []);
     });
   };
 

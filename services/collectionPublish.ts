@@ -119,3 +119,25 @@ export const publishableItems = (
 ): SavedCollectionItem[] => inspirations
   .filter(entry => (entry.resolvedPlaceName || entry.placeName || '').trim().length > 0)
   .map((entry, index) => publishableItem(entry, collection, index, makeId));
+
+/**
+ * What a link should now read, or `null` when nothing should leave the device.
+ *
+ * The snapshot behind a published collection follows its list: a place added
+ * after 分享 was pressed is a place the holder of the link is expected to
+ * see, and two copies with one of them older is the shape that has cost this
+ * project a day at a time — worse here, because the owner's own screen reads
+ * the local list and so shows no sign of the difference.
+ *
+ * A private or revoked collection returns `null` rather than an empty list:
+ * nothing it holds has any business on the server, and uploading an empty
+ * snapshot would overwrite what a revoked collection still owns.
+ */
+export const itemsForLink = (
+  collection: Parameters<typeof publishableItem>[1] & { visibility?: string; revokedAt?: string },
+  inspirations: SavedTravelInspiration[],
+  makeId: () => string,
+): SavedCollectionItem[] | null => {
+  if (collection.visibility === 'private' || collection.revokedAt) return null;
+  return publishableItems(inspirations, collection, makeId);
+};
