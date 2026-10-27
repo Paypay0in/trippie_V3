@@ -87,7 +87,11 @@ export const normalizePlaceCommerce = (value: unknown): PlaceCommerceInfo | null
         .filter(entry => entry.urlType === 'direct' || entry.urlType === 'search')
         .filter(entry => {
           const provider = typeof entry.provider === 'string' && entry.provider.trim() ? entry.provider.trim() : 'other';
-          return typeof entry.url === 'string' && validateBookingUrlShape(provider, entry.url).ok;
+          // The urlType was narrowed on the line above; passing it is what makes
+          // this check agree with the server's instead of reading every link as
+          // 「direct」 and discarding valid search links.
+          const urlType = entry.urlType as PlaceBookingOption['urlType'];
+          return typeof entry.url === 'string' && validateBookingUrlShape(provider, entry.url, urlType).ok;
         })
         .map(entry => ({
           provider: typeof entry.provider === 'string' && entry.provider.trim() ? entry.provider.trim() : 'other',

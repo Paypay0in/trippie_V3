@@ -20,7 +20,25 @@ import { BookingUrlType, PlaceBookingOption } from '../types';
 export const PROVIDER_DOMAINS: Record<string, string[]> = {
   klook: ['klook.com'],
   kkday: ['kkday.com'],
+  getyourguide: ['getyourguide.com'],
 };
+
+/**
+ * What a GetYourGuide activity page's address actually looks like.
+ *
+ * 「`/tokyo-l193/tokyo-teamlab-planets-…-t260407`」 — a city is `-l` and a
+ * number, an activity is `-t` and a number, and the slug between them is
+ * decoration.
+ *
+ * This is a shape check and emphatically not a licence to build one. Every
+ * path on that host answers 403, the correct ones and the invented ones alike,
+ * so nothing here can tell a real product id from a number somebody made up —
+ * which is the exact trap `placeCommerceLookup` records paying for once
+ * already with KKday. A link reaches this function because a person confirmed
+ * it in a browser; this only catches the case where what they pasted was a
+ * search page, a blog post or the homepage rather than the activity.
+ */
+export const GETYOURGUIDE_ACTIVITY_PATH = /\/[a-z0-9-]+-l\d+\/[a-z0-9-]+-t\d+\/?$/i;
 
 /**
  * Hosts that are known not to be what a naive lookup would assume. This one is
@@ -35,6 +53,7 @@ export type BookingUrlRejection =
   | 'not-https'
   | 'wrong-provider-domain'
   | 'blocked-host'
+  | 'not-an-activity-page'
   | 'unreachable';
 
 export type BookingUrlVerdict =
@@ -54,6 +73,14 @@ const matchesDomain = (host: string, domain: string): boolean =>
 export const validateBookingUrlShape = (
   provider: string,
   url: string,
+  /*
+    What the link claims to be. Required, with no default: a default made the
+    client drop valid `search` links the server had already accepted, because
+    the omission read as 「direct」 instead of failing. Every caller says it out
+    loud, so the next one that forgets is a compile error rather than two code
+    paths quietly disagreeing.
+  */
+  urlType: BookingUrlType,
 ): BookingUrlVerdict => {
   let parsed: URL;
   try {
@@ -74,6 +101,20 @@ export const validateBookingUrlShape = (
   const allowed = PROVIDER_DOMAINS[provider];
   if (allowed && !allowed.some(domain => matchesDomain(host, domain))) {
     return { ok: false, reason: 'wrong-provider-domain' };
+  }
+
+  /*
+    A GetYourGuide link offered as 「this exact activity」 has to be one.
+
+    Only when it claims to be direct. A `search` link is allowed to be the
+    homepage or a listing — that is what the type means, and the card words it
+    as a search rather than as the ticket. The failure this catches is the one
+    that happened to KKday from the other direction: a link presented as the
+    product and landing somewhere else.
+  */
+  if (provider === 'getyourguide' && urlType === 'direct'
+      && !GETYOURGUIDE_ACTIVITY_PATH.test(parsed.pathname)) {
+    return { ok: false, reason: 'not-an-activity-page' };
   }
 
   return { ok: true };
@@ -148,7 +189,7 @@ export const validateBookingLinks = async (
   const checkedAt = (deps.now || new Date()).toISOString().slice(0, 10);
 
   const results = await Promise.all(declared.map(async link => {
-    const shape = validateBookingUrlShape(link.provider, link.url);
+    const shape = validateBookingUrlShape(link.provider, link.url, link.urlType);
     if (!shape.ok) return null;
     if (deps.skipNetwork) {
       return { provider: link.provider, label: link.label, url: link.url.trim(), urlType: link.urlType };

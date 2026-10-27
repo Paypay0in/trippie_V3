@@ -6,6 +6,7 @@ import {
   hasDisplayableCommerce,
   normalizePlaceCommerce,
 } from './placeCommerceService';
+import { validateBookingLinks } from './bookingUrlValidation';
 
 const SPA_LAND = {
   admissionRequired: true,
@@ -96,9 +97,76 @@ describe('normalizePlaceCommerce — provider links', () => {
     expect(info?.bookingOptions?.map(option => option.urlType)).toEqual(['direct', 'search']);
   });
 
+  /*
+    A GetYourGuide link that says it is a search is allowed to be the homepage —
+    that is what the type means, and the server already accepted it. The client
+    used to call the shape check without the type, so the omission read as
+    「direct」, the homepage failed the activity-page rule, and the button
+    vanished with nothing said. Same rule, two layers, one of them doing less.
+  */
+  it('keeps a GetYourGuide search link, as the server does', () => {
+    const info = normalizePlaceCommerce({
+      admissionRequired: true,
+      bookingOptions: [
+        { provider: 'getyourguide', label: 'GetYourGuide', url: 'https://www.getyourguide.com/', urlType: 'search' },
+      ],
+    });
+    expect(info?.bookingOptions).toEqual([
+      { provider: 'getyourguide', label: 'GetYourGuide', url: 'https://www.getyourguide.com/', urlType: 'search' },
+    ]);
+  });
+
+  it('drops a GetYourGuide link offered as the activity that is not one', () => {
+    const info = normalizePlaceCommerce({
+      admissionRequired: true,
+      bookingOptions: [
+        { provider: 'getyourguide', label: 'GetYourGuide', url: 'https://www.getyourguide.com/tokyo-l193/', urlType: 'direct' },
+      ],
+    });
+    expect(info?.bookingOptions).toBeUndefined();
+  });
+
+  it('keeps a real GetYourGuide activity offered as the activity', () => {
+    const url = 'https://www.getyourguide.com/tokyo-l193/tokyo-teamlab-planets-entry-ticket-t260407';
+    const info = normalizePlaceCommerce({
+      admissionRequired: true,
+      bookingOptions: [{ provider: 'getyourguide', label: 'GetYourGuide', url, urlType: 'direct' }],
+    });
+    expect(info?.bookingOptions?.map(option => option.url)).toEqual([url]);
+  });
+
   it('omits bookingOptions entirely when none survive', () => {
     const info = normalizePlaceCommerce({ admissionRequired: true, bookingOptions: [{ provider: 'klook', label: 'Klook', url: 'ftp://x', urlType: 'direct' }] });
     expect(info?.bookingOptions).toBeUndefined();
+  });
+});
+
+/*
+ * The server decides which links are worth offering; the client decides which
+ * ones it will render. When those two answers differ, a traveller loses a
+ * button and nobody is told. This asserts the agreement itself rather than each
+ * side's behaviour separately, so a future caller that omits something cannot
+ * reintroduce the gap quietly.
+ */
+describe('server and client agree on which links survive', () => {
+  const CANDIDATES = [
+    { provider: 'getyourguide', label: 'GYG search', url: 'https://www.getyourguide.com/', urlType: 'search' as const },
+    { provider: 'getyourguide', label: 'GYG listing as activity', url: 'https://www.getyourguide.com/tokyo-l193/', urlType: 'direct' as const },
+    { provider: 'getyourguide', label: 'GYG activity', url: 'https://www.getyourguide.com/tokyo-l193/tokyo-teamlab-planets-entry-ticket-t260407', urlType: 'direct' as const },
+    { provider: 'klook', label: 'Klook', url: 'https://www.klook.com/activity/12345/', urlType: 'direct' as const },
+    { provider: 'kkday', label: 'KKday', url: 'https://www.kkday.com/zh-tw/product/ls?keyword=x', urlType: 'search' as const },
+    { provider: 'klook', label: 'Klook on the wrong domain', url: 'https://evil.example/klook', urlType: 'direct' as const },
+  ];
+
+  it('keeps exactly the same links on both sides', async () => {
+    const serverKept = (await validateBookingLinks(CANDIDATES, { linkFetch: async () => ({ status: 200 }), skipNetwork: true }))
+      .map(option => option.url);
+    const clientKept = (normalizePlaceCommerce({ admissionRequired: true, bookingOptions: CANDIDATES })?.bookingOptions ?? [])
+      .map(option => option.url);
+
+    expect(clientKept).toEqual(serverKept);
+    // Guards against the degenerate agreement where both sides keep nothing.
+    expect(serverKept).toHaveLength(4);
   });
 });
 
