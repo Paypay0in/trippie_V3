@@ -919,6 +919,34 @@ export interface SavedExperienceNote {
 }
 
 /**
+ * One recommendation that put a place on somebody's list.
+ *
+ * A place can have several. Ann recommends 藍瓶咖啡 and so does Bob, and until
+ * this existed the fold kept one of them and dropped the other — recoverably
+ * only when they had each written a note, because a note carries its own
+ * `sourceCreatorId` and a bare recommendation carries none. §8 forbids the
+ * latest sharer's identity overwriting the original author's, and losing one
+ * outright is the worst version of that.
+ *
+ * The vocabulary is `content_saves`' — `sourceType` / `sourceId` /
+ * `sourceItemId` — because that table already answers 「who created this, who
+ * passed it on」 for shared content, and a second set of words for the same
+ * four facts is how the two drift apart.
+ */
+export interface SavedPlaceSource {
+  /** 'post' | 'collection' | 'trip', as `content_saves` names them. */
+  sourceType: string;
+  /** The post, collection or trip this came from. */
+  sourceId: string;
+  /** The slice or item picked out of it; absent when the whole thing was saved. */
+  sourceItemId?: string;
+  /** Who recommended it. Copied at save time and never recomputed. */
+  sourceCreatorId: string;
+  /** When this device first recorded this recommendation. */
+  firstSeenAt?: string;
+}
+
+/**
  * The tag on a saved place. See `services/placeCategory`.
  *
  * Declared here rather than in that service so `types.ts` keeps importing
@@ -986,6 +1014,19 @@ export interface SavedTravelInspiration {
   sourceSliceId: string;
   sourceCreatorId: string;
   sourceNoteIds: string[];
+  /**
+   * Every recommendation that put this place on the list, not just one.
+   *
+   * The three singular fields above keep their existing meaning and their
+   * existing selection rule (`pickAttribution`) — every screen that reads them
+   * reads the same value it read before. This is added beside them so the ones
+   * that rule did not pick are no longer thrown away.
+   *
+   * Absent on records written before this existed. Read it through
+   * `sourcesOf`, which derives the single entry those records imply rather
+   * than making every caller remember to.
+   */
+  sources?: SavedPlaceSource[];
   savedAt: string;
   notes: SavedExperienceNote[];
 }

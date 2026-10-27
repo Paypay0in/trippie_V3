@@ -1,4 +1,4 @@
-import { SavedTravelInspiration } from '../types';
+import { SavedPlaceSource, SavedTravelInspiration } from '../types';
 import { noteIsCovered } from './itineraryImageSlices';
 
 /**
@@ -74,6 +74,106 @@ const pickAttribution = (
   };
 };
 
+/**
+ * Every recommendation behind one record, whichever shape it is stored in.
+ *
+ * The one reader. A record written before `sources` existed carries a single
+ * stated source in its three singular fields, and deriving that here rather
+ * than at each call site is what stops 「does this record have sources or the
+ * old fields」 becoming a question every caller answers differently.
+ *
+ * A synthetic source — 「manual:…」, 「screenshot:…」 — is nobody's
+ * recommendation, so it yields nothing. That is the same test
+ * `pickAttribution` applies, from the same function.
+ */
+export const sourcesOf = (record: SavedTravelInspiration): SavedPlaceSource[] => {
+  if (record.sources) return record.sources;
+  if (!isStatedSource(record)) return [];
+  return [{
+    /*
+      'post' because that is what the three singular fields have always
+      described: a slice of a community post. A collection save arrives
+      through the same fields today, and P0-P2 is where the distinction gets
+      a real value — guessing one here would be inventing a fact.
+    */
+    sourceType: 'post',
+    sourceId: record.sourcePostId.trim(),
+    ...(record.sourceSliceId?.trim() ? { sourceItemId: record.sourceSliceId.trim() } : {}),
+    sourceCreatorId: record.sourceCreatorId,
+    ...(record.savedAt ? { firstSeenAt: record.savedAt } : {}),
+  }];
+};
+
+/**
+ * What makes two recommendations the same one.
+ *
+ * The recommender is part of the identity, not just the thing recommended.
+ *
+ * Today that is belt and braces: every path that can produce a source entry
+ * sets `sourceCreatorId` from the content itself — a post's author, or the
+ * original finder a collection credits — so the creator is already a function
+ * of `sourceId`, and adding it here changes no existing behaviour. `manual:`
+ * and `screenshot:` records never reach this at all; `isStatedSource` excludes
+ * them.
+ *
+ * It is here because that is a property of today's save paths, not a rule
+ * anything enforces. The day one credits the person who passed a place on
+ * rather than the one who first found it, two people's recommendations would
+ * share a key — and the one that merged in second would vanish without a
+ * sound. That is the exact failure sources[] exists to stop, so the key names
+ * the recommender rather than relying on the id to imply them.
+ *
+ * Identical source events still collapse: all four fields match, so a repeat
+ * of the same recommendation remains idempotent.
+ */
+const sourceKey = (source: SavedPlaceSource): string =>
+  `${source.sourceType}|${source.sourceId}|${source.sourceItemId ?? ''}|${source.sourceCreatorId}`;
+
+/**
+ * Both records' recommendations, with neither side's dropped.
+ *
+ * The earliest sighting of a repeated recommendation wins, because that is
+ * when this device first learned of it; everything else about it is identical
+ * by definition of the key.
+ */
+const unionSources = (
+  first: SavedTravelInspiration,
+  second: SavedTravelInspiration,
+): SavedPlaceSource[] => {
+  const byKey = new Map<string, SavedPlaceSource>();
+  [...sourcesOf(first), ...sourcesOf(second)].forEach(source => {
+    const key = sourceKey(source);
+    const held = byKey.get(key);
+    if (!held) { byKey.set(key, source); return; }
+    if (source.firstSeenAt && (!held.firstSeenAt || source.firstSeenAt < held.firstSeenAt)) {
+      byKey.set(key, source);
+    }
+  });
+  return [...byKey.values()];
+};
+
+/**
+ * The same record without one recommendation.
+ *
+ * Removal is a thing a traveller asks for, and it is not the same event as the
+ * fold losing one by accident — which is what this whole field exists to stop.
+ * Their own notes are untouched: a note is theirs whoever recommended the
+ * place, and the three singular fields keep whatever they already said.
+ */
+export const withoutSource = (
+  record: SavedTravelInspiration,
+  /*
+    The recommender is named, because the recommender is part of what is being
+    removed. Keyed on the content alone, 「取消這個來源」 would drop everyone who
+    had ever pointed at that slice — the same loss this field exists to stop,
+    only asked for out loud.
+  */
+  removed: Pick<SavedPlaceSource, 'sourceType' | 'sourceId' | 'sourceItemId' | 'sourceCreatorId'>,
+): SavedTravelInspiration => {
+  const key = sourceKey(removed as SavedPlaceSource);
+  return { ...record, sources: sourcesOf(record).filter(source => sourceKey(source) !== key) };
+};
+
 const fold = (
   existing: SavedTravelInspiration,
   incoming: SavedTravelInspiration,
@@ -81,6 +181,8 @@ const fold = (
   const [first, second] = existing.savedAt <= incoming.savedAt
     ? [existing, incoming]
     : [incoming, existing];
+
+  const sources = unionSources(first, second);
 
   /*
     Notes fold on meaning, not on characters.
@@ -141,6 +243,20 @@ const fold = (
       are synthetic nothing changes.
     */
     ...pickAttribution(first, second),
+    /*
+      And the ones that rule did not pick.
+
+      `pickAttribution` answers 「whose name goes on the card」 and keeps
+      answering it exactly as before — this is what happens to the other
+      recommendation, which until now was simply gone. Two people recommending
+      the same café with neither writing a note used to leave one of them with
+      no record anywhere: the notes carry their own attribution, a bare
+      recommendation carried none but these three fields.
+
+      Attached only when there is something to attach, so a place nobody
+      recommended keeps the shape it has always had.
+    */
+    ...(sources.length > 0 ? { sources } : {}),
   };
 };
 

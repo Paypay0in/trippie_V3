@@ -84,3 +84,41 @@ describe('a saved place, written and read back', () => {
     expect(loadSavedTravelInspirations()[0].category).toBeUndefined();
   });
 });
+
+/**
+ * The same whitelist, and the same way of dying.
+ *
+ * `sources` records who recommended a place when more than one person did. A
+ * field this loader does not name is erased on reload — so without these the
+ * second recommendation would survive the merge and then be deleted by the
+ * next page load, which is the 🏷️ bug wearing different clothes.
+ */
+describe('who recommended this place', () => {
+  it('survives a reload', () => {
+    const read = roundTrip(saved({
+      sources: [
+        { sourceType: 'post', sourceId: 'post-ann', sourceItemId: 'slice-ann', sourceCreatorId: 'ann', firstSeenAt: '2026-10-02T00:00:00.000Z' },
+        { sourceType: 'post', sourceId: 'post-bob', sourceCreatorId: 'bob' },
+      ],
+    }));
+
+    expect(read.sources?.map(entry => entry.sourceCreatorId)).toEqual(['ann', 'bob']);
+    expect(read.sources?.[0].sourceItemId).toBe('slice-ann');
+    expect(read.sources?.[1].sourceItemId).toBeUndefined();
+  });
+
+  /* A record written before the field existed stays exactly as it was. */
+  it('is absent on a record that never had it', () => {
+    expect(roundTrip(saved()).sources).toBeUndefined();
+  });
+
+  /* Validated rather than trusted, like every other field here. */
+  it('drops an entry with no source to point at', () => {
+    localStorage.setItem(
+      SAVED_TRAVEL_INSPIRATIONS_STORAGE_KEY,
+      JSON.stringify([{ ...saved(), sources: [{ sourceType: 'post' }, null, 'nonsense'] }]),
+    );
+
+    expect(loadSavedTravelInspirations()[0].sources).toEqual([]);
+  });
+});

@@ -63,7 +63,39 @@ const normalize = (value: unknown): SavedTravelInspiration | null => {
     category: CATEGORIES.includes(source.category as string) ? source.category as SavedTravelInspiration['category'] : undefined,
     categoryRules: typeof source.categoryRules === 'number' ? source.categoryRules : undefined,
     district: typeof source.district === 'string' ? source.district : undefined,
-    placeResolvedAt: typeof source.placeResolvedAt === 'string' ? source.placeResolvedAt : undefined };
+    placeResolvedAt: typeof source.placeResolvedAt === 'string' ? source.placeResolvedAt : undefined,
+    /*
+      Every recommendation behind this place, where the record has them.
+
+      Named here because this whitelist drops what it does not name — the
+      reason the 🏷️ tag and the ward kept vanishing on reload. A field holding
+      who recommended a place would have been erased the same way, which is
+      the exact loss this field was added to stop.
+
+      Absent on a record written before it existed, and left absent: `sourcesOf`
+      derives the one source such a record implies, so nothing is invented here
+      and nothing has to be migrated. Validated per entry rather than trusted,
+      like the rest.
+    */
+    ...(Array.isArray(source.sources)
+      ? {
+          sources: (source.sources as unknown[]).flatMap(entry => {
+            const item = entry as Record<string, unknown> | null;
+            if (!item || typeof item !== 'object') return [];
+            if (typeof item.sourceType !== 'string' || !item.sourceType.trim()) return [];
+            if (typeof item.sourceId !== 'string' || !item.sourceId.trim()) return [];
+            return [{
+              sourceType: item.sourceType,
+              sourceId: item.sourceId,
+              ...(typeof item.sourceItemId === 'string' && item.sourceItemId
+                ? { sourceItemId: item.sourceItemId } : {}),
+              sourceCreatorId: typeof item.sourceCreatorId === 'string' ? item.sourceCreatorId : '',
+              ...(typeof item.firstSeenAt === 'string' && item.firstSeenAt
+                ? { firstSeenAt: item.firstSeenAt } : {}),
+            }];
+          }),
+        }
+      : {}) };
 };
 
 export const loadSavedTravelInspirations = (): SavedTravelInspiration[] => {
