@@ -1,4 +1,4 @@
-import { Phase } from '../types';
+import { FlightAnchor, Phase } from '../types';
 
 /**
  * Which part of a trip today falls in.
@@ -19,18 +19,46 @@ const dayAfter = (date: string): string => {
   return new Date(time + 86400000).toISOString().slice(0, 10);
 };
 
+/**
+ * The day the traveller actually lands back home, if the trip says so.
+ *
+ * A return flight carries its own arrival date. When it is there, 返程中 has a
+ * real last day instead of a guessed one. Only the arrival date counts: a
+ * return flight that departs 10/24 may land 10/24 or 10/25, and guessing which
+ * is how we got here.
+ */
+export const returnLandingDate = (
+  flightAnchors?: FlightAnchor[],
+): string | undefined => {
+  const landings = (flightAnchors || [])
+    .filter((anchor) => anchor.direction === 'RETURN')
+    .map((anchor) => (anchor.arrivalDate || '').slice(0, 10))
+    .filter((date) => date.length === 10);
+  if (!landings.length) return undefined;
+  // More than one return leg: home is the last one to land.
+  return landings.sort()[landings.length - 1];
+};
+
 export const phaseForDate = (
   today: string,
   startDate?: string,
   endDate?: string,
+  returnArrivalDate?: string,
 ): Phase | null => {
   const day = (today || '').slice(0, 10);
   const start = (startDate || '').slice(0, 10);
   const end = (endDate || '').slice(0, 10);
+  const landed = (returnArrivalDate || '').slice(0, 10);
   if (!day || (!start && !end)) return null;
 
   if (start && day < start) return 'pre';
   if (end && day > end) {
+    /*
+      The journey home has a known last day whenever the return flight says
+      when it lands. Landing day is the journey home; after it the trip is
+      done. Fact beats 「結束日 +1」, which is only a guess.
+    */
+    if (landed) return day > landed ? 'summary' : 'post';
     /*
       'post' had no end, so a trip stayed 返程中 forever.
 

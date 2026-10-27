@@ -62,7 +62,11 @@ import JoinTripSheet, {
   clearJoinedTripId,
   readJoinedTripId,
 } from "./components/JoinTripSheet";
-import { localToday, phaseForDate } from "./services/tripPhaseByDate";
+import {
+  localToday,
+  phaseForDate,
+  returnLandingDate,
+} from "./services/tripPhaseByDate";
 import { findDuplicateRefund } from "./services/refundSettlement";
 import { settlementExpensesFor } from "./services/settlementScope";
 import {
@@ -2875,7 +2879,12 @@ const App: React.FC = () => {
 
     // The trip's own dates decide which part of it we are in. Only when a trip
     // has no dates do we fall back to guessing from what has been recorded.
-    const byDate = phaseForDate(localToday(), draft.startDate, draft.endDate);
+    const byDate = phaseForDate(
+      localToday(),
+      draft.startDate,
+      draft.endDate,
+      returnLandingDate(draft.flightAnchors),
+    );
     if (byDate) {
       setCurrentPhase(byDate);
     } else {
