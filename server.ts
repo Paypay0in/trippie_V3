@@ -14,6 +14,7 @@ import path from "path";
 import { extractReadableText, officialUrlsFromAnswer } from "./services/officialPageText";
 import { fileURLToPath } from "url";
 import { GoogleGenAI, Type } from "@google/genai";
+import { outputLanguageRule } from "./services/aiOutputLanguage";
 import { markDepartureTiming, withRequiredPreparation } from "./services/planPreparationCoverage";
 import { stripPriceClaims } from "./services/priceClaims";
 import { clusterSavedPlaces } from "./services/placeClusters";
@@ -67,7 +68,17 @@ const __dirname = path.dirname(__filename);
  * what day it was. 「我們不能每次都這樣修」 — so this is one string, and the test
  * beside it fails when a call site forgets to use it.
  */
-const factsPreamble = (): string => `今天是 ${new Date().toISOString().slice(0, 10)}。你的訓練資料可能已經過期：規定、價格、營業狀態都會改變。不要從你記得的、已經到期的資訊推測現在的狀態，那是猜測不是查證。無法確認的事就直接寫「無法確認」並說明要去哪裡查，不要用「可能」「預計」「屆時」「應該」把不確定丟給使用者。\n\n`;
+const factsPreamble = (
+  /**
+   * Whether the traveller's own words are in the prompt.
+   *
+   * 「看使用者輸入什麼語言 就用該語言回」 — so the answer's language comes from
+   * their text when there is any. A lookup made of a destination and a
+   * passport code has none, and says so, because a model told to mirror words
+   * that are not there picks a language on its own.
+   */
+  { hasUserText = true }: { hasUserText?: boolean } = {},
+): string => `今天是 ${new Date().toISOString().slice(0, 10)}。你的訓練資料可能已經過期：規定、價格、營業狀態都會改變。不要從你記得的、已經到期的資訊推測現在的狀態，那是猜測不是查證。無法確認的事就直接寫「無法確認」並說明要去哪裡查，不要用「可能」「預計」「屆時」「應該」把不確定丟給使用者。\n\n${outputLanguageRule({ hasUserText })}\n\n`;
 
 
 async function startServer() {
@@ -529,7 +540,7 @@ async function startServer() {
 4. category 從這幾個挑一個最接近的：美妝保養、服飾、伴手禮、食品、電子、其他。不確定就填「其他」。
 5. 不要讀價格，一個字都不要。
 6. 同一個商品出現多次只回一筆。
-7. 用繁體中文，商品名和品牌保留原文寫法。
+7. 商品名和品牌保留原文寫法。
 只回傳 JSON。`,
             },
           ],
@@ -1601,7 +1612,7 @@ async function startServer() {
       let response;
       const generateResearch = (model: string, grounded: boolean) => ai.models.generateContent({
         model,
-        contents: `${factsPreamble()}研究目前旅遊規定：目的地 ${destination}；旅程日期 ${startDate || "未知"} 至 ${endDate || "未知"}；使用護照國籍 countryCode ${passportCountryCode || "未知"}；居住地 ${residenceCountryCode || "未知"}。你的訓練資料可能已經過期，規定會延長、取消或改變。絕對不要從一條你記得的、已到期的規定推測現在的狀態——例如「某豁免 2024 年底到期，所以現在可能已恢復」這種寫法一律禁止，那是猜測不是查證。每一項的現況都必須來自這次搜尋到的官方來源；每一項的第一句必須是旅客的結論或動作，用肯定句寫（例如「台灣護照免簽證，可停留 90 天」「出發前線上填寫 Visit Japan Web，取得 QR Code」），不要用「請自行查詢」「建議確認」當第一句 —— 旅客打開這個 app 就是為了不用自己查。只有在這次搜尋真的找不到任何官方說法時，才寫「查無官方說明，出發前請至官方網站確認」並附官方網址。不要用「可能」「預計」「屆時」等字眼把不確定丟給旅客。每一項的說明一律用 points：**最多 3 句**，一句一件事，每句盡量不超過 25 字，直接寫旅客要做什麼或要知道的關鍵事實，不要寫成一整段。寫不下的背景、沿革、原因一律刪掉，只留旅客要行動或要記住的部分。旅客是在手機上掃清單，整段文字會被跳過，必要和建議就一起被跳過了。不要用 description 欄位。規定之間若有連動關係（例如免申請電子許可就必須改填紙本表單），要獨立成一個 point 講明白。某項手續若有官方線上系統可以事先辦理，一定要指名那個系統、附官方網址、並寫出可以開始填的時間（例如抵達前幾天），不要只說「在飛機上填紙本」——旅客有權知道可以先在家裡用手機填完。請只依可追溯的官方移民、海關、稅務、官方旅遊或機場來源整理入境/簽證與購物退稅。護照國籍不等於居住地。每個 actionable item 都要標 necessity：required 代表不做就無法入境或會被要求補件；recommended 代表能加速或省麻煩但不做也進得去；optional 代表只在特定情況才需要。不要把建議事項標成 required——旅客會照這個排出發前的優先順序。每個入境 actionable item 必須有且只有一個 actionType：visa_or_eta、passport_validity、health_declaration、customs_declaration、arrival_form、required_documents、onward_travel 或 other。相同 actionType 只產生一個 canonical action。若退稅規則有官方且可計算的數值，除 user-facing guidance 外回傳 taxRefund.numericRule，且只使用 thresholdScope per_transaction；提供 currency、minSpend 與 refundMethod { type: rate, rate }，無法安全計算時使用 refundMethod { type: not_calculable }。rate 必須是旅客「實際拿得回來的比例」，不是增值稅率——代辦手續費會吃掉一部分，直接拿稅率當退稅率會高估旅客能拿到的錢。這個數字是概估，不需要精準：知道實收區間就取偏保守的一端（例如實收 6%～8% 就填 0.06），並在 summary 寫明是概估與區間。只有在連大概能拿回多少都說不出來時，才用 not_calculable。不要自行決定 numericCalculationAvailable。model_knowledge fallback 可提供 guidance，但不得提供可信 numericRule。每個 grounded source URL 必須來自 Google Search grounding 結果，不可捏造。**所有給使用者看的文字一律使用繁體中文**（title、description、timingText、summary、guidance 等），來源是英文或日文官網時要翻譯，不要照抄原文。唯一例外是官方系統、表單與服務的專有名稱（例如 Visit Japan Web、ESTA、K-ETA），這些保留原名，因為旅客到現場要認得出來。`,
+        contents: `${factsPreamble({ hasUserText: false })}研究目前旅遊規定：目的地 ${destination}；旅程日期 ${startDate || "未知"} 至 ${endDate || "未知"}；使用護照國籍 countryCode ${passportCountryCode || "未知"}；居住地 ${residenceCountryCode || "未知"}。你的訓練資料可能已經過期，規定會延長、取消或改變。絕對不要從一條你記得的、已到期的規定推測現在的狀態——例如「某豁免 2024 年底到期，所以現在可能已恢復」這種寫法一律禁止，那是猜測不是查證。每一項的現況都必須來自這次搜尋到的官方來源；每一項的第一句必須是旅客的結論或動作，用肯定句寫（例如「台灣護照免簽證，可停留 90 天」「出發前線上填寫 Visit Japan Web，取得 QR Code」），不要用「請自行查詢」「建議確認」當第一句 —— 旅客打開這個 app 就是為了不用自己查。只有在這次搜尋真的找不到任何官方說法時，才寫「查無官方說明，出發前請至官方網站確認」並附官方網址。不要用「可能」「預計」「屆時」等字眼把不確定丟給旅客。每一項的說明一律用 points：**最多 3 句**，一句一件事，每句盡量不超過 25 字，直接寫旅客要做什麼或要知道的關鍵事實，不要寫成一整段。寫不下的背景、沿革、原因一律刪掉，只留旅客要行動或要記住的部分。旅客是在手機上掃清單，整段文字會被跳過，必要和建議就一起被跳過了。不要用 description 欄位。規定之間若有連動關係（例如免申請電子許可就必須改填紙本表單），要獨立成一個 point 講明白。某項手續若有官方線上系統可以事先辦理，一定要指名那個系統、附官方網址、並寫出可以開始填的時間（例如抵達前幾天），不要只說「在飛機上填紙本」——旅客有權知道可以先在家裡用手機填完。請只依可追溯的官方移民、海關、稅務、官方旅遊或機場來源整理入境/簽證與購物退稅。護照國籍不等於居住地。每個 actionable item 都要標 necessity：required 代表不做就無法入境或會被要求補件；recommended 代表能加速或省麻煩但不做也進得去；optional 代表只在特定情況才需要。不要把建議事項標成 required——旅客會照這個排出發前的優先順序。每個入境 actionable item 必須有且只有一個 actionType：visa_or_eta、passport_validity、health_declaration、customs_declaration、arrival_form、required_documents、onward_travel 或 other。相同 actionType 只產生一個 canonical action。若退稅規則有官方且可計算的數值，除 user-facing guidance 外回傳 taxRefund.numericRule，且只使用 thresholdScope per_transaction；提供 currency、minSpend 與 refundMethod { type: rate, rate }，無法安全計算時使用 refundMethod { type: not_calculable }。rate 必須是旅客「實際拿得回來的比例」，不是增值稅率——代辦手續費會吃掉一部分，直接拿稅率當退稅率會高估旅客能拿到的錢。這個數字是概估，不需要精準：知道實收區間就取偏保守的一端（例如實收 6%～8% 就填 0.06），並在 summary 寫明是概估與區間。只有在連大概能拿回多少都說不出來時，才用 not_calculable。不要自行決定 numericCalculationAvailable。model_knowledge fallback 可提供 guidance，但不得提供可信 numericRule。每個 grounded source URL 必須來自 Google Search grounding 結果，不可捏造。**所有給使用者看的文字一律使用繁體中文**（title、description、timingText、summary、guidance 等），來源是英文或日文官網時要翻譯，不要照抄原文。唯一例外是官方系統、表單與服務的專有名稱（例如 Visit Japan Web、ESTA、K-ETA），這些保留原名，因為旅客到現場要認得出來。`,
         config: {
           ...(grounded ? { tools: [{ googleSearch: {} }] } : {}),
           responseMimeType: "application/json",
@@ -1708,7 +1719,7 @@ async function startServer() {
           try {
             const verified = await withModelFallback(model => ai.models.generateContent({
               model,
-              contents: `${factsPreamble()}下面是官方網站的實際內容，請用它修正這份入境與退稅整理。只要官方內容講得出現況，就不准再寫「無法確認現況」——直接寫清楚現在的規定、適用到什麼時候。官方內容沒提到的項目保持原樣。所有文字一律繁體中文。\n\n【目前的整理】\n${JSON.stringify(parsed)}\n\n【官方網站內容】\n${pages.join("\n\n")}`,
+              contents: `${factsPreamble({ hasUserText: false })}下面是官方網站的實際內容，請用它修正這份入境與退稅整理。只要官方內容講得出現況，就不准再寫「無法確認現況」——直接寫清楚現在的規定、適用到什麼時候。官方內容沒提到的項目保持原樣。所有文字一律繁體中文。\n\n【目前的整理】\n${JSON.stringify(parsed)}\n\n【官方網站內容】\n${pages.join("\n\n")}`,
               config: { responseMimeType: "application/json", responseSchema: RESEARCH_SCHEMA },
             }));
             const corrected = JSON.parse(verified.text?.trim() || "null");
@@ -2907,7 +2918,7 @@ ${city ? `城市：${city}` : ""}
 3. 最多 4 點。沒有 4 點就少寫幾點，不要湊數。
 4. 不要寫價格，不要寫營業時間——那兩樣另外有地方顯示，而且會過期。
 5. 不要寫「值得一試」「氣氛很好」這種放在哪家店都成立的句子。
-6. 用繁體中文。地點、菜名保留原文寫法。
+6. 地點、菜名保留原文寫法。
 只回傳 JSON。`,
         config: {
           tools: [{ googleSearch: {} }],
@@ -3011,7 +3022,7 @@ ${city ? `城市：${city}` : ""}
       const ai = new GoogleGenAI({ apiKey });
       const generationConfig = {
         contents: `${factsPreamble()}${revisionBlock}一位旅人正在規劃${destination ? `${destination}的` : ""}旅程，他說：「${intent}」。\n${daysBrief}\n${anchorsBrief}\n${travellerBrief}\n${budgetBrief}\n\n請先查資料，判斷從${destination || "他的目的地"}出發做這件事實際上是什麼樣子，然後提出 **2 到 3 個彼此明顯不同的方案**，幫他做決定。\n\n方案之間要有意義的差異（最省事／最適合這趟／完整體驗／較省錢／舒適便利／過夜），不要三張幾乎一樣的卡。**資料只支持一到兩個好方案時，就只給一到兩個**，不要湊數。\n\n每個方案：\n- title：看得出差異的名稱\n- whyItFits：為什麼這個方案適合「這一趟」，兩句話\n- tradeoff：這個方案的代價是什麼（時間、金錢、體力、彈性），一句話\n- durationDays：**這個方案本身**需要幾天（不是整趟旅程的天數）\n- characteristics：從 easiest / best_fit / fuller / lower_budget / premium / overnight 選 1 到 2 個\n- mainPlaceName：這個方案最主要的場所名稱，要真實存在、你在搜尋結果中看到的\n- budget：**只有查到實際價格時才填** min / max / currency，查不到就整個省略。不要用印象中的數字。\n- preparation：這個方案需要先準備的事，2 到 4 項，每項有 name 與 canBeHumanAssisted（是否適合請當地人代勞，例如打電話預約、現場陪同）。**行程裡出現的每一項需要事先安排的東西都必須在這裡**——行程寫了租車就要有預約租車，寫了渡輪就要有訂船票。行程做得到、但準備清單沒寫的事，使用者到現場才會發現。\n- items：逐時段行程，每項 time（HH:MM）、title、placeName、type（ACTIVITY/FOOD/TRANSPORT/HOTEL）、dayOffset（從 0 開始）、durationMinutes、notes\n\n另外給 intro：一句話說明你怎麼看這個需求，例如「從釜山安排滑雪，建議至少留 1 天」。\n\n嚴格規則：\n- 地點必須真實存在。不要編場館名稱。\n- **不要輸出任何網址**，連結由地圖服務提供。\n- **不要自己估交通時間**，交通由路線服務計算。\n- 不要宣稱有空位、可預約、已開放，除非查到的資料明確寫了。\n- 不確定的事寫進 notes 說需再確認，不要寫成事實。\n- **方案必須在 ${destination} 當地或一日可來回的範圍內**。需要搭國內線、跨島、或單程超過 4 小時交通才能抵達的地方，一律不要提出 —— 使用者填的是這個目的地，不是這個國家。例如目的地是沖繩就不要提東京或富士山。\n- 旅人的交通方式照上面寫的來。**有租車的日期只有列出來的那幾天** —— 不要假設整趟都有車；需要開車但不在那幾天的方案，要在 notes 寫明需要自行安排交通或改期。
-- **沒有查到價格時，任何文字裡都不准出現金額**——intro、whyItFits、tradeoff 都一樣。不要寫「建議預算提高到 X 元」「門票約 X」。使用者不會分辨數字在欄位裡還是在句子裡，他會照著編預算。\n- **不要評論或形容這位旅人本身**（他的消費習慣、個性、經濟狀況）。預算數字只用來挑選合適的方案，不要寫成對他的描述。\n- 使用繁體中文。\n\n只回傳 JSON。`,
+- **沒有查到價格時，任何文字裡都不准出現金額**——intro、whyItFits、tradeoff 都一樣。不要寫「建議預算提高到 X 元」「門票約 X」。使用者不會分辨數字在欄位裡還是在句子裡，他會照著編預算。\n- **不要評論或形容這位旅人本身**（他的消費習慣、個性、經濟狀況）。預算數字只用來挑選合適的方案，不要寫成對他的描述。\n\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -3332,7 +3343,7 @@ ${city ? `城市：${city}` : ""}
           // category returned the same nine-item starter list whatever was
           // asked — someone who says 「非常怕冷」 got told to buy travel
           // insurance and apply for a visa, and stopped trusting the feature.
-          contents: `${factsPreamble()}以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 使用繁體中文，每則是可加入 checklist 的簡短待辦。\n- 若旅人分享區塊有內容，可以引用其中與問題相關的經驗，並把用到的貼文編號放進 postRefs。旅人的經驗是個人見聞，不等於官方規定；與官方資訊衝突時以官方為準，也不要把單一貼文的說法寫成通則。\n- 如果使用者的問題需要在當地買或租東西，另外給 placeQueries：0 到 3 句地圖搜尋用的字串，格式是「城市 店家類型」，例如「釜山 滑雪用品店」。不要在 placeQueries 裡寫店名——實際店家由地圖服務提供，不要自己想。\n\n只回傳 JSON。`,
+          contents: `${factsPreamble()}以下是一趟旅程的資料，最後一行是使用者實際提出的問題或情況：\n\n${context}\n\n請**只針對使用者提出的問題或情況**，給 3 到 6 個具體的出發前準備待辦。\n\n規則：\n- 每一則都必須是為了回應使用者那句話而存在；跟它無關的一律不要給。\n- 不要為了湊類別而補上機票、住宿、保險、簽證、eSIM 等通用項目，除非使用者的問題確實牽涉到它。\n- 能具體就具體：與目的地當季條件、使用者描述的狀況直接相關。\n- reason 要說明「為什麼這件事能解決使用者說的問題」。\n- 不要假設使用者已經預訂或完成任何事。\n- 每則是可加入 checklist 的簡短待辦。\n- 若旅人分享區塊有內容，可以引用其中與問題相關的經驗，並把用到的貼文編號放進 postRefs。旅人的經驗是個人見聞，不等於官方規定；與官方資訊衝突時以官方為準，也不要把單一貼文的說法寫成通則。\n- 如果使用者的問題需要在當地買或租東西，另外給 placeQueries：0 到 3 句地圖搜尋用的字串，格式是「城市 店家類型」，例如「釜山 滑雪用品店」。不要在 placeQueries 裡寫店名——實際店家由地圖服務提供，不要自己想。\n\n只回傳 JSON。`,
           config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -3656,8 +3667,8 @@ ${MODE_RULES[mode]}
 6d. 使用者可能給你社群連結（Instagram、小紅書等）、品牌名或只是一句描述。請用搜尋找出它在這個目的地實際存在的門市／店家，並在**同一個品牌有多家分店時，挑與當天其他行程地理上最接近的那一家**，placeName 要寫那家分店的正式全名（含分店名，例如「○○ 新世界百貨 Centum City 店」）。
 找不到實際門市就不要硬排，在 warnings 說明查不到，並請使用者自己確認。
 6c. 每一筆變更都必須填 placeName：add 填你建議的新地點真實店名，move/update/remove 填【2】裡那個既有項目現在的名稱。這個欄位是必填，沒有它的變更會被丟掉。
-7. 每一筆變更都要在 reason 用繁體中文寫一句簡短理由。
-8. summary 用繁體中文寫一兩句話，說明這次調整的整體想法。
+7. 每一筆變更都要在 reason 寫一句簡短理由。
+8. summary 寫一兩句話，說明這次調整的整體想法。
 9. update 只能改停留時間與備註，**改不了地點名稱**。所以絕對不要在 summary 或 reason 宣稱你「修正了地點名稱」「更新為具體店家」——你做不到，那句話只會是假的。
 10.【2】裡如果有既有項目的名稱是描述而不是店名（例如「廣安里海景早午餐咖啡廳」「知名烤肉店」），那一筆在地圖上查不到，使用者手上是一張沒有地址與照片的空白卡片。
 **不要為了替換它而 remove 它。** 你沒有可靠的方式在同一次回應裡補上替代地點，只 remove 不補，使用者就是平白少一筆行程。
@@ -3903,7 +3914,7 @@ ${MODE_RULES[mode]}
         : "每一天都要排滿合理數量的地點，優先放該目的地真正值得去、且符合使用者偏好的地方；使用者在偏好裡指名想做的活動一定要排進去。";
 
       const generationConfig = {
-        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${createTodayBlock}${flightBlock}\n\n${selectionBlock}${preferenceBlock}\n\n規則：\n${selectionRules}3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. ${additionRule}\n8. note 欄位用繁體中文寫一句簡短理由，說明為什麼排在這個時段。\n9. 不要在任何欄位寫出票價、門票、人均消費這類金額。你沒有查證過現在的價格，寫出來的數字會被當成事實。要提到費用就只說「需要門票」「要先買票」，金額留給使用者自己確認。\n只回傳 JSON。`,
+        contents: `${factsPreamble()}為這趟旅程安排一份行程提案。\n\n【1. 旅程事實】\n只能使用 ${input.startDate} 到 ${input.endDate} 之間的日期。目的地：${input.destination || ""}${input.destinationCountry ? `（${input.destinationCountry}）` : ""}。共 ${input.durationDays || "未知"} 天。${createTodayBlock}${flightBlock}\n\n${selectionBlock}${preferenceBlock}\n\n規則：\n${selectionRules}3. 不要捏造 placeId 或座標；已提供的地點識別由系統自行帶入。\n4. 同一天的地點要地理上相鄰，避免跨城市來回移動。\n5. 每天安排合理數量的活動，並留下合理的移動與用餐時間。\n5a. 【時間最重要】同一天的每個項目都必須有各自不同、依序遞增的 suggestedStartTime，格式 HH:mm。絕對不可以讓同一天的多個活動共用同一個開始時間（例如三個活動都寫 09:00），那不是可以照著走的行程。\n5b. 下一個活動的開始時間 = 前一個活動的開始時間 + 該活動的 durationMinutes + 合理的交通時間（市區內通常 15～45 分鐘，距離越遠越久）。活動之間不可以重疊。\n5c. 每個項目都要填 durationMinutes，用該地點實際合理的停留時間（例如市場 60～90 分鐘、海水浴場 90～120 分鐘、寺廟 60～90 分鐘）。\n5d. 如果使用者在規劃偏好說了幾點才出門，當天第一個活動就不能早於那個時間，後面的活動再依序往後排。\n6. 經驗筆記要影響排程。例如筆記說「傍晚去比較漂亮」就盡量排在下午稍晚或傍晚；說「週末人很多」就在還有其他日期可選時避開週末。筆記是偏好，不是硬性規定，除非它明確寫成硬性限制。\n7. ${additionRule}\n8. note 欄位寫一句簡短理由，說明為什麼排在這個時段。\n9. 不要在任何欄位寫出票價、門票、人均消費這類金額。你沒有查證過現在的價格，寫出來的數字會被當成事實。要提到費用就只說「需要門票」「要先買票」，金額留給使用者自己確認。\n只回傳 JSON。`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {

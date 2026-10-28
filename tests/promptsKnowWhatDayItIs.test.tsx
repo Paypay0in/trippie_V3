@@ -55,11 +55,44 @@ describe('the shared preamble', () => {
     const missing = WORLD_FACING_PROMPTS.filter(prompt => {
       const at = server.indexOf(prompt);
       if (at < 0) return false; // Prompt reworded; the name check below catches that.
-      // The preamble has to be the opening of that same template literal.
-      return !server.slice(Math.max(0, at - 40), at).includes('${factsPreamble()}');
+      /*
+        The preamble has to be the opening of that same template literal. It
+        now takes an argument — `hasUserText` decides what language the answer
+        comes back in — so the check is on the call, not on one spelling of it.
+      */
+      return !/\$\{factsPreamble\(/.test(server.slice(Math.max(0, at - 70), at));
     });
 
     expect(missing).toEqual([]);
+  });
+
+  it('tells every prompt what language to answer in', () => {
+    /*
+      「看使用者輸入什麼語言 就用該語言回」. Nine prompts each carried their own
+      「用繁體中文」 before this, which is nine chances for one of them to keep
+      answering in Chinese to an English traveller. The rule is in the shared
+      preamble now, and a prompt that re-adds its own would contradict it.
+    */
+    const body = server.slice(
+      server.indexOf('const factsPreamble ='),
+      server.indexOf('const factsPreamble =') + 1200,
+    );
+
+    expect(body).toContain('outputLanguageRule({ hasUserText })');
+
+    // Only the two lookups with no traveller prose may name a language, and
+    // they do it by passing `hasUserText: false` rather than in their text.
+    const selfDeclared = WORLD_FACING_PROMPTS.filter(prompt => {
+      const at = server.indexOf(prompt);
+      if (at < 0) return false;
+      const callsite = server.slice(Math.max(0, at - 70), at);
+      if (callsite.includes('hasUserText: false')) return false;
+      // The prompt body up to the end of its template literal.
+      const end = server.indexOf('`,', at);
+      return server.slice(at, end > at ? end : at + 4000).includes('繁體中文');
+    });
+
+    expect(selfDeclared).toEqual([]);
   });
 
   it('still recognises every prompt it is meant to guard', () => {

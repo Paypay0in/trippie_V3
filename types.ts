@@ -1,5 +1,9 @@
 
 
+// Type-only, so nothing is imported at runtime and no cycle is created.
+import type { ParsedRental } from './services/rentalIntake';
+import type { TripPlanBrief } from './services/tripPlanBrief';
+
 export type Phase = 'pre' | 'during' | 'post' | 'summary';
 
 export enum Category {
@@ -618,6 +622,14 @@ export interface Trip {
   settlementBatches?: SettlementBatch[];
   shoppingList: ShoppingItem[];
   itinerary?: ItineraryItem[];
+  /**
+   * What the traveller answered on 告訴我你的旅行計畫, and the car hire read off
+   * its confirmation — kept after the trip ends because 已完成 means the trip is
+   * finished, not thinned out. Both existed on the working copy only, so a
+   * finished trip used to forget how it was planned.
+   */
+  planBrief?: TripPlanBrief;
+  carRentals?: ParsedRental[];
   travelCountry?: string;
   /**
    * Which country this trip's shopping list compares prices against.

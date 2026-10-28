@@ -206,12 +206,13 @@ describe('the card shows them', () => {
 
   it('renders the chips', () => {
     expect(CARD).toContain('data-testid="plan-brief-chips"');
-    expect(CARD).toContain('會一起告訴 AI');
+    // The label moved into the locale bundles, so the card holds its key.
+    expect(CARD).toContain("t('plan.willTellAi')");
   });
 
   /** Silence looks the same as carried; it must not be silent. */
   it('says plainly when there is no brief to carry', () => {
-    expect(CARD).toContain('這趟還沒有旅行計畫表單');
+    expect(CARD).toContain("t('plan.noBriefYet')");
   });
 
   it('is given them at both mount sites', () => {
@@ -415,7 +416,9 @@ describe('the box shows them', () => {
 
   /** Picks alone are a question; the box no longer has to be typed in. */
   it('sends the picks together with anything typed', () => {
-    expect(CARD).toContain("const askText = [...picked, prompt.trim()].filter(Boolean).join('、')");
+    // The separator moved to `settle.listSeparator`; what matters here is
+    // that the picks and the typed sentence are still joined into one ask.
+    expect(CARD).toContain('const askText = [...picked, prompt.trim()].filter(Boolean).join(');
     expect(CARD).toContain('disabled={!askText || isGenerating}');
   });
 

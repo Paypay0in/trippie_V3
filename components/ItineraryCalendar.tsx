@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
@@ -227,6 +228,7 @@ const formatPrice = (amount: number, currency: string): string => {
 const VISIBLE_NOTE_COUNT = 3;
 
 const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdateItem, onAdd, onEdit, onAddStay, onDelete, destination, destinationCountry, onReorder, onResequenceTimes, onRescheduleItem, onChangeDuration, onApplyFixedAdjustment, onTogglePin, pendingSuggestions, onAcceptSuggestion, onDismissSuggestion, areas, savedPlaces, onFillBlock, onFillBlockManually, categoryOf, viewerUserId, members = [], emptiedSlotIds, onToggleEmptied, onSortByTime, initialMapMode }) => {
+  const { t } = useTranslation();
   const [menuItemId, setMenuItemId] = useState<string | null>(null);
   /** The suggestion currently being written, so a double tap cannot add it twice. */
   const [acceptingSuggestionId, setAcceptingSuggestionId] = useState<string | null>(null);
@@ -764,16 +766,16 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         className="inline-flex items-center gap-1 rounded-lg bg-[#11183d] px-1.5 py-0.5 text-[9px] font-black text-white"
                       >
                         <Lock size={9} />
-                        {fixedKindOf(item) === 'flight' ? '航班 · 固定'
-                          : fixedKindOf(item) === 'train' ? '列車 · 固定'
-                          : fixedKindOf(item) === 'reservation' ? '訂位 · 固定'
-                          : fixedKindOf(item) === 'accommodation' ? '住宿 · 固定'
-                          : '固定時間'}
+                        {fixedKindOf(item) === 'flight' ? t('itinerary.fixedFlight')
+                          : fixedKindOf(item) === 'train' ? t('itinerary.fixedTrain')
+                          : fixedKindOf(item) === 'reservation' ? t('itinerary.fixedReservation')
+                          : fixedKindOf(item) === 'accommodation' ? t('itinerary.fixedStay')
+                          : t('itinerary.fixedTime')}
                       </span>
                     ) : onReorder && (
                       <button
                         type="button"
-                        aria-label={`拖曳排序 ${item.title}`}
+                        aria-label={t('itinerary.dragToReorder', { title: item.title })}
                         // touch-none keeps a drag from scrolling the page; the
                         // handle is the only draggable surface, so tapping the
                         // card, 完成 or the overflow menu still behaves normally.
@@ -814,7 +816,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         <input
                           type="time"
                           value={item.time || ''}
-                          aria-label={`${item.title} 的開始時間`}
+                          aria-label={t('itinerary.startTimeOf', { title: item.title })}
                           data-testid={`time-input-${item.id}`}
                           onChange={event => {
                             /*
@@ -845,7 +847,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         <input
                           type="time"
                           value={endTimeOf(item)}
-                          aria-label={`${item.title} 的結束時間`}
+                          aria-label={t('itinerary.endTimeOf', { title: item.title })}
                           data-testid={`end-time-input-${item.id}`}
                           onChange={event => {
                             const minutes = durationFromEnd(item.time, event.target.value);
@@ -871,8 +873,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         type="button"
                         data-testid={`pin-toggle-${item.id}`}
                         aria-pressed={item.isPinned === true}
-                        aria-label={item.isPinned ? `取消固定 ${item.title}` : `固定這個行程 ${item.title}`}
-                        title={item.isPinned ? '取消固定' : '固定這個行程'}
+                        aria-label={item.isPinned ? t('itinerary.unpinItem', { title: item.title }) : t('itinerary.pinItem', { title: item.title })}
+                        title={item.isPinned ? t('itinerary.unpin') : t('itinerary.pin')}
                         onClick={() => onTogglePin(item.id, item.isPinned !== true)}
                         className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[9px] font-black ${
                           item.isPinned
@@ -881,7 +883,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         }`}
                       >
                         {item.isPinned ? <Pin size={11} fill="currentColor" /> : <PinOff size={11} />}
-                        {item.isPinned && <span data-testid={`pinned-label-${item.id}`}>已固定</span>}
+                        {item.isPinned && <span data-testid={`pinned-label-${item.id}`}>{t('itinerary.pinned')}</span>}
                       </button>
                     )}
                     {/*
@@ -898,18 +900,18 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         data-testid={`needs-ticket-${item.id}`}
                         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#f0edff] px-2 py-0.5 text-[9px] font-black text-[#5b3df5]"
                       >
-                        <Ticket size={9} />{commerce[item.id]?.advanceBookingRequired === true ? '需提前買票' : '需購票'}
+                        <Ticket size={9} />{commerce[item.id]?.advanceBookingRequired === true ? t('itinerary.bookAhead') : t('itinerary.ticketNeeded')}
                       </span>
                     )}
                     <span className="shrink-0 rounded-full border border-[#eeeefa] bg-[#fafaff] px-2 py-0.5 text-[9px] font-bold text-slate-400">{item.type}</span>
                     {(onEdit || onDelete) && <div className="relative">
-                      <button type="button" onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} aria-label={`${item.title} 更多選項`} aria-expanded={menuItemId === item.id} className="rounded-lg p-2 text-slate-300 transition hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={16} /></button>
+                      <button type="button" onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} aria-label={t('itinerary.moreOptionsFor', { title: item.title })} aria-expanded={menuItemId === item.id} className="rounded-lg p-2 text-slate-300 transition hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={16} /></button>
                       {menuItemId === item.id && <div className="absolute right-0 top-10 z-20 w-44 rounded-2xl border border-slate-100 bg-white p-1.5 text-left shadow-xl">
-                        {onEdit && !item.derivedFromFlightAnchorId && <button type="button" onClick={() => { setMenuItemId(null); onEdit(item); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯行程</button>}
+                        {onEdit && !item.derivedFromFlightAnchorId && <button type="button" onClick={() => { setMenuItemId(null); onEdit(item); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">{t('itinerary.editItem')}</button>}
                         {/* Editing here writes to an item the anchor owns and
                             rebuilds, so the entry points at the anchor instead. */}
-                        {onEdit && item.derivedFromFlightAnchorId && <p className="px-3 py-2 text-[11px] font-bold text-slate-400">航班時間請於「航班資訊」修改</p>}
-                        {onDelete && <button type="button" onClick={() => { setMenuItemId(null); setRemoveTarget(item); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">刪除行程</button>}
+                        {onEdit && item.derivedFromFlightAnchorId && <p className="px-3 py-2 text-[11px] font-bold text-slate-400">{t('itinerary.flightTimeElsewhere')}</p>}
+                        {onDelete && <button type="button" onClick={() => { setMenuItemId(null); setRemoveTarget(item); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">{t('itinerary.deleteItem')}</button>}
                       </div>}
                     </div>}
                   </div>
@@ -925,21 +927,21 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   */}
                   {item.derivedFromFlightAnchorId ? (
                     <span className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                      日期
+                      {t('summary.colDate')}
                       <span className="rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-1 text-[10px] text-slate-500">
                         {item.date ? item.date.replace(/-/g, '/') : '—'}
                       </span>
-                      <span className="text-[10px] font-bold text-slate-300">· 於航班資訊修改</span>
+                      <span className="text-[10px] font-bold text-slate-300">{t('itinerary.editInFlightInfo')}</span>
                     </span>
                   ) : (
                     <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                      日期
+                      {t('summary.colDate')}
                       <input type="date" value={item.date || ''} min={startDate || undefined} max={endDate || undefined} onChange={event => onUpdateItem(item.id, { date: event.target.value || undefined })} className="min-w-0 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[10px] text-slate-600" />
                     </label>
                   )}
-                  {!item.date && !item.derivedFromFlightAnchorId && <span className="text-[10px] font-bold text-slate-400">尚未指定日期</span>}
+                  {!item.date && !item.derivedFromFlightAnchorId && <span className="text-[10px] font-bold text-slate-400">{t('itinerary.noDateYet')}</span>}
                   <label className="ml-auto flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                    <input type="checkbox" className="h-3.5 w-3.5 rounded accent-[#5b3df5]" checked={item.isCompleted === true} onChange={event => onUpdateItem(item.id, { isCompleted: event.target.checked })} /> 完成
+                    <input type="checkbox" className="h-3.5 w-3.5 rounded accent-[#5b3df5]" checked={item.isCompleted === true} onChange={event => onUpdateItem(item.id, { isCompleted: event.target.checked })} /> {t('common.done')}
                   </label>
                 </div>}
                 
@@ -957,7 +959,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                       if (photo?.imageUrl) {
                         return <>
                           <img src={photo.imageUrl} alt="" className="h-full w-full object-cover" />
-                          {photo.attribution?.uri && <a href={photo.attribution.uri} target="_blank" rel="noreferrer" aria-label="查看照片來源" className="absolute bottom-1 right-1 rounded bg-black/55 p-0.5 text-white"><Info size={10} /></a>}
+                          {photo.attribution?.uri && <a href={photo.attribution.uri} target="_blank" rel="noreferrer" aria-label={t('itinerary.photoSource')} className="absolute bottom-1 right-1 rounded bg-black/55 p-0.5 text-white"><Info size={10} /></a>}
                         </>;
                       }
                       // Still looking: the icon would say 「there is none」.
@@ -1017,10 +1019,10 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     {!item.placeId && !item.derivedFromFlightAnchorId && (
                       <div data-testid={`unlinked-place-${item.id}`} className="mt-1.5 flex flex-wrap items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-[10px] font-bold leading-4 text-amber-700">
                         <AlertTriangle size={11} className="shrink-0" />
-                        <span className="min-w-0 flex-1">地圖上沒有這個地點，沒有地址與照片</span>
+                        <span className="min-w-0 flex-1">{t('itinerary.notOnMap')}</span>
                         {onEdit && (
                           <button type="button" onClick={() => onEdit(item)} className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-amber-700 shadow-sm">
-                            連結地點
+                            {t('itinerary.linkPlace')}
                           </button>
                         )}
                       </div>
@@ -1081,9 +1083,9 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     it cannot be sure of.
                   */
                   const problem = outsideOpeningHours(hours, item.time, item.durationMinutes);
-                  const warning = problem === 'closed-day' ? '這天公休，排了也進不去'
-                    : problem === 'before-opening' ? '排的時間比開門早'
-                    : problem === 'after-closing' ? '排的時間會超過打烊'
+                  const warning = problem === 'closed-day' ? t('itinerary.warnClosedDay')
+                    : problem === 'before-opening' ? t('itinerary.warnBeforeOpening')
+                    : problem === 'after-closing' ? t('itinerary.warnAfterClosing')
                     : '';
                   return (
                     <p
@@ -1103,7 +1105,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   const hidden = item.savedTravelNotes.length - visible.length;
                   return (
                     <div className="mt-2 rounded-xl border-t border-slate-100 bg-[#faf9ff] px-2.5 py-2">
-                      <div className="flex items-center gap-1 text-[10px] font-black text-[#6b4df6]"><NotebookPen size={11} />旅行筆記</div>
+                      <div className="flex items-center gap-1 text-[10px] font-black text-[#6b4df6]"><NotebookPen size={11} />{t('itinerary.travelNotes')}</div>
                       <ul className="mt-1 space-y-1">
                         {visible.map(note => (
                           <li key={note.id} className="flex items-start gap-1.5 text-[11px] leading-5 text-slate-600">
@@ -1118,7 +1120,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                           onClick={() => setExpandedNoteIds(current => isExpanded ? current.filter(id => id !== item.id) : [...current, item.id])}
                           className="mt-1 text-[10px] font-black text-[#6b4df6]"
                         >
-                          {isExpanded ? '收合' : `查看全部（${item.savedTravelNotes!.length}）`}
+                          {isExpanded ? t('home.collapse') : t('itinerary.seeAllNotes', { count: item.savedTravelNotes!.length })}
                         </button>
                       )}
                     </div>
@@ -1134,7 +1136,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   const info = commerce[item.id]!;
                   return (
                     <div className="mt-2 rounded-xl border border-[#eceaf5] bg-white px-2.5 py-2">
-                      <div className="flex items-center gap-1 text-[10px] font-black text-slate-500"><Ticket size={11} className="text-[#6b4df6]" />門票 / 預約</div>
+                      <div className="flex items-center gap-1 text-[10px] font-black text-slate-500"><Ticket size={11} className="text-[#6b4df6]" />{t('itinerary.ticketsAndBookings')}</div>
 
                       {/*
                         「若需要買票，就要在行程上提醒用戶」.
@@ -1151,8 +1153,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                           className="mt-1 text-[11px] font-black leading-4 text-[#5b3df5]"
                         >
                           {info.advanceBookingRequired === true
-                            ? '需要提前買票，現場不一定買得到'
-                            : '需要門票，出發前先訂票或查價'}
+                            ? t('itinerary.bookAheadBlurb')
+                            : t('itinerary.ticketNeededBlurb')}
                         </div>
                       )}
 
@@ -1161,8 +1163,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                           <>
                             {/* Source and check date travel with every number shown. */}
                             <div className="text-[10px] font-bold text-slate-400">
-                              {info.officialPrice.label ? `官方參考價・${info.officialPrice.label}` : '官方參考價'}
-                              {' · '}更新於 {info.officialPrice.checkedAt.replace(/-/g, '/')}
+                              {info.officialPrice.label ? t('itinerary.officialPriceLabelled', { label: info.officialPrice.label }) : t('itinerary.officialPrice')}
+                              {' · '}{t('itinerary.updatedOn', { date: info.officialPrice.checkedAt.replace(/-/g, '/') })}
                             </div>
                             <div className="text-sm font-black text-[#111A4A]">
                               {formatPrice(info.officialPrice.amount, info.officialPrice.currency)}
@@ -1171,7 +1173,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         ) : (
                           // No current verified price, so no number at all — never ₩0,
                           // never "unknown", never an estimate.
-                          <div className="text-xs font-bold text-slate-500">查看最新票價</div>
+                          <div className="text-xs font-bold text-slate-500">{t('itinerary.seeLatestPrice')}</div>
                         )}
                       </div>
 
@@ -1189,7 +1191,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                       {info.bookingOptions && info.bookingOptions.length > 0 && (
                         <>
                           <div className="mt-2 text-[10px] font-black text-slate-400">
-                            購票 / 查價
+                            {t('itinerary.buyOrCheckPrice')}
                             {/*
                               Disclosure, beside the links it is about.
 
@@ -1200,7 +1202,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                             */}
                             {info.bookingOptions.some(option => option.affiliate) && (
                               <span data-testid="affiliate-disclosure" className="ml-1 font-bold text-slate-400">
-                                ・部分連結為合作連結，價格不變
+                                {t('itinerary.affiliateNote')}
                               </span>
                             )}
                           </div>
@@ -1220,7 +1222,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                                   result can only be searched.
                                 */}
                                 <span className="font-bold text-slate-400">
-                                  {option.urlType === 'search' ? '搜尋' : '查看價格'}
+                                  {option.urlType === 'search' ? t('home.search') : t('itinerary.seePrice')}
                                 </span>
                               </a>
                             ))}
@@ -1232,14 +1234,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         {info.officialPrice
                           ? (
                             <>
-                              參考價來源：
+                              {t('itinerary.priceSource')}
                               <a href={info.officialPrice.sourceUrl} target="_blank" rel="noreferrer noopener" className="underline">
                                 {info.officialPrice.sourceName}
                               </a>
-                              ，實際價格以官方為準
+                              {t('itinerary.officialPriceWins')}
                             </>
                           )
-                          : <>實際票價以官方與各平台為準</>}
+                          : <>{t('itinerary.officialAndPlatformsWin')}</>}
                       </div>
                     </div>
                   );
@@ -1260,8 +1262,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         stack is what gives it room in the first place.
       */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6b4df6]">ITINERARY</p><h2 className="mt-1 text-xl font-black text-[#111A4A]">行程規劃</h2><p className="mt-1 text-xs text-slate-400">規劃每日行程，讓旅程更順暢、更有趣。</p></div>
-        <div className="flex shrink-0 items-center gap-2">{onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] px-3 py-2 text-xs font-black text-white shadow-[0_6px_14px_rgba(91,61,245,.16)]"><Plus size={14} />新增行程</button>}<button type="button" data-testid="toggle-map-mode" aria-pressed={mapMode} onClick={() => setMapMode(value => !value)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold shadow-sm ${mapMode ? 'bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-white' : 'border border-[#eceaf5] bg-white text-[#5b3df5]'}`}>{mapMode ? <List size={14} /> : <Map size={14} />}{mapMode ? '列表模式' : '地圖模式'}</button>{onUpdateItem && (
+        <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6b4df6]">ITINERARY</p><h2 className="mt-1 text-xl font-black text-[#111A4A]">{t('itinerary.title')}</h2><p className="mt-1 text-xs text-slate-400">{t('itinerary.subtitle')}</p></div>
+        <div className="flex shrink-0 items-center gap-2">{onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] px-3 py-2 text-xs font-black text-white shadow-[0_6px_14px_rgba(91,61,245,.16)]"><Plus size={14} />{t('itinerary.addItem')}</button>}<button type="button" data-testid="toggle-map-mode" aria-pressed={mapMode} onClick={() => setMapMode(value => !value)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold shadow-sm ${mapMode ? 'bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-white' : 'border border-[#eceaf5] bg-white text-[#5b3df5]'}`}>{mapMode ? <List size={14} /> : <Map size={14} />}{mapMode ? t('itinerary.listMode') : t('itinerary.mapMode')}</button>{onUpdateItem && (
           /*
             「那 AI 要像一個規劃人員重新幫我想行程 動線才對」. Nothing is written
             until the preview is confirmed — this rewrites days the traveller
@@ -1274,9 +1276,9 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             onClick={() => planRoute('trip')}
             className="inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#eceaf5] bg-white px-3 py-2 text-xs font-bold text-[#5b3df5] shadow-sm"
           >
-            <Sparkles size={14} />優化動線
+            <Sparkles size={14} />{t('itinerary.optimiseRoute')}
           </button>
-        )}<button type="button" aria-label="更多選項" className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={17} /></button></div>
+        )}<button type="button" aria-label={t('itinerary.moreOptions')} className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-[#f3f0ff] hover:text-[#5b3df5]"><MoreHorizontal size={17} /></button></div>
       </div>
       {dates.length > 0 && <div className="mb-5 flex gap-2 overflow-x-auto pb-1">{dates.map((date, index) => {
         /*
@@ -1408,7 +1410,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       */}
       {outOfOrder && (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-xs font-bold leading-5 text-amber-700">
-          <span className="min-w-0 flex-1">卡片的順序和它們的時間對不上。</span>
+          <span className="min-w-0 flex-1">{t('itinerary.orderMismatch')}</span>
           {/*
             Two different answers, both offered. 「順序還是錯 第一個怎麼會是四
             點」 — the banner only had the one that rewrites the clocks to match
@@ -1423,7 +1425,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               onClick={() => onSortByTime(activeDate)}
               className="shrink-0 rounded-xl bg-white px-2.5 py-1 text-[11px] font-black text-amber-700 shadow-sm"
             >
-              照時間重排
+              {t('itinerary.reorderByTime')}
             </button>
           )}
           {onResequenceTimes && (
@@ -1432,7 +1434,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               onClick={() => onResequenceTimes(activeDate)}
               className="shrink-0 rounded-xl bg-white px-2.5 py-1 text-[11px] font-black text-amber-700 shadow-sm"
             >
-              重新安排時間
+              {t('itinerary.retimeItems')}
             </button>
           )}
         </div>
@@ -1454,7 +1456,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   flight. It is named by what the day is actually built around
                   now — see `aboutTheFixedItem`.
                 */}
-                {adjustment.unresolved.length > 0 ? '目前有兩個固定行程發生衝突' : adjustment.headline}
+                {adjustment.unresolved.length > 0 ? t('itinerary.twoFixedConflict') : adjustment.headline}
               </div>
               {/*
                 The heading already says there is a conflict. Repeating the
@@ -1474,7 +1476,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               ))}
               {adjustment.unresolved.length > 0 && (
                 <div className="mt-1 text-[11px] leading-5 text-amber-700">
-                  固定行程不會自動調整，請自行修改其中一項。
+                  {t('itinerary.fixedNotAutoAdjusted')}
                 </div>
               )}
             </div>
@@ -1486,14 +1488,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 onClick={() => setPreviewOpen(true)}
                 className="min-h-9 flex-1 rounded-xl bg-white px-3 text-xs font-black text-amber-700 shadow-sm"
               >
-                查看調整
+                {t('itinerary.seeAdjustment')}
               </button>
               <button
                 type="button"
                 onClick={() => setDismissedSummary(adjustment.summary)}
                 className="min-h-9 flex-1 rounded-xl px-3 text-xs font-bold text-amber-700"
               >
-                稍後處理
+                {t('itinerary.later')}
               </button>
             </div>
           )}
@@ -1503,7 +1505,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
       {/* The structured diff. Nothing is written until 套用調整. */}
       {previewOpen && adjustment.changes.length > 0 && (
         <div className="mb-3 rounded-2xl border border-[#eceaf5] bg-white p-4 shadow-sm">
-          <div className="text-xs font-black text-[#11183d]">建議調整</div>
+          <div className="text-xs font-black text-[#11183d]">{t('itinerary.suggestedAdjustment')}</div>
           <div className="mt-2 space-y-2">
             {adjustment.changes.map(change => {
               const target = dayItems.find(entry => entry.id === change.itemId);
@@ -1515,7 +1517,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   <div className="mt-0.5 text-[11px] font-bold text-[#6b4df6]">
                     {change.type === 'move'
                       ? <>→ {change.toTime}</>
-                      : <>→ 移至 {change.toDate ? change.toDate.slice(5).replace('-', '/') : '其他日期'}</>}
+                      : <>{t('itinerary.movedTo', { date: change.toDate ? change.toDate.slice(5).replace('-', '/') : t('itinerary.anotherDay') })}</>}
                   </div>
                   <div className="mt-0.5 text-[10px] leading-4 text-slate-500">{change.reason}</div>
                 </div>
@@ -1528,7 +1530,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               onClick={() => setPreviewOpen(false)}
               className="min-h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
             >
-              取消
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -1537,7 +1539,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               }}
               className="min-h-10 flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-xs font-black text-white shadow"
             >
-              套用調整
+              {t('itinerary.applyAdjustment')}
             </button>
           </div>
         </div>
@@ -1545,7 +1547,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
 
       {lateNotice && (
         <div className="mb-3 rounded-2xl bg-amber-50 px-4 py-2.5 text-xs font-bold leading-5 text-amber-700">
-          調整後部分行程時間較晚，請確認安排。
+          {t('itinerary.someItemsLater')}
         </div>
       )}
 
@@ -1573,7 +1575,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               className="inline-flex items-center gap-1.5 rounded-xl border border-[#ecebf5] bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-500"
             >
               <BedDouble size={12} className="shrink-0 text-[#5b3df5]" />
-              {stayRoleOf(reminder) === 'check_out' ? '退房' : '入住'}
+              {stayRoleOf(reminder) === 'check_out' ? t('itinerary.checkOut') : t('itinerary.checkIn')}
               <span className="font-mono text-[#6b4df6]">{reminder.time}</span>
             </span>
           ))}
@@ -1597,7 +1599,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           </span>
           <span className="min-w-0 flex-1 truncate text-sm font-black text-[#111A4A]">{tonightsStay.name}</span>
           <span className="shrink-0 rounded-xl border border-[#e8e7f4] px-2.5 py-1.5 text-[11px] font-black text-slate-500">
-            詳情 ›
+            {t('itinerary.details')}
           </span>
         </button>
       ) : stayRow === 'checked_out' ? (
@@ -1639,7 +1641,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#a99df0]">
             <BedDouble size={17} />
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-black text-[#5b3df5]">新增住宿資訊</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-black text-[#5b3df5]">{t('itinerary.addStayInfo')}</span>
           <span className="shrink-0 text-[11px] font-black text-slate-300">›</span>
         </button>
       ) : null}
@@ -1649,7 +1651,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         far apart the real times are. The time label belongs to its own row.
       */}
       <div
-        aria-label="行程時間軸"
+        aria-label={t('itinerary.timeline')}
         onPointerMove={handleDragMove}
         onPointerUp={handleDragEnd}
         onPointerCancel={endDrag}
@@ -1683,7 +1685,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         )}
         {dayItems.length === 0 ? (
           <div className="rounded-[22px] border border-[#eeeaff] bg-[#faf9ff] px-5 py-10 text-center text-sm text-slate-500">
-            <div className="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#f0edff] text-[#6b4df6] shadow-inner"><CalendarDays size={27} strokeWidth={1.7} /><Sparkles className="absolute -right-1 -top-1 rounded-full bg-white p-1 text-[#8b3dff]" size={18} /></div><div className="font-black text-[#111A4A]">{activeDate ? '這一天尚未安排行程' : '尚未有行程規劃'}</div><div className="mx-auto mt-2 max-w-[240px] text-xs leading-relaxed text-slate-400">馬上新增行程，或使用 AI 幫你規劃吧！</div>
+            <div className="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[#f0edff] text-[#6b4df6] shadow-inner"><CalendarDays size={27} strokeWidth={1.7} /><Sparkles className="absolute -right-1 -top-1 rounded-full bg-white p-1 text-[#8b3dff]" size={18} /></div><div className="font-black text-[#111A4A]">{activeDate ? t('itinerary.emptyThisDay') : t('itinerary.emptyNoPlan')}</div><div className="mx-auto mt-2 max-w-[240px] text-xs leading-relaxed text-slate-400">{t('itinerary.emptyHint')}</div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1701,7 +1703,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 stayIsLocated(morningStay) && typeof item.latitude === 'number' && typeof item.longitude === 'number' ? (
                   <div data-testid={`morning-leg-${item.id}`}>
                     <p className="ml-[62px] mb-1 flex items-center gap-1 text-[10px] font-bold text-slate-400">
-                      <BedDouble size={11} className="shrink-0" />從 {morningStay.name} 出發
+                      <BedDouble size={11} className="shrink-0" />{t('itinerary.departFrom', { name: morningStay.name })}
                     </p>
                     <TransportLeg
                     origin={{ latitude: morningStay.latitude!, longitude: morningStay.longitude!, title: morningStay.name }}
@@ -1725,8 +1727,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     className="ml-[62px] rounded-2xl border border-dashed border-[#e6e3f3] px-3 py-2 text-[10px] font-bold leading-4 text-slate-400"
                   >
                     {stayIsLocated(morningStay)
-                      ? '第一個行程還沒連結地圖，無法計算從旅館出發的交通時間'
-                      : `${morningStay.name} 還沒連結地圖，無法計算出發的交通時間`}
+                      ? t('itinerary.firstStopNotLinked')
+                      : t('itinerary.stayNotLinked', { name: morningStay.name })}
                   </div>
                 )
               )}
@@ -1766,7 +1768,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     </span>
                   )}
                   {item.durationMinutes ? (
-                    <span className="mt-0.5 whitespace-nowrap text-[9px] font-bold text-slate-400">約{durationOf(item)}分</span>
+                    <span className="mt-0.5 whitespace-nowrap text-[9px] font-bold text-slate-400">{t('itinerary.approxMinutes', { minutes: durationOf(item) })}</span>
                   ) : null}
                 </div>
                 <div className="relative w-2.5 shrink-0">
@@ -1828,7 +1830,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   // like the app had nothing to say about a long hop.
                   return (
                     <div data-testid={`transport-unavailable-${item.id}`} className="ml-[62px] rounded-2xl border border-dashed border-[#e6e3f3] px-3 py-2 text-[10px] font-bold leading-4 text-slate-400">
-                      其中一個地點還沒連結地圖，無法計算交通時間
+                      {t('itinerary.onePlaceNotLinked')}
                     </div>
                   );
                 }
@@ -1867,7 +1869,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         {companionItems.length > 0 && (
           <div data-testid="companion-itinerary" className="mt-4 rounded-[22px] border border-[#e8e7f4] bg-[#fbfaff] p-3">
             <h4 className="flex items-center gap-1.5 text-[11px] font-black text-slate-500">
-              <Users size={12} className="text-slate-400" />同行者今天的個人行程
+              <Users size={12} className="text-slate-400" />{t('itinerary.companionOwnPlans')}
             </h4>
             <ul className="mt-2 space-y-1.5">
               {companionItems.map(item => (
@@ -1900,14 +1902,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         {daySuggestions.length > 0 && (
           <div data-testid="pending-suggestions" className="mt-3 space-y-3">
             <div className="flex items-center gap-1.5 pl-[62px] text-[11px] font-black text-emerald-700">
-              <Sparkles size={12} />AI 建議 · 打勾即加入行程
+              <Sparkles size={12} />{t('itinerary.aiSuggestions')}
             </div>
             {daySuggestions.map(suggestion => (
               <div key={suggestion.id} data-testid={`suggestion-${suggestion.id}`} className="relative flex gap-1.5">
                 <div className="flex w-10 shrink-0 flex-col items-end pt-3.5">
                   <span className="font-mono text-[11px] font-black text-emerald-600">{suggestion.time || '—'}</span>
                   {suggestion.durationMinutes ? (
-                    <span className="mt-0.5 whitespace-nowrap text-[9px] font-bold text-slate-400">約{suggestion.durationMinutes}分</span>
+                    <span className="mt-0.5 whitespace-nowrap text-[9px] font-bold text-slate-400">{t('itinerary.approxMinutes', { minutes: suggestion.durationMinutes })}</span>
                   ) : null}
                 </div>
                 <div className="relative w-2.5 shrink-0">
@@ -1918,7 +1920,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   <div className="flex items-start gap-2.5">
                     <input
                       type="checkbox"
-                      aria-label={`加入行程：${suggestion.placeName}`}
+                      aria-label={t('itinerary.addToItinerary', { name: suggestion.placeName })}
                       className="mt-0.5 h-4 w-4 shrink-0 rounded accent-emerald-600"
                       checked={false}
                       disabled={acceptingSuggestionId !== null}
@@ -1927,7 +1929,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         setAcceptingSuggestionId(suggestion.id);
                         setSuggestionError(null);
                         const failure = await onAcceptSuggestion(suggestion.id).catch(
-                          () => '加入行程失敗，你的行程沒有被更動，請再試一次。',
+                          () => t('itinerary.addFailed'),
                         );
                         if (failure) setSuggestionError(failure);
                         setAcceptingSuggestionId(null);
@@ -1937,7 +1939,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                       <div className="flex flex-wrap items-center gap-1.5">
                         <b className="text-sm font-black text-[#11183d]">{suggestion.placeName}</b>
                         <span className={`rounded px-1.5 py-0.5 text-[10px] font-black ${suggestion.source === 'saved_inspiration' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {suggestion.source === 'saved_inspiration' ? '收藏靈感' : 'AI 建議'}
+                          {suggestion.source === 'saved_inspiration' ? t('itinerary.savedInspiration') : t('itinerary.aiSuggestion')}
                         </span>
                       </div>
                       {suggestion.address && (
@@ -1953,15 +1955,15 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         >
                           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
                           <span className="min-w-0 flex-1">
-                            這不是一個地圖上查得到的店名，加進去只會是一段文字，沒有地址與照片。建議略過。
+                            {t('itinerary.notARealPlace')}
                           </span>
                         </div>
                       )}
                       {suggestion.note && <div className="mt-1 text-[11px] leading-5 text-slate-500">{suggestion.note}</div>}
-                      {suggestion.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">原因：{suggestion.reason}</div>}
+                      {suggestion.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">{t('itinerary.reason', { reason: suggestion.reason })}</div>}
                       <div className="mt-2 flex items-center gap-3">
                         <span className="text-[10px] font-bold text-emerald-700">
-                          {acceptingSuggestionId === suggestion.id ? '正在加入…' : '尚未加入正式行程'}
+                          {acceptingSuggestionId === suggestion.id ? t('itinerary.adding') : t('itinerary.notYetAdded')}
                         </span>
                         {onDismissSuggestion && (
                           <button
@@ -1970,7 +1972,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                             disabled={acceptingSuggestionId !== null}
                             className="text-[10px] font-black text-slate-400 disabled:opacity-40"
                           >
-                            不需要
+                            {t('itinerary.notNeeded')}
                           </button>
                         )}
                       </div>
@@ -1988,7 +1990,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
 
       {untimedItems.length > 0 && (
         <div className="mt-4">
-          <div className="mb-2 text-[11px] font-black text-slate-400">尚未安排時間</div>
+          <div className="mb-2 text-[11px] font-black text-slate-400">{t('itinerary.noTimeYet')}</div>
           <div className="space-y-3">
             {untimedItems.map(item => (
               <div key={item.id} data-item-id={item.id} className="pl-[62px]">
@@ -1999,16 +2001,16 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
         </div>
       )}
 
-      {onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 py-3 text-sm font-black text-brand-600">＋ 新增行程</button>}
+      {onAdd && <button type="button" onClick={() => onAdd(activeDate)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 py-3 text-sm font-black text-brand-600">＋ {t('itinerary.addItem')}</button>}
 
       {removeTarget && onDelete && (
         <div className={`fixed inset-0 ${OVERLAY.modal} flex items-center justify-center bg-slate-950/35 p-6`}>
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
-            <h2 className="text-lg font-black text-[#111A4A]">刪除這個行程？</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">「{removeTarget.title}」將從這趟旅行中移除。</p>
+            <h2 className="text-lg font-black text-[#111A4A]">{t('itinerary.deleteItemConfirm')}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{t('itinerary.deleteItemBlurb', { title: removeTarget.title })}</p>
             <div className="mt-5 flex gap-3">
-              <button type="button" onClick={() => setRemoveTarget(null)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-black text-slate-600">取消</button>
-              <button type="button" onClick={() => { onDelete(removeTarget.id); setRemoveTarget(null); }} className="flex-1 rounded-xl bg-rose-600 py-3 text-sm font-black text-white">刪除</button>
+              <button type="button" onClick={() => setRemoveTarget(null)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-black text-slate-600">{t('common.cancel')}</button>
+              <button type="button" onClick={() => { onDelete(removeTarget.id); setRemoveTarget(null); }} className="flex-1 rounded-xl bg-rose-600 py-3 text-sm font-black text-white">{t('common.delete')}</button>
             </div>
           </div>
         </div>
@@ -2082,10 +2084,10 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               past the whole plan to find out it was possible.
             */}
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h2 className="text-lg font-black text-[#11183d]">優化動線</h2>
+              <h2 className="text-lg font-black text-[#11183d]">{t('itinerary.optimiseRoute')}</h2>
               {routeScope !== 'trip' && (
                 <span data-testid="route-scope" className="rounded-lg bg-[#f0edff] px-2 py-0.5 text-[11px] font-black text-[#5b3df5]">
-                  只動 {routeScope.slice(5).replace('-', '/')}
+                  {t('itinerary.onlyThisDay', { date: routeScope.slice(5).replace('-', '/') })}
                 </span>
               )}
               {activeDate && (
@@ -2096,18 +2098,18 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   className="min-h-7 shrink-0 rounded-lg border border-[#ded7fb] px-2 text-[11px] font-black text-[#5b3df5]"
                 >
                   {routeScope === 'trip'
-                    ? `改成只看 ${activeDate.slice(5).replace('-', '/')}`
-                    : '改成看整趟'}
+                    ? t('itinerary.switchToOneDay', { date: activeDate.slice(5).replace('-', '/') })
+                    : t('itinerary.switchToWholeTrip')}
                 </button>
               )}
             </div>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              航班、住宿與你固定的行程不會被更動。確認之前不會寫入任何東西。
+              {t('itinerary.optimiseSafetyNote')}
             </p>
             <p className="mt-2 text-xs font-black text-[#5b3df5]">
-              每天走的路：{routePlan.beforeKm.toFixed(1)} → {routePlan.afterKm.toFixed(1)} 公里
+              {t('itinerary.dailyDistance', { before: routePlan.beforeKm.toFixed(1), after: routePlan.afterKm.toFixed(1) })}
               {routePlan.afterKm >= routePlan.beforeKm && (
-                <span className="ml-1 font-bold text-slate-400">（已經是好的安排，沒有更短的走法）</span>
+                <span className="ml-1 font-bold text-slate-400">{t('itinerary.alreadyOptimal')}</span>
               )}
             </p>
 
@@ -2123,7 +2125,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 .map(item => ({ item, was: before[item.id] })));
 
               if (changes.length === 0) {
-                return <p className="mt-3 text-sm font-bold text-slate-500">這趟行程已經不需要調整。</p>;
+                return <p className="mt-3 text-sm font-bold text-slate-500">{t('itinerary.noAdjustmentNeeded')}</p>;
               }
               return (
                 <ul className="mt-3 space-y-1.5">
@@ -2131,7 +2133,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                     <li key={item.id} className="rounded-xl bg-[#faf9ff] px-3 py-2 text-xs leading-5">
                       <span className="font-black text-[#11183d]">{item.location || item.title}</span>
                       <span className="mt-0.5 block text-slate-500">
-                        {was.date.slice(5).replace('-', '/')} {was.time || '未安排'}
+                        {was.date.slice(5).replace('-', '/')} {was.time || t('itinerary.unscheduled')}
                         {' → '}
                         <span className="font-black text-[#5b3df5]">
                           {item.date.slice(5).replace('-', '/')} {item.time}
@@ -2150,12 +2152,12 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             */}
             {routePlan.mealsMissing.length > 0 && (
               <p data-testid="meals-missing" className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
-                這幾餐還沒有安排餐廳：
+                {t('itinerary.mealsWithoutRestaurant')}
                 {routePlan.mealsMissing
                   .map(entry => `${entry.date.slice(5).replace('-', '/')} ${entry.label}`)
-                  .join('、')}
+                  .join(t('settle.listSeparator'))}
                 <span className="mt-0.5 block font-medium text-amber-600">
-                  從收藏勾幾間，或用「AI 幫我調整行程」補上。
+                  {t('itinerary.mealsHint')}
                 </span>
               </p>
             )}
@@ -2171,13 +2173,13 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             */}
             {dayMoves.length > 0 && (
               <div data-testid="better-on-another-day" className="mt-3 rounded-xl bg-[#f0edff] px-3 py-2 text-[11px] leading-5 text-[#3c2fa8]">
-                換一天會更順：
+                {t('itinerary.betterOnAnotherDay')}
                 <ul className="mt-1 space-y-1">
                   {dayMoves.slice(0, 3).map(move => (
                     <li key={move.itemId} className="flex items-start gap-2">
                       <span className="min-w-0 flex-1">
                         <span className="font-black">{move.placeName}</span>
-                        {` ${move.fromDate.slice(5).replace('-', '/')} → ${move.toDate.slice(5).replace('-', '/')}，少走約 ${move.savesKm} 公里`}
+                        {t('itinerary.moveSaves', { from: move.fromDate.slice(5).replace('-', '/'), to: move.toDate.slice(5).replace('-', '/'), km: move.savesKm })}
                       </span>
                       {/*
                         「這個結果不能在這個介面就點擊套用嗎」.
@@ -2207,7 +2209,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                           }}
                           className="shrink-0 rounded-lg bg-[#5b3df5] px-2 py-0.5 text-[10px] font-black text-white"
                         >
-                          移到 {move.toDate.slice(5).replace('-', '/')}
+                          {t('itinerary.moveTo', { date: move.toDate.slice(5).replace('-', '/') })}
                         </button>
                       )}
                     </li>
@@ -2215,8 +2217,8 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 </ul>
                 <span className="mt-1 block font-medium text-[#5b3df5]">
                   {onReorder
-                    ? '這幾筆不會被上面的「套用」一起改到，要搬哪一筆就按哪一筆。'
-                    : '這幾筆不會被這次套用改到，要的話自己拖過去。'}
+                    ? t('itinerary.movesNotAppliedTogether')
+                    : t('itinerary.movesDragYourself')}
                 </span>
               </div>
             )}
@@ -2228,7 +2230,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
             */}
             {routePlan.mealsNeedingANearerPlace.length > 0 && (
               <p data-testid="meals-need-a-nearer-place" className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
-                這幾間餐廳離當天的動線有點遠，為了排在用餐時間會多繞一段：
+                {t('itinerary.restaurantsDetour')}
                 <ul className="mt-1 space-y-1.5">
                   {routePlan.mealsNeedingANearerPlace.map(entry => {
                     /*
@@ -2257,7 +2259,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         */}
                         {swaps.length > 0 && (
                           <span data-testid={`nearer-than-${entry.itemId}`} className="mt-1 block">
-                            <span className="font-medium text-amber-600">收藏裡比較近的</span>
+                            <span className="font-medium text-amber-600">{t('itinerary.closerFromSaved')}</span>
                             <SuggestedPlaceCards
                               places={swaps.map(swap => {
                                 const saved = (savedPlaces || []).find(place => place.id === swap.id);
@@ -2267,7 +2269,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                                   placeId: saved?.placeId,
                                   photoUrl: saved?.photoUrl,
                                   notes: saved?.notes,
-                                  detourLabel: `少繞 ${swap.savesKm} 公里`,
+                                  detourLabel: t('itinerary.savesDetour', { km: swap.savesKm }),
                                 };
                               })}
                               onPick={onFillBlock && onDelete
@@ -2280,7 +2282,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                         )}
                         {nearbyByItem[entry.itemId]?.length > 0 && (
                           <span data-testid={`nearby-for-${entry.itemId}`} className="mt-1 block">
-                            <span className="font-medium text-amber-600">這一帶還有</span>
+                            <span className="font-medium text-amber-600">{t('itinerary.alsoNearby')}</span>
                             <SuggestedPlaceCards
                               places={nearbyByItem[entry.itemId].slice(0, 3).map(place => ({
                                 id: place.placeId,
@@ -2308,15 +2310,15 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                   })}
                 </ul>
                 <span className="mt-1 block font-medium text-amber-600">
-                  吃飯時間不會被挪開；想少走一點就換一間近的。
+                  {t('itinerary.mealTimesKept')}
                 </span>
               </p>
             )}
 
             {routePlan.unplaced.length > 0 && (
               <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
-                {routePlan.unplaced.length} 個行程沒有地圖位置，留在原本的日子沒有被動到：
-                {routePlan.unplaced.map(entry => entry.item.location || entry.item.title).join('、')}
+                {t('itinerary.unplacedItems', { count: routePlan.unplaced.length })}
+                {routePlan.unplaced.map(entry => entry.item.location || entry.item.title).join(t('settle.listSeparator'))}
               </p>
             )}
 
@@ -2338,14 +2340,14 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                 }}
                 className="min-h-11 flex-1 rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-sm font-black text-white"
               >
-                套用這份動線
+                {t('itinerary.applyRoute')}
               </button>
               <button
                 type="button"
                 onClick={() => setRoutePlan(null)}
                 className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-500"
               >
-                取消
+                {t('common.cancel')}
               </button>
             </div>
           </div>

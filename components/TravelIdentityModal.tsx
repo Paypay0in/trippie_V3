@@ -3,6 +3,15 @@ import { OVERLAY } from '../constants/layers';
 import { Check, ChevronDown, Globe2, Plus, Search, X } from 'lucide-react';
 import { PassportProfile, TravelRules } from '../types';
 import { isTravelRulesCurrent } from '../services/travelRulesCurrentness';
+import { travelRulesErrorMessage } from '../services/travelRulesErrorMessage';
+
+/*
+  What to put in front of the traveller when the lookup does not happen lives
+  in `travelRulesErrorMessage`, shared with the two lookup buttons on
+  TripPlanOverview. It is re-exported here only because this module used to own
+  it; the decision has one home.
+*/
+export const researchErrorMessage = travelRulesErrorMessage;
 
 interface Props { tripId?: string | null; passports: PassportProfile[]; defaultPassportId?: string; selectedPassportId?: string; destination?: string; destinationCountry?: string; startDate?: string; endDate?: string; travelRules?: TravelRules; onResearchTravelRules?: (selectedId?: string) => Promise<TravelRules>; onSave: (passports: PassportProfile[], defaultId?: string, selectedId?: string) => void; onEditDestination?: () => void; onClose: () => void; }
 type PassportOption = { countryCode: string; displayName: string; passportLabel: string; flag: string; aliases: string[] };
@@ -21,7 +30,7 @@ const TravelIdentityModal: React.FC<Props> = ({ tripId, passports: initial, defa
   const [requestState, setRequestState] = useState<'NEEDS_UPDATE' | 'UPDATING' | 'UPDATED'>(() => isTravelRulesCurrent(currentTrip, selectedPassport) ? 'UPDATED' : 'NEEDS_UPDATE');
   const previousContextKey = useRef(currentContextKey);
   useEffect(() => { if (previousContextKey.current !== currentContextKey) { previousContextKey.current = currentContextKey; setRequestState('NEEDS_UPDATE'); setResearchError(null); } }, [currentContextKey]);
-  const handleSaveAndResearch = async () => { if (!passports.length || !selected || requestState === 'UPDATING' || requestInFlight.current) return; setResearchError(null); onSave(passports, defaultId || undefined, selected); if (!onResearchTravelRules) { setRequestState('UPDATED'); return; } requestInFlight.current = true; setRequestState('UPDATING'); try { await onResearchTravelRules(selected); setRequestState('UPDATED'); } catch { setResearchError('旅行規定暫時無法更新，稍後可再試。'); setRequestState('NEEDS_UPDATE'); } finally { requestInFlight.current = false; } };
+  const handleSaveAndResearch = async () => { if (!passports.length || !selected || requestState === 'UPDATING' || requestInFlight.current) return; setResearchError(null); onSave(passports, defaultId || undefined, selected); if (!onResearchTravelRules) { setRequestState('UPDATED'); return; } requestInFlight.current = true; setRequestState('UPDATING'); try { await onResearchTravelRules(selected); setRequestState('UPDATED'); } catch (error) { setResearchError(researchErrorMessage(error)); setRequestState('NEEDS_UPDATE'); } finally { requestInFlight.current = false; } };
   const matches = useMemo(() => { const q = query.trim().toLocaleLowerCase(); return OPTIONS.filter(option => !q || [option.displayName, option.passportLabel, option.countryCode, ...option.aliases].join(' ').toLocaleLowerCase().includes(q)); }, [query]);
   const focusSearch = () => setTimeout(() => inputRef.current?.focus(), 0);
   const choose = (option: PassportOption) => { const existing = passports.find(passport => passport.countryCode === option.countryCode); if (existing) { setSelected(existing.id); } else { const next = { id: `passport_${Date.now().toString(36)}`, country: option.displayName, countryCode: option.countryCode }; setPassports(current => [...current, next]); setSelected(next.id); if (!defaultId) setDefaultId(next.id); } setQuery(''); setOpen(false); };
@@ -33,6 +42,6 @@ const TravelIdentityModal: React.FC<Props> = ({ tripId, passports: initial, defa
       {open && passports.length > 0 && <div className="mt-2 max-h-52 space-y-2 overflow-y-auto">{passports.map(passport => <div key={passport.id} className="flex items-center justify-between rounded-2xl border border-[#e8e7f1] bg-white p-3"><button type="button" onClick={() => { setSelected(passport.id); setOpen(false); }} className="flex min-h-11 items-center gap-3 text-left"><span className="text-xl">{optionFor(passport)?.flag || '🌐'}</span><span><span className="block text-sm font-bold text-[#111A4A]">{optionFor(passport)?.passportLabel || labelFor(passport)}</span><span className="block text-xs text-slate-500">{optionFor(passport)?.displayName || passport.country} · {passport.countryCode || '—'}</span></span></button><button type="button" onClick={() => setDefaultId(passport.id)} className={`rounded-full px-2.5 py-1.5 text-[10px] font-bold ${defaultId === passport.id ? 'bg-[#5b3df5] text-white' : 'bg-[#f4f3f8] text-slate-500'}`}>{defaultId === passport.id ? '預設' : '設為預設'}</button></div>)}</div>}
     </section><div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f3f0ff] p-3.5"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[#5b3df5] text-white"><Check size={14}/></span><div><p className="text-xs font-bold text-[#111A4A]">儲存於我的旅行資料</p><p className="mt-1 text-[11px] leading-4 text-slate-500">下次建立旅程時會自動帶入，可隨時更換。</p></div></div><button type="button" onClick={handleSaveAndResearch} disabled={!passports.length || !selected || requestState === 'UPDATING' || requestState === 'UPDATED'} className="mt-5 min-h-12 w-full rounded-2xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-sm font-black text-white shadow-[0_10px_22px_rgba(91,61,245,.24)]">{requestState === 'UPDATING' ? '正在更新旅行規定…' : requestState === 'UPDATED' ? '✓ 旅行規定已更新' : '儲存並更新旅行規定'}</button>
     {requestState === 'UPDATED' && <div className="mt-4 rounded-2xl bg-[#f3f0ff] p-3.5 text-xs leading-5 text-[#4d35c7]"><p className="font-black">✓ 旅行規定已更新</p><p>入境規定已同步至旅行前準備</p><p>退稅規定已準備供記帳使用</p><button type="button" onClick={handleSaveAndResearch} disabled={requestState === 'UPDATING'} className="mt-2 font-bold underline underline-offset-2">重新整理旅行規定</button></div>}
-    {researchError && requestState !== 'UPDATED' && <div className="mt-4 rounded-2xl bg-[#fff7f8] p-3.5 text-xs leading-5 text-rose-600">旅行規定暫時無法更新，稍後可再試。</div>}
+    {researchError && requestState !== 'UPDATED' && <div className="mt-4 rounded-2xl bg-[#fff7f8] p-3.5 text-xs leading-5 text-rose-600">{researchError}</div>}
   </div></div>;
 }; export default TravelIdentityModal;

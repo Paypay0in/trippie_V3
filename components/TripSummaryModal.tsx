@@ -1,6 +1,7 @@
 
 import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { isRefundableCategory } from '../services/refundableCategories';
 import { creditedRefundTwd, findDuplicateRefund, isRefundEntry } from '../services/refundSettlement';
 import { refundClaimableBy } from '../services/refundClaimant';
@@ -43,6 +44,7 @@ interface Props {
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#84cc16'];
 
 const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true, viewerMemberId, ownerMemberId, onOpenExpense }) => {
+  const { t } = useTranslation();
   /** The bill behind a line of the breakdown, for opening it. */
   const expenseById = React.useMemo(
     () => new Map(expenses.map(expense => [expense.id, expense])),
@@ -383,8 +385,8 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             foreign: Math.abs(recordedRefund.amount),
             currency: recordedRefund.currency,
             channel: recordedRefund.paymentMethod === PaymentMethod.CASH_FOREIGN
-              ? '領取外幣現金'
-              : '退到信用卡',
+              ? t('ledger.refundAsCash')
+              : t('ledger.refundToCard'),
           }
         : null,
       chartData,
@@ -423,37 +425,39 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-        alert("請允許開啟彈跳視窗以列印報表");
+        alert(t('summary.allowPopup'));
         return;
     }
     
-    const refundTitle = hasRefundRecord ? `退稅清單 (已入帳 - ${taxRule?.country})` : `預估退稅清單 (${taxRule?.country})`;
+    const refundTitle = hasRefundRecord
+      ? t('summary.printRefundTitleRecorded', { country: taxRule?.country })
+      : t('summary.printRefundTitleEstimated', { country: taxRule?.country });
 
     const refundSection = refundInfo.items.length > 0 ? `
         <h2>${refundTitle}</h2>
-        <table><thead><tr><th>日期</th><th>項目</th><th>消費金額</th><th class="right">預估退稅</th></tr></thead><tbody>
+        <table><thead><tr><th>${t('summary.colDate')}</th><th>${t('summary.colItem')}</th><th>${t('summary.colSpend')}</th><th class="right">${t('summary.colEstimatedRefund')}</th></tr></thead><tbody>
             ${refundInfo.items.map(e => `<tr><td>${e.date}</td><td>${e.desc}</td><td>${e.spend.toLocaleString()} ${e.currency}</td><td class="right">${Math.floor(e.refund).toLocaleString()} ${e.currency}</td></tr>`).join('')}
-             <tr class="total-row"><td colspan="3">預估退稅總額 (約)</td><td class="right">NT$ ${Math.round(refundInfo.totalTwd).toLocaleString()}</td></tr>
+             <tr class="total-row"><td colspan="3">${t('summary.rowEstimatedRefundTotal')}</td><td class="right">NT$ ${Math.round(refundInfo.totalTwd).toLocaleString()}</td></tr>
         </tbody></table>
     ` : '';
 
     const helpBuySection = helpBuyList.length > 0 ? `
-        <h2>代買清單 (需收款)</h2>
-        <table><thead><tr><th>日期</th><th>項目</th><th>原幣金額</th><th class="right">應收款 (台幣)</th></tr></thead><tbody>
+        <h2>${t('summary.helpBuyList')}</h2>
+        <table><thead><tr><th>${t('summary.colDate')}</th><th>${t('summary.colItem')}</th><th>${t('summary.colOriginalAmount')}</th><th class="right">${t('summary.colReceivableTwd')}</th></tr></thead><tbody>
             ${helpBuyList.map(e => {
                 const hasDeduction = e.refundDeduction && e.refundDeduction > 0;
-                const note = hasDeduction ? `<br/><span style="font-size:10px;color:#10b981">(已扣退稅 ${Math.round(e.refundDeduction!).toLocaleString()})</span>` : '';
+                const note = hasDeduction ? `<br/><span style="font-size:10px;color:#10b981">${t('summary.refundDeducted', { amount: Math.round(e.refundDeduction!).toLocaleString() })}</span>` : '';
                 return `<tr><td>${e.date}</td><td>${e.desc}</td><td>${e.foreignAmount.toLocaleString()} ${e.currency}</td><td class="right">${Math.round(e.amount).toLocaleString()}${note}</td></tr>`;
             }).join('')}
-             <tr class="total-row"><td colspan="3">應收總額</td><td class="right">NT$ ${Math.round(totalHelpBuyTwd).toLocaleString()}</td></tr>
+             <tr class="total-row"><td colspan="3">${t('summary.rowReceivableTotal')}</td><td class="right">NT$ ${Math.round(totalHelpBuyTwd).toLocaleString()}</td></tr>
         </tbody></table>
     ` : '';
 
     const walletSection = walletResidue.length > 0 ? `
-        <h2>外幣現金餘額</h2>
-        <table><thead><tr><th>幣別</th><th>剩餘金額</th><th class="right">預估價值 (TWD)</th></tr></thead><tbody>
+        <h2>${t('summary.foreignCashBalance')}</h2>
+        <table><thead><tr><th>${t('summary.colCurrency')}</th><th>${t('summary.colRemaining')}</th><th class="right">${t('summary.colEstimatedValue')}</th></tr></thead><tbody>
             ${walletResidue.map(r => `<tr><td>${r.currency}</td><td>${r.amount.toLocaleString()}</td><td class="right">NT$ ${Math.round(r.valueTwd).toLocaleString()}</td></tr>`).join('')}
-             <tr class="total-row"><td colspan="2">總價值</td><td class="right">NT$ ${Math.round(totalResidueValue).toLocaleString()}</td></tr>
+             <tr class="total-row"><td colspan="2">${t('summary.rowTotalValue')}</td><td class="right">NT$ ${Math.round(totalResidueValue).toLocaleString()}</td></tr>
         </tbody></table>
     ` : '';
 
@@ -461,7 +465,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Trippie 旅行費用結算報告</title>
+          <title>${t('summary.reportTitle')}</title>
           <style>
             body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #333; line-height: 1.5; max-width: 800px; margin: 0 auto; }
             h1 { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 30px; letter-spacing: 1px; }
@@ -480,35 +484,35 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
           </style>
         </head>
         <body>
-          <h1>✈️ Trippie 旅行費用結算報告</h1>
+          <h1>✈️ ${t('summary.reportTitle')}</h1>
           <div class="summary-box">
             <div class="box-item">
-              <div class="box-label">旅程總支出 (淨額)</div>
+              <div class="box-label">${t('summary.boxNetTotal')}</div>
               <div class="box-value">NT$ ${Math.round(totalExpense).toLocaleString()}</div>
             </div>
             <div class="box-item" style="border-left: 1px solid #ddd; border-right: 1px solid #ddd;">
-              <div class="box-label">信用卡應繳</div>
+              <div class="box-label">${t('summary.boxCardDue')}</div>
               <div class="box-value" style="color: #2563eb;">NT$ ${Math.round(creditCardBill).toLocaleString()}</div>
             </div>
              <div class="box-item">
-              <div class="box-label">剩餘現金總值</div>
+              <div class="box-label">${t('summary.boxCashLeft')}</div>
               <div class="box-value" style="color: #059669;">NT$ ${Math.round(totalResidueValue).toLocaleString()}</div>
             </div>
           </div>
-          <h2>1. 旅行前準備</h2>
-          <table><thead><tr><th>日期</th><th>項目</th><th>分類</th><th class="right">金額</th></tr></thead><tbody>
+          <h2>1. ${t('summary.sectionPre')}</h2>
+          <table><thead><tr><th>${t('summary.colDate')}</th><th>${t('summary.colItem')}</th><th>${t('summary.colCategory')}</th><th class="right">${t('summary.colAmount')}</th></tr></thead><tbody>
               ${preExpenses.map(e => `<tr><td>${e.date}</td><td>${e.desc}</td><td><span class="badge">${e.cat}</span></td><td class="right">${Math.round(e.amount).toLocaleString()}</td></tr>`).join('')}
-              <tr class="total-row"><td colspan="3">總計</td><td class="right">NT$ ${Math.round(preExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</td></tr>
+              <tr class="total-row"><td colspan="3">${t('summary.rowTotal')}</td><td class="right">NT$ ${Math.round(preExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</td></tr>
           </tbody></table>
-          <h2>2. 旅行中消費 (分類)</h2>
-          <table><thead><tr><th>分類</th><th>佔比</th><th class="right">金額</th></tr></thead><tbody>
+          <h2>2. ${t('summary.sectionDuring')}</h2>
+          <table><thead><tr><th>${t('summary.colCategory')}</th><th>${t('summary.colShare')}</th><th class="right">${t('summary.colAmount')}</th></tr></thead><tbody>
               ${duringCategoryStats.map(s => `<tr><td>${s.category}</td><td>${(s.percentage*100).toFixed(1)}%</td><td class="right">${Math.round(s.amount).toLocaleString()}</td></tr>`).join('')}
-               <tr class="total-row"><td colspan="2">總計</td><td class="right">NT$ ${Math.round(duringTotal).toLocaleString()}</td></tr>
+               <tr class="total-row"><td colspan="2">${t('summary.rowTotal')}</td><td class="right">NT$ ${Math.round(duringTotal).toLocaleString()}</td></tr>
           </tbody></table>
-          <h2>3. 回國機場消費</h2>
-          <table><thead><tr><th>日期</th><th>項目</th><th>分類</th><th class="right">金額</th></tr></thead><tbody>
-              ${postExpenses.length===0?'<tr><td colspan="4" style="text-align:center">無紀錄</td></tr>':postExpenses.map(e => `<tr><td>${e.date}</td><td>${e.desc}</td><td><span class="badge">${e.cat}</span></td><td class="right">${Math.round(e.amount).toLocaleString()}</td></tr>`).join('')}
-               <tr class="total-row"><td colspan="3">總計</td><td class="right">NT$ ${Math.round(postExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</td></tr>
+          <h2>3. ${t('summary.sectionPost')}</h2>
+          <table><thead><tr><th>${t('summary.colDate')}</th><th>${t('summary.colItem')}</th><th>${t('summary.colCategory')}</th><th class="right">${t('summary.colAmount')}</th></tr></thead><tbody>
+              ${postExpenses.length===0?`<tr><td colspan="4" style="text-align:center">${t('summary.noRecords')}</td></tr>`:postExpenses.map(e => `<tr><td>${e.date}</td><td>${e.desc}</td><td><span class="badge">${e.cat}</span></td><td class="right">${Math.round(e.amount).toLocaleString()}</td></tr>`).join('')}
+               <tr class="total-row"><td colspan="3">${t('summary.rowTotal')}</td><td class="right">NT$ ${Math.round(postExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</td></tr>
           </tbody></table>
           ${helpBuySection}
           ${refundSection}
@@ -522,7 +526,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
 
   const handleArchiveClick = () => {
       if (!tripName.trim()) {
-          alert("請輸入旅程名稱");
+          alert(t('summary.enterTripName'));
           return;
       }
       onArchive(tripName, totalExpense);
@@ -545,16 +549,16 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             <div className="relative z-10 flex justify-between items-start">
                 <div>
                     <h2 className="text-2xl font-black mb-1 flex items-center gap-2">
-                        <Trophy className="text-yellow-300" /> 旅行結算報告
+                        <Trophy className="text-yellow-300" /> {t('summary.title')}
                     </h2>
-                    <p className="text-white/70 text-sm">歡迎回家！以下是您的旅費總分析</p>
+                    <p className="text-white/70 text-sm">{t('summary.welcomeHome')}</p>
                 </div>
                 <button 
                     type="button"
                     onClick={handlePrint}
                     className="bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors backdrop-blur-md"
                 >
-                    <Printer size={14} /> 匯出 PDF
+                    <Printer size={14} /> {t('summary.exportPdf')}
                 </button>
             </div>
             {variant === 'modal' && onClose && (
@@ -569,7 +573,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             {/* Summary Cards */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-brand-100 text-center relative overflow-hidden">
                  <div className="flex items-center justify-center gap-2 text-gray-500 text-xs font-bold uppercase tracking-wider mb-2 relative z-10">
-                    <Receipt size={14} /> {viewerShare === undefined ? '旅程總支出成本' : '你的實際支出'}
+                    <Receipt size={14} /> {viewerShare === undefined ? t('summary.tripTotalCost') : t('summary.yourActualSpend')}
                 </div>
                 {/*
                   What this trip cost the reader, which is not what passed
@@ -583,12 +587,12 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                 <div className="text-4xl font-black text-brand-900 tracking-tight relative z-10">
                     ${Math.round(viewerShare ?? totalExpense).toLocaleString()}
                 </div>
-                <div className="text-[10px] text-gray-400 mt-1 relative z-10">* 已排除代買費用</div>
+                <div className="text-[10px] text-gray-400 mt-1 relative z-10">{t('summary.excludesHelpBuy')}</div>
                 {viewerShare !== undefined && frontedByViewer !== undefined && Math.round(frontedByViewer - viewerShare) !== 0 && (
                   <div data-testid="viewer-share" className="relative z-10 mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs font-bold">
-                    <p className="text-gray-500">你先付出去 <span className="text-brand-900">${Math.round(frontedByViewer).toLocaleString()}</span></p>
+                    <p className="text-gray-500"><Trans i18nKey="summary.youPaidUpfront" values={{ amount: `$${Math.round(frontedByViewer).toLocaleString()}` }} components={{ strong: <span className="text-brand-900" /> }} /></p>
                     <p className={Math.round(frontedByViewer - viewerShare) > 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                      {Math.round(frontedByViewer - viewerShare) > 0 ? '待收回' : '待補付'} ${Math.abs(Math.round(frontedByViewer - viewerShare)).toLocaleString()}
+                      {Math.round(frontedByViewer - viewerShare) > 0 ? t('summary.toRecover') : t('summary.toTopUp')} ${Math.abs(Math.round(frontedByViewer - viewerShare)).toLocaleString()}
                     </p>
                   </div>
                 )}
@@ -598,14 +602,14 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             <div className={`grid ${refundInfo.items.length > 0 || helpBuyList.length > 0 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2'} gap-4`}>
                 {/* Credit Card Bill */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100">
-                    <div className="text-xs text-blue-600 font-bold uppercase mb-1 flex items-center gap-1"><CreditCard size={12}/> 信用卡應繳</div>
+                    <div className="text-xs text-blue-600 font-bold uppercase mb-1 flex items-center gap-1"><CreditCard size={12}/> {t('summary.boxCardDue')}</div>
                     <div className="text-xl font-black text-blue-600">${Math.round(creditCardBill).toLocaleString()}</div>
                 </div>
                 
                 {/* Wallet Residue with Breakdown */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-emerald-100 flex flex-col justify-between">
                     <div>
-                        <div className="text-xs text-emerald-600 font-bold uppercase mb-1 flex items-center gap-1"><Wallet size={12}/> 外幣現金餘額</div>
+                        <div className="text-xs text-emerald-600 font-bold uppercase mb-1 flex items-center gap-1"><Wallet size={12}/> {t('summary.foreignCashBalance')}</div>
                         <div className="text-xl font-black text-emerald-600 mb-2">${Math.round(totalResidueValue).toLocaleString()}</div>
                     </div>
                 </div>
@@ -615,7 +619,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                     <div className={`bg-white p-4 rounded-xl shadow-sm border ${hasRefundRecord ? 'border-emerald-100' : 'border-amber-100'}`}>
                         <div className={`text-xs ${hasRefundRecord ? 'text-emerald-600' : 'text-amber-600'} font-bold uppercase mb-1 flex items-center gap-1`}>
                             {hasRefundRecord ? <CheckCircle size={12}/> : <Tag size={12}/>} 
-                            {hasRefundRecord ? '退稅已入帳' : '預估退稅'}
+                            {hasRefundRecord ? t('ledger.refundRecorded') : t('summary.refundEstimatedShort')}
                         </div>
                         <div className={`text-xl font-black ${hasRefundRecord ? 'text-emerald-600' : 'text-amber-600'}`}>
                             ${Math.round(creditedRefund ? creditedRefund.twd : refundInfo.totalTwd).toLocaleString()}
@@ -635,7 +639,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                  {helpBuyList.length > 0 && (
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100">
                         <div className="text-xs text-purple-600 font-bold uppercase mb-1 flex items-center gap-1">
-                            <HandHelping size={12}/> 代買需收款
+                            <HandHelping size={12}/> {t('summary.helpBuyReceivableShort')}
                         </div>
                         <div className="text-xl font-black text-purple-600">
                             ${Math.round(totalHelpBuyTwd).toLocaleString()}
@@ -645,8 +649,8 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                          {totalHelpBuyTwd > 0 && (
                             <div className="text-[10px] text-gray-400 mt-1">
                                 {hasRefundRecord 
-                                    ? <span className="text-emerald-500 font-bold flex items-center gap-1"><CheckCircle size={10}/> 已自動扣除退稅金額</span> 
-                                    : '尚未扣除退稅 (需先辦理退稅入帳)'
+                                    ? <span className="text-emerald-500 font-bold flex items-center gap-1"><CheckCircle size={10}/> {t('summary.refundAutoDeducted')}</span> 
+                                    : t('summary.refundNotDeducted')
                                 }
                             </div>
                         )}
@@ -658,7 +662,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                     <PieIcon size={16} className="text-brand-600"/>
-                    <span className="text-sm">總消費組成分析</span>
+                    <span className="text-sm">{t('summary.breakdownTitle')}</span>
                 </h3>
                 <div className="h-64 w-full">
                     {chartData.length > 0 ? (
@@ -683,7 +687,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                         </ResponsiveContainer>
                     ) : (
                         <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                            尚無消費數據
+                            {t('summary.noSpendData')}
                         </div>
                     )}
                 </div>
@@ -696,7 +700,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
                   <span className="bg-phase-pre text-white p-1 rounded-md text-xs flex items-center justify-center w-6 h-6"><List size={14}/></span>
-                  <span className="text-sm">旅行前：準備清單</span>
+                  <span className="text-sm">{t('summary.sectionPreList')}</span>
                 </h3>
                 {preExpenses.length > 0 ? (
                   <div className="space-y-2">
@@ -718,7 +722,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                               type: 'button' as const,
                               'data-testid': `phase-item-${item.id}`,
                               onClick: () => onOpenExpense!(expenseById.get(item.id)!),
-                              'aria-label': `打開 ${item.desc}`,
+                              'aria-label': t('summary.openItem', { name: item.desc }),
                             }
                           : {})}
                         className="flex w-full items-center justify-between rounded p-1 text-left text-sm hover:bg-gray-50 active:bg-gray-100"
@@ -734,12 +738,12 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                       );
                     })}
                     <div className="border-t border-gray-100 pt-2 flex justify-between items-center font-bold text-gray-900 mt-2 text-sm bg-gray-50 p-2 rounded">
-                      <span>小計</span>
+                      <span>{t('summary.subtotal')}</span>
                       <span>${Math.round(preExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-gray-400 text-xs py-2">此階段無紀錄</div>
+                  <div className="text-center text-gray-400 text-xs py-2">{t('summary.noRecordsThisStage')}</div>
                 )}
               </div>
 
@@ -747,7 +751,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
                   <span className="bg-phase-during text-white p-1 rounded-md text-xs flex items-center justify-center w-6 h-6"><PieIcon size={14}/></span>
-                  <span className="text-sm">旅行中：分類統計</span>
+                  <span className="text-sm">{t('summary.sectionDuringByCategory')}</span>
                 </h3>
                 {duringCategoryStats.length > 0 ? (
                   <div className="space-y-3">
@@ -809,7 +813,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                       type: 'button' as const,
                                       'data-testid': `category-item-${item.id}`,
                                       onClick: () => onOpenExpense!(expenseById.get(item.id)!),
-                                      'aria-label': `打開 ${item.desc}`,
+                                      'aria-label': t('summary.openItem', { name: item.desc }),
                                     }
                                   : {})}
                                 className={`flex w-full items-start justify-between gap-2 text-left text-[11px] ${
@@ -834,7 +838,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                   */}
                                   {Math.round(item.full) !== Math.round(item.amount) && (
                                     <span className="block text-[9px] text-gray-400">
-                                      全額 ${Math.round(item.full).toLocaleString()}
+                                      {t('summary.fullAmount', { amount: `$${Math.round(item.full).toLocaleString()}` })}
                                     </span>
                                   )}
                                 </span>
@@ -842,7 +846,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                               );
                             })}
                             <div className="flex justify-between border-t border-gray-200 pt-1 text-[11px] font-black text-gray-700">
-                              <span>這一類合計</span>
+                              <span>{t('summary.categoryTotal')}</span>
                               <span className="font-mono">${Math.round(stat.amount).toLocaleString()}</span>
                             </div>
                           </div>
@@ -850,12 +854,12 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                       </div>
                     ))}
                      <div className="border-t border-gray-100 pt-2 flex justify-between items-center font-bold text-gray-900 mt-2 text-sm bg-gray-50 p-2 rounded">
-                      <span>小計</span>
+                      <span>{t('summary.subtotal')}</span>
                       <span>${Math.round(duringTotal).toLocaleString()}</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-gray-400 text-xs py-2">此階段無紀錄</div>
+                  <div className="text-center text-gray-400 text-xs py-2">{t('summary.noRecordsThisStage')}</div>
                 )}
               </div>
 
@@ -867,13 +871,13 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                             <span className="bg-purple-500 text-white p-1 rounded-md text-xs flex items-center justify-center w-6 h-6">
                                 <HandHelping size={14}/>
                             </span>
-                            <span className="text-sm">代買清單 (需收款)</span>
+                            <span className="text-sm">{t('summary.helpBuyList')}</span>
                         </h3>
                         <button 
                             onClick={toggleSelectionMode}
                             className={`text-xs px-2 py-1 rounded transition-colors flex items-center gap-1 ${isSelectionMode ? 'bg-purple-100 text-purple-700 font-bold' : 'text-gray-400 hover:bg-gray-50'}`}
                         >
-                            {isSelectionMode ? '取消選取' : <><Calculator size={12} /> 製作收款單</>}
+                            {isSelectionMode ? t('summary.cancelSelection') : <><Calculator size={12} /> {t('summary.makeInvoice')}</>}
                         </button>
                     </div>
 
@@ -899,7 +903,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                                 {item.date} • {item.foreignAmount.toLocaleString()} {item.currency}
                                                 {item.refundDeduction && item.refundDeduction > 0 && (
                                                     <span className="text-emerald-500 font-bold ml-1">
-                                                        (已扣退稅 {Math.round(item.refundDeduction).toLocaleString()})
+                                                        {t('summary.refundDeducted', { amount: Math.round(item.refundDeduction).toLocaleString() })}
                                                     </span>
                                                 )}
                                             </span>
@@ -915,7 +919,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                          {/* Default Total Row (Hidden when selecting) */}
                          {!isSelectionMode && (
                             <div className="border-t border-gray-100 pt-2 flex justify-between items-center font-bold text-gray-900 mt-2 text-sm bg-gray-50 p-2 rounded">
-                                <span>應收總額</span>
+                                <span>{t('summary.rowReceivableTotal')}</span>
                                 <span className="text-purple-600">${Math.round(totalHelpBuyTwd).toLocaleString()}</span>
                             </div>
                          )}
@@ -926,7 +930,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                 <div className="flex items-center justify-between mb-3 bg-white p-2 rounded-lg border border-purple-100">
                                     <div className="flex items-center gap-1.5 text-purple-800 font-bold text-xs">
                                         <Percent size={14} />
-                                        手續費/匯差 (3% 左右合理)
+                                        {t('summary.feeHint')}
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <input 
@@ -940,18 +944,18 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                 </div>
                                 
                                 <div className="flex justify-between items-center mb-1 text-xs text-gray-500">
-                                    <span>商品小計 ({selectedItemIds.size}項)</span>
+                                    <span>{t('summary.itemsSubtotal', { count: selectedItemIds.size })}</span>
                                     <span>${Math.round(selectedBillBase).toLocaleString()}</span>
                                 </div>
                                 {feePercent > 0 && (
                                     <div className="flex justify-between items-center mb-2 text-xs text-purple-600">
-                                        <span>+ 手續費/匯差</span>
+                                        <span>{t('summary.plusFee')}</span>
                                         <span>${additionalFee.toLocaleString()}</span>
                                     </div>
                                 )}
                                 
                                 <div className="flex justify-between items-center pt-2 border-t border-purple-200">
-                                    <span className="text-xs text-purple-800 font-bold">總收款金額</span>
+                                    <span className="text-xs text-purple-800 font-bold">{t('summary.totalToCollect')}</span>
                                     <span className="text-xl font-black text-purple-700">${Math.round(finalBillTotal).toLocaleString()}</span>
                                 </div>
 
@@ -960,7 +964,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                     disabled={selectedItemIds.size === 0}
                                     className="w-full mt-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                                 >
-                                    <Receipt size={14} /> 產生收款明細圖
+                                    <Receipt size={14} /> {t('summary.makeInvoiceImage')}
                                 </button>
                             </div>
                          )}
@@ -976,7 +980,9 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                         {hasRefundRecord ? <CheckCircle size={14}/> : <Tag size={14}/>}
                       </span>
                       <span className="text-sm">
-                        {hasRefundRecord ? '退稅清單 (已完成入帳)' : `預估退稅清單 (約 NT$ ${Math.round(refundInfo.totalTwd).toLocaleString()})`}
+                        {hasRefundRecord
+                  ? t('summary.refundListRecorded')
+                  : t('summary.refundListEstimated', { amount: Math.round(refundInfo.totalTwd).toLocaleString() })}
                       </span>
                     </h3>
                       <div className="space-y-2">
@@ -985,7 +991,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                              <div className="flex flex-col">
                               <span className="font-medium text-gray-800">{item.desc}</span>
                               <span className="text-[10px] text-gray-400">
-                                {item.date} • 消費 {Math.round(item.spend).toLocaleString()} {item.currency}
+                                {item.date} • {t('ledger.spentAmount', { amount: Math.round(item.spend).toLocaleString(), currency: item.currency })}
                                 {/*
                                   Not all of this stays with you.
 
@@ -996,7 +1002,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                   they owe when you settle.
                                 */}
                                 {item.shared && (
-                                  <span className="ml-1 text-emerald-600">· 含旅伴份額，結算時扣抵</span>
+                                  <span className="ml-1 text-emerald-600">{t('summary.includesCompanionShare')}</span>
                                 )}
                               </span>
                             </div>
@@ -1013,7 +1019,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2 border-b border-gray-100 pb-2">
                   <span className="bg-phase-post text-white p-1 rounded-md text-xs flex items-center justify-center w-6 h-6"><List size={14}/></span>
-                  <span className="text-sm">回國機場消費</span>
+                  <span className="text-sm">{t('summary.sectionPost')}</span>
                 </h3>
                 {postExpenses.length > 0 ? (
                   <div className="space-y-2">
@@ -1035,7 +1041,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                               type: 'button' as const,
                               'data-testid': `phase-item-${item.id}`,
                               onClick: () => onOpenExpense!(expenseById.get(item.id)!),
-                              'aria-label': `打開 ${item.desc}`,
+                              'aria-label': t('summary.openItem', { name: item.desc }),
                             }
                           : {})}
                         className="flex w-full items-center justify-between rounded p-1 text-left text-sm hover:bg-gray-50 active:bg-gray-100"
@@ -1051,12 +1057,12 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                       );
                     })}
                     <div className="border-t border-gray-100 pt-2 flex justify-between items-center font-bold text-gray-900 mt-2 text-sm bg-gray-50 p-2 rounded">
-                      <span>小計</span>
+                      <span>{t('summary.subtotal')}</span>
                       <span>${Math.round(postExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-gray-400 text-xs py-2">此階段無紀錄</div>
+                  <div className="text-center text-gray-400 text-xs py-2">{t('summary.noRecordsThisStage')}</div>
                 )}
               </div>
 
@@ -1065,10 +1071,10 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
             {/* Archive Section */}
             {allowArchive && <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-100 animate-fade-in-up mt-8 mb-8">
                 <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
-                    <Archive size={18} /> 準備好開始下一段旅程了嗎？
+                    <Archive size={18} /> {t('summary.readyForNext')}
                 </h3>
                 <p className="text-xs text-indigo-600 mb-4">
-                    將目前的帳本封存起來，清空畫面，為下一趟冒險做準備。
+                    {t('summary.readyForNextBlurb')}
                 </p>
                 
                 {!showSaveInput ? (
@@ -1077,16 +1083,16 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                         onClick={() => setShowSaveInput(true)}
                         className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
                     >
-                        結算並建立新帳本
+                        {t('summary.settleAndStartNew')}
                     </button>
                 ) : (
                     <div className="space-y-3 bg-white p-3 rounded-lg border border-indigo-100 shadow-sm">
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">為這趟旅程取個名字</label>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">{t('summary.nameThisTrip')}</label>
                             <input 
                                 autoFocus
                                 type="text" 
-                                placeholder="例如：2024 日本京阪神"
+                                placeholder={t('summary.nameThisTripPlaceholder')}
                                 className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                                 value={tripName}
                                 onChange={(e) => setTripName(e.target.value)}
@@ -1098,14 +1104,14 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                 onClick={() => setShowSaveInput(false)}
                                 className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold"
                             >
-                                取消
+                                {t('common.cancel')}
                             </button>
                             <button 
                                 type="button"
                                 onClick={handleArchiveClick}
                                 className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-700"
                             >
-                                <Save size={14} /> 確認封存
+                                <Save size={14} /> {t('summary.confirmComplete')}
                             </button>
                         </div>
                     </div>
@@ -1114,7 +1120,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
 
             {variant === 'modal' && onClose && (
                 <button type="button" onClick={onClose} className="w-full py-3 text-gray-400 text-sm font-medium hover:text-gray-600">
-                    暫時關閉視窗 (稍後再結算)
+                    {t('summary.closeForNow')}
                 </button>
             )}
         </div>
@@ -1145,7 +1151,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
 
                           <div className="text-center mb-6">
                               <div className="text-xs text-gray-400 mb-1">{new Date().toLocaleDateString()}</div>
-                              <div className="font-bold text-gray-800 text-lg">代墊款項結算</div>
+                              <div className="font-bold text-gray-800 text-lg">{t('summary.advancedSettlement')}</div>
                           </div>
 
                           <div className="space-y-3 mb-6">
@@ -1159,7 +1165,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                                           <div className="font-medium text-gray-800">{item.desc}</div>
                                           <div className="text-[10px] text-gray-400 font-mono">
                                             {item.foreignAmount.toLocaleString()} {item.currency}
-                                            {item.refundDeduction && item.refundDeduction > 0 && ` (-退稅${Math.round(item.refundDeduction)})`}
+                                            {item.refundDeduction && item.refundDeduction > 0 && ` ${t('summary.minusRefund', { amount: Math.round(item.refundDeduction) })}`}
                                           </div>
                                       </div>
                                       <div className="font-mono font-bold text-gray-900 shrink-0">
@@ -1170,7 +1176,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                               
                               {feePercent > 0 && (
                                   <div className="flex justify-between items-center text-sm pt-2 border-t border-dashed border-gray-100">
-                                      <div className="text-gray-500 font-medium">手續費/匯差 ({feePercent}%)</div>
+                                      <div className="text-gray-500 font-medium">{t('summary.feeLabel', { percent: feePercent })}</div>
                                       <div className="font-mono font-bold text-gray-900">
                                           + ${additionalFee.toLocaleString()}
                                       </div>
@@ -1196,7 +1202,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                       </div>
                       
                       <div className="absolute top-2 right-2 text-white/50 text-[10px] animate-pulse">
-                          截圖此畫面傳送
+                          {t('summary.screenshotToSend')}
                       </div>
                   </div>
 
@@ -1206,7 +1212,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                         onClick={() => setShowBillPreview(false)}
                         className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-full font-bold backdrop-blur-md border border-white/20 transition-all"
                       >
-                          <X size={20} /> 關閉視窗
+                          <X size={20} /> {t('summary.closeWindow')}
                       </button>
                   </div>
               </div>

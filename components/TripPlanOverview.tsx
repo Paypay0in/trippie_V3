@@ -1,4 +1,8 @@
 import { entryPoints, worthListing } from '../services/entryPoints';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n/config';
+import { isPassportAdvisory } from '../services/entryRuleGrouping';
+import { travelRulesErrorMessage } from '../services/travelRulesErrorMessage';
 import { useTicketTodos } from './useTicketTodos';
 import { ERRAND_ID_PREFIX, ticketErrands } from '../services/ticketErrands';
 import { planningDestination } from '../services/planningDestination';
@@ -51,7 +55,7 @@ const officialLinkFor = (
   if (!FILLABLE_ACTIONS.has(task.travelRuleActionType ?? '')) return null;
   const source = task.source;
   if (source?.url) {
-    return { label: source.publisher || source.title || '官方網站', url: source.url };
+    return { label: source.publisher || source.title || i18n.t('plan.officialSite'), url: source.url };
   }
   return findOfficialLink(country, task.name);
 };
@@ -221,28 +225,29 @@ const RULE_TONES = [
    mid-clause and says nothing. What the card needs is what this item is about,
    which the action type already tells us. */
 const RULE_SUMMARIES: Record<string, string> = {
-  visa_or_eta: '確認是否需要簽證、停留天數',
-  passport_validity: '確認護照效期是否足夠',
-  health_declaration: '出發前完成健康或檢疫申報',
-  customs_declaration: '確認可攜帶物品與申報規定',
-  arrival_form: '準備入境表格與所需文件',
-  required_documents: '準備護照、回程機票等文件',
-  onward_travel: '準備離境或轉機證明',
-  other: '查看這項規定的細節',
+  visa_or_eta: 'plan.action.visa_or_eta',
+  passport_validity: 'plan.action.passport_validity',
+  health_declaration: 'plan.action.health_declaration',
+  customs_declaration: 'plan.action.customs_declaration',
+  arrival_form: 'plan.action.arrival_form',
+  required_documents: 'plan.action.required_documents',
+  onward_travel: 'plan.action.onward_travel',
+  other: 'plan.action.other',
 };
 
 const TIP_LABELS: Record<DestinationTip['kind'], string> = {
   app: 'APP',
-  payment: '支付',
-  transport: '交通',
-  connectivity: '網路',
-  custom: '當地習慣',
+  payment: 'plan.tip.payment',
+  transport: 'plan.tip.transport',
+  connectivity: 'plan.tip.connectivity',
+  custom: 'plan.tip.custom',
 };
 
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
   promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  const { t } = useTranslation();
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
   /*
@@ -346,13 +351,14 @@ const TripPlanOverview: React.FC<Props> = ({
   // Passport validity is not something the destination asks you to do on
   // arrival — it is a condition your own document has to meet before you
   // leave. It reads as a caution, so it belongs with the cautions.
-  const isPassportRule = (task: ShoppingItem) => task.name.includes('護照');
+  // One home: `isPassportAdvisory` reads the structured action type, so this
+  // grouping survives the model answering in the traveller's own language.
   // Every formality the destination asks for stays here; three fit across a
   // phone and the rest scroll. Capping the list and spilling the remainder
   // into the cautions put 入境卡 — a requirement — under 注意事項, which reads
   // as optional.
-  const entryRules = travelRuleTasks.filter(task => !isPassportRule(task));
-  const advisoryTasks = travelRuleTasks.filter(isPassportRule);
+  const entryRules = travelRuleTasks.filter(task => !isPassportAdvisory(task));
+  const advisoryTasks = travelRuleTasks.filter(isPassportAdvisory);
   const ownTasks = shoppingPreTasks.filter(task => task.sourceType !== 'travel_rules');
 
   /**
@@ -500,7 +506,7 @@ const TripPlanOverview: React.FC<Props> = ({
       });
       const revised = result.options[0];
       if (!revised) {
-        setPlanError('這次沒能改出可用的版本，原本那版還在。');
+        setPlanError(t('plan.reviseFailed'));
         return;
       }
       onPlanRevisionRequested?.(planRequestId, plan, feedback);
@@ -508,7 +514,7 @@ const TripPlanOverview: React.FC<Props> = ({
         option.id === plan.id ? { ...revised, id: plan.id } : option
       )));
     } catch (error) {
-      setPlanError(error instanceof Error ? error.message : '現在改不了，稍後再試一次。');
+      setPlanError(error instanceof Error ? error.message : t('plan.reviseUnavailable'));
     } finally {
       setIsRevisingPlan(false);
     }
@@ -530,7 +536,7 @@ const TripPlanOverview: React.FC<Props> = ({
       : [...current, suggestion]);
 
   /** Everything the traveller has said this time, chosen or typed. */
-  const askText = [...picked, prompt.trim()].filter(Boolean).join('、');
+  const askText = [...picked, prompt.trim()].filter(Boolean).join(t('settle.listSeparator'));
 
   /*
     The two things a plan is shaped around, and whether this trip has them.
@@ -643,7 +649,7 @@ const TripPlanOverview: React.FC<Props> = ({
       setPlanUngroundedReason(result.ungroundedReason);
       onPlanOptionsShown?.(result.requestId, result.options);
     } catch (error) {
-      setPlanError(error instanceof Error ? error.message : '現在查不到資料，稍後再試一次。');
+      setPlanError(error instanceof Error ? error.message : t('plan.lookupUnavailable'));
     } finally {
       setIsGenerating(false);
     }
@@ -668,11 +674,11 @@ const TripPlanOverview: React.FC<Props> = ({
       {showPreparation && <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="mb-2 text-xs font-black uppercase tracking-[.18em] text-violet-600">旅程準備度</div>
+            <div className="mb-2 text-xs font-black uppercase tracking-[.18em] text-violet-600">{t('plan.readinessTitle')}</div>
             {totalTasks > 0 ? (
-              <><div className="text-2xl font-black text-[#11183d]">已完成 {doneTasks} 項</div><p className="mt-1 text-sm text-slate-500">還有 {openTasks} 項明確待辦需要處理</p></>
+              <><div className="text-2xl font-black text-[#11183d]">{t('plan.doneCount', { count: doneTasks })}</div><p className="mt-1 text-sm text-slate-500">{t('plan.openCount', { count: openTasks })}</p></>
             ) : (
-              <><div className="text-xl font-black text-[#11183d]">尚未建立準備待辦</div><p className="mt-1 text-sm text-slate-500">加入真正需要處理的項目，進度才會開始累積。</p></>
+              <><div className="text-xl font-black text-[#11183d]">{t('plan.noTasksYet')}</div><p className="mt-1 text-sm text-slate-500">{t('plan.noTasksBlurb')}</p></>
             )}
           </div>
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><Plane size={27} /></div>
@@ -698,7 +704,7 @@ const TripPlanOverview: React.FC<Props> = ({
           <div data-testid="ticket-todos" className="mt-4 rounded-2xl bg-[#f6f5ff] p-3">
             <div className="flex items-center gap-1.5 text-xs font-black text-[#5b3df5]">
               {/* 「安排的餐廳 有需要預約的 要放入行前規劃的待辦清單中」. */}
-              <Ticket size={13} />行程裡要先訂好的
+              <Ticket size={13} />{t('plan.bookAheadInItinerary')}
               <span className="ml-auto text-[10px] font-bold text-slate-400">
                 {ticketTodos.filter(todo => bought.includes(todo.itemId)).length}/{ticketTodos.length}
               </span>
@@ -716,7 +722,7 @@ const TripPlanOverview: React.FC<Props> = ({
                       type="button"
                       disabled={!onToggleTicketBought}
                       data-testid={`ticket-bought-${todo.itemId}`}
-                      aria-label={`${todo.placeName} 已買票`}
+                      aria-label={t('plan.ticketBought', { name: todo.placeName })}
                       aria-pressed={done}
                       onClick={() => onToggleTicketBought?.(todo.itemId, !done)}
                       className={`mt-[1px] flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
@@ -736,7 +742,7 @@ const TripPlanOverview: React.FC<Props> = ({
                             What the job actually is. Nobody is admitted to a
                             restaurant; they are expected.
                           */}
-                          {todo.kind === 'booking' ? '需訂位' : '需提前買'}
+                          {todo.kind === 'booking' ? t('plan.needsBooking') : t('plan.needsAdvancePurchase')}
                         </span>
                       )}
                       {/*
@@ -764,7 +770,7 @@ const TripPlanOverview: React.FC<Props> = ({
                           }`}
                         >
                           <Handshake size={11} />
-                          {selectedHelpTaskIds.includes(`${ERRAND_ID_PREFIX}${todo.itemId}`) ? '已加入協助任務' : '找人幫忙'}
+                          {selectedHelpTaskIds.includes(`${ERRAND_ID_PREFIX}${todo.itemId}`) ? t('plan.addedToHelpTasks') : t('plan.findHelp')}
                         </button>
                       )}
                       {!done && (todo.bookingOptions || []).length > 0 && (
@@ -778,7 +784,7 @@ const TripPlanOverview: React.FC<Props> = ({
                               className="rounded-lg border border-violet-200 bg-white px-1.5 py-0.5 text-[10px] font-black text-[#5b3df5]"
                             >
                               {option.label}
-                              {option.urlType === 'search' && <span className="font-bold text-slate-400">・搜尋</span>}
+                              {option.urlType === 'search' && <span className="font-bold text-slate-400">{t('plan.searchSuffix')}</span>}
                             </a>
                           ))}
                         </span>
@@ -803,8 +809,8 @@ const TripPlanOverview: React.FC<Props> = ({
           <div className="flex items-start gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600"><Receipt size={18} /></span>
             <div>
-              <h2 className="text-base font-black text-[#11183d]">入境規定</h2>
-              <p className="mt-0.5 text-xs text-slate-500">確認並完成以下入境相關事項，確保旅程順利。</p>
+              <h2 className="text-base font-black text-[#11183d]">{t('plan.entryRules')}</h2>
+              <p className="mt-0.5 text-xs text-slate-500">{t('plan.entryRulesBlurb')}</p>
               {/*
                 When this was looked up, and a way to look it up again.
 
@@ -815,7 +821,7 @@ const TripPlanOverview: React.FC<Props> = ({
               */}
               {entryRules.length > 0 && lookedUpOn && (
                 <p data-testid="entry-rules-age" className="mt-1 text-[11px] font-bold text-slate-400">
-                  查詢於 {lookedUpOn}
+                  {t('plan.lookedUpOn', { date: lookedUpOn })}
                   <button
                     type="button"
                     disabled={researching}
@@ -825,14 +831,14 @@ const TripPlanOverview: React.FC<Props> = ({
                       try {
                         await onResearchEntryRules();
                       } catch (error) {
-                        setResearchError(error instanceof Error ? error.message : '查詢失敗，稍後再試');
+                        setResearchError(travelRulesErrorMessage(error));
                       } finally {
                         setResearching(false);
                       }
                     }}
                     className="ml-2 font-black text-violet-600 disabled:opacity-40"
                   >
-                    {researching ? '查詢中…' : '重新查詢'}
+                    {researching ? t('plan.researching') : t('plan.researchAgain')}
                   </button>
                 </p>
               )}
@@ -841,7 +847,7 @@ const TripPlanOverview: React.FC<Props> = ({
               )}
             </div>
           </div>
-          {entryRules.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-xs font-black text-violet-600">{showAllRules ? '收合' : '查看完整規定'}<ChevronRight size={14} /></button>}
+          {entryRules.length > 0 && <button type="button" onClick={() => setShowAllRules(current => !current)} className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-xs font-black text-violet-600">{showAllRules ? t('home.collapse') : t('plan.seeFullRules')}<ChevronRight size={14} /></button>}
         </div>
         {entryRules.length === 0 ? (
           /* The lookup itself, here rather than behind a sheet somewhere else.
@@ -853,7 +859,7 @@ const TripPlanOverview: React.FC<Props> = ({
                 two interruptions for the two facts this card is about. */}
             <div className="grid grid-cols-2 gap-2">
               <label className="rounded-xl bg-white p-3 shadow-sm">
-                <span className="block text-[10px] font-black text-slate-400">目的地</span>
+                <span className="block text-[10px] font-black text-slate-400">{t('plan.destination')}</span>
                 {/* One value, and it is the country: the sub-line repeating a
                     country under a city was two answers to a question with
                     one. Typing a city still resolves to its country. */}
@@ -861,15 +867,15 @@ const TripPlanOverview: React.FC<Props> = ({
                   data-testid="entry-rules-destination"
                   value={lookupDestination}
                   onChange={event => onChangeDestination(event.target.value)}
-                  placeholder="例如：韓國"
+                  placeholder={t('plan.destinationPlaceholder')}
                   className="mt-0.5 w-full bg-transparent text-sm font-black text-[#11183d] outline-none placeholder:font-bold placeholder:text-slate-300"
                 />
                 {/* What the lookup will actually be given, rather than which
                     internal field happened to hold it. */}
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{lookupDestination ? `查詢會用「${lookupDestination}」` : '輸入國家或城市'}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{lookupDestination ? t('plan.willLookUp', { destination: lookupDestination }) : t('plan.enterCountryOrCity')}</span>
               </label>
               <label className="rounded-xl bg-white p-3 shadow-sm">
-                <span className="block text-[10px] font-black text-slate-400">護照</span>
+                <span className="block text-[10px] font-black text-slate-400">{t('plan.passport')}</span>
                 {/* Every passport the app can look up, not only the ones already
                     saved: choosing one here is how a traveller gets their
                     first, without being sent to a sheet to create it. */}
@@ -878,12 +884,12 @@ const TripPlanOverview: React.FC<Props> = ({
                   onChange={event => onSelectPassportCountry(event.target.value)}
                   className="mt-0.5 w-full bg-transparent text-sm font-black text-[#11183d] outline-none"
                 >
-                  <option value="">選擇護照</option>
+                  <option value="">{t('plan.choosePassport')}</option>
                   {PASSPORT_OPTIONS.map(option => (
                     <option key={option.countryCode} value={option.countryCode}>{option.passportLabel}</option>
                   ))}
                 </select>
-                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{hasPassport ? '查詢會用這本' : '選一本才能查詢'}</span>
+                <span className="mt-0.5 block truncate text-[11px] text-slate-400">{hasPassport ? t('plan.willUseThisPassport') : t('plan.choosePassportToLookUp')}</span>
               </label>
             </div>
             {/*
@@ -897,7 +903,7 @@ const TripPlanOverview: React.FC<Props> = ({
             */}
             {alreadyLooked && (
               <p data-testid="entry-rules-empty" className="mt-3 rounded-xl bg-white px-3 py-2.5 text-xs font-bold leading-5 text-slate-600">
-                這趟沒有查到必須事先辦理的手續。詳細說明在下方「注意事項」。
+                {t('plan.noFormalitiesFound')}
               </p>
             )}
             <button
@@ -910,7 +916,7 @@ const TripPlanOverview: React.FC<Props> = ({
                 try {
                   await onResearchEntryRules();
                 } catch (error) {
-                  setResearchError(error instanceof Error ? error.message : '查詢失敗，稍後再試');
+                  setResearchError(travelRulesErrorMessage(error));
                 } finally {
                   setResearching(false);
                 }
@@ -919,10 +925,10 @@ const TripPlanOverview: React.FC<Props> = ({
                 ? 'mt-2 flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-black text-slate-500 disabled:opacity-40'
                 : 'mt-3 flex min-h-11 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 text-sm font-black text-white disabled:opacity-40'}
             >
-              {researching ? '查詢中…' : alreadyLooked ? '重新查詢' : '查詢入境規定'}
+              {researching ? t('plan.researching') : alreadyLooked ? t('plan.researchAgain') : t('plan.lookUpEntryRules')}
             </button>
             {researchError && <p className="mt-2 text-xs font-bold text-rose-600">{researchError}</p>}
-            {!hasPassport && <p className="mt-2 text-xs text-slate-500">先在「更改」裡選擇護照，才能查這本護照的入境規定。</p>}
+            {!hasPassport && <p className="mt-2 text-xs text-slate-500">{t('plan.choosePassportFirst')}</p>}
           </div>
         ) : (
           /* Laid out across rather than down: these are a handful of named
@@ -937,7 +943,7 @@ const TripPlanOverview: React.FC<Props> = ({
               return <button type="button" key={task.id} onClick={() => setExpandedTaskId(current => current === task.id ? null : task.id)} aria-expanded={isExpanded} className={`relative w-52 shrink-0 rounded-2xl border bg-white p-3 text-left transition ${isExpanded ? 'border-violet-300 ring-2 ring-violet-100' : 'border-slate-100'}`}>
                 {/* Done is a mark added in the corner: the icon and the name say
                     which requirement this is, and both stay true afterwards. */}
-                {task.isPurchased && <span aria-label="已完成" className="absolute right-2 top-2 text-sm leading-none">✅</span>}
+                {task.isPurchased && <span aria-label={t('common.done')} className="absolute right-2 top-2 text-sm leading-none">✅</span>}
                 <div className="flex items-start gap-2.5">
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone.surface} ${tone.icon_color}`}><Icon size={18} /></span>
                   <span className="min-w-0 flex-1">
@@ -955,15 +961,15 @@ const TripPlanOverview: React.FC<Props> = ({
                         left to the traveller, two days before flying.
                       */}
                       {task.travelRuleNecessity === 'required' && (
-                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700">必要</span>
+                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-black text-rose-700">{t('plan.necessityRequired')}</span>
                       )}
                       {task.travelRuleNecessity === 'recommended' && (
-                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">建議</span>
+                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">{t('plan.necessityRecommended')}</span>
                       )}
                       {task.travelRuleNecessity === 'optional' && (
-                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-400">視情況</span>
+                        <span data-testid={`necessity-${task.id}`} className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-400">{t('plan.necessityOptional')}</span>
                       )}
-                      <span className="min-w-0 truncate">{task.timingText || '入境前'}</span>
+                      <span className="min-w-0 truncate">{task.timingText || t('plan.beforeArrival')}</span>
                     </span>
                   </span>
                 </div>
@@ -987,7 +993,7 @@ const TripPlanOverview: React.FC<Props> = ({
                       checkboxes turned that back into a chore list. */}
                   <button type="button" onClick={() => onTogglePreparationItem(ruleTask.id)} className="flex shrink-0 items-center gap-1 text-[11px] font-black text-slate-500">
                     {ruleTask.isPurchased ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Circle size={16} className="text-amber-500" />}
-                    {ruleTask.isPurchased ? '已完成' : '標記完成'}
+                    {ruleTask.isPurchased ? t('plan.completed') : t('plan.markDone')}
                   </button>
                 </div>
                 {/*
@@ -1013,7 +1019,7 @@ const TripPlanOverview: React.FC<Props> = ({
                      official page; claiming what the rule is now would be
                      inventing an answer nobody has checked. */
                   <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-4 text-amber-700">
-                    這段說明提到的期限早於你的出發日，可能已經失效。出發前請以官方網站為準。
+                    {t('plan.deadlineMayBeStale')}
                   </p>
                 )}
                 {/* The tile above already carries the timing; a boxed copy of
@@ -1030,7 +1036,7 @@ const TripPlanOverview: React.FC<Props> = ({
         /* Sits under the formalities it qualifies: these are the conditions and
            limits attached to them, not separate advice. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 flex items-center gap-2 font-black"><AlertTriangle size={18} className="text-amber-500" />注意事項</h2>
+          <h2 className="mb-3 flex items-center gap-2 font-black"><AlertTriangle size={18} className="text-amber-500" />{t('plan.cautions')}</h2>
           <div className="space-y-2.5">
             {advisoryTasks.map(task => {
               const taskLink = officialLinkFor(task, destinationCountry || destination);
@@ -1039,7 +1045,7 @@ const TripPlanOverview: React.FC<Props> = ({
                   <p className="text-sm font-black text-[#11183d]">{task.name}</p>
                   <button type="button" onClick={() => onTogglePreparationItem(task.id)} className="flex shrink-0 items-center gap-1 text-[11px] font-black text-slate-500">
                     {task.isPurchased ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Circle size={16} className="text-amber-500" />}
-                    {task.isPurchased ? '已確認' : '標記確認'}
+                    {task.isPurchased ? t('plan.confirmed') : t('plan.markConfirmed')}
                   </button>
                 </div>
                 {task.description && <p className="mt-1 text-xs leading-5 text-slate-600">{task.description}</p>}
@@ -1071,7 +1077,7 @@ const TripPlanOverview: React.FC<Props> = ({
           {/* Still here once the trip starts: 「查詢雪具租借」 is needed on
               the day you land, and hiding the list at departure loses the one
               thing on it that was never about departure. */}
-          <h2 className="mb-3 flex items-center gap-2 font-black"><CheckCircle2 size={18} className="text-violet-600" />{planOnly ? '出發前待辦' : '待辦'}</h2>
+          <h2 className="mb-3 flex items-center gap-2 font-black"><CheckCircle2 size={18} className="text-violet-600" />{planOnly ? t('plan.todoBeforeTrip') : t('plan.todo')}</h2>
           <div className="space-y-2">
             {ownTasks.map(task => {
               const links = todoLinksFor({
@@ -1082,7 +1088,7 @@ const TripPlanOverview: React.FC<Props> = ({
               return (
               <div key={task.id} className="rounded-2xl border border-slate-100 bg-white">
                 <div className="flex min-h-12 items-center gap-3 px-3 py-3">
-                  <button type="button" onClick={() => onTogglePreparationItem(task.id)} aria-label={`${task.isPurchased ? '標記未完成' : '完成'}：${task.name}`} className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-violet-200">
+                  <button type="button" onClick={() => onTogglePreparationItem(task.id)} aria-label={task.isPurchased ? t('plan.markNotDone', { name: task.name }) : t('plan.markDoneNamed', { name: task.name })} className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-violet-200">
                     {task.isPurchased ? <CheckCircle2 size={20} className="text-emerald-500" /> : <Circle size={20} className="text-amber-500" />}
                   </button>
                   <span className="min-w-0 flex-1">
@@ -1098,11 +1104,11 @@ const TripPlanOverview: React.FC<Props> = ({
                 {links && (
                   <div className="flex flex-wrap gap-2 border-t border-slate-100 px-3 py-2.5">
                     <a href={links.mapsUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-slate-50 px-2.5 text-[11px] font-black text-slate-600">
-                      <MapPinned size={12} />在地圖上查看
+                      <MapPinned size={12} />{t('plan.seeOnMap')}
                     </a>
                     {taskVenues[task.name]?.websiteUrl && (
                       <a href={taskVenues[task.name]!.websiteUrl} target="_blank" rel="noreferrer noopener" className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-emerald-50 px-2.5 text-[11px] font-black text-emerald-700">
-                        <ExternalLink size={12} />官網預約
+                        <ExternalLink size={12} />{t('plan.bookOnOfficialSite')}
                       </a>
                     )}
                     {onPublishServiceRequest && helpEligibleIds.has(task.id) && (
@@ -1112,12 +1118,12 @@ const TripPlanOverview: React.FC<Props> = ({
                          sending them separately asks three people to learn the
                          same context. */
                       <button type="button" onClick={() => toggleHelpTask(task.id)} className={`inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 text-[11px] font-black ${selectedHelpTaskIds.includes(task.id) ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700'}`}>
-                        <Handshake size={12} />{selectedHelpTaskIds.includes(task.id) ? '已加入協助任務' : '＋ 加入協助任務'}
+                        <Handshake size={12} />{selectedHelpTaskIds.includes(task.id) ? t('plan.addedToHelpTasks') : t('plan.addToHelpTasks')}
                       </button>
                     )}
                     {links.relatedPost && (
                       <button type="button" onClick={() => onOpenPost(links.relatedPost!.id)} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-violet-50 px-2.5 text-[11px] font-black text-violet-700">
-                        <Compass size={12} />旅人分享：{links.relatedPost.title.slice(0, 12)}
+                        <Compass size={12} />{t('plan.travellerShared', { title: links.relatedPost.title.slice(0, 12) })}
                       </button>
                     )}
                   </div>
@@ -1134,10 +1140,10 @@ const TripPlanOverview: React.FC<Props> = ({
            it is neither: nobody can waive it and nobody had to find it out. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
           <h2 className="mb-1 flex items-center gap-2 font-black">
-            <Plug size={18} className="text-amber-500" />電壓與插座
+            <Plug size={18} className="text-amber-500" />{t('plan.powerAndPlugs')}
           </h2>
           <p className="mb-3 text-xs leading-5 text-slate-500">
-            {lookupDestination} 的插座長這樣，出發前先看一眼帶的充電器對不對得上。
+            {t('plan.plugBlurb', { destination: lookupDestination })}
           </p>
           <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
             {/*
@@ -1151,7 +1157,7 @@ const TripPlanOverview: React.FC<Props> = ({
               {power.plugs.map(plug => (
                 <span key={plug} className="flex flex-col items-center gap-1">
                   <PlugTypeIcon type={plug} />
-                  <span className="text-[10px] font-black text-slate-500">{plug} 型</span>
+                  <span className="text-[10px] font-black text-slate-500">{t('plan.plugType', { plug })}</span>
                 </span>
               ))}
             </div>
@@ -1172,8 +1178,8 @@ const TripPlanOverview: React.FC<Props> = ({
            is what other travellers tell you, which is neither a requirement nor
            a guess. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-          <h2 className="mb-1 flex items-center gap-2 font-black"><Lightbulb size={18} className="text-amber-500" />當地實用建議</h2>
-          <p className="mb-3 text-xs leading-5 text-slate-500">{destinationCountry || destination} 的旅人通常會先準備這些。</p>
+          <h2 className="mb-1 flex items-center gap-2 font-black"><Lightbulb size={18} className="text-amber-500" />{t('plan.localTips')}</h2>
+          <p className="mb-3 text-xs leading-5 text-slate-500">{t('plan.localTipsBlurb', { destination: destinationCountry || destination })}</p>
           {/* A table: the kind in a narrow left column, the advice on the right.
               Scanning for "what do I need an app for" should not mean reading
               every card. */}
@@ -1217,8 +1223,8 @@ const TripPlanOverview: React.FC<Props> = ({
            something from, so the list can be shown before anyone asks and
            without an AI call that might be wrong about what exists. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-          <h2 className="mb-1 flex items-center gap-2 font-black"><Compass size={18} className="text-violet-600" />旅人最近推薦</h2>
-          <p className="mb-3 text-xs text-slate-500">{askedTopic ? `社群裡跟「${askedTopic.slice(0, 12)}」有關的經驗。` : `去過 ${planningDestination(destination, destinationCountry)} 的人寫下的經驗。`}</p>
+          <h2 className="mb-1 flex items-center gap-2 font-black"><Compass size={18} className="text-violet-600" />{t('plan.recentRecommendations')}</h2>
+          <p className="mb-3 text-xs text-slate-500">{askedTopic ? t('plan.communityOnTopic', { topic: askedTopic.slice(0, 12) }) : t('plan.communityOnDestination', { place: planningDestination(destination, destinationCountry) })}</p>
           <div className="space-y-2">
             {highlights.map(({ post, savers }) => (
               <button key={post.id} type="button" onClick={() => onOpenPost(post.id)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left">
@@ -1227,7 +1233,7 @@ const TripPlanOverview: React.FC<Props> = ({
                   <span className="block truncate text-sm font-black text-[#11183d]">{post.title}</span>
                   <span className="mt-0.5 block truncate text-[11px] text-slate-400">
                     {placeWhereLabel(post.country, post.city)}
-                    {savers > 0 ? `・${savers} 人收藏` : ''}
+                    {savers > 0 ? t('plan.saverCount', { count: savers }) : ''}
                   </span>
                 </span>
                 <ChevronRight size={15} className="shrink-0 text-slate-300" />
@@ -1238,8 +1244,8 @@ const TripPlanOverview: React.FC<Props> = ({
       )}
 
       <section className="rounded-3xl border border-violet-100 bg-gradient-to-br from-white to-violet-50 p-5 shadow-sm">
-        <div className="mb-1 flex items-center gap-2 font-black"><Sparkles size={18} className="text-violet-600" />AI 幫你決定要怎麼玩</div>
-        <p className="mb-3 text-xs leading-5 text-slate-500">說一句你想做的事就好，會給你兩三個不同的方案。選定之後才談要準備什麼。</p>
+        <div className="mb-1 flex items-center gap-2 font-black"><Sparkles size={18} className="text-violet-600" />{t('plan.aiDecideTitle')}</div>
+        <p className="mb-3 text-xs leading-5 text-slate-500">{t('plan.aiDecideBlurb')}</p>
 
         {/*
           What is already being sent, shown.
@@ -1254,7 +1260,7 @@ const TripPlanOverview: React.FC<Props> = ({
         */}
         {briefChips.length > 0 ? (
           <div data-testid="plan-brief-chips" className="mb-3 rounded-2xl bg-violet-50/70 px-3 py-2.5">
-            <p className="text-[11px] font-black text-violet-700">會一起告訴 AI</p>
+            <p className="text-[11px] font-black text-violet-700">{t('plan.willTellAi')}</p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {briefChips.map(chip => (
                 <span key={chip} className="rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-slate-600 ring-1 ring-violet-100">
@@ -1268,7 +1274,7 @@ const TripPlanOverview: React.FC<Props> = ({
              form existed carries nothing, and silence here looks the same as
              a brief that was carried. */
           <p data-testid="plan-brief-empty" className="mb-3 rounded-2xl bg-slate-50 px-3 py-2.5 text-[11px] leading-4 text-slate-500">
-            這趟還沒有旅行計畫表單，AI 只會看到你寫的這句話。
+            {t('plan.noBriefYet')}
           </p>
         )}
 
@@ -1283,7 +1289,7 @@ const TripPlanOverview: React.FC<Props> = ({
         */}
         {contradictions.length > 0 && (
           <div data-testid="plan-anchor-contradictions" className="mb-3 rounded-2xl bg-amber-50 px-3 py-2.5">
-            <p className="text-[11px] font-black text-amber-800">航班跟這趟旅程對不起來</p>
+            <p className="text-[11px] font-black text-amber-800">{t('plan.flightsMismatch')}</p>
             <ul className="mt-1.5 space-y-1">
               {contradictions.map(item => (
                 <li key={`${item.anchorId}-${item.kind}`} className="text-[11px] leading-4 text-amber-800">
@@ -1292,7 +1298,7 @@ const TripPlanOverview: React.FC<Props> = ({
               ))}
             </ul>
             <p className="mt-1.5 text-[11px] leading-4 text-amber-700">
-              先改成對的，AI 才會依照落地時間安排 —— 在這之前它不會看到這些航班。
+              {t('plan.flightsMismatchBlurb')}
             </p>
           </div>
         )}
@@ -1300,10 +1306,10 @@ const TripPlanOverview: React.FC<Props> = ({
         {missing.length > 0 ? (
           <div data-testid="plan-anchors-required" className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 px-4 py-4 text-center">
             <p className="text-sm font-black text-[#11183d]">
-              先補上{missing.map(item => ANCHOR_LABEL[item]).join('與')}
+              {t('plan.fillInFirst', { items: missing.map(item => t(ANCHOR_LABEL[item])).join(t('plan.and')) })}
             </p>
             <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
-              要先確定航班與住宿地點，才能依據這兩個點規劃 —— 知道幾點落地才知道第一天剩多少時間，知道住哪裡才排得出同一區的行程。
+              {t('plan.anchorsNeededBlurb')}
             </p>
 
             {/*
@@ -1321,13 +1327,13 @@ const TripPlanOverview: React.FC<Props> = ({
                 onClick={onAddAnchors}
                 className="mt-3 inline-flex min-h-11 items-center justify-center gap-1.5 text-xs font-black text-violet-700 underline underline-offset-4"
               >
-                手動填寫{missing.map(item => ANCHOR_LABEL[item]).join('與')}<ArrowRight size={14} />
+                {t('plan.fillInByHand', { items: missing.map(item => t(ANCHOR_LABEL[item])).join(t('plan.and')) })}<ArrowRight size={14} />
               </button>
             )}
           </div>
         ) : (
         <form onSubmit={handleGenerate} className="space-y-2">
-          <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder="例如：我想滑雪、想泡溫泉、想帶長輩看海.." className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
+          <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder={t('plan.askPlaceholder')} className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
 
           {/*
             The questions, with answers to tap.
@@ -1347,7 +1353,7 @@ const TripPlanOverview: React.FC<Props> = ({
           */}
           {promptQuestions.length > 0 && (
             <div data-testid="plan-prompt-questions" className="space-y-2.5 rounded-2xl bg-slate-50/80 px-3 py-3">
-              <p className="text-[11px] font-black text-slate-500">回答一下，AI 才排得準</p>
+              <p className="text-[11px] font-black text-slate-500">{t('plan.answerForAccuracy')}</p>
               {promptQuestions.map(item => (
                 <div key={item.id} data-testid={`plan-question-${item.id}`}>
                   <p className="text-[11px] font-black text-slate-700">{item.question}</p>
@@ -1375,7 +1381,7 @@ const TripPlanOverview: React.FC<Props> = ({
               ))}
             </div>
           )}
-          <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? '正在查資料、想方案…' : 'AI 幫我想方案'}<ArrowRight size={16} /></button>
+          <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? t('plan.thinkingUpPlans') : t('plan.askAiForPlans')}<ArrowRight size={16} /></button>
         </form>
         )}
 
@@ -1391,8 +1397,8 @@ const TripPlanOverview: React.FC<Props> = ({
         {missing.length === 0 && screenshotIntake}
 
         {onRequestHumanHelp && (
-          <button type="button" onClick={() => onRequestHumanHelp({ topic: prompt.trim() || '行前準備', destination: planningDestination(destination, destinationCountry) })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700">
-            <Handshake size={16} />需要真人協助
+          <button type="button" onClick={() => onRequestHumanHelp({ topic: prompt.trim() || t('plan.defaultHelpTopic'), destination: planningDestination(destination, destinationCountry) })} className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-4 text-sm font-black text-blue-700">
+            <Handshake size={16} />{t('plan.needHumanHelp')}
           </button>
         )}
         <ActivityPlanCards
@@ -1421,25 +1427,36 @@ const TripPlanOverview: React.FC<Props> = ({
           )))}
         />
         {planError && <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-3 text-xs text-slate-600">{planError}</p>}
-        {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">正在查資料並規劃方案…</p>}
+        {isGenerating && <p className="mt-3 rounded-2xl bg-white/70 px-3 py-3 text-sm text-slate-500">{t('plan.researchingPlans')}</p>}
       </section>
 
       {planOnly && <>
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 font-black"><Compass size={18} className="text-violet-600" />你儲存的旅遊靈感</h2>
-          <button onClick={onExploreInspiration} className="text-xs font-black text-violet-600">探索靈感</button>
+          <h2 className="flex items-center gap-2 font-black"><Compass size={18} className="text-violet-600" />{t('plan.savedInspiration')}</h2>
+          <button onClick={onExploreInspiration} className="text-xs font-black text-violet-600">{t('plan.exploreInspiration')}</button>
         </div>
-        <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">尚未儲存旅遊靈感。到旅人社群探索並保存喜歡的旅程。</div>
+        <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">{t('plan.noSavedInspiration')}</div>
       </section>
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 font-black">快速總覽</h2>
+        <h2 className="mb-4 font-black">{t('plan.quickOverview')}</h2>
         <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
-          {[[CalendarDays, dateRange || '未設定', '旅行日期'], [MapPinned, `${itinerary.length} 項`, '行程項目'], [Users, `${companionCount + 1} 人`, '旅行成員'], [ShoppingBag, `NT$ ${Math.round(total).toLocaleString()}`, '已記錄行前支出']].map(([Icon, value, label]) => {
+          {/*
+            Each tile carries a stable key as well as its label. The member
+            tile used to be identified by comparing the rendered label against
+            '旅行成員' — display text deciding behaviour, which stops being
+            true the moment the label is translated.
+          */}
+          {([
+            ['dates', CalendarDays, dateRange || t('plan.notSet'), t('plan.tileDates')],
+            ['items', MapPinned, t('plan.itemCount', { count: itinerary.length }), t('plan.tileItems')],
+            ['members', Users, t('plan.peopleCount', { count: companionCount + 1 }), t('plan.tileMembers')],
+            ['spend', ShoppingBag, `NT$ ${Math.round(total).toLocaleString()}`, t('plan.tileRecordedSpend')],
+          ] as const).map(([key, Icon, value, label]) => {
             // The member count opens the list. Everything else here is a figure;
             // this one is a question — who is on this trip, and are they in.
-            const opensMembers = label === '旅行成員' && Boolean(onManageMembers);
+            const opensMembers = key === 'members' && Boolean(onManageMembers);
             const body = (
               <>
                 <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-white text-violet-600">{React.createElement(Icon as React.ElementType, { size: 17 })}</div>
@@ -1448,19 +1465,19 @@ const TripPlanOverview: React.FC<Props> = ({
               </>
             );
             return opensMembers ? (
-              <button key={label as string} type="button" onClick={onManageMembers} aria-label="查看旅行成員" className="rounded-2xl bg-slate-50 p-3 text-center transition hover:bg-violet-50">
+              <button key={key} type="button" onClick={onManageMembers} aria-label={t('plan.viewMembers')} className="rounded-2xl bg-slate-50 p-3 text-center transition hover:bg-violet-50">
                 {body}
               </button>
             ) : (
-              <div key={label as string} className="rounded-2xl bg-slate-50 p-3">{body}</div>
+              <div key={key} className="rounded-2xl bg-slate-50 p-3">{body}</div>
             );
           })}
         </div>
       </section>
 
       <section className="flex items-center justify-between gap-4 rounded-3xl bg-violet-50 p-4">
-        <div><div className="font-black">即將開啟你的旅程</div><div className="mt-1 text-xs text-slate-500">出發後可切換到即時旅行首頁。</div></div>
-        <button onClick={onEnterTripMode} className="flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-sm font-black text-white shadow-lg shadow-violet-500/20">進入旅行模式<ArrowRight size={17} /></button>
+        <div><div className="font-black">{t('plan.tripStartingSoon')}</div><div className="mt-1 text-xs text-slate-500">{t('plan.tripStartingSoonBlurb')}</div></div>
+        <button onClick={onEnterTripMode} className="flex min-h-12 shrink-0 items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-5 text-sm font-black text-white shadow-lg shadow-violet-500/20">{t('plan.enterTripMode')}<ArrowRight size={17} /></button>
       </section>
       </>}
 
@@ -1477,9 +1494,9 @@ const TripPlanOverview: React.FC<Props> = ({
         <div className="fixed bottom-24 left-1/2 z-40 w-[calc(100%-2rem)] -translate-x-1/2 md:max-w-xl">
           <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#11183d] px-4 py-3 shadow-xl">
             <div className="min-w-0">
-              <div className="text-xs font-black text-white">已選 {selectedHelpTaskIds.length} 項</div>
+              <div className="text-xs font-black text-white">{t('plan.selectedCount', { count: selectedHelpTaskIds.length })}</div>
               <button type="button" onClick={() => setSelectedHelpTaskIds([])} className="text-[11px] font-bold text-slate-300">
-                清除
+                {t('plan.clear')}
               </button>
             </div>
             <button
@@ -1487,7 +1504,7 @@ const TripPlanOverview: React.FC<Props> = ({
               onClick={() => setIsPublishingHelp(true)}
               className="shrink-0 rounded-xl bg-blue-500 px-4 py-2.5 text-xs font-black text-white"
             >
-              整理成協助需求
+              {t('plan.buildHelpRequest')}
             </button>
           </div>
         </div>

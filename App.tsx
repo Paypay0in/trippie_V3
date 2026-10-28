@@ -67,7 +67,7 @@ import {
   phaseForDate,
   returnLandingDate,
 } from "./services/tripPhaseByDate";
-import { findDuplicateRefund } from "./services/refundSettlement";
+import { findDuplicateRefund, REFUND_DESCRIPTION } from "./services/refundSettlement";
 import { settlementExpensesFor } from "./services/settlementScope";
 import {
   loadDismissedDuplicates,
@@ -273,6 +273,7 @@ import {
 } from "./services/deletedTrips";
 import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
+import ExploreBottomNav from "./components/ExploreBottomNav";
 import Marketplace from "./components/Marketplace";
 import { HelpRequest } from "./services/serviceMatching";
 import { spendingProfile, spendingProfileBrief } from "./services/spendingProfile";
@@ -324,13 +325,10 @@ import {
   Users,
   Globe,
   ArrowLeft,
-  Book,
   Pencil,
   CalendarDays,
   Info,
-  Users2,
   ShoppingBag,
-  Map as MapIcon,
   Award,
   Sparkles,
   Receipt,
@@ -343,6 +341,10 @@ import CreateEditTripScreen, {
   TripSetupValues,
 } from "./components/CreateEditTripScreen";
 import { planTripDeletion } from "./services/tripDeletion";
+import {
+  buildArchivedTrip,
+  readStoredTravelBook,
+} from "./services/archiveTrip";
 import {
   dedupeFlightAnchors,
   readDraftStore,
@@ -1246,7 +1248,6 @@ const App: React.FC = () => {
     },
   ]);
 
-  const unreadInboxCount = inboxMessages.filter((m) => m.unread).length;
 
   // Form Prefill State
   const [initialFormCategory, setInitialFormCategory] = useState<
@@ -1942,8 +1943,7 @@ const App: React.FC = () => {
         typeof trip.travelCountry === "string" ? trip.travelCountry : undefined,
       comparisonCountryCode:
         typeof trip.comparisonCountryCode === "string" ? trip.comparisonCountryCode : undefined,
-      travelBook:
-        trip.travelBook?.tripId === trip.id ? trip.travelBook : undefined,
+      travelBook: readStoredTravelBook(trip),
       taxRule: trip.taxRule || undefined, // Ensure legacy data works
       visaInfo: trip.visaInfo || undefined, // New field support
     }));
@@ -5314,7 +5314,7 @@ const App: React.FC = () => {
     const refundedOn = localToday();
     handleSaveExpense({
       date: refundedOn,
-      description: "退稅入帳 (Tax Refund)",
+      description: REFUND_DESCRIPTION,
       amount: -amount,
       currency,
       exchangeRate: rate,
@@ -5634,28 +5634,36 @@ const App: React.FC = () => {
         activeDraftId || currentLoadedTripId || generateId();
       const sourceDraft = drafts.find((draft) => draft.id === archivedTripId);
       const archivedAt = new Date().toISOString();
-      const newTrip: Trip = {
+      const newTrip: Trip = buildArchivedTrip({
         id: archivedTripId,
         ownerId: userId,
         name,
-        destination: tripDestination || undefined,
+        totalCost,
         startDate: start,
         endDate: end,
-        expenses: [...expenses],
-        companions: [...companions],
-        shoppingList: [...shoppingList],
-        itinerary: itinerary.length > 0 ? [...itinerary] : undefined,
-        travelCountry: travelCountry || undefined,
-        travelBook:
-          travelBook?.tripId === archivedTripId ? travelBook : undefined,
-        createdAt: sourceDraft?.createdAt,
-        updatedAt: archivedAt,
-        totalCost,
         archivedAt,
-        taxRule: taxRule || undefined,
-        visaInfo: visaInfo || undefined,
+        destination: tripDestination,
+        travelCountry,
+        expenses,
+        companions,
+        shoppingList,
+        itinerary,
+        savedInspirations,
+        flightAnchors,
+        flightMode,
+        settlementBatches,
+        planBrief,
+        carRentals,
+        selectedPassportId,
+        comparisonCountryCode,
+        currency: tripCurrency,
+        budget: tripBudget,
+        travelBook,
+        taxRule,
+        visaInfo,
         travelRules,
-      };
+        sourceDraft,
+      });
 
       setTripHistory((prev) => [
         newTrip,
@@ -5704,8 +5712,7 @@ const App: React.FC = () => {
     setCompanions(trip.companions || []);
     setShoppingList(trip.shoppingList || []);
     setItinerary(Array.isArray(trip.itinerary) ? trip.itinerary : []);
-    const persistedTravelBook =
-      trip.travelBook?.tripId === trip.id ? trip.travelBook : null;
+    const persistedTravelBook = readStoredTravelBook(trip) ?? null;
     setTravelBook(persistedTravelBook);
     setIsTravelBookOpen(Boolean(persistedTravelBook));
     setCurrentLoadedTripId(trip.id);
@@ -8511,48 +8518,7 @@ const App: React.FC = () => {
             onView={(t) => showToast(`查看 ${t.name}`)}
           />
         </main>
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
-          <button
-            onClick={() => setViewMode("bookshelf")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "bookshelf" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Book size={20} />
-            <span className="text-[10px] font-bold">書架</span>
-          </button>
-          <button
-            onClick={() => setViewMode("community")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "community" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Users2 size={20} />
-            <span className="text-[10px] font-bold">社群</span>
-          </button>
-          <button
-            onClick={() => setViewMode("map")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "map" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <MapIcon size={20} />
-            <span className="text-[10px] font-bold">地圖</span>
-          </button>
-          <button
-            onClick={() => setViewMode("marketplace")}
-            className={`flex flex-col items-center gap-1 relative ${viewMode === "marketplace" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <ShoppingBag size={20} />
-            <span className="text-[10px] font-bold">服務</span>
-            {unreadInboxCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
-                {unreadInboxCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setViewMode("points")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "points" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Award size={20} />
-            <span className="text-[10px] font-bold">積分</span>
-          </button>
-        </div>
+        <ExploreBottomNav active="community" onChange={setViewMode} />
       </div>
     );
   }
@@ -8592,48 +8558,7 @@ const App: React.FC = () => {
             }}
           />
         </main>
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
-          <button
-            onClick={() => setViewMode("bookshelf")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "bookshelf" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Book size={20} />
-            <span className="text-[10px] font-bold">書架</span>
-          </button>
-          <button
-            onClick={() => setViewMode("community")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "community" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Users2 size={20} />
-            <span className="text-[10px] font-bold">社群</span>
-          </button>
-          <button
-            onClick={() => setViewMode("map")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "map" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <MapIcon size={20} />
-            <span className="text-[10px] font-bold">地圖</span>
-          </button>
-          <button
-            onClick={() => setViewMode("marketplace")}
-            className={`flex flex-col items-center gap-1 relative ${viewMode === "marketplace" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <ShoppingBag size={20} />
-            <span className="text-[10px] font-bold">服務</span>
-            {unreadInboxCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
-                {unreadInboxCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setViewMode("points")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "points" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Award size={20} />
-            <span className="text-[10px] font-bold">積分</span>
-          </button>
-        </div>
+        <ExploreBottomNav active="marketplace" onChange={setViewMode} />
       </div>
     );
   }
@@ -8656,48 +8581,7 @@ const App: React.FC = () => {
         <main className="flex-1 p-4 overflow-y-auto">
           <PointsDashboard profile={userProfile} />
         </main>
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
-          <button
-            onClick={() => setViewMode("bookshelf")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "bookshelf" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Book size={20} />
-            <span className="text-[10px] font-bold">書架</span>
-          </button>
-          <button
-            onClick={() => setViewMode("community")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "community" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Users2 size={20} />
-            <span className="text-[10px] font-bold">社群</span>
-          </button>
-          <button
-            onClick={() => setViewMode("map")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "map" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <MapIcon size={20} />
-            <span className="text-[10px] font-bold">地圖</span>
-          </button>
-          <button
-            onClick={() => setViewMode("marketplace")}
-            className={`flex flex-col items-center gap-1 relative ${viewMode === "marketplace" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <ShoppingBag size={20} />
-            <span className="text-[10px] font-bold">服務</span>
-            {unreadInboxCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
-                {unreadInboxCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setViewMode("points")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "points" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Award size={20} />
-            <span className="text-[10px] font-bold">積分</span>
-          </button>
-        </div>
+        <ExploreBottomNav active="points" onChange={setViewMode} />
       </div>
     );
   }
@@ -8723,48 +8607,7 @@ const App: React.FC = () => {
             onSelectTrip={(t) => showToast(`查看 ${t.name}`)}
           />
         </main>
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-between items-center z-50">
-          <button
-            onClick={() => setViewMode("bookshelf")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "bookshelf" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Book size={20} />
-            <span className="text-[10px] font-bold">書架</span>
-          </button>
-          <button
-            onClick={() => setViewMode("community")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "community" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Users2 size={20} />
-            <span className="text-[10px] font-bold">社群</span>
-          </button>
-          <button
-            onClick={() => setViewMode("map")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "map" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <MapIcon size={20} />
-            <span className="text-[10px] font-bold">地圖</span>
-          </button>
-          <button
-            onClick={() => setViewMode("marketplace")}
-            className={`flex flex-col items-center gap-1 relative ${viewMode === "marketplace" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <ShoppingBag size={20} />
-            <span className="text-[10px] font-bold">服務</span>
-            {unreadInboxCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border-2 border-white">
-                {unreadInboxCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setViewMode("points")}
-            className={`flex flex-col items-center gap-1 ${viewMode === "points" ? "text-brand-600" : "text-gray-400"}`}
-          >
-            <Award size={20} />
-            <span className="text-[10px] font-bold">積分</span>
-          </button>
-        </div>
+        <ExploreBottomNav active="map" onChange={setViewMode} />
       </div>
     );
   }
@@ -9511,8 +9354,6 @@ const App: React.FC = () => {
             <ExpenseForm
               currentPhase={expenseFormPhase || currentPhase}
               customCategories={customCategories}
-          refundableCustomCategories={refundableCustomCategories}
-          onDecideCustomCategory={decideCustomCategoryRefundable}
               refundableCustomCategories={refundableCustomCategories}
               onDecideCustomCategory={decideCustomCategoryRefundable}
               onAddCustomCategory={handleAddCustomCategory}

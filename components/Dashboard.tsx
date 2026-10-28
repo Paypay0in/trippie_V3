@@ -1,9 +1,11 @@
 
 import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { Expense, Category, PaymentMethod, Phase, Companion, TripMember, SettlementBatch, TaxRule, VisaInfo, TravelRules } from '../types';
 import { PHASES, COMMON_CURRENCIES } from '../constants';
+import { REFUND_DESCRIPTION } from '../services/refundSettlement';
 import { Wallet, TrendingDown, Coins, PlusCircle, Users, Tag, ChevronDown, ChevronUp, CreditCard, Banknote, ArrowRight, ArrowDownLeft, History, X, ArrowUpRight, Receipt, CheckCircle, HandHelping, AlertCircle, Ban } from 'lucide-react';
 import TravelAdvisoryWidget from './TravelAdvisoryWidget';
 import { deriveDuringRefundState } from '../services/duringRefundState';
@@ -68,6 +70,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
   onToggleRefundedAtPurchase,
   onToggleRefundIneligible,
   onRecordActualRefund, onOpenSettlement, viewerMemberId, settlementOnly, refundableCustomCategories = {} }) => {
+  const { t } = useTranslation();
   const [isRefundListExpanded, setIsRefundListExpanded] = useState(false);
   
   // Wallet History State
@@ -107,7 +110,10 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
 
   const { stats, wallet, debts, taxRefundData, creditCardStats, hasRefundRecord, phaseSpecificStats, helpBuyTotal, helpBuyPotentialRefund } = useMemo(() => {
     // 0. Pre-check for Refund Record
-    const hasRefund = expenses.some(e => e.description === '退稅入帳 (Tax Refund)' && e.phase === 'post');
+    // REFUND_DESCRIPTION, not the literal: this string is stored ledger data and
+    // re-spelling it here is how a translation pass would quietly stop a refund
+    // from being recognised.
+    const hasRefund = expenses.some(e => e.description === REFUND_DESCRIPTION && e.phase === 'post');
 
     // Global Stats (for Trip Total)
     const s = {
@@ -322,13 +328,13 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-purple-100">
                <div className="flex items-center gap-2 mb-2 border-b border-gray-100 pb-2">
                    <HandHelping size={18} className="text-purple-600" />
-                   <h3 className="font-bold text-sm text-gray-700">朋友代買 (應收款)</h3>
+                   <h3 className="font-bold text-sm text-gray-700">{t("ledger.helpBuyReceivable")}</h3>
                </div>
                <div className="flex justify-between items-end">
                    <div className="text-xs text-gray-500">
                       {hasRefundRecord 
-                          ? '已墊付總額 (已扣除退稅)'
-                          : '已墊付總額 (尚未扣除退稅)'
+                          ? t("ledger.advancedTotalAfterRefund")
+                          : t("ledger.advancedTotalBeforeRefund")
                       }
                    </div>
                    <div className="text-xl font-black text-purple-600">
@@ -341,7 +347,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                    <div className="mt-2 bg-amber-50 border border-amber-100 p-2 rounded text-[10px] text-amber-700 flex items-start gap-1">
                        <AlertCircle size={12} className="shrink-0 mt-0.5" />
                        <span>
-                          若成功辦理退稅，應收款將自動扣除約 
+                          {t("ledger.refundWillBeDeducted")}
                           <span className="font-bold"> NT$ {Math.round(helpBuyPotentialRefund).toLocaleString()}</span>
                        </span>
                    </div>
@@ -430,7 +436,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                         <Ban size={24} />
                     </div>
                     <div className="text-gray-500 text-sm font-bold">
-                        此國家除了免稅機場消費外，國內消費皆不退稅。
+                        {t("ledger.noDomesticRefund")}
                     </div>
                 </div>
             ) : (
@@ -444,7 +450,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                         <div className={`flex items-center gap-2 ${hasRefundRecord ? 'text-emerald-800' : 'text-amber-800'}`}>
                             {hasRefundRecord ? <CheckCircle size={18} /> : <Tag size={18} />}
                             <h3 className="font-bold text-sm tracking-wide">
-                                {hasRefundRecord ? '退稅已入帳' : '預估退稅總額'}
+                                {hasRefundRecord ? t("ledger.refundRecorded") : t("ledger.refundEstimated")}
                             </h3>
                         </div>
                         <div className="text-right">
@@ -459,7 +465,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                     
                     {!hasRefundRecord && (
                       <div className="text-xs text-amber-700/70 mb-3 flex items-center gap-1">
-                          符合 {taxRule.country} 退稅資格 (滿 {taxRule.minSpend.toLocaleString()} {taxRule.currency}) 共 {taxRefundData.items.length} 筆
+                          {t("ledger.refundEligibility", { country: taxRule.country, minSpend: taxRule.minSpend.toLocaleString(), currency: taxRule.currency, count: taxRefundData.items.length })}
                       </div>
                     )}
 
@@ -467,14 +473,14 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                     {currentPhase === 'post' && (
                         hasRefundRecord ? (
                           <div className="w-full bg-emerald-100 text-emerald-700 py-2 rounded-lg font-bold text-sm mb-0 border border-emerald-200 flex items-center justify-center gap-2 select-none shadow-sm">
-                              <CheckCircle size={16} /> 完全退稅 (已入帳)
+                              <CheckCircle size={16} /> {t("ledger.fullyRefunded")}
                           </div>
                         ) : (
                           <button 
                               onClick={onSettleRefund}
                               className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg font-bold text-sm mb-3 shadow-sm transition-colors flex items-center justify-center gap-2"
                           >
-                              <Coins size={16} /> 辦理退稅入帳 (抵銷旅費)
+                              <Coins size={16} /> {t("ledger.recordRefundAction")}
                           </button>
                         )
                     )}
@@ -488,7 +494,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                                       onClick={() => setIsRefundListExpanded(!isRefundListExpanded)}
                                       className="w-full px-4 py-2 flex items-center justify-between text-xs font-bold text-amber-800 hover:bg-amber-100/50 transition-colors"
                                   >
-                                      <span>查看退稅清單與明細</span>
+                                      <span>{t("ledger.viewRefundList")}</span>
                                       {isRefundListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                   </button>
                                   
@@ -501,7 +507,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                                                       <div className="flex-1 min-w-0 pr-2">
                                                           <div className="truncate text-gray-700 font-medium">{item.description}</div>
                                                           <div className="text-[10px] text-gray-400">
-                                                              消費 {item.amount.toLocaleString()} {item.currency}
+                                                              {t("ledger.spentAmount", { amount: item.amount.toLocaleString(), currency: item.currency })}
                                                           </div>
                                                       </div>
                                                       <div className="text-right whitespace-nowrap">
@@ -520,7 +526,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                               </>
                           ) : (
                               <div className="p-3 text-xs text-amber-700/60 text-center font-medium">
-                                  尚未有單筆超過 {taxRule.minSpend.toLocaleString()} {taxRule.currency} 的紀錄
+                                  {t("ledger.noQualifyingPurchase", { minSpend: taxRule.minSpend.toLocaleString(), currency: taxRule.currency })}
                               </div>
                           )}
                       </div>
@@ -535,13 +541,13 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
               <div className="flex items-center justify-between mb-4 border-b border-gray-700 pb-2">
                   <div className="flex items-center gap-2">
                       <Wallet size={18} className="text-emerald-400" />
-                      <h3 className="font-bold text-sm tracking-wide">外幣現金錢包</h3>
+                      <h3 className="font-bold text-sm tracking-wide">{t("ledger.foreignCashWallet")}</h3>
                   </div>
                   <button 
                       onClick={onAddCash}
                       className="flex items-center gap-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded transition-colors"
                   >
-                      <PlusCircle size={14} /> 新增/持有外幣
+                      <PlusCircle size={14} /> {t("ledger.addForeignCash")}
                   </button>
               </div>
               
@@ -554,7 +560,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                               <button 
                                   onClick={() => setViewingWalletCurrency(curr)}
                                   className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                                  title="查看明細"
+                                  title={t("ledger.viewDetails")}
                               >
                                   <History size={16} />
                               </button>
@@ -563,11 +569,11 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                                   <div className="flex items-center gap-2">
                                       <span className="font-bold text-lg">{curr}</span>
                                       <span className="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">
-                                          均價: {info.avgRate.toFixed(3)}
+                                          {t("ledger.averageRate", { rate: info.avgRate.toFixed(3) })}
                                       </span>
                                   </div>
                                   <div className="text-right">
-                                      <div className="text-xs text-gray-400">剩餘現金</div>
+                                      <div className="text-xs text-gray-400">{t("ledger.cashRemaining")}</div>
                                       <div className={`font-mono font-bold text-xl ${remaining < 0 ? 'text-red-400' : 'text-emerald-300'}`}>
                                           {remaining.toLocaleString()}
                                       </div>
@@ -575,14 +581,14 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                               </div>
                               <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
                                   <div className="flex items-center gap-1">
-                                      <Coins size={12} /> 換匯: {info.in.toLocaleString()}
+                                      <Coins size={12} /> {t("ledger.exchangedIn", { amount: info.in.toLocaleString() })}
                                   </div>
                                   <div className="flex items-center gap-1">
-                                      <TrendingDown size={12} /> 已用: {info.out.toLocaleString()}
+                                      <TrendingDown size={12} /> {t("ledger.cashSpent", { amount: info.out.toLocaleString() })}
                                   </div>
                                   {info.refundIn > 0 && (
                                       <div className="flex items-center gap-1 text-emerald-400 col-span-2 border-t border-white/10 pt-1 mt-1">
-                                          <ArrowDownLeft size={12} /> 退稅加入: {info.refundIn.toLocaleString()}
+                                          <ArrowDownLeft size={12} /> {t("ledger.refundAdded", { amount: info.refundIn.toLocaleString() })}
                                       </div>
                                   )}
                               </div>
@@ -597,13 +603,13 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
         {!settlementOnly && <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5 text-white shadow-lg">
             <div className="flex items-center gap-2 mb-4 border-b border-blue-500/30 pb-2">
                 <CreditCard size={18} className="text-blue-200" />
-                <h3 className="font-bold text-sm tracking-wide">信用卡累積消費</h3>
+                <h3 className="font-bold text-sm tracking-wide">{t("ledger.creditCardTotal")}</h3>
             </div>
             
             {hasCreditCardUsage ? (
                 <>
                   <div className="flex justify-between items-end mb-4">
-                      <div className="text-xs text-blue-200 mb-1">預估帳單總額 (TWD)</div>
+                      <div className="text-xs text-blue-200 mb-1">{t("ledger.estimatedStatement")}</div>
                       <div className="text-3xl font-black text-white">
                           NT$ {Math.round(creditCardStats.totalTWD).toLocaleString()}
                       </div>
@@ -612,7 +618,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                   {Object.keys(creditCardStats.byCurrency).length > 0 && (
                       <div className="bg-black/10 rounded-xl p-3 border border-white/5">
                           <div className="text-[10px] text-blue-200 uppercase tracking-wider mb-2 font-bold flex items-center gap-1">
-                              <Receipt size={10} /> 外幣刷卡明細 (參考用)
+                              <Receipt size={10} /> {t("ledger.foreignCardDetail")}
                           </div>
                           <div className="grid grid-cols-2 gap-y-2 gap-x-4">
                               {Object.entries(creditCardStats.byCurrency).map(([curr, amount]) => (
@@ -627,8 +633,8 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                 </>
             ) : (
               <div className="text-center py-4 text-blue-200/60 text-xs">
-                  <p>尚無信用卡消費紀錄</p>
-                  <p>記帳時選擇「信用卡」即可在此累計</p>
+                  <p>{t("ledger.noCardRecords")}</p>
+                  <p>{t("ledger.noCardRecordsHint")}</p>
               </div>
             )}
         </div>}
@@ -638,22 +644,33 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
             <div className="bg-white rounded-2xl p-5 shadow-sm border border-indigo-100 md:col-span-2 lg:col-span-1">
               <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-2">
                   <Users size={18} className="text-indigo-600" />
-                  <h3 className="font-bold text-sm text-gray-700">分帳結算 (相對於我)</h3>
-                  {onOpenSettlement && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenSettlement(); }} className="ml-auto cursor-pointer rounded-lg px-2 py-1 text-xs font-bold text-violet-700 hover:bg-violet-50">查看結算</button>}
+                  <h3 className="font-bold text-sm text-gray-700">{t("ledger.settlementRelativeToMe")}</h3>
+                  {onOpenSettlement && <button type="button" onClick={(event) => { event.stopPropagation(); onOpenSettlement(); }} className="ml-auto cursor-pointer rounded-lg px-2 py-1 text-xs font-bold text-violet-700 hover:bg-violet-50">{t("ledger.viewSettlement")}</button>}
               </div>
               {settlementRows.length > 0 ? (
                   <div className="space-y-3">
                       {settlementRows.map(({ member, amount }) => {
                           const id = member.id;
-                          const name = member.name || companions.find(c => c.id === id)?.name || '未知';
+                          const name = member.name || companions.find(c => c.id === id)?.name || t("ledger.unknownMember");
                           return (
                               // The name sits inside the phrase, not beside it:
                               // "陳陳 · 應收" reads as if 陳陳 is the one collecting.
                               <div key={id} className="flex justify-between items-center gap-3 bg-gray-50 p-3 rounded-lg">
                                   <span className="min-w-0 flex-1 truncate font-medium text-gray-800">
-                                      {amount < 0 ? '應向 ' : '應付給 '}
-                                      <span className="font-black">{name}</span>
-                                      {amount < 0 ? ' 收取' : ''}
+                                      {/*
+                                        One phrase per language, not a prefix
+                                        and a suffix glued around the name.
+                                        Chinese wraps the name (應向⋯收取) and
+                                        English does not, so splitting it into
+                                        fragments forces one language to carry
+                                        an empty string and reads wrong in the
+                                        other.
+                                      */}
+                                      <Trans
+                                        i18nKey={amount < 0 ? 'ledger.collectFrom' : 'ledger.payTo'}
+                                        values={{ name }}
+                                        components={{ strong: <span className="font-black" /> }}
+                                      />
                                   </span>
                                   {amount < 0 ? (
                                       <span className="shrink-0 whitespace-nowrap text-green-600 font-bold text-sm">NT$ {Math.abs(Math.round(amount)).toLocaleString()}</span>
@@ -665,7 +682,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                       })}
                   </div>
               ) : (
-                  <div className="text-center text-xs text-gray-400 py-2">目前沒有需要結算的款項</div>
+                  <div className="text-center text-xs text-gray-400 py-2">{t("ledger.nothingToSettle")}</div>
               )}
             </div>
         )}
@@ -681,17 +698,17 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                 {/* 'summary' shows the whole ledger, so it must not borrow the
                     返程 wording: the figure was the trip's total sitting under
                     a heading that said it counted airport spending only. */}
-                {currentPhase === 'pre' ? '旅行前支出總計' : currentPhase === 'during' ? '旅行中支出總計' : currentPhase === 'summary' ? '旅程支出總計' : '回國機場消費總計'}
+                {t(`ledger.totalTitle.${currentPhase === 'pre' ? 'pre' : currentPhase === 'during' ? 'during' : currentPhase === 'summary' ? 'summary' : 'post'}`)}
             </h2>
             <div className="text-xs text-gray-400 mt-0.5">
-                {currentPhase === 'pre' ? '(僅計算行前準備費用)' : currentPhase === 'during' ? '(僅計算旅途當下消費)' : currentPhase === 'summary' ? '(涵蓋整趟旅程)' : '(僅計算回國機場消費)'}
+                {t(`ledger.totalScope.${currentPhase === 'pre' ? 'pre' : currentPhase === 'during' ? 'during' : currentPhase === 'summary' ? 'summary' : 'post'}`)}
             </div>
             <div className="text-4xl font-black text-brand-900 mt-1">
                 NT$ {Math.round(displayTotal).toLocaleString()}
             </div>
             </div>
             <button onClick={onExport} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1 rounded-md">
-                匯出 CSV
+                {t("ledger.exportCsv")}
             </button>
         </div>
 
@@ -699,7 +716,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
             {/* Phase Chart - Hide if Pre/During/Post trip view */}
             {!isPhaseSpecificView && (
                 <div className="h-48 relative">
-                    <h3 className="text-xs font-bold text-gray-400 absolute top-0 left-0">階段分佈</h3>
+                    <h3 className="text-xs font-bold text-gray-400 absolute top-0 left-0">{t("ledger.phaseBreakdown")}</h3>
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={phaseData} layout="vertical" margin={{ top: 20, right: 30, left: 40, bottom: 5 }}>
                         <XAxis type="number" hide />
@@ -718,7 +735,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
             {/* Category Chart */}
             <div className="h-48 relative">
             <h3 className="text-xs font-bold text-gray-400 absolute top-0 left-0">
-                {currentPhase === 'pre' ? '行前花費類別' : currentPhase === 'during' ? '旅途花費類別' : '機場消費類別'}
+                {t(`ledger.categoryTitle.${currentPhase === 'pre' ? 'pre' : currentPhase === 'during' ? 'during' : 'post'}`)}
             </h3>
             {categoryData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -740,7 +757,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                 </PieChart>
                 </ResponsiveContainer>
             ) : (
-                <div className="flex items-center justify-center h-full text-gray-300 text-sm">尚無資料</div>
+                <div className="flex items-center justify-center h-full text-gray-300 text-sm">{t("ledger.noData")}</div>
             )}
             </div>
         </div>
@@ -751,15 +768,15 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
         <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.modal} animate-fade-in`}>
              <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl p-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
-                    <Coins className="text-amber-500" /> 辦理退稅入帳
+                    <Coins className="text-amber-500" /> {t("ledger.recordRefundTitle")}
                 </h3>
                 <p className="text-xs text-gray-500 mb-4">
-                    系統將新增一筆「負向支出」，用以抵銷您的旅費總額。
+                    {t("ledger.recordRefundBlurb")}
                 </p>
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1">實際收到退稅金額 ({taxRule.currency})</label>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">{t("ledger.refundReceivedAmount", { currency: taxRule.currency })}</label>
                         <input 
                             type="number" 
                             autoFocus
@@ -770,7 +787,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-2">退款方式</label>
+                        <label className="block text-xs font-bold text-gray-700 mb-2">{t("ledger.refundMethod")}</label>
                         <div className="grid grid-cols-2 gap-2">
                             <button
                                 type="button"
@@ -778,7 +795,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                                 className="p-3 rounded-xl border flex flex-col items-center gap-1 transition-all"
                             >
                                 <CreditCard size={24} />
-                                <span className="text-xs font-bold">退到信用卡</span>
+                                <span className="text-xs font-bold">{t("ledger.refundToCard")}</span>
                             </button>
                             <button
                                 type="button"
@@ -786,7 +803,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                                 className="p-3 rounded-xl border flex flex-col items-center gap-1 transition-all"
                             >
                                 <Banknote size={24} />
-                                <span className="text-xs font-bold">領取外幣現金</span>
+                                <span className="text-xs font-bold">{t("ledger.refundAsCash")}</span>
                             </button>
                         </div>
                     </div>
@@ -796,14 +813,14 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                             onClick={() => undefined}
                             className="flex-1 py-3 text-gray-500 font-bold bg-gray-100 rounded-xl hover:bg-gray-200"
                         >
-                            取消
+                            {t("common.cancel")}
                         </button>
                         <button 
                             onClick={() => undefined}
                             disabled
                             className="flex-1 py-3 text-white font-bold bg-amber-500 rounded-xl hover:bg-amber-600 shadow-lg shadow-amber-200 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
                         >
-                             確認入帳 <ArrowRight size={16} />
+                             {t("ledger.confirmRefund")} <ArrowRight size={16} />
                         </button>
                     </div>
                 </div>
@@ -817,7 +834,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
               <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
                   <div className="p-4 border-b bg-emerald-600 text-white flex justify-between items-center shrink-0">
                       <h2 className="font-bold flex items-center gap-2">
-                          <History size={20} /> {viewingWalletCurrency} 錢包明細
+                          <History size={20} /> {t("ledger.walletDetail", { currency: viewingWalletCurrency })}
                       </h2>
                       <button onClick={() => setViewingWalletCurrency(null)} className="p-1 hover:bg-white/20 rounded-full">
                           <X size={20} />
@@ -858,7 +875,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                           </div>
                       ) : (
                           <div className="text-center py-10 text-gray-400">
-                              <p>尚無現金流動紀錄</p>
+                              <p>{t("ledger.noCashFlow")}</p>
                           </div>
                       )}
                   </div>

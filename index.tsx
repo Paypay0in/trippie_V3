@@ -6,13 +6,35 @@ import StaleBuildBanner from './components/StaleBuildBanner';
 import { overflowProbeRequested, startOverflowProbe } from './services/overflowProbe';
 import { foldProbeRequested, startFoldProbe } from './services/foldProbe';
 import './index.css';
-import { initI18n, languageFromUrl } from './i18n/config';
+import { FOLLOW_DEVICE_LANGUAGE, initI18n } from './i18n/config';
+import { resolveStartingLanguage } from './services/languagePreference';
 
 // Before the first render: a screen that paints in one language and swaps to
 // another a tick later is worse than a slightly later first paint.
-// `?lang=` overrides the device so a screen can be reviewed in another
-// language without changing the whole browser's settings.
-initI18n({ language: languageFromUrl() });
+//
+// Three sources, resolved in one place: the `?lang=` preview, the setting
+// under 「我」, then the phone. `resolveStartingLanguage` owns that order so
+// startup and the setting screen cannot disagree about which one wins.
+initI18n({
+  language: resolveStartingLanguage({
+    preview: new URLSearchParams(window.location.search).get('lang'),
+    /*
+      The phone is consulted only once the translation is finished.
+
+      Both instructions are real: 「介面的語言隨著手機語言調整」 and
+      「不要造成中英混雜」. While most screens are still hardcoded Chinese,
+      honouring an English phone would produce an English shell over a Chinese
+      app — the second instruction broken in order to keep the first. So the
+      device is held behind the same flag that gates the end of this migration,
+      while an explicit choice in 設定 and the `?lang=` preview are honoured
+      immediately: those are somebody asking for it, not a guess.
+    */
+    device:
+      !FOLLOW_DEVICE_LANGUAGE || typeof navigator === 'undefined'
+        ? undefined
+        : navigator.language || navigator.languages?.[0],
+  }),
+});
 
 // Polyfill process for libraries that might expect it in the browser
 if (typeof window !== 'undefined' && !window.process) {

@@ -65,7 +65,11 @@ describe('the planner asks for the right place', () => {
 
   /** A helper in Okinawa, not 「somebody in Japan」. */
   it('asks for human help where the traveller actually is', () => {
-    expect(CARD).toContain("topic: prompt.trim() || '行前準備', destination: planningDestination");
+    // The default topic moved into the locale bundles; the point of this test
+    // is the destination it is asked with, not the wording of the topic.
+    expect(CARD).toContain(
+      "topic: prompt.trim() || t('plan.defaultHelpTopic'), destination: planningDestination",
+    );
   });
 
   it('leaves the country questions asking about the country', () => {

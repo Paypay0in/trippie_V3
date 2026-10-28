@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n/config";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
@@ -128,6 +130,7 @@ const SettlementFlow: React.FC<Props> = ({
   tripDateRange,
   tripCoverImage,
 }) => {
+  const { t } = useTranslation();
   const [screen, setScreen] = useState<"overview" | "create" | "confirm" | "member" | "minimum">(
     "overview",
   );
@@ -247,7 +250,7 @@ const SettlementFlow: React.FC<Props> = ({
   });
 
   const viewerName =
-    members.find((member) => member.id === viewerId)?.name || "我";
+    members.find((member) => member.id === viewerId)?.name || t("expense.me");
   /*
     What each side of the trip comes to, before they cancel out.
 
@@ -345,7 +348,7 @@ const SettlementFlow: React.FC<Props> = ({
         <small className="block text-gray-400">
           {expense.date} ·{" "}
           {expense.splitMethod === "EQUAL"
-            ? `${expense.beneficiaries.length} 人平均`
+            ? t("settle.splitEvenlyAmong", { count: expense.beneficiaries.length })
             : expense.splitMethod}
         </small>
       </span>
@@ -434,10 +437,10 @@ const SettlementFlow: React.FC<Props> = ({
       <section className="space-y-4 rounded-[28px] bg-gray-50 p-4 text-[#11183d]">
         <>
           <header className="flex items-center gap-2">
-            <button onClick={onClose} aria-label="返回" className="rounded-full p-2 text-[#11183d] hover:bg-white">
+            <button onClick={onClose} aria-label={t("common.back")} className="rounded-full p-2 text-[#11183d] hover:bg-white">
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-2xl font-black tracking-tight">分帳結算</h1>
+            <h1 className="text-2xl font-black tracking-tight">{t("settle.title")}</h1>
           </header>
         </>
         <div className="grid grid-cols-2 rounded-2xl bg-white p-1.5 text-center text-sm font-black shadow-[0_6px_18px_rgba(17,24,61,.05)]">
@@ -445,13 +448,13 @@ const SettlementFlow: React.FC<Props> = ({
             onClick={() => setActiveTab("create")}
             className={`rounded-xl py-2.5 transition-colors ${activeTab === "create" ? "bg-[#f1ecff] text-violet-700" : "text-slate-400"}`}
           >
-            建立結算
+            {t("settle.createBatch")}
           </button>
           <button
             onClick={() => setActiveTab("settled")}
             className={`rounded-xl py-2.5 transition-colors ${activeTab === "settled" ? "bg-[#f1ecff] text-violet-700" : "text-slate-400"}`}
           >
-            已結算
+            {t("settle.settled")}
           </button>
         </div>
         {activeTab === "create" ? (
@@ -459,10 +462,10 @@ const SettlementFlow: React.FC<Props> = ({
             <div className="grid grid-cols-2 gap-3">
               <div className="flex items-start gap-2 rounded-2xl bg-[#eef7f2] p-4">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black text-[#11183d]">應收</p>
+                  <p className="text-sm font-black text-[#11183d]">{t("settle.receivable")}</p>
                   <p className="mt-1.5 text-2xl font-black text-emerald-700">{money(receivable)}</p>
                   <p className="mt-1.5 text-[11px] font-medium text-slate-500">
-                    {receivableCount > 0 ? `${receivableCount} 位成員欠款給你` : "目前沒有人欠你款項"}
+                    {receivableCount > 0 ? t("settle.membersOweYou", { count: receivableCount }) : t("settle.nobodyOwesYou")}
                   </p>
                 </div>
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
@@ -471,10 +474,10 @@ const SettlementFlow: React.FC<Props> = ({
               </div>
               <div className="flex items-start gap-2 rounded-2xl bg-slate-100/70 p-4">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black text-[#11183d]">應付</p>
+                  <p className="text-sm font-black text-[#11183d]">{t("settle.payable")}</p>
                   <p className="mt-1.5 text-2xl font-black text-[#11183d]">{money(payable)}</p>
                   <p className="mt-1.5 text-[11px] font-medium text-slate-500">
-                    {payable > 0 ? `你欠 ${payableCount} 位成員款項` : "你目前不需要支付任何款項"}
+                    {payable > 0 ? t("settle.youOweMembers", { count: payableCount }) : t("settle.youOweNobody")}
                   </p>
                 </div>
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-500">
@@ -493,7 +496,7 @@ const SettlementFlow: React.FC<Props> = ({
                 className="mt-3 flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-100"
               >
                 <span className="text-[11px] font-black text-slate-500">
-                  {netToViewer >= 0 ? "兩邊相抵後，應向成員收取" : "兩邊相抵後，你需要支付"}
+                  {netToViewer >= 0 ? t("settle.netToCollect") : t("settle.netToPay")}
                 </span>
                 <span className={`text-base font-black ${netToViewer >= 0 ? "text-emerald-700" : "text-[#11183d]"}`}>
                   {money(Math.abs(netToViewer))}
@@ -511,11 +514,11 @@ const SettlementFlow: React.FC<Props> = ({
                     <Lightbulb size={16} />
                   </span>
                   <h2 className="font-black text-[#11183d]">
-                    有 {disputedExpenses.length} 筆帳目尚有疑問
+                    {t("settle.disputedCount", { count: disputedExpenses.length })}
                   </h2>
                 </div>
                 <p className="ml-10 mt-1 text-xs font-medium leading-relaxed text-slate-500">
-                  這些款項仍計入下方金額，建議先回答疑問再結算。
+                  {t("settle.disputedBlurb")}
                 </p>
                 <div className="mt-3 space-y-2">
                   {disputedExpenses.map(({ expense, disputes }) => {
@@ -533,15 +536,15 @@ const SettlementFlow: React.FC<Props> = ({
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-bold text-[#11183d]">
-                          {expense.description || "這筆支出"}
+                          {expense.description || t("expense.thisExpense")}
                         </div>
                         <div className="mt-0.5 truncate text-xs font-medium text-slate-400">
                           {disputes
                             .map(
                               (dispute) =>
-                                `${members.find((m) => m.id === dispute.raisedByMemberId)?.name || "旅伴"} 提出疑問`,
+                                t("settle.raisedByQuestion", { name: members.find((m) => m.id === dispute.raisedByMemberId)?.name || t("settle.aCompanion") }),
                             )
-                            .join("、")}
+                            .join(t("settle.listSeparator"))}
                         </div>
                       </div>
                       <strong className="shrink-0 whitespace-nowrap text-sm font-black text-[#11183d]">
@@ -556,7 +559,7 @@ const SettlementFlow: React.FC<Props> = ({
                 </div>
               </div>
             )}
-            <div className="flex items-center justify-between pt-1"><h2 className="text-lg font-black tracking-tight">成員結算</h2></div>
+            <div className="flex items-center justify-between pt-1"><h2 className="text-lg font-black tracking-tight">{t("settle.memberSettlement")}</h2></div>
             <div className="space-y-2">
               {overviewRows.map(({ member, amount }) => {
                   const id = member.id;
@@ -579,7 +582,7 @@ const SettlementFlow: React.FC<Props> = ({
                           {money(amount)}
                         </span>
                         <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
-                          {amount < 0 ? "應收" : "應付"}
+                          {amount < 0 ? t("settle.receivable") : t("settle.payable")}
                         </span>
                       </span>
                       <ChevronRight className="shrink-0 text-slate-300" size={18} />
@@ -588,7 +591,7 @@ const SettlementFlow: React.FC<Props> = ({
                 })}
               {!overviewRows.length && (
                 <p className="rounded-2xl bg-white p-5 text-center text-sm font-bold text-slate-400 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-                  目前沒有需要結算的款項
+                  {t("ledger.nothingToSettle")}
                 </p>
               )}
             </div>
@@ -597,20 +600,20 @@ const SettlementFlow: React.FC<Props> = ({
                 <Calculator size={18} />
               </span>
               <span className="min-w-0 flex-1">
-                <b className="block font-black text-[#11183d]">最簡結算方式</b>
-                <small className="text-xs font-medium text-slate-400">只需要 {minimumTransfers.length} 筆付款即可結清</small>
+                <b className="block font-black text-[#11183d]">{t("settle.simplestWay")}</b>
+                <small className="text-xs font-medium text-slate-400">{t("settle.transfersNeeded", { count: minimumTransfers.length })}</small>
               </span>
               <ChevronRight size={18} className="shrink-0 text-slate-300" />
             </button>
             <div>
               <div className="mb-2 flex items-center justify-between pt-1">
-                <h2 className="text-lg font-black tracking-tight">目前開放的結算</h2>
+                <h2 className="text-lg font-black tracking-tight">{t("settle.openBatches")}</h2>
                 <button
                   type="button"
                   onClick={startNewSettlement}
                   className="flex items-center gap-1 text-sm font-black text-violet-600"
                 >
-                  <Plus size={16} /> 新增結算
+                  <Plus size={16} /> {t("settle.newBatch")}
                 </button>
               </div>
               {openBatches.length ? (
@@ -630,7 +633,7 @@ const SettlementFlow: React.FC<Props> = ({
                     <span className="flex-1">
                       <b>{batch.title}</b>
                       <small className="block text-gray-400">
-                        {batch.startDate || "未指定日期"}
+                        {batch.startDate || t("settle.noDate")}
                       </small>
                     </span>
                     <b>
@@ -641,7 +644,7 @@ const SettlementFlow: React.FC<Props> = ({
                       )}
                     </b>
                     <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
-                      未結算
+                      {t("settle.unsettled")}
                     </span>
                   </button>
                 ))
@@ -650,15 +653,15 @@ const SettlementFlow: React.FC<Props> = ({
                   <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-50 text-slate-300">
                     <FileText size={20} />
                   </span>
-                  <p className="mt-3 text-sm font-bold text-slate-400">目前沒有需要結算的款項</p>
-                  <p className="mt-1 text-xs font-medium text-slate-300">建立結算後，這裡會顯示待處理的項目。</p>
+                  <p className="mt-3 text-sm font-bold text-slate-400">{t("ledger.nothingToSettle")}</p>
+                  <p className="mt-1 text-xs font-medium text-slate-300">{t("settle.openBatchesEmptyHint")}</p>
                 </div>
               )}
             </div>
           </>
         ) : (
           <div>
-            <h2 className="mb-3 pt-1 text-lg font-black tracking-tight">已結算紀錄</h2>
+            <h2 className="mb-3 pt-1 text-lg font-black tracking-tight">{t("settle.settledHistory")}</h2>
             {settledBatches.length ? (
               <div className="space-y-2">
                 {settledBatches.map((batch) => (
@@ -679,9 +682,9 @@ const SettlementFlow: React.FC<Props> = ({
                     <span className="min-w-0 flex-1">
                       <b className="block truncate font-black text-[#11183d]">{batch.title}</b>
                       <small className="mt-0.5 block truncate text-xs font-medium text-slate-400">
-                        {batch.startDate || "未指定日期"}
+                        {batch.startDate || t("settle.noDate")}
                         {batch.settledAt
-                          ? ` · 於 ${new Date(batch.settledAt).toLocaleDateString("zh-TW")} 結清`
+                          ? t("settle.settledOn", { date: new Date(batch.settledAt).toLocaleDateString(i18n.language) })
                           : ""}
                       </small>
                     </span>
@@ -694,7 +697,7 @@ const SettlementFlow: React.FC<Props> = ({
                         )}
                       </b>
                       <span className="mt-0.5 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700">
-                        已結算
+                        {t("settle.settled")}
                       </span>
                     </span>
                     <ChevronRight size={18} className="shrink-0 text-slate-300" />
@@ -706,9 +709,9 @@ const SettlementFlow: React.FC<Props> = ({
                 <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-slate-50 text-slate-300">
                   <Check size={20} />
                 </span>
-                <p className="mt-3 text-sm font-bold text-slate-400">尚無已結算紀錄</p>
+                <p className="mt-3 text-sm font-bold text-slate-400">{t("settle.noSettledHistory")}</p>
                 <p className="mt-1 text-xs font-medium text-slate-300">
-                  完成結算後，這裡會保留當時的金額與日期。
+                  {t("settle.settledHistoryHint")}
                 </p>
               </div>
             )}
@@ -727,7 +730,7 @@ const SettlementFlow: React.FC<Props> = ({
   if (screen === "member")
     return (
       <MemberSettlementDetail
-        tripName={tripName || "這趟旅程"}
+        tripName={tripName || t("settle.thisTrip")}
         dateRange={tripDateRange || ""}
         coverImage={tripCoverImage}
         expenses={expenses}
@@ -743,18 +746,18 @@ const SettlementFlow: React.FC<Props> = ({
     return (
       <section className="space-y-4 rounded-[28px] bg-gray-50 p-5 text-[#11183d]">
         <header className="flex items-center gap-2">
-          <button onClick={() => setScreen("overview")} aria-label="返回" className="rounded-full p-2 hover:bg-white">
+          <button onClick={() => setScreen("overview")} aria-label={t("common.back")} className="rounded-full p-2 hover:bg-white">
             <ArrowLeft size={20} />
           </button>
-          <h1 className="text-2xl font-black tracking-tight">最簡結算方式</h1>
+          <h1 className="text-2xl font-black tracking-tight">{t("settle.simplestWay")}</h1>
         </header>
 
         <div className="rounded-2xl bg-[#f3f0ff] p-5">
           <p className="text-2xl font-black tracking-tight">
-            只需要 {minimumTransfers.length} 筆付款即可結清
+            {t("settle.transfersNeeded", { count: minimumTransfers.length })}
           </p>
           <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500">
-            系統已自動抵銷彼此欠款，以下是最簡單的結算方式。
+            {t("settle.nettedOffBlurb")}
           </p>
         </div>
 
@@ -780,15 +783,15 @@ const SettlementFlow: React.FC<Props> = ({
           })}
           {!minimumTransfers.length && (
             <p className="rounded-2xl bg-white p-5 text-center text-sm font-bold text-slate-400 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-              目前沒有需要結算的款項
+              {t("ledger.nothingToSettle")}
             </p>
           )}
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-          <h2 className="text-lg font-black tracking-tight">結算後各成員餘額</h2>
+          <h2 className="text-lg font-black tracking-tight">{t("settle.balancesAfter")}</h2>
           <p className="mt-1 text-xs font-medium text-slate-400">
-            完成上述付款後，每個人都不再有欠款。
+            {t("settle.balancesAfterBlurb")}
           </p>
           <div className="mt-3 divide-y divide-slate-100">
             {members.map((m) => (
@@ -810,7 +813,7 @@ const SettlementFlow: React.FC<Props> = ({
           disabled={!eligible.length || !minimumTransfers.length}
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 py-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(124,58,237,.3)] transition-colors hover:bg-violet-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
         >
-          <Zap size={18} /> 一鍵結算
+          <Zap size={18} /> {t("settle.settleInOneTap")}
         </button>
       </section>
     );
@@ -821,7 +824,7 @@ const SettlementFlow: React.FC<Props> = ({
           <button onClick={() => setScreen("overview")}>
             <ArrowLeft />
           </button>
-          <h1 className="text-lg font-black">新增結算</h1>
+          <h1 className="text-lg font-black">{t("settle.newBatch")}</h1>
           <button onClick={onClose}>
             <X />
           </button>
@@ -832,7 +835,7 @@ const SettlementFlow: React.FC<Props> = ({
               <i className="mr-2 rounded-full bg-violet-600 px-2 py-1 text-white">
                 1
               </i>
-              結算名稱
+              {t("settle.batchName")}
             </h2>
             <input
               value={title}
@@ -845,7 +848,7 @@ const SettlementFlow: React.FC<Props> = ({
               <i className="mr-2 rounded-full bg-violet-600 px-2 py-1 text-white">
                 2
               </i>
-              選擇支出
+              {t("settle.chooseExpenses")}
             </h2>
             <div className="relative z-10 mt-3 grid grid-cols-3 rounded-xl bg-gray-100 p-1 text-center text-xs font-bold">
               {EXPENSE_SELECTION_MODES.map(({ mode, label }) => (
@@ -864,9 +867,9 @@ const SettlementFlow: React.FC<Props> = ({
               <div className="mt-3 space-y-3">
                 <div className="flex flex-wrap gap-2">
                   {([
-                    { kind: "today", label: "今天" },
-                    { kind: "recent3", label: "最近 3 天" },
-                    { kind: "all", label: "全部" },
+                    { kind: "today", label: t("settle.rangeToday") },
+                    { kind: "recent3", label: t("settle.rangeRecent3") },
+                    { kind: "all", label: t("common.all") },
                   ] as const).map(({ kind, label }) => (
                     <button
                       key={kind}
@@ -881,7 +884,7 @@ const SettlementFlow: React.FC<Props> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="text-[11px] font-bold text-gray-500">
-                    開始日期
+                    {t("settle.startDate")}
                     <input
                       type="date"
                       value={dateFilter.kind === "custom" ? dateFilter.start || "" : ""}
@@ -896,7 +899,7 @@ const SettlementFlow: React.FC<Props> = ({
                     />
                   </label>
                   <label className="text-[11px] font-bold text-gray-500">
-                    結束日期
+                    {t("settle.endDate")}
                     <input
                       type="date"
                       value={dateFilter.kind === "custom" ? dateFilter.end || "" : ""}
@@ -914,7 +917,7 @@ const SettlementFlow: React.FC<Props> = ({
               </div>
             )}
             <p className="mt-3 text-xs text-gray-500">
-              已選擇 {selectionSummary.count} 筆支出・{money(selectionSummary.total)}
+              {t("settle.selectedSummary", { count: selectionSummary.count, total: money(selectionSummary.total) })}
             </p>
             {selectionMode === "category" && (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -923,7 +926,7 @@ const SettlementFlow: React.FC<Props> = ({
                   onClick={() => setActiveCategory(null)}
                   className={`rounded-full border px-3 py-1 text-xs font-bold ${activeCategory === null ? "border-violet-500 bg-violet-50 text-violet-700" : "border-gray-200 text-gray-500"}`}
                 >
-                  全部
+                  {t("common.all")}
                 </button>
                 {expenseCategories.map((category) => (
                   <button
@@ -941,27 +944,27 @@ const SettlementFlow: React.FC<Props> = ({
               {visibleExpenses.length === 0 &&
                 (selectionMode === "date" ? (
                   <div className="rounded-xl bg-gray-50 p-4 text-center">
-                    <p className="text-xs text-gray-400">這段期間沒有可結算的支出</p>
+                    <p className="text-xs text-gray-400">{t("settle.noExpensesInRange")}</p>
                     <div className="mt-3 flex justify-center gap-2">
                       <button
                         type="button"
                         onClick={() => setDateFilter({ kind: "recent3" })}
                         className="rounded-full border border-violet-200 px-3 py-1 text-xs font-bold text-violet-700"
                       >
-                        查看最近 3 天
+                        {t("settle.viewRecent3")}
                       </button>
                       <button
                         type="button"
                         onClick={() => setDateFilter({ kind: "all" })}
                         className="rounded-full border border-violet-200 px-3 py-1 text-xs font-bold text-violet-700"
                       >
-                        查看全部
+                        {t("settle.viewAll")}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <p className="rounded-xl bg-gray-50 p-4 text-center text-xs text-gray-400">
-                    沒有符合的支出
+                    {t("settle.noMatchingExpenses")}
                   </p>
                 ))}
               {selectionMode === "date"
@@ -969,7 +972,7 @@ const SettlementFlow: React.FC<Props> = ({
                     <div key={group.date} className="space-y-2">
                       {showDateHeadings && (
                         <p className="pt-1 text-xs font-bold text-gray-400">
-                          {group.date || "未指定日期"}
+                          {group.date || t("settle.noDate")}
                         </p>
                       )}
                       {group.expenses.map((expense) => expenseRow(expense))}
@@ -983,18 +986,18 @@ const SettlementFlow: React.FC<Props> = ({
               <i className="mr-2 rounded-full bg-violet-600 px-2 py-1 text-white">
                 3
               </i>
-              選擇結算對象{" "}
+              {t("settle.chooseCounterparties")}{" "}
               <button
                 onClick={() =>
                   setSelectedMembers(availableTargets.map((member) => member.id))
                 }
                 className="float-right text-sm text-violet-700"
               >
-                全選
+                {t("settle.selectAll")}
               </button>
             </h2>
             <p className="mt-2 text-xs text-gray-500">
-              選擇這次要和哪些人結清
+              {t("settle.chooseCounterpartiesBlurb")}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {availableTargets.map((member) => (
@@ -1023,7 +1026,7 @@ const SettlementFlow: React.FC<Props> = ({
         </div>
         {selectedIds.length > 0 && availableTargets.length === 0 && (
           <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-center text-xs font-bold text-amber-700">
-            這些支出沒有可結算的其他成員
+            {t("settle.noOtherMembers")}
           </p>
         )}
         <button
@@ -1032,7 +1035,7 @@ const SettlementFlow: React.FC<Props> = ({
           onClick={() => setScreen("confirm")}
           className="mt-auto rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-4 font-black text-white disabled:opacity-40"
         >
-          下一步：查看結算結果
+          {t("settle.nextSeeResult")}
         </button>
       </section>
     );
@@ -1042,7 +1045,7 @@ const SettlementFlow: React.FC<Props> = ({
         <button onClick={() => setScreen("create")}>
           <ArrowLeft />
         </button>
-        <h1 className="text-lg font-black">確認結算</h1>
+        <h1 className="text-lg font-black">{t("settle.confirmTitle")}</h1>
         <button onClick={onClose}>
           <X />
         </button>
@@ -1051,37 +1054,37 @@ const SettlementFlow: React.FC<Props> = ({
         <div className="flex justify-between">
           <div>
             <h2 className="text-xl font-black">{title}</h2>
-            <p className="text-xs text-gray-400">{startDate || "未指定日期"}</p>
+            <p className="text-xs text-gray-400">{startDate || t("settle.noDate")}</p>
           </div>
           <button
             onClick={() => setScreen("create")}
             className="text-sm font-bold text-violet-700"
           >
-            編輯
+            {t("common.edit")}
           </button>
         </div>
         <div className="mt-4 space-y-2 text-sm">
           <p>
-            包含支出{" "}
+            {t("settle.includedExpenses")}{" "}
             <b className="float-right">
-              {selectedExpenses.length} 筆・{money(total)}
+              {t("settle.countAndTotal", { count: selectedExpenses.length, total: money(total) })}
             </b>
           </p>
           <p>
-            結算期間{" "}
+            {t("settle.period")}{" "}
             <b className="float-right">
               {startDate || "-"} – {endDate || "-"}
             </b>
           </p>
           <p>
-            結算對象{" "}
+            {t("settle.counterparties")}{" "}
             <b className="float-right">
               {confirmTargetsData.map((member) => member.name).join("・") || "-"}
             </b>
           </p>
           {selectedBatch?.status === "settled" && (
             <p>
-              結算日期{" "}
+              {t("settle.settleDate")}{" "}
               <b className="float-right">
                 {selectedBatch.settledAt
                   ? new Date(selectedBatch.settledAt).toLocaleDateString(
@@ -1094,9 +1097,9 @@ const SettlementFlow: React.FC<Props> = ({
         </div>
       </div>
       <div className="mt-5">
-        <h2 className="font-black">結算結果（相對於我）</h2>
+        <h2 className="font-black">{t("settle.resultRelativeToMe")}</h2>
         <div className="mt-2 rounded-2xl bg-emerald-50 p-4">
-          <p className="text-sm font-bold">我應收</p>
+          <p className="text-sm font-bold">{t("settle.iReceive")}</p>
           <p className="text-3xl font-black text-emerald-600">
             {money(
               relative
@@ -1118,8 +1121,8 @@ const SettlementFlow: React.FC<Props> = ({
               <span className="flex-1 font-bold">{member!.name}</span>
               <b className={amount < 0 ? "text-emerald-600" : "text-red-500"}>
                 {amount < 0
-                  ? `應收 ${money(amount)}`
-                  : `應付 ${money(amount)}`}
+                  ? t("settle.receivableAmount", { amount: money(amount) })
+                  : t("settle.payableAmount", { amount: money(amount) })}
               </b>
               <ChevronRight size={16} />
             </div>
@@ -1128,7 +1131,7 @@ const SettlementFlow: React.FC<Props> = ({
       </div>
       <div className="mt-5 flex-1">
         <h2 className="mb-2 font-black">
-          支出明細（{selectedExpenses.length}）
+          {t("settle.expenseDetail", { count: selectedExpenses.length })}
         </h2>
         {selectedExpenses.map((expense) => (
           <div
@@ -1149,22 +1152,22 @@ const SettlementFlow: React.FC<Props> = ({
             onClick={() => setConfirmDelete(true)}
             className="mt-4 self-center px-4 py-2 text-sm font-bold text-red-500"
           >
-            刪除結算
+            {t("settle.deleteBatch")}
           </button>
           {confirmDelete && (
             <div className="mt-3 rounded-2xl border border-red-100 bg-red-50 p-4">
-              <p className="font-black">刪除這筆結算？</p>
+              <p className="font-black">{t("settle.deleteBatchConfirm")}</p>
               <p className="mt-1 text-xs text-gray-600">
                 {selectedBatch.status === "settled"
-                  ? "刪除後，此批支出將重新計入目前未結算金額。"
-                  : "刪除後，支出會重新回到可建立結算的清單中。"}
+                  ? t("settle.deleteSettledBlurb")
+                  : t("settle.deleteOpenBlurb")}
               </p>
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={() => setConfirmDelete(false)}
                   className="flex-1 rounded-xl bg-white py-3 text-sm font-bold"
                 >
-                  取消
+                  {t("common.cancel")}
                 </button>
                 <button
                   onClick={() => {
@@ -1176,7 +1179,7 @@ const SettlementFlow: React.FC<Props> = ({
                   }}
                   className="flex-1 rounded-xl bg-red-600 py-3 text-sm font-bold text-white"
                 >
-                  刪除
+                  {t("common.delete")}
                 </button>
               </div>
             </div>
@@ -1187,16 +1190,16 @@ const SettlementFlow: React.FC<Props> = ({
         <>
           {confirmSettle && (
             <div className="mt-4 rounded-2xl border border-violet-100 bg-violet-50 p-4">
-              <p className="font-black">確認這批帳款已完成結算？</p>
+              <p className="font-black">{t("settle.markSettledConfirm")}</p>
               <p className="mt-1 text-xs text-gray-500">
-                標記後，這批支出將不再計入目前未結算金額。
+                {t("settle.markSettledBlurb")}
               </p>
               <div className="mt-3 flex gap-2">
                 <button
                   onClick={() => setConfirmSettle(false)}
                   className="flex-1 rounded-xl bg-white py-3 text-sm font-bold"
                 >
-                  取消
+                  {t("common.cancel")}
                 </button>
                 <button
                   onClick={() => {
@@ -1211,7 +1214,7 @@ const SettlementFlow: React.FC<Props> = ({
                   }}
                   className="flex-1 rounded-xl bg-violet-600 py-3 text-sm font-bold text-white"
                 >
-                  確認已結算
+                  {t("settle.confirmSettled")}
                 </button>
               </div>
             </div>
@@ -1221,13 +1224,13 @@ const SettlementFlow: React.FC<Props> = ({
               onClick={() => setConfirmSettle(true)}
               className="mt-5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-4 font-black text-white"
             >
-              標記為已結算
+              {t("settle.markAsSettled")}
             </button>
           )}
         </>
       ) : selectedBatch?.status === "settled" ? (
         <div className="mt-5 rounded-2xl bg-emerald-50 py-4 text-center font-black text-emerald-700">
-          已結算
+          {t("settle.settled")}
         </div>
       ) : (
         <button
@@ -1236,7 +1239,7 @@ const SettlementFlow: React.FC<Props> = ({
           onClick={completeNewSettlement}
           className="mt-5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 py-4 font-black text-white disabled:opacity-40"
         >
-          完成結算
+          {t("settle.finishSettlement")}
         </button>
       )}
     </section>

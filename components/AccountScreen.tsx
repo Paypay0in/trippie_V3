@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import LanguageSetting from './LanguageSetting';
 import { Bell, Image as ImageIcon, LogOut, Pencil, Settings, Sparkles } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
 import MyPostsPanel from './MyPostsPanel';
@@ -74,6 +76,7 @@ const AccountScreen: React.FC<Props> = ({
   onOpenTrip,
   onOpenCreatorCenter,
 }) => {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cover, setCover] = useState<string | undefined>(() => loadProfileCover(profile?.userId));
@@ -129,7 +132,7 @@ const AccountScreen: React.FC<Props> = ({
             <button
               type="button"
               className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50"
-              aria-label="通知"
+              aria-label={t('account.notifications')}
             >
               <Bell size={21} />
             </button>
@@ -148,7 +151,7 @@ const AccountScreen: React.FC<Props> = ({
               onClick={() => setMenuOpen(current => !current)}
               aria-expanded={menuOpen}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50"
-              aria-label="設定"
+              aria-label={t('account.settings')}
             >
               <Settings size={21} />
             </button>
@@ -157,13 +160,22 @@ const AccountScreen: React.FC<Props> = ({
       </header>
 
       {signedIn && menuOpen && (
-        <div data-testid="account-menu" className="mb-3 overflow-hidden rounded-card border border-hairline bg-white">
+        <div className="mb-3 space-y-3">
+        {/*
+          Language sits inside 設定 because that is where 「我」 was told to put
+          it, and above the two account actions because it is the one setting
+          on this screen that somebody may be here specifically to find — a
+          traveller looking at the app in a language they do not read cannot
+          navigate past it to anything else.
+        */}
+        <LanguageSetting />
+        <div data-testid="account-menu" className="overflow-hidden rounded-card border border-hairline bg-white">
           <button
             type="button"
             onClick={() => { setMenuOpen(false); setEditing(true); }}
             className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-field font-semibold"
           >
-            <Pencil size={16} className="text-slate-400" />編輯個人資料
+            <Pencil size={16} className="text-slate-400" />{t('account.editProfile')}
           </button>
           <button
             type="button"
@@ -171,8 +183,9 @@ const AccountScreen: React.FC<Props> = ({
             onClick={onSignOut}
             className="flex w-full items-center gap-2.5 border-t border-hairline px-4 py-3 text-left text-field font-semibold text-rose-600"
           >
-            <LogOut size={16} />登出
+            <LogOut size={16} />{t('account.signOut')}
           </button>
+        </div>
         </div>
       )}
 
@@ -189,7 +202,7 @@ const AccountScreen: React.FC<Props> = ({
               {cover && <img src={cover} alt="" className="h-full w-full object-cover" />}
               <label className="absolute right-3 top-3 flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full bg-white/90 px-3 text-meta font-semibold text-ink shadow-sm backdrop-blur">
                 <ImageIcon size={14} />
-                更換封面
+                {t('account.changeCover')}
                 <input
                   type="file"
                   accept="image/*"
@@ -224,7 +237,7 @@ const AccountScreen: React.FC<Props> = ({
                   avatar from the device at all.
                 */}
                 <label
-                  aria-label="更換大頭照"
+                  aria-label={t('account.changeAvatar')}
                   className="absolute -right-0.5 bottom-0.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-2 border-[#f7f8fc] bg-white text-slate-500 shadow-sm"
                 >
                   <Pencil size={13} />
@@ -242,7 +255,7 @@ const AccountScreen: React.FC<Props> = ({
             <div className="mt-2 flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 <h1 className="truncate text-screen-title font-bold">{profile.displayName}</h1>
-                <p className="mt-0.5 truncate text-support text-ink-soft">{email || '已登入'}</p>
+                <p className="mt-0.5 truncate text-support text-ink-soft">{email || t('account.signedIn')}</p>
                 {profile.bio && (
                   <p className="mt-1 text-support text-ink-soft">{profile.bio}</p>
                 )}
@@ -253,7 +266,7 @@ const AccountScreen: React.FC<Props> = ({
                 className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-600 to-indigo-500 px-3.5 text-meta font-bold text-white shadow-sm"
               >
                 <Sparkles size={14} />
-                創作者中心
+                {t('account.creatorCenter')}
               </button>
             </div>
 
@@ -267,9 +280,9 @@ const AccountScreen: React.FC<Props> = ({
             */}
             <dl className="mt-4 grid grid-cols-3 rounded-card border border-hairline bg-white py-3">
               {([
-                ['posts', myPosts.length, '貼文'],
-                ['trips', completedTripCount, '完成的旅程'],
-                ['saved', savedInspirations.length, '收藏'],
+                ['posts', myPosts.length, t('account.statPosts')],
+                ['trips', completedTripCount, t('account.statCompletedTrips')],
+                ['saved', savedInspirations.length, t('account.statSaved')],
               ] as const).map(([key, value, label], index) => (
                 <div
                   key={key}
@@ -286,11 +299,11 @@ const AccountScreen: React.FC<Props> = ({
             {editing && (
               <form onSubmit={save} className="mt-4 space-y-3 rounded-card border border-hairline bg-white p-4">
                 <label className="block text-support font-semibold">
-                  顯示名稱
+                  {t('account.displayName')}
                   <input value={name} onChange={event => setName(event.target.value)} required className="mt-1.5 h-[var(--control-h)] w-full rounded-field border border-hairline px-3 text-field" />
                 </label>
                 <div className="text-support font-semibold">
-                  大頭照
+                  {t('account.avatar')}
                   <div className="mt-1.5 flex items-center gap-3">
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-violet-100 text-field font-black text-violet-700">
                       {avatar
@@ -299,7 +312,7 @@ const AccountScreen: React.FC<Props> = ({
                     </span>
                     <label className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-control border border-hairline px-3.5 text-support font-semibold">
                       <ImageIcon size={15} />
-                      從相簿選擇
+                      {t('account.pickFromLibrary')}
                       <input
                         type="file"
                         accept="image/*"
@@ -320,7 +333,7 @@ const AccountScreen: React.FC<Props> = ({
                         onClick={() => setAvatar('')}
                         className="min-h-11 text-support font-semibold text-slate-400"
                       >
-                        移除
+                        {t('common.remove')}
                       </button>
                     )}
                   </div>
@@ -328,15 +341,15 @@ const AccountScreen: React.FC<Props> = ({
                   <input
                     value={avatar.startsWith('data:') ? '' : avatar}
                     onChange={event => setAvatar(event.target.value)}
-                    placeholder="或貼上圖片網址"
+                    placeholder={t('account.avatarUrlPlaceholder')}
                     className="mt-2 h-[var(--control-h)] w-full rounded-field border border-hairline px-3 text-field font-normal placeholder:text-slate-300"
                   />
                 </div>
                 <label className="block text-support font-semibold">
-                  簡介
+                  {t('account.bio')}
                   <textarea value={bio} onChange={event => setBio(event.target.value)} rows={3} className="mt-1.5 w-full rounded-field border border-hairline px-3 py-2 text-field" />
                 </label>
-                <button className="h-[var(--cta-h)] w-full rounded-control bg-violet-600 text-action font-semibold text-white">儲存</button>
+                <button className="h-[var(--cta-h)] w-full rounded-control bg-violet-600 text-action font-semibold text-white">{t('common.save')}</button>
               </form>
             )}
           </section>
@@ -360,10 +373,19 @@ const AccountScreen: React.FC<Props> = ({
         </>
       ) : (
         <section className="rounded-[28px] bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-black">登入 Trippie</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-500">登入後可以建立你的創作者身份，未來也能跨裝置同步旅行資料。</p>
-          {!authAvailable && <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-sm font-bold text-amber-700">目前無法連線帳號服務</p>}
-          <button onClick={onSignIn} disabled={!authAvailable} className="mt-6 min-h-11 w-full rounded-2xl bg-violet-600 font-black text-white disabled:opacity-50">登入 / 建立帳號</button>
+          <h2 className="text-xl font-black">{t('account.signInTitle')}</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-500">{t('account.signInBlurb')}</p>
+          {!authAvailable && <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-sm font-bold text-amber-700">{t('account.authUnavailable')}</p>}
+          <button onClick={onSignIn} disabled={!authAvailable} className="mt-6 min-h-11 w-full rounded-2xl bg-violet-600 font-black text-white disabled:opacity-50">{t('account.signInCta')}</button>
+          {/*
+            Also here, because the gear only exists once you are signed in.
+            Somebody who opened the app in the wrong language and cannot read
+            the sign-in screen would otherwise have no way to change it
+            without an account.
+          */}
+          <div className="mt-6">
+            <LanguageSetting />
+          </div>
         </section>
       )}
     </main>

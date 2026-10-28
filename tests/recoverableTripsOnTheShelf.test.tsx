@@ -17,6 +17,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import TravelHome from '../components/TravelHome';
 import { RecoverableTrip } from '../services/recoverableTrips';
+import i18n from '../i18n/config';
 
 afterEach(cleanup);
 
@@ -80,10 +81,19 @@ describe('雲端還留著這些旅程', () => {
     expect(screen.queryByTestId('recoverable-trips')).toBeNull();
   });
 
-  /* A trip the server never named still needs a row somebody can press. */
+  /*
+    A trip the server never named still needs a row somebody can press.
+
+    The label used to be written 未命名的旅程 here and 未命名旅程 three screens
+    away — one idea with two spellings, which is what moving both into
+    `home.untitledTrip` collapsed. The behaviour under test is unchanged: an
+    unnamed trip gets a label instead of a blank.
+  */
   it('labels an unnamed trip rather than drawing a blank', () => {
     home({ recoverable: [{ ...busan, name: '' }] });
 
-    expect(screen.getByTestId('recoverable-trip-busan').textContent).toContain('未命名的旅程');
+    expect(screen.getByTestId('recoverable-trip-busan').textContent).toContain(
+      i18n.t('home.untitledTrip'),
+    );
   });
 });

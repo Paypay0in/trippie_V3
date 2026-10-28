@@ -3,6 +3,7 @@ import { OVERLAY } from '../constants/layers';
 import { isForeignSplit, resolveExactSplit, splitTwdToEntry } from '../services/exactSplitCurrency';
 import { isRefundableCategory } from '../services/refundableCategories';
 import { CustomCategoryRefundability, customCategoryUndecided } from '../services/refundableCustomCategories';
+import { Trans, useTranslation } from 'react-i18next';
 import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
@@ -83,10 +84,10 @@ interface Props {
 }
 
 const PHASE_LABELS: Record<Phase, string> = {
-  pre: '旅行前',
-  during: '旅行中',
-  post: '返程',
-  summary: '結算',
+  pre: 'phase.pre',
+  during: 'phase.during',
+  post: 'phase.post',
+  summary: 'phase.summary',
 };
 
 const ExpenseForm: React.FC<Props> = ({ 
@@ -110,6 +111,7 @@ const ExpenseForm: React.FC<Props> = ({
   travelRules
   ,ownerMemberId, ownerName, viewerMemberId, viewerIdentified, proposalMode, onRequestDelete, onManageMembers
 }) => {
+  const { t } = useTranslation();
   const effectiveOwnerMemberId = ownerMemberId || LEGACY_OWNER_ID;
   // Compatibility boundary: every historical owner encoding ('me', an owner id
   // from another trip id) collapses onto the active owner TripMember id, so
@@ -211,10 +213,10 @@ const ExpenseForm: React.FC<Props> = ({
   // A disabled control that looks identical to a live one reads as broken, not
   // as locked. The dimming is what makes "you cannot change this" visible.
   const lockedStyle = locked ? ' opacity-45 grayscale cursor-not-allowed' : '';
-  const ownerLabel = viewerIsOwner ? '我' : (ownerName?.trim() || '旅程擁有者');
+  const ownerLabel = viewerIsOwner ? t('expense.me') : (ownerName?.trim() || t('expense.tripOwner'));
   /** Marks the viewer's own row, whoever they are. */
   const labelForMember = (id: string, name: string) =>
-    id === effectiveViewerMemberId && !viewerIsOwner ? `${name}（我）` : name;
+    id === effectiveViewerMemberId && !viewerIsOwner ? t('expense.nameIsMe', { name }) : name;
   const memberOptions: TripMember[] = [{ id: effectiveOwnerMemberId, name: ownerLabel, type: 'owner' }, ...companions.map(c => ({ ...c, name: labelForMember(c.id, c.name), type: 'guest' as const }))];
   const [payerAllocations, setPayerAllocations] = useState<Record<string, string>>(() => {
     /*
@@ -310,7 +312,7 @@ const ExpenseForm: React.FC<Props> = ({
     setReceiptError('');
     const room = MAX_RECEIPTS - receiptPhotos.length;
     if (room <= 0) {
-      setReceiptError(`最多 ${MAX_RECEIPTS} 張`);
+      setReceiptError(t('expense.receiptMax', { count: MAX_RECEIPTS }));
       return;
     }
     const chosen = Array.from(files).slice(0, room);
@@ -321,9 +323,9 @@ const ExpenseForm: React.FC<Props> = ({
       */
       const downscaled = await Promise.all(chosen.map(file => readAndDownscale(file, RECEIPT_PHOTO)));
       setReceiptPhotos(current => [...current, ...downscaled]);
-      if (files.length > room) setReceiptError(`最多 ${MAX_RECEIPTS} 張，其餘未加入`);
+      if (files.length > room) setReceiptError(t('expense.receiptMaxRest', { count: MAX_RECEIPTS }));
     } catch {
-      setReceiptError('這張照片讀不進來，換一張試試');
+      setReceiptError(t('expense.receiptUnreadable'));
     }
     if (receiptInputRef.current) receiptInputRef.current.value = '';
   };
@@ -410,7 +412,7 @@ const ExpenseForm: React.FC<Props> = ({
   const handleAiParse = async () => {
     if (!aiInput.trim()) return;
     setIsAiLoading(true);
-    setStatusMessage('分析中...');
+    setStatusMessage(t('expense.statusAnalysing'));
     const result = await parseExpenseWithGemini(aiInput);
     setIsAiLoading(false);
     setStatusMessage('');
@@ -448,7 +450,7 @@ const ExpenseForm: React.FC<Props> = ({
 
       setIsAiLoading(true);
       setShowAiInput(true);
-      setStatusMessage('正在識別並自動建立...');
+      setStatusMessage(t('expense.statusAutoCreating'));
       
       try {
           // Convert to Base64
@@ -477,7 +479,7 @@ const ExpenseForm: React.FC<Props> = ({
 
                   // Create Object
                   const newExpense: Omit<Expense, 'id'> = {
-                      description: result.description || '未命名消費',
+                      description: result.description || t('expense.untitledExpense'),
                       amount: parsedAmount,
                       currency: parsedCurrency,
                       category: parsedCategory,
@@ -536,17 +538,17 @@ const ExpenseForm: React.FC<Props> = ({
                   onSubmit(newExpense, linkedItemId);
                   onClose();
               } else {
-                  alert('無法辨識圖片金額，請重試或手動輸入。');
+                  alert(t('expense.cannotReadAmount'));
               }
           };
           reader.onerror = () => {
               setIsAiLoading(false);
-              alert('讀取圖片失敗');
+              alert(t('expense.imageReadFailed'));
           };
       } catch (err) {
           console.error(err);
           setIsAiLoading(false);
-          setStatusMessage('錯誤');
+          setStatusMessage(t('expense.statusError'));
       }
       
       // Reset input
@@ -624,7 +626,7 @@ const ExpenseForm: React.FC<Props> = ({
           // Keep the rate already on screen — it is the traveller's, or a
           // stored default, and either beats blanking it. But say so: a
           // refresh button that does nothing visible reads as "refreshed".
-          setStatusMessage('查不到即時匯率，沿用目前的匯率。');
+          setStatusMessage(t('expense.rateLookupFailed'));
           window.setTimeout(() => setStatusMessage(''), 3000);
       }
   };
@@ -755,15 +757,15 @@ const ExpenseForm: React.FC<Props> = ({
     setExpenseSaveDebug(current => ({ ...current, submitClicked: true, formValid: false, validationError: '', expenseObjectCreated: false, onSubmitCalled: false }));
     const parsedAmount = parseFloat(amount);
     if (!description.trim()) {
-        setExpenseSaveDebug(current => ({ ...current, validationError: '項目名稱不可為空' }));
+        setExpenseSaveDebug(current => ({ ...current, validationError: t('expense.errorNameEmpty') }));
         return;
     }
     if (!amount || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        setExpenseSaveDebug(current => ({ ...current, validationError: '金額必須大於 0' }));
+        setExpenseSaveDebug(current => ({ ...current, validationError: t('expense.errorAmountPositive') }));
         return;
     }
     if (!date) {
-        setExpenseSaveDebug(current => ({ ...current, validationError: '日期不可為空' }));
+        setExpenseSaveDebug(current => ({ ...current, validationError: t('expense.errorDateEmpty') }));
         return;
     }
     /*
@@ -780,7 +782,7 @@ const ExpenseForm: React.FC<Props> = ({
     if (hydrationConflicts.length > 0) {
         setExpenseSaveDebug(current => ({
           ...current,
-          validationError: `同一成員存在衝突的分帳金額，請重新確認：${describeMemberAmountConflicts(hydrationConflicts)}`,
+          validationError: t('expense.errorMemberConflict', { detail: describeMemberAmountConflicts(hydrationConflicts) }),
         }));
         return;
     }
@@ -815,7 +817,7 @@ const ExpenseForm: React.FC<Props> = ({
         });
 
         if (exact.exceedsTotal) {
-            alert('分攤金額超過支出總額');
+            alert(t('expense.errorSplitOverTotal'));
             return;
         }
 
@@ -830,7 +832,7 @@ const ExpenseForm: React.FC<Props> = ({
             }, 0);
 
         if (manualPercent > 100.0001) {
-             alert('分攤比例超過 100%');
+             alert(t('expense.errorSplitOverPercent'));
              return;
         }
 
@@ -845,7 +847,7 @@ const ExpenseForm: React.FC<Props> = ({
     if (splitEnabled && submitConflicts.length > 0) {
         setExpenseSaveDebug(current => ({
           ...current,
-          validationError: `同一成員存在衝突的分帳金額，請重新確認：${describeMemberAmountConflicts(submitConflicts)}`,
+          validationError: t('expense.errorMemberConflict', { detail: describeMemberAmountConflicts(submitConflicts) }),
         }));
         return;
     }
@@ -1030,15 +1032,15 @@ const ExpenseForm: React.FC<Props> = ({
       {viewingReceipt && (
         <div
           role="dialog"
-          aria-label="收據"
+          aria-label={t('expense.receipt')}
           data-testid="receipt-viewer"
           onClick={() => setViewingReceipt(null)}
           className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
         >
-          <img src={viewingReceipt} alt="收據" className="max-h-full max-w-full rounded-xl object-contain" />
+          <img src={viewingReceipt} alt={t('expense.receipt')} className="max-h-full max-w-full rounded-xl object-contain" />
           <button
             type="button"
-            aria-label="關閉收據"
+            aria-label={t('expense.closeReceipt')}
             onClick={() => setViewingReceipt(null)}
             className="absolute right-5 top-5 rounded-full bg-white/15 p-2 text-white"
           >
@@ -1048,16 +1050,16 @@ const ExpenseForm: React.FC<Props> = ({
       )}
       <div className="bg-white rounded-[28px] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-white flex-shrink-0">
-          <button onClick={onClose} aria-label="關閉" className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500">
+          <button onClick={onClose} aria-label={t('common.close')} className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500">
             <X size={20} />
           </button>
           <div>
             <h2 className="text-xl font-black text-[#11183d]">
                {proposalMode
-                  ? '提出修正建議'
+                  ? t('expense.titleProposeChange')
                   : isEditing
-                    ? '編輯支出'
-                    : isExchange ? '新增換匯紀錄' : '新增支出'
+                    ? t('expense.titleEdit')
+                    : isExchange ? t('expense.titleAddExchange') : t('expense.titleAdd')
                }
             </h2>
             {/* Which part of the ledger this will land in. The categories on
@@ -1065,7 +1067,7 @@ const ExpenseForm: React.FC<Props> = ({
                 form looks broken for no visible reason. */}
             {!proposalMode && !isEditing && (
               <p className="mt-0.5 text-[11px] font-bold text-slate-400">
-                記入{PHASE_LABELS[currentPhase]}
+                {t('expense.filedUnder', { phase: t(PHASE_LABELS[currentPhase]) })}
               </p>
             )}
           </div>
@@ -1083,7 +1085,7 @@ const ExpenseForm: React.FC<Props> = ({
               <div data-testid="viewer-unidentified" className="flex items-start gap-2 rounded-2xl bg-amber-50 px-3 py-2.5 text-[11px] font-bold leading-5 text-amber-700">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" />
                 <span className="min-w-0 flex-1">
-                  目前無法確認你是這趟旅程的哪一位成員，這筆支出不會標記建立者。請稍後在旅伴名單確認你的帳號後補上。
+                  {t('expense.unknownMemberWarning')}
                 </span>
               </div>
             )}
@@ -1136,7 +1138,7 @@ const ExpenseForm: React.FC<Props> = ({
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 to-blue-50 px-3 py-3 text-sm font-black text-violet-700 disabled:opacity-60"
                 >
                   <Camera size={17} />
-                  {isAiLoading ? (statusMessage || '辨識中…') : '拍收據'}
+                  {isAiLoading ? (statusMessage || t('expense.recognising')) : t('expense.shootReceipt')}
                 </button>
                 <button
                   type="button"
@@ -1146,13 +1148,13 @@ const ExpenseForm: React.FC<Props> = ({
                   className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-600 disabled:opacity-60"
                 >
                   <ImageIcon size={17} />
-                  從相簿
+                  {t('expense.fromLibrary')}
                 </button>
               </div>
             )}
             {!isEditing && !locked && (
               <p className="-mt-3 text-center text-[10px] font-medium leading-4 text-slate-400">
-                會讀出金額、幣別、日期，並把商品一行一行列出來翻成中文
+                {t('expense.receiptScanBlurb')}
               </p>
             )}
 
@@ -1163,13 +1165,13 @@ const ExpenseForm: React.FC<Props> = ({
                      onClick={() => setShowAiInput(true)}
                      className="flex-1 py-2 bg-gradient-to-r from-purple-50 to-blue-50 text-purple-700 rounded-lg flex items-center justify-center gap-2 text-sm font-medium border border-purple-200 hover:from-purple-100 hover:to-blue-100 transition-colors"
                    >
-                     <Sparkles size={16} /> AI 語音/文字輸入
+                     <Sparkles size={16} /> {t('expense.aiVoiceOrText')}
                    </button>
                    <button 
                      type="button"
                      onClick={() => fileInputRef.current?.click()}
                      className="px-4 py-2 bg-white text-gray-600 rounded-lg flex items-center justify-center gap-2 text-sm font-medium border border-gray-300 hover:bg-gray-50 transition-colors"
-                     title="上傳收據或訂單截圖"
+                     title={t('expense.uploadReceipt')}
                    >
                      <ImageIcon size={18} />
                    </button>
@@ -1180,7 +1182,7 @@ const ExpenseForm: React.FC<Props> = ({
                   type="text" 
                   value={aiInput}
                   onChange={(e) => setAiInput(e.target.value)}
-                  placeholder={isAiLoading ? statusMessage || "正在分析中..." : "輸入文字... (e.g., 刷卡買機票 15000)"}
+                  placeholder={isAiLoading ? statusMessage || t('expense.analysing') : t('expense.freeTextPlaceholder')}
                   className="flex-1 border border-purple-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
                   onKeyDown={(e) => e.key === 'Enter' && handleAiParse()}
                   disabled={isAiLoading}
@@ -1198,9 +1200,9 @@ const ExpenseForm: React.FC<Props> = ({
 
             {taxRefundGuidance && (
               <div className="rounded-xl border border-violet-100 bg-violet-50/70 px-3 py-3 text-sm text-slate-700">
-                <div className="font-bold text-violet-900">購物退稅提醒</div>
+                <div className="font-bold text-violet-900">{t('expense.refundReminder')}</div>
                 <p className="mt-1 whitespace-pre-line text-xs leading-5 text-slate-600">{taxRefundGuidance.guidance.split('\n').slice(0, 3).join('\n')}</p>
-                <p className="mt-2 text-[11px] text-slate-500">資格仍取決於居住地與官方/當地規定；目前未提供居住地，因此不判定是否符合資格。</p>
+                <p className="mt-2 text-[11px] text-slate-500">{t('expense.refundEligibilityCaveat')}</p>
               </div>
             )}
             
@@ -1211,7 +1213,7 @@ const ExpenseForm: React.FC<Props> = ({
             )}
             
             {/* Only show manual form if not in middle of image auto-save */}
-            {(!isAiLoading || statusMessage === '分析中...') && (
+            {(!isAiLoading || statusMessage === t('expense.statusAnalysing')) && (
             <div className="space-y-5 pt-0">
               {initialData && SummaryIcon && (
                 <div className="flex items-center gap-3 rounded-2xl bg-[#f5f1ff] p-4 ring-1 ring-violet-100">
@@ -1226,11 +1228,11 @@ const ExpenseForm: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={() => setViewingReceipt(receiptPhotos[0])}
-                      aria-label="放大收據"
+                      aria-label={t('expense.enlargeReceipt')}
                       data-testid="summary-receipt"
                       className="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full shadow-sm ring-1 ring-violet-100"
                     >
-                      <img src={receiptPhotos[0]} alt="收據" className="h-full w-full object-cover" />
+                      <img src={receiptPhotos[0]} alt={t('expense.receipt')} className="h-full w-full object-cover" />
                     </button>
                   ) : (
                     <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white text-violet-600 shadow-sm">
@@ -1239,7 +1241,7 @@ const ExpenseForm: React.FC<Props> = ({
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold text-[#11183d]">
-                      {initialData.description || '這筆支出'}
+                      {initialData.description || t('expense.thisExpense')}
                     </div>
                     <div className="mt-0.5 text-xs font-medium text-slate-500">
                       {initialData.date.replace(/-/g, '/')}
@@ -1297,20 +1299,20 @@ const ExpenseForm: React.FC<Props> = ({
                         */}
                         {initialData.merchantPlaceId ? (
                           <div data-testid="expense-place-bound" className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-bold text-emerald-700">已對應到地圖地點</span>
+                            <span className="text-[10px] font-bold text-emerald-700">{t('expense.mappedToPlace')}</span>
                             <button
                               type="button"
                               data-testid="rebind-expense-place"
                               onClick={() => setRebinding(true)}
                               className="text-[10px] font-black text-[#5b3df5]"
                             >
-                              改成別的地點
+                              {t('expense.changePlace')}
                             </button>
                           </div>
                         ) : null}
                         {(!initialData.merchantPlaceId || rebinding) && (
                           <AddPlaceByName
-                            label="對應到地圖地點"
+                            label={t('expense.mapToPlace')}
                             defaultQuery={placeQuery}
                             searchOnOpen
                             context={{}}
@@ -1321,7 +1323,7 @@ const ExpenseForm: React.FC<Props> = ({
                     )}
                     {merchantPlace && (
                       <p data-testid="expense-merchant-linked" className="mt-1.5 text-[10px] font-bold text-emerald-700">
-                        已對應到「{merchantPlace.placeName}」，按下方儲存變更才會寫入。
+                        {t('expense.mappedPending', { place: merchantPlace.placeName })}
                       </p>
                     )}
                   </div>
@@ -1350,13 +1352,13 @@ const ExpenseForm: React.FC<Props> = ({
               */}
               {initialData && !initialData.receiptItems?.length && (
                 <p data-testid="no-receipt-items" className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-medium leading-4 text-slate-400">
-                  這筆沒有收據明細。用「拍收據」或「從相簿」建立的帳才會逐項列出並翻譯；手動輸入或更早記的帳沒有。
+                  {t('expense.noReceiptLines')}
                 </p>
               )}
 
               {initialData?.receiptItems?.length ? (
                 <div data-testid="receipt-items" className="rounded-2xl border border-slate-100 bg-white p-3">
-                  <p className="text-[11px] font-black text-slate-500">收據明細</p>
+                  <p className="text-[11px] font-black text-slate-500">{t('expense.receiptLines')}</p>
                   <ul className="mt-1.5 space-y-1">
                     {initialData.receiptItems.map((line, index) => (
                       <li key={`${line.name}-${index}`} className="flex items-start gap-2 text-xs">
@@ -1380,14 +1382,14 @@ const ExpenseForm: React.FC<Props> = ({
                     ))}
                   </ul>
                   <p className="mt-1.5 text-[10px] font-medium leading-4 text-slate-400">
-                    由收據照片辨識，金額為收據原幣。折扣會是負數，所以明細加總不一定等於總額。
+                    {t('expense.receiptLinesBlurb')}
                   </p>
                 </div>
               ) : null}
 
               {proposalMode && (
                 <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-medium leading-relaxed text-amber-900 ring-1 ring-amber-100">
-                  這筆帳由其他旅伴建立。你可以提議修改<b className="font-black">金額</b>、<b className="font-black">分攤成員</b>與<b className="font-black">分帳方式與金額</b>，送出後由建立者核准。
+                  <Trans i18nKey="expense.proposalBlurb" components={{ b: <b className="font-black" /> }} />
                 </p>
               )}
 
@@ -1405,26 +1407,26 @@ const ExpenseForm: React.FC<Props> = ({
                     asked for one.
                   */}
                   <label className="mb-2 block text-sm font-bold text-[#11183d]">
-                    說明（選填）
+                    {t('expense.noteOptional')}
                   </label>
                   <textarea
                     rows={3}
                     maxLength={300}
                     value={note}
                     onChange={event => setNote(event.target.value)}
-                    aria-label="修正建議說明"
+                    aria-label={t('expense.proposalNote')}
                     data-testid="proposal-message"
-                    placeholder="例如：這天我不在，這筆應該只有你分攤"
+                    placeholder={t('expense.proposalNotePlaceholder')}
                     className="min-h-[88px] w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-[#11183d] outline-none placeholder:text-slate-300 focus:border-violet-300"
                   />
                 </div>
               )}
 
-              {!locked && <SectionHeading>基本資訊</SectionHeading>}
+              {!locked && <SectionHeading>{t('expense.sectionBasics')}</SectionHeading>}
 
               {!locked && (
                 <div>
-                  <label className="block text-sm font-bold text-[#11183d] mb-2">項目名稱 <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-bold text-[#11183d] mb-2">{t('expense.fieldName')} <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <input 
                       required
@@ -1433,7 +1435,7 @@ const ExpenseForm: React.FC<Props> = ({
                       disabled={locked}
                       onChange={e => setDescription(e.target.value)}
                       className={`w-full h-12 border border-slate-200 rounded-2xl px-4 pr-11 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none${lockedStyle}`}
-                      placeholder="例如：東京地鐵三日券"
+                      placeholder={t('expense.fieldNamePlaceholder')}
                     />
                     <FileText size={17} className="pointer-events-none absolute right-4 top-3.5 text-slate-300" />
                   </div>
@@ -1443,8 +1445,8 @@ const ExpenseForm: React.FC<Props> = ({
               {!locked && (
                 <div>
                    <div className="mb-2 flex items-center justify-between">
-                     <label className="block text-sm font-bold text-[#11183d]">分類 <span className="text-red-500">*</span></label>
-                     <button type="button" onClick={() => setManagingCategories(current => !current)} className="text-xs font-bold text-violet-600">{managingCategories ? '完成' : '自訂分類管理 >'}</button>
+                     <label className="block text-sm font-bold text-[#11183d]">{t('expense.fieldCategory')} <span className="text-red-500">*</span></label>
+                     <button type="button" onClick={() => setManagingCategories(current => !current)} className="text-xs font-bold text-violet-600">{managingCategories ? t('common.done') : t('expense.manageCategories')}</button>
                    </div>
                    {managingCategories && (
                      /* Adding and removing happen here rather than on the
@@ -1464,7 +1466,7 @@ const ExpenseForm: React.FC<Props> = ({
                              }
                            }}
                            maxLength={12}
-                           placeholder="新增分類（例如：溫泉）"
+                           placeholder={t('expense.newCategoryPlaceholder')}
                            className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-violet-300"
                          />
                          <button
@@ -1472,7 +1474,7 @@ const ExpenseForm: React.FC<Props> = ({
                            onClick={() => { onAddCustomCategory(currentPhase, newCategoryName); setNewCategoryName(''); }}
                            disabled={!newCategoryName.trim()}
                            className="min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:opacity-40"
-                         >新增</button>
+                         >{t('common.add')}</button>
                        </div>
                        {ownCategories.length > 0 ? (
                          <div className="mt-2.5 flex flex-wrap gap-2">
@@ -1492,16 +1494,16 @@ const ExpenseForm: React.FC<Props> = ({
                                        ? 'bg-violet-100 text-violet-700'
                                        : 'bg-slate-100 text-slate-400'
                                    }`}
-                                 >可退稅</button>
+                                 >{t('expense.refundable')}</button>
                                )}
-                               <button type="button" aria-label={`刪除分類：${name}`} onClick={() => onRemoveCustomCategory(currentPhase, name)} className="text-slate-400">
+                               <button type="button" aria-label={t('expense.deleteCategory', { name })} onClick={() => onRemoveCustomCategory(currentPhase, name)} className="text-slate-400">
                                  <X size={13} />
                                </button>
                              </span>
                            ))}
                          </div>
                        ) : (
-                         <p className="mt-2.5 text-xs text-slate-400">這個階段還沒有自訂分類。刪除分類不會影響已經記錄的支出。</p>
+                         <p className="mt-2.5 text-xs text-slate-400">{t('expense.noCustomCategories')}</p>
                        )}
                      </div>
                    )}
@@ -1515,7 +1517,7 @@ const ExpenseForm: React.FC<Props> = ({
                    {askAboutCategory && (
                      <div data-testid="ask-category-refundable" className="mb-2 rounded-2xl border border-violet-200 bg-violet-50/60 px-3 py-2.5">
                        <p className="text-[11px] font-bold leading-5 text-[#11183d]">
-                         「{String(category)}」買的是可以退稅的商品嗎？
+                         {t('expense.askRefundable', { category: String(category) })}
                        </p>
                        <div className="mt-1.5 flex gap-1.5">
                          <button
@@ -1523,16 +1525,16 @@ const ExpenseForm: React.FC<Props> = ({
                            data-testid="category-refundable-yes"
                            onClick={() => onDecideCustomCategory?.(String(category), true)}
                            className="flex-1 rounded-xl bg-violet-600 px-3 py-2 text-[11px] font-black text-white"
-                         >是，算入退稅</button>
+                         >{t('expense.yesRefundable')}</button>
                          <button
                            type="button"
                            data-testid="category-refundable-no"
                            onClick={() => onDecideCustomCategory?.(String(category), false)}
                            className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-500"
-                         >不是（服務類）</button>
+                         >{t('expense.notRefundableService')}</button>
                        </div>
                        <p className="mt-1.5 text-[10px] font-medium leading-4 text-slate-400">
-                         這個答案記在分類上，之後同分類的消費就不會再問。
+                         {t('expense.answerRememberedOnCategory')}
                        </p>
                      </div>
                    )}
@@ -1559,7 +1561,7 @@ const ExpenseForm: React.FC<Props> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.38fr)_minmax(0,1fr)] gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-[#11183d] mb-2">金額 <span className="text-red-500">*</span></label>
+                  <label className="block text-sm font-bold text-[#11183d] mb-2">{t('expense.fieldAmount')} <span className="text-red-500">*</span></label>
                   <div className="flex h-12 rounded-2xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-violet-200 focus-within:border-violet-400">
                     <select value={currency} disabled={locked} onChange={handleCurrencyChange} className={`w-[29%] min-w-[4.25rem] border-r border-slate-200 px-2 sm:px-3 outline-none bg-white text-sm font-bold text-[#11183d]${lockedStyle}`}>
                       {COMMON_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
@@ -1579,13 +1581,13 @@ const ExpenseForm: React.FC<Props> = ({
                   <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-medium text-orange-700 flex items-center gap-1">
-                          匯率 (1 {currency} = ? TWD)
+                          {t('expense.exchangeRateLabel', { currency })}
                           <button 
                             type="button" 
                             onClick={handleRefreshRate}
                             disabled={isFetchingRate}
                             className="ml-1 px-2 py-1 hover:bg-orange-200 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1 border border-orange-200 bg-white shadow-sm"
-                            title="抓取消費當日匯率"
+                            title={t('expense.fetchRateForDate')}
                           >
                             {isFetchingRate ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                             <span className="text-[10px] font-bold whitespace-nowrap">
@@ -1593,7 +1595,7 @@ const ExpenseForm: React.FC<Props> = ({
                                   spent — 「10/3的 有辦法讓匯率 就用10/3的嗎」. It used
                                   to print today's date whatever the purchase date
                                   was, which read as a fact and was not one. */}
-                              {(date || localToday()).replace(/-/g, '/')} 當日匯率
+                              {t('expense.rateOnDate', { date: (date || localToday()).replace(/-/g, '/') })}
                             </span>
                           </button>
                       </label>
@@ -1612,7 +1614,7 @@ const ExpenseForm: React.FC<Props> = ({
                     
                     {isExchange && (
                       <div className="flex items-center justify-between border-t border-orange-200 pt-2">
-                        <label className="text-xs font-medium text-orange-700">手續費 (TWD)</label>
+                        <label className="text-xs font-medium text-orange-700">{t('expense.handlingFee')}</label>
                         <input 
                           type="number" 
                           step="1"
@@ -1626,7 +1628,7 @@ const ExpenseForm: React.FC<Props> = ({
                     )}
                     
                     <div className="text-right text-xs text-gray-500 pt-1 border-t border-orange-200 mt-2">
-                      成本計算: <span className="font-mono font-bold text-orange-800 text-sm">
+                      {t('expense.costCalculation')} <span className="font-mono font-bold text-orange-800 text-sm">
                         {Math.round(currentTotalTwd).toLocaleString()}
                       </span> TWD
                     </div>
@@ -1635,7 +1637,7 @@ const ExpenseForm: React.FC<Props> = ({
                 </div>
                 {!locked && (
                   <div>
-                    <label className="block text-sm font-bold text-[#11183d] mb-2">日期 <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-bold text-[#11183d] mb-2">{t('expense.fieldDate')} <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <CalendarDays size={17} className="absolute left-3 top-2.5 text-slate-500" />
                       <input type="date" value={date} disabled={locked} onChange={e => setDate(e.target.value)} className={`w-full h-12 border border-slate-200 rounded-2xl pl-10 pr-8 focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none bg-white text-sm whitespace-nowrap${lockedStyle}`} />
@@ -1658,7 +1660,7 @@ const ExpenseForm: React.FC<Props> = ({
               {initialData && refundReceivedInTwd(initialData) > 0 && (
                   <div data-testid="refund-breakdown" className="animate-fade-in rounded-lg border border-emerald-200 bg-emerald-50 p-3 shadow-sm">
                       <div className="text-sm font-bold text-emerald-800">
-                          {initialData.taxRefundedAtPurchase ? '結帳時已退稅' : '已收到退稅'}
+                          {initialData.taxRefundedAtPurchase ? t('expense.refundedAtTill') : t('expense.refundReceived')}
                       </div>
                       {/*
                         The subtraction happens in the currency it happened in.
@@ -1686,20 +1688,20 @@ const ExpenseForm: React.FC<Props> = ({
                         return (
                           <div className="mt-2 space-y-1 text-xs text-emerald-900">
                               <div className="flex justify-between">
-                                  <span>原始金額</span>
+                                  <span>{t('expense.originalAmount')}</span>
                                   <span className="font-mono">{money(gross)}</span>
                               </div>
                               <div className="flex justify-between">
-                                  <span>已退稅</span>
+                                  <span>{t('expense.refundedAmount')}</span>
                                   <span className="font-mono">− {money(back)}</span>
                               </div>
                               <div className="flex justify-between border-t border-emerald-200 pt-1 font-bold">
-                                  <span>實際支出</span>
+                                  <span>{t('expense.actualSpend')}</span>
                                   <span className="font-mono">{money(Math.max(0, gross - back))}</span>
                               </div>
                               {foreign && (
                                   <div className="flex justify-between text-emerald-700/70">
-                                      <span>約計</span>
+                                      <span>{t('expense.approx')}</span>
                                       <span className="font-mono">NT$ {Math.round(expenseNetAmount(initialData)).toLocaleString()}</span>
                                   </div>
                               )}
@@ -1707,7 +1709,7 @@ const ExpenseForm: React.FC<Props> = ({
                         );
                       })()}
                       <p className="mt-2 text-[10px] leading-4 text-emerald-700/70">
-                          各項總計與分帳都以「實際支出」計算。退稅金額可在退稅清單裡修改。
+                          {t('expense.actualSpendBlurb')}
                       </p>
                   </div>
               )}
@@ -1731,12 +1733,12 @@ const ExpenseForm: React.FC<Props> = ({
                               onChange={event => setRefundedAtTill(event.target.checked)}
                               className="h-4 w-4 accent-emerald-600"
                           />
-                          <span className="text-sm font-bold text-[#11183d]">結帳時已退稅</span>
+                          <span className="text-sm font-bold text-[#11183d]">{t('expense.refundedAtTill')}</span>
                       </label>
                       {refundedAtTill && (
                           <div className="mt-2.5">
                               <label className="block text-[11px] font-bold text-slate-500">
-                                  退稅金額（{currency}）
+                                  {t('expense.refundAmountField', { currency })}
                               </label>
                               <input
                                   type="number"
@@ -1745,7 +1747,7 @@ const ExpenseForm: React.FC<Props> = ({
                                   data-testid="refund-amount"
                                   value={refundAmountInput}
                                   onChange={event => setRefundAmountInput(event.target.value)}
-                                  placeholder="收據上的 즉시환급 / Refund"
+                                  placeholder={t('expense.refundAmountPlaceholder')}
                                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-400"
                               />
                               {/*
@@ -1755,7 +1757,7 @@ const ExpenseForm: React.FC<Props> = ({
                                 nobody has ever seen.
                               */}
                               <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                                  填收據上印的原幣金額，總額會自動扣掉它。
+                                  {t('expense.refundAmountBlurb')}
                               </p>
                           </div>
                       )}
@@ -1769,11 +1771,11 @@ const ExpenseForm: React.FC<Props> = ({
                               <Tag className="text-amber-600" size={16} />
                           </div>
                           <div>
-                              <div className="font-bold text-amber-800 text-sm">💡 符合 {taxRule.country} 退稅資格！</div>
+                              <div className="font-bold text-amber-800 text-sm">💡 {t('expense.qualifiesForRefund', { country: taxRule.country })}</div>
                               <div className="text-xs text-amber-700 mt-1">
-                                  該國退稅門檻為 {taxRule.minSpend.toLocaleString()} {taxRule.currency}。
+                                  {t('expense.refundThreshold', { minSpend: taxRule.minSpend.toLocaleString(), currency: taxRule.currency })}
                                   <br/>
-                                  預估可退約 <span className="font-bold text-amber-800">{estimatedRefund.toLocaleString()} {taxRule.currency}</span>。
+                                  <Trans i18nKey="expense.estimatedRefund" values={{ amount: `${estimatedRefund.toLocaleString()} ${taxRule.currency}` }} components={{ strong: <span className="font-bold text-amber-800" /> }} />
                               </div>
                               <div className="text-[10px] text-amber-600 mt-1 italic">
                                   * {taxRule.notes}
@@ -1794,19 +1796,19 @@ const ExpenseForm: React.FC<Props> = ({
                               className="h-4 w-4 accent-amber-600"
                           />
                           <span className="text-xs font-bold text-amber-900">
-                              這筆不可退稅（店家非免稅店、服務類等）
+                              {t('expense.markNotRefundable')}
                           </span>
                       </label>
                   </div>
               )}
 
-              {!isExchange && <SectionHeading>分帳設定</SectionHeading>}
+              {!isExchange && <SectionHeading>{t('expense.sectionSplit')}</SectionHeading>}
 
               {!isExchange && (
                   <div className="rounded-2xl border border-violet-100 bg-[#f5f1ff] p-4 space-y-4">
                       {!locked && (
                         <button type="button" disabled={locked} onClick={() => setSplitEnabled(value => !value)} className={`w-full flex items-center justify-between text-left${lockedStyle}`}>
-                          <span className="flex items-center gap-3"><Users size={21} className="text-violet-600" /><span><span className="block text-sm font-bold text-[#11183d]">此筆支出需要分帳</span><span className="block text-xs text-slate-500 mt-0.5">開啟後可選擇分帳方式與分攤成員</span></span></span>
+                          <span className="flex items-center gap-3"><Users size={21} className="text-violet-600" /><span><span className="block text-sm font-bold text-[#11183d]">{t('expense.splitThisExpense')}</span><span className="block text-xs text-slate-500 mt-0.5">{t('expense.splitThisExpenseBlurb')}</span></span></span>
                           <span className={`relative h-7 w-12 rounded-full transition-colors ${splitEnabled ? 'bg-violet-600' : 'bg-slate-300'}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${splitEnabled ? 'translate-x-6' : 'translate-x-1'}`} /></span>
                         </button>
                       )}
@@ -1814,9 +1816,9 @@ const ExpenseForm: React.FC<Props> = ({
                       <div className="flex items-center justify-between pb-1">
                            <div className="flex items-center gap-2 text-[#11183d]">
                               <Users size={16} />
-                              <span className="text-sm font-bold">分帳設定</span>
+                              <span className="text-sm font-bold">{t('expense.sectionSplit')}</span>
                            </div>
-                  <button type="button" onClick={onManageMembers} className="text-xs font-bold text-violet-600">調整成員 &gt;</button>
+                  <button type="button" onClick={onManageMembers} className="text-xs font-bold text-violet-600">{t('expense.adjustMembers')}</button>
                       </div>
                       {!locked && (
                         <div className="space-y-3">
@@ -1824,8 +1826,8 @@ const ExpenseForm: React.FC<Props> = ({
                             <div className="flex items-center gap-2">
                               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">1</span>
                               <div>
-                                <div className="text-sm font-bold text-[#11183d]">付款者（可多人）</div>
-                                <div className="text-[11px] text-slate-500">選擇實際付款的人與金額</div>
+                                <div className="text-sm font-bold text-[#11183d]">{t('expense.payersTitle')}</div>
+                                <div className="text-[11px] text-slate-500">{t('expense.payersBlurb')}</div>
                               </div>
                             </div>
                             {/*
@@ -1853,7 +1855,7 @@ const ExpenseForm: React.FC<Props> = ({
                                   }}
                                   className={`rounded-full px-3 py-1.5 transition-colors ${payerMode === mode ? 'bg-violet-600 text-white' : 'text-slate-500'}`}
                                 >
-                                  {mode === 'single' ? '單一付款' : '多人付款'}
+                                  {mode === 'single' ? t('expense.payerSingle') : t('expense.payerMulti')}
                                 </button>
                               ))}
                             </div>
@@ -1871,7 +1873,7 @@ const ExpenseForm: React.FC<Props> = ({
                                 >
                                   <button
                                     type="button"
-                                    aria-label={`選擇 ${member.name} 為付款者`}
+                                    aria-label={t('expense.choosePayer', { name: member.name })}
                                     aria-pressed={selected}
                                     data-testid={`payer-pick-${member.id}`}
                                     onClick={() => {
@@ -1902,11 +1904,11 @@ const ExpenseForm: React.FC<Props> = ({
                                       type="number"
                                       inputMode="decimal"
                                       data-testid={`payer-amount-${member.id}`}
-                                      aria-label={`${member.name} 付了多少`}
+                                      aria-label={t('expense.howMuchPaid', { name: member.name })}
                                       value={selected ? (payerAllocations[member.id] ?? '') : ''}
                                       disabled={!selected}
                                       onChange={event => setPayerAllocations(current => ({ ...current, [member.id]: event.target.value }))}
-                                      placeholder="輸入金額"
+                                      placeholder={t('expense.enterAmount')}
                                       className="w-28 shrink-0 rounded-lg border border-slate-200 px-2 py-1.5 text-right text-sm font-black text-[#11183d] placeholder:text-[11px] placeholder:font-bold placeholder:text-slate-300 disabled:bg-slate-50"
                                     />
                                   ) : (
@@ -1920,7 +1922,7 @@ const ExpenseForm: React.FC<Props> = ({
                             {payerMode === 'multi' && (
                               <div className="flex items-center justify-between gap-2 bg-violet-50 px-3 py-2.5 text-[11px] font-bold">
                                 <span data-testid="payer-summary" className="text-violet-700">
-                                  已選 {payerIds.length} 人 · 總支付 NT$ {Math.round(payersTotal(payerAllocations, memberOptions.map(m => m.id))).toLocaleString()}
+                                  {t('expense.payerSummary', { count: payerIds.length, total: Math.round(payersTotal(payerAllocations, memberOptions.map(m => m.id))).toLocaleString() })}
                                 </span>
                                 <button
                                   type="button"
@@ -1929,7 +1931,7 @@ const ExpenseForm: React.FC<Props> = ({
                                     spreadEvenly(current, memberOptions.map(m => m.id), Math.round(currentTotalTwd)))}
                                   className="shrink-0 text-violet-600"
                                 >
-                                  平均分配金額
+                                  {t('expense.splitEvenly')}
                                 </button>
                               </div>
                             )}
@@ -1942,14 +1944,14 @@ const ExpenseForm: React.FC<Props> = ({
 
                       {(
                           <div>
-                              <div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">2</span><div><div className="text-sm font-bold text-[#11183d]">分給誰（{beneficiaries.length} 人）</div><div className="text-[11px] text-slate-500">選擇需要分攤此筆支出的人</div></div></div><button type="button" onClick={onManageMembers} className="text-xs font-bold text-violet-600">調整成員 &gt;</button></div>
+                              <div className="mb-3 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">2</span><div><div className="text-sm font-bold text-[#11183d]">{t('expense.beneficiariesTitle', { count: beneficiaries.length })}</div><div className="text-[11px] text-slate-500">{t('expense.beneficiariesBlurb')}</div></div></div><button type="button" onClick={onManageMembers} className="text-xs font-bold text-violet-600">{t('expense.adjustMembers')}</button></div>
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                   <button
                                       type="button"
                                       onClick={() => toggleBeneficiary(effectiveOwnerMemberId)}
                                       className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${beneficiaries.includes(effectiveOwnerMemberId) ? 'bg-violet-50 text-violet-700 border-violet-400' : 'bg-white text-gray-500 border-slate-200'}`}
                                   >
-                                      <input type="checkbox" readOnly checked={beneficiaries.includes(effectiveOwnerMemberId)} className="accent-violet-600" aria-label={`選擇${ownerLabel}`} />
+                                      <input type="checkbox" readOnly checked={beneficiaries.includes(effectiveOwnerMemberId)} className="accent-violet-600" aria-label={t('expense.selectMember', { name: ownerLabel })} />
                                       <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${beneficiaries.includes(effectiveOwnerMemberId) ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{ownerLabel.charAt(0)}</span>{ownerLabel}
                                   </button>
                                   {companions.map(c => (
@@ -1959,7 +1961,7 @@ const ExpenseForm: React.FC<Props> = ({
                                           onClick={() => toggleBeneficiary(c.id)}
                                           className={`flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${beneficiaries.includes(c.id) ? 'bg-violet-50 text-violet-700 border-violet-400' : 'bg-white text-gray-500 border-slate-200'}`}
                                       >
-                                          <input type="checkbox" readOnly checked={beneficiaries.includes(c.id)} className="accent-violet-600" aria-label={`選擇${labelForMember(c.id, c.name)}`} />
+                                          <input type="checkbox" readOnly checked={beneficiaries.includes(c.id)} className="accent-violet-600" aria-label={t('expense.selectMember', { name: labelForMember(c.id, c.name) })} />
                                           <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${beneficiaries.includes(c.id) ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{c.name.charAt(0)}</span>{c.name}
                                       </button>
                                   ))}
@@ -1985,17 +1987,17 @@ const ExpenseForm: React.FC<Props> = ({
                       )}
 
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">3</span><span className="text-sm font-bold text-[#11183d]">分帳方式</span></div>
+                        <div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-xs font-bold text-white">3</span><span className="text-sm font-bold text-[#11183d]">{t('expense.splitMethod')}</span></div>
                         <div className="grid grid-cols-3 gap-2">
                           {(['EQUAL', 'EXACT', 'PERCENT'] as SplitMethod[]).map(method => (
                             <button key={method} type="button" onClick={() => setSplitMethod(method)} className={`rounded-xl border py-2.5 text-xs font-bold transition-colors ${splitMethod === method ? 'border-violet-500 bg-white text-violet-700' : 'border-transparent bg-white/70 text-slate-500'}`}>
-                              {method === 'EQUAL' ? '平均分攤' : method === 'EXACT' ? '指定金額' : '百分比分攤'}
+                              {t(`expense.splitMethodOption.${method}`)}
                             </button>
                           ))}
                         </div>
                         {splitMethod === 'EQUAL' && beneficiaries.length > 0 && (
                           <div className="rounded-xl bg-violet-100/70 px-3 py-2 text-xs font-semibold text-violet-800">
-                            將由 {beneficiaries.length} 人平均分攤，每人 <span className="font-black">NT${Math.round(currentTotalTwd / beneficiaries.length).toLocaleString()}</span>
+                            <Trans i18nKey="expense.splitEquallyAmong" values={{ count: beneficiaries.length, each: `NT$${Math.round(currentTotalTwd / beneficiaries.length).toLocaleString()}` }} components={{ strong: <span className="font-black" /> }} />
                           </div>
                         )}
                       </div>
@@ -2004,10 +2006,10 @@ const ExpenseForm: React.FC<Props> = ({
                           <div className="space-y-2">
                               <div className="hidden">
                                   <label className="text-xs font-medium text-gray-600">
-                                      {splitMethod === 'EXACT' ? '輸入各人負擔金額 (TWD)' : '輸入各人負擔百分比 (%)'}
+                                      {splitMethod === 'EXACT' ? t('expense.enterExactPerPerson') : t('expense.enterPercentPerPerson')}
                                   </label>
                                   <span className={`text-xs font-mono font-bold ${Math.abs(getRemaining()) < 0.1 ? 'text-green-600' : 'text-red-500'}`}>
-                                      {splitMethod === 'EXACT' ? '剩餘: $' : '剩餘: '}
+                                      {splitMethod === 'EXACT' ? t('expense.remainingAmount') : t('expense.remainingPercent')}
                                       {Math.round(getRemaining())}
                                       {splitMethod === 'PERCENT' ? '%' : ''}
                                   </span>
@@ -2026,7 +2028,7 @@ const ExpenseForm: React.FC<Props> = ({
                                           className={`flex-1 border rounded-xl px-2 py-2 text-sm font-mono text-right outline-none focus:border-violet-500 ${((splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)) ? 'border-violet-200 bg-violet-50 text-[#11183d]' : 'border-violet-200 bg-white text-[#11183d]'}`}
                                           placeholder="0"
                                       />
-                                      {((splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)) && <span data-testid={`auto-split-${effectiveOwnerMemberId}`} className="text-[10px] font-bold text-violet-600 whitespace-nowrap">自動計算</span>}
+                                      {((splitMethod === 'EXACT' && effectiveOwnerMemberId === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && effectiveOwnerMemberId === percentLastBeneficiaryId)) && <span data-testid={`auto-split-${effectiveOwnerMemberId}`} className="text-[10px] font-bold text-violet-600 whitespace-nowrap">{t('expense.autoCalculated')}</span>}
                                   </div>
                                   {companions.filter(c => beneficiaries.includes(c.id)).map((c, companionIndex) => (
                                       <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/80 px-3 py-2">
@@ -2042,12 +2044,12 @@ const ExpenseForm: React.FC<Props> = ({
                                               className={`flex-1 border rounded-xl px-2 py-2 text-sm font-mono text-right outline-none focus:border-violet-500 ${((splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)) ? 'border-violet-200 bg-violet-50 text-[#11183d]' : 'border-violet-200 bg-white text-[#11183d]'}`}
                                               placeholder="0"
                                           />
-                                          {((splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)) && <span data-testid={`auto-split-${c.id}`} className="text-[10px] font-bold text-violet-600 whitespace-nowrap">自動計算</span>}
+                                          {((splitMethod === 'EXACT' && c.id === exactLastBeneficiaryId) || (splitMethod === 'PERCENT' && c.id === percentLastBeneficiaryId)) && <span data-testid={`auto-split-${c.id}`} className="text-[10px] font-bold text-violet-600 whitespace-nowrap">{t('expense.autoCalculated')}</span>}
                                       </div>
                                   ))}
                               </div>
-                              {exactAllocationExceedsTotal && <p className="text-xs font-medium text-red-500">分攤金額超過支出總額</p>}
-                              {percentAllocationExceedsTotal && <p className="text-xs font-medium text-red-500">分攤比例超過 100%</p>}
+                              {exactAllocationExceedsTotal && <p className="text-xs font-medium text-red-500">{t('expense.errorSplitOverTotal')}</p>}
+                              {percentAllocationExceedsTotal && <p className="text-xs font-medium text-red-500">{t('expense.errorSplitOverPercent')}</p>}
                           </div>
                       )}
                   </div>}
@@ -2055,11 +2057,11 @@ const ExpenseForm: React.FC<Props> = ({
               )}
 
 
-              {!locked && <SectionHeading>付款資訊</SectionHeading>}
+              {!locked && <SectionHeading>{t('expense.sectionPayment')}</SectionHeading>}
 
               {!locked && (
                 <div>
-                   <label className="block text-sm font-bold text-[#11183d] mb-2">付款方式 <span className="text-red-500">*</span></label>
+                   <label className="block text-sm font-bold text-[#11183d] mb-2">{t('expense.fieldPaymentMethod')} <span className="text-red-500">*</span></label>
                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                      {Object.values(PaymentMethod).map(method => {
                        const config = PAYMENT_METHODS_CONFIG[method];
@@ -2093,13 +2095,13 @@ const ExpenseForm: React.FC<Props> = ({
                     just been to is paying for it. Optional, and silent about
                     itself when nothing is chosen.
                   */}
-                  <label className="mb-2 block text-sm font-bold text-[#11183d]">評分（選填）</label>
+                  <label className="mb-2 block text-sm font-bold text-[#11183d]">{t('expense.ratingOptional')}</label>
                   <div data-testid="expense-rating" className="mb-5 flex items-center gap-1">
                     {[1, 2, 3, 4, 5].map(star => (
                       <button
                         key={star}
                         type="button"
-                        aria-label={`${star} 星`}
+                        aria-label={t('expense.starCount', { count: star })}
                         aria-pressed={rating >= star}
                         data-testid={`expense-rating-${star}`}
                         onClick={() => setRating(rating === star ? 0 : star)}
@@ -2112,11 +2114,11 @@ const ExpenseForm: React.FC<Props> = ({
                       </button>
                     ))}
                     {rating > 0 && (
-                      <span className="ml-1 text-[11px] font-bold text-slate-400">再按一次取消</span>
+                      <span className="ml-1 text-[11px] font-bold text-slate-400">{t('expense.tapAgainToClear')}</span>
                     )}
                   </div>
 
-                  <label className="mb-2 block text-sm font-bold text-[#11183d]">備註（選填）</label>
+                  <label className="mb-2 block text-sm font-bold text-[#11183d]">{t('expense.noteFieldOptional')}</label>
                   <div className="flex items-stretch gap-3">
                     {/*
                       「這個欄位不能輸入」 — it was `disabled`, with no value, no
@@ -2128,9 +2130,9 @@ const ExpenseForm: React.FC<Props> = ({
                       maxLength={300}
                       value={note}
                       onChange={event => setNote(event.target.value)}
-                      aria-label="備註"
+                      aria-label={t('expense.noteField')}
                       data-testid="expense-note"
-                      placeholder="輸入備註..."
+                      placeholder={t('expense.notePlaceholder')}
                       className="min-h-[92px] flex-1 resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-[#11183d] outline-none placeholder:text-slate-300 focus:border-violet-300"
                     />
                     <input
@@ -2156,12 +2158,12 @@ const ExpenseForm: React.FC<Props> = ({
                     <div data-testid="receipt-thumbs" className="mt-3 flex flex-wrap gap-2">
                       {receiptPhotos.map((photo, index) => (
                         <div key={`${index}-${photo.slice(-24)}`} className="relative">
-                          <button type="button" onClick={() => setViewingReceipt(photo)} aria-label={`放大收據 ${index + 1}`}>
-                            <img src={photo} alt={`收據 ${index + 1}`} className="h-20 w-20 rounded-xl border border-slate-200 object-cover" />
+                          <button type="button" onClick={() => setViewingReceipt(photo)} aria-label={t('expense.enlargeReceiptIndexed', { index: index + 1 })}>
+                            <img src={photo} alt={t('expense.receiptIndexed', { index: index + 1 })} className="h-20 w-20 rounded-xl border border-slate-200 object-cover" />
                           </button>
                           <button
                             type="button"
-                            aria-label={`移除收據 ${index + 1}`}
+                            aria-label={t('expense.removeReceiptIndexed', { index: index + 1 })}
                             onClick={() => setReceiptPhotos(current => current.filter((_, at) => at !== index))}
                             className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/80 text-white"
                           >
@@ -2196,12 +2198,12 @@ const ExpenseForm: React.FC<Props> = ({
                 >
                   {isEditing ? <Save size={20} /> : <Plus size={20} />}
                   {proposalMode
-                    ? '送出修正建議'
+                    ? t('expense.submitProposal')
                     : isEditing
-                      ? '儲存變更'
+                      ? t('expense.saveChanges')
                       : isExchange
-                        ? '新增換匯紀錄'
-                        : '新增這筆支出'}
+                        ? t('expense.titleAddExchange')
+                        : t('expense.addThisExpense')}
                 </button>
                 {isEditing && initialData && onRequestDelete && !proposalMode && (
                   // Subtle destructive entry, deliberately not a large red
@@ -2212,7 +2214,7 @@ const ExpenseForm: React.FC<Props> = ({
                     onClick={() => onRequestDelete(initialData.id)}
                     className="mt-3 w-full rounded-xl py-2.5 text-sm font-bold text-red-500 transition-colors hover:bg-red-50"
                   >
-                    刪除這筆支出
+                    {t('expense.deleteThisExpense')}
                   </button>
                 )}
             </div>

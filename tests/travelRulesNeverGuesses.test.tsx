@@ -31,7 +31,10 @@ describe('the entry-rules research prompt', () => {
    * This only asserts that this prompt takes it.
    */
   it('takes the shared preamble, so it knows what today is', () => {
-    expect(prompt).toContain('${factsPreamble()}');
+    // `hasUserText: false` because this lookup is a destination and a passport
+    // code — there are no traveller's words here for the answer's language to
+    // follow, so the preamble names one instead of mirroring nothing.
+    expect(prompt).toContain('${factsPreamble({ hasUserText: false })}');
   });
 
   it('forbids predicting a current rule from an expired one', () => {

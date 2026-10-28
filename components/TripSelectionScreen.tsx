@@ -1,4 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
+// Module-scope helpers below render names and durations before any component
+// has a `t`; the shared instance answers in whatever language is current, and
+// the component's `useTranslation` is what re-renders them when it changes.
+import i18n from '../i18n/config';
 import AppWordmark from './AppWordmark';
 import { OVERLAY } from '../constants/layers';
 import ConfirmDialog from './ConfirmDialog';
@@ -83,14 +88,14 @@ const TECHNICAL_DRAFT_NAME = /^(?:destination\s*tbd|tbd|unknown|n\/?a)$/i;
 
 const getDraftDisplayName = (draft: TripDraft) => {
   const name = draft.name.trim();
-  return name && !TECHNICAL_DRAFT_NAME.test(name) ? name : '下一趟旅程去哪？';
+  return name && !TECHNICAL_DRAFT_NAME.test(name) ? name : i18n.t('trips.untitledDraft');
 };
 
 const getCompletedTripDisplayName = (trip: Trip) => {
   const name = typeof trip.name === 'string' ? trip.name.trim() : '';
   if (name && !TECHNICAL_DRAFT_NAME.test(name)) return name;
   const destination = trip.destination?.trim();
-  return destination || '旅程紀錄';
+  return destination || i18n.t('trips.untitledCompleted');
 };
 
 const getDestinationImageQuery = (destination?: string, country?: string) => {
@@ -191,7 +196,7 @@ const getDuration = (start?: string, end?: string) => {
   const milliseconds = dayStart(endDate).getTime() - dayStart(startDate).getTime();
   if (milliseconds < 0) return '';
   const days = Math.floor(milliseconds / 86_400_000) + 1;
-  return `${days} 天`;
+  return i18n.t('trips.dayCount', { count: days });
 };
 
 const TripSelectionScreen: React.FC<Props> = ({
@@ -216,6 +221,7 @@ const TripSelectionScreen: React.FC<Props> = ({
   onBatchAddShoppingItems,
   onShare,
 }) => {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<{ current: number; total: number } | null>(null);
@@ -243,7 +249,7 @@ const TripSelectionScreen: React.FC<Props> = ({
       const hasDestination = Boolean(activeDraft.destination?.trim());
       const name = hasDestination
         ? getDraftDisplayName(activeDraft)
-        : '下一趟旅程去哪？';
+        : i18n.t('trips.untitledDraft');
       const country = activeDraft.travelCountry || activeDraft.taxRule?.country;
       return {
         key: activeDraft.id,
@@ -253,7 +259,7 @@ const TripSelectionScreen: React.FC<Props> = ({
         endDate: activeDraft.endDate,
         country,
         destinationImageQuery: getDestinationImageQuery(activeDraft.destination, country),
-        status: '旅程草稿',
+        status: i18n.t('trips.draftBadge'),
         isDraft: true,
         hasDestination,
       };
@@ -347,7 +353,8 @@ const TripSelectionScreen: React.FC<Props> = ({
     const itemsToAdd = suggestions
       .filter((suggestion) => suggestion.selected)
       .map((suggestion) => suggestion.item);
-    const potentialName = targetId === 'new' ? `${tripDescription} 之旅` : undefined;
+    const potentialName =
+      targetId === 'new' ? t('trips.generatedName', { description: tripDescription }) : undefined;
     onBatchAddShoppingItems(
       itemsToAdd,
       targetId,
@@ -382,7 +389,7 @@ const TripSelectionScreen: React.FC<Props> = ({
             setOpenDraftMenuId(current => current === draft.id ? null : draft.id);
           }}
           className="flex h-10 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-          aria-label={`${displayName} 更多操作`}
+          aria-label={t('trips.moreActions', { name: displayName })}
           aria-expanded={isOpen}
         >
           <MoreHorizontal size={19} />
@@ -406,7 +413,7 @@ const TripSelectionScreen: React.FC<Props> = ({
               className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50"
             >
               <Trash2 size={16} />
-              刪除旅程
+              {t('trips.deleteTrip')}
             </button>
           </span>
         )}
@@ -421,10 +428,13 @@ const TripSelectionScreen: React.FC<Props> = ({
           <Loader2 size={44} className="mb-4 animate-spin text-cyan-300" />
           <h3 className="text-lg font-bold">
             {scanProgress && scanProgress.total > 1
-              ? `正在批次處理… 第 ${Math.min(scanProgress.current + 1, scanProgress.total)}/${scanProgress.total} 張`
-              : '正在分析圖片…'}
+              ? t('trips.scanBatchProgress', {
+                    current: Math.min(scanProgress.current + 1, scanProgress.total),
+                    total: scanProgress.total,
+                  })
+              : t('trips.scanAnalysing')}
           </h3>
-          <p className="mt-2 text-sm text-white/70">AI 正在辨識內容並歸入適合的旅程</p>
+          <p className="mt-2 text-sm text-white/70">{t('trips.scanBlurb')}</p>
         </div>
       )}
 
@@ -452,7 +462,7 @@ const TripSelectionScreen: React.FC<Props> = ({
             type="button"
             onClick={onShare}
             className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-600 shadow-sm ring-1 ring-slate-100 transition hover:-translate-y-0.5 hover:shadow-md"
-            aria-label="分享旅程"
+            aria-label={t('trips.shareTrip')}
           >
             <Share2 size={18} />
           </button>
@@ -460,10 +470,12 @@ const TripSelectionScreen: React.FC<Props> = ({
 
         <section className="pt-1">
           <p className="text-lg font-black tracking-tight text-[#10204a]">
-            {userName && userName !== '旅人' ? `嗨，${userName} 👋` : '嗨，旅人 👋'}
+            {userName && userName !== '旅人'
+                  ? t('trips.greetingNamed', { name: userName })
+                  : t('trips.greeting')}
           </p>
           <h1 className="mt-0.5 text-[25px] font-semibold leading-tight tracking-tight text-[#0d1d43]">
-            下一趟去哪裡？
+            {t('trips.whereNext')}
           </h1>
         </section>
 
@@ -546,14 +558,16 @@ const TripSelectionScreen: React.FC<Props> = ({
               onClick={openPrimaryTrip}
               className="relative z-10 mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-black text-blue-700 shadow-lg shadow-blue-900/10 transition hover:-translate-y-0.5"
             >
-              {primaryTrip.isDraft && !primaryTrip.hasDestination ? '繼續規劃' : '繼續旅程'}
+              {primaryTrip.isDraft && !primaryTrip.hasDestination
+                    ? t('trips.continuePlanning')
+                    : t('trips.continueTrip')}
               <ArrowRight size={17} />
             </button>
           </section>
         ) : (
           <section
             className="relative h-[188px] overflow-hidden rounded-[26px] bg-gradient-to-br from-[#dff5ff] via-[#b9e5ff] to-[#7dc7f4]"
-            aria-label="旅行靈感插畫"
+            aria-label={t('trips.inspirationIllustration')}
           >
             <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/55 blur-sm" />
             <div className="absolute right-9 top-8 h-14 w-14 rounded-full bg-[#fff3bd]/90 shadow-[0_0_34px_rgba(255,239,160,0.75)]" />
@@ -586,7 +600,7 @@ const TripSelectionScreen: React.FC<Props> = ({
         <section className="space-y-3">
           {!primaryTrip && (
             <p className="max-w-sm text-sm leading-6 text-slate-500">
-              建立旅程，或直接用截圖開始整理下一趟旅行。
+              {t('trips.emptyBlurb')}
             </p>
           )}
           <div className="flex gap-3">
@@ -600,7 +614,7 @@ const TripSelectionScreen: React.FC<Props> = ({
               }`}
             >
               <Plus size={18} />
-              {primaryTrip ? '新增旅程' : '建立第一趟旅程'}
+              {primaryTrip ? t('trips.addTrip') : t('trips.createFirstTrip')}
             </button>
             <button
               type="button"
@@ -610,12 +624,12 @@ const TripSelectionScreen: React.FC<Props> = ({
               }`}
             >
               <Camera size={18} />
-              AI 匯入
+              {t('trips.aiImport')}
             </button>
           </div>
           <p className="flex items-center gap-1.5 px-1 text-[11px] text-slate-400">
             <Sparkles size={12} className="text-purple-500" />
-            AI 可從行程截圖或單據協助整理真實資料
+            {t('trips.aiImportBlurb')}
           </p>
         </section>
 
@@ -628,7 +642,7 @@ const TripSelectionScreen: React.FC<Props> = ({
               <div>
                 <h2 className="text-sm font-black text-[#10204a]">AI Trip Planner</h2>
                 <p className="mt-0.5 text-[11px] leading-4 text-slate-400">
-                  需要靈感時，再請 AI 協助整理準備事項。
+                  {t('trips.aiIdeasBlurb')}
                 </p>
               </div>
             </div>
@@ -643,7 +657,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                   value={tripDescription}
                   onChange={(event) => setTripDescription(event.target.value)}
                   onKeyDown={(event) => event.key === 'Enter' && handleGetSuggestions()}
-                  placeholder="例如：冬天去北海道滑雪"
+                  placeholder={t('trips.ideaPlaceholder')}
                   className="w-full rounded-xl bg-white/90 py-2.5 pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:ring-2 focus:ring-purple-300"
                 />
               </div>
@@ -652,7 +666,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                 onClick={handleGetSuggestions}
                 disabled={isPlanning || !tripDescription.trim()}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600 text-white transition hover:bg-purple-700 disabled:opacity-40"
-                aria-label="取得 AI 建議"
+                aria-label={t('trips.getAiSuggestions')}
               >
                 {isPlanning ? <Loader2 size={18} className="animate-spin" /> : <ArrowRight size={18} />}
               </button>
@@ -702,7 +716,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#10204a] px-4 py-3 text-sm font-black text-white"
               >
                 <ShoppingBag size={16} />
-                將 {selectedCount} 個項目加入旅程
+                {t('trips.addSelectedToTrip', { count: selectedCount })}
               </button>
             )}
           </div>
@@ -715,7 +729,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-500">
                   More journeys
                 </p>
-                <h2 className="mt-1 text-lg font-black text-[#10204a]">其他旅程</h2>
+                <h2 className="mt-1 text-lg font-black text-[#10204a]">{t('trips.otherTrips')}</h2>
               </div>
             </div>
             <div className="space-y-2.5">
@@ -739,7 +753,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                         {getDraftDisplayName(draft)}
                       </span>
                       <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                        <span>旅程草稿</span>
+                        <span>{t('trips.draftBadge')}</span>
                         {getDateRange(draft.startDate, draft.endDate) && (
                           <span>· {getDateRange(draft.startDate, draft.endDate)}</span>
                         )}
@@ -760,7 +774,7 @@ const TripSelectionScreen: React.FC<Props> = ({
               <p className="text-[11px] font-black uppercase tracking-[0.16em] text-blue-500">
                 Completed Journeys
               </p>
-              <h2 className="mt-1 text-lg font-black text-[#10204a]">已完成的旅程</h2>
+              <h2 className="mt-1 text-lg font-black text-[#10204a]">{t('trips.completedTrips')}</h2>
             </div>
             <div className="space-y-2.5">
               {otherTrips.map((trip) => {
@@ -782,7 +796,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                       </span>
                       <span className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
                         <span className="flex items-center gap-1 text-blue-600">
-                          <CheckCircle size={12} /> 已完成
+                          <CheckCircle size={12} /> {t('trips.completedBadge')}
                         </span>
                         {dateSummary && <span>· {dateSummary}</span>}
                       </span>
@@ -802,7 +816,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                 <CalendarDays size={16} />
               </span>
               <p className="mt-4 text-2xl font-black text-[#10204a]">{tripHistory.length}</p>
-              <p className="text-xs font-semibold text-slate-400">已記錄旅程</p>
+              <p className="text-xs font-semibold text-slate-400">{t('trips.statRecordedTrips')}</p>
             </div>
             {historyTotal > 0 && (
               <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
@@ -812,7 +826,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                 <p className="mt-4 truncate text-xl font-black text-[#10204a]">
                   ${Math.round(historyTotal).toLocaleString()}
                 </p>
-                <p className="text-xs font-semibold text-slate-400">歷史旅費 TWD</p>
+                <p className="text-xs font-semibold text-slate-400">{t('trips.statLifetimeSpend')}</p>
               </div>
             )}
           </section>
@@ -823,16 +837,18 @@ const TripSelectionScreen: React.FC<Props> = ({
         request={
           pendingDeleteDraft
             ? {
-                title: '刪除這趟旅程？',
-                description: `「${getDraftDisplayName(pendingDeleteDraft)}」刪除後，這趟旅程的行程、記帳與相關資料將從目前的 Trip 資料中移除。`,
-                confirmLabel: '刪除旅程',
+                title: t('trips.deleteConfirmTitle'),
+                description: t('trips.deleteConfirmBody', {
+                  name: getDraftDisplayName(pendingDeleteDraft),
+                }),
+                confirmLabel: t('trips.deleteTrip'),
                 tone: 'danger',
                 icon: 'trash',
               }
             : null
         }
         error={deleteError}
-        requireTypedText="刪除"
+        requireTypedText={t('trips.deleteTypedConfirmation')}
         dialogTestId="delete-trip-dialog"
         cancelTestId="cancel-delete-trip"
         confirmTestId="confirm-delete-trip"
@@ -851,7 +867,7 @@ const TripSelectionScreen: React.FC<Props> = ({
             return;
           }
           // The card stays, and the dialog explains why.
-          setDeleteError('旅程刪除失敗，這趟旅程沒有被移除，請再試一次。');
+          setDeleteError(t('trips.deleteFailed'));
         }}
       />
 
@@ -861,13 +877,13 @@ const TripSelectionScreen: React.FC<Props> = ({
             <div className="flex items-center justify-between border-b border-slate-100 p-4">
               <h2 className="flex items-center gap-2 font-black text-[#10204a]">
                 <ShoppingBag size={18} className="text-purple-600" />
-                選擇目標旅程
+                {t('trips.chooseTargetTrip')}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsTargetModalOpen(false)}
                 className="rounded-full p-2 text-slate-400 hover:bg-slate-100"
-                aria-label="關閉"
+                aria-label={t('common.close')}
               >
                 <X size={18} />
               </button>
@@ -875,7 +891,7 @@ const TripSelectionScreen: React.FC<Props> = ({
 
             <div className="space-y-3 p-5">
               <p className="text-sm text-slate-500">
-                將 <span className="font-black text-purple-600">{selectedCount}</span> 個建議加入：
+                <Trans i18nKey="trips.addSuggestionsTo" values={{ count: selectedCount }} components={{ strong: <span className="font-black text-purple-600" /> }} />
               </p>
               <button
                 type="button"
@@ -886,8 +902,8 @@ const TripSelectionScreen: React.FC<Props> = ({
                   <Plus size={18} />
                 </span>
                 <span>
-                  <span className="block text-sm font-black text-[#10204a]">建立新旅程</span>
-                  <span className="text-xs text-slate-400">{tripDescription || '新旅程'}</span>
+                  <span className="block text-sm font-black text-[#10204a]">{t('trips.createNewTrip')}</span>
+                  <span className="text-xs text-slate-400">{tripDescription || t('trips.newTrip')}</span>
                 </span>
               </button>
 
@@ -905,7 +921,7 @@ const TripSelectionScreen: React.FC<Props> = ({
                     <span className="block text-sm font-black text-[#10204a]">
                       {getDraftDisplayName(draft)}
                     </span>
-                    <span className="text-xs text-slate-400">加入這趟旅程草稿</span>
+                    <span className="text-xs text-slate-400">{t('trips.addToThisDraft')}</span>
                   </span>
                 </button>
               ))}

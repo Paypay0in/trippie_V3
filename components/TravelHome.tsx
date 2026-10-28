@@ -1,4 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+// The helpers above the component format dates and names before any component
+// holds a `t`; the shared instance answers in the current language and the
+// component's `useTranslation` is what re-renders them when it changes.
+import i18n from "../i18n/config";
 import ConfirmDialog from './ConfirmDialog';
 import { localToday, phaseForDate } from '../services/tripPhaseByDate';
 import {
@@ -106,9 +111,9 @@ const getSavedNotesStorageStatus = (authStatus: Props["authStatus"]): SavedNotes
   authStatus === "authenticated" ? "account_linked" : "device_only";
 
 const formatDates = (start?: string, end?: string) => {
-  if (!start && !end) return "日期尚未設定";
+  if (!start && !end) return i18n.t("home.datesNotSet");
   const format = (value?: string) =>
-    value ? value.slice(0, 10).replace(/-/g, "/") : "未定";
+    value ? value.slice(0, 10).replace(/-/g, "/") : i18n.t("home.dateUnset");
   return `${format(start)} - ${format(end)}`;
 };
 
@@ -117,7 +122,8 @@ const formatTripDate = (date?: string) => {
 
   const parsed = new Date(`${date}T00:00:00`);
 
-  return new Intl.DateTimeFormat("zh-TW", {
+  // Formatted in the language the app is being read in, not a fixed locale.
+  return new Intl.DateTimeFormat(i18n.language, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -134,7 +140,7 @@ const getTripDurationText = (startDate?: string, endDate?: string) => {
 
   if (diff <= 0) return "";
 
-  return `${diff} 天 ${Math.max(0, diff - 1)} 夜`;
+  return i18n.t("home.nightsAndDays", { days: diff, nights: Math.max(0, diff - 1) });
 };
 
 const duration = (start?: string, end?: string) => {
@@ -143,7 +149,7 @@ const duration = (start?: string, end?: string) => {
     Math.round(
       (new Date(end).getTime() - new Date(start).getTime()) / 86400000,
     ) + 1;
-  return days > 0 ? `${days} 天` : "";
+  return days > 0 ? i18n.t("trips.dayCount", { count: days }) : "";
 };
 
 interface DestinationImageLayerProps {
@@ -207,6 +213,7 @@ const TravelHome: React.FC<Props> = ({
   cloudTripIds,
   signedIn = false,
 }) => {
+  const { t } = useTranslation();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -250,10 +257,10 @@ const TravelHome: React.FC<Props> = ({
   */
   const tripStatusLabel =
     tripStatus === "during"
-      ? "進行中的旅程"
+      ? t("home.statusDuring")
       : tripStatus === "upcoming"
-        ? "即將出發"
-        : "已結束的旅程";
+        ? t("home.statusUpcoming")
+        : t("home.statusFinished");
   const today = new Date();
   // Every other trip, not just the ones that have yet to start.
   //
@@ -365,7 +372,7 @@ const TravelHome: React.FC<Props> = ({
    * cover image, where it is a search term rather than a label.
    */
   const draftLabel = (draft: TripDraft) =>
-    draft.name?.trim() || draft.destination || "未命名旅程";
+    draft.name?.trim() || draft.destination || i18n.t("home.untitledTrip");
 
   /**
    * The overflow menu for one trip card. Rendered only when a delete handler
@@ -392,13 +399,13 @@ const TravelHome: React.FC<Props> = ({
           className="flex min-h-10 w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50"
         >
           <Trash2 size={16} />
-          刪除旅程
+          {t("trips.deleteTrip")}
         </button>
       </span>
     ) : null;
   const savedNotesTitle = authStatus === "authenticated"
-    ? `${authenticatedDisplayName?.trim() || "我的"} 儲存的旅行筆記`
-    : "我的儲存旅行筆記";
+    ? t("home.savedNotesTitleNamed", { name: authenticatedDisplayName?.trim() || t("home.savedNotesFallbackOwner") })
+    : t("home.savedNotesTitle");
 
   return (
     <div className={`mx-auto flex min-h-screen w-full flex-col bg-[#f7f8fc] text-[#11183d] shadow-2xl md:max-w-2xl lg:max-w-2xl ${BOTTOM_NAV_CLEARANCE}`}>
@@ -411,7 +418,7 @@ const TravelHome: React.FC<Props> = ({
               data-testid="open-notifications"
               onClick={() => setNotificationsOpen(true)}
               className="relative flex h-12 w-12 items-center justify-center rounded-full bg-slate-50"
-              aria-label={notices.length > 0 ? `通知（${notices.length} 則未讀）` : '通知'}
+              aria-label={notices.length > 0 ? t("home.notificationsUnread", { count: notices.length }) : t("account.notifications")}
             >
               <Bell size={23} />
               {/* A dot, not a number: the count is in the list, and a badge that says 「12」 on a header is a demand rather than a signal. */}
@@ -427,7 +434,7 @@ const TravelHome: React.FC<Props> = ({
               data-testid="focus-travel-search"
               onClick={() => searchRef.current?.focus()}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50"
-              aria-label="搜尋"
+              aria-label={t("home.search")}
             >
               <Search size={23} />
             </button>
@@ -436,15 +443,15 @@ const TravelHome: React.FC<Props> = ({
               data-testid="travel-more"
               onClick={() => onSectionChange("profile")}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50"
-              aria-label="更多"
+              aria-label={t("common.more")}
             >
               <Ellipsis size={23} />
             </button>
           </div>
         </div>
-        <p className="mt-3 text-base font-bold text-slate-400">嗨，旅人 👋</p>
+        <p className="mt-3 text-base font-bold text-slate-400">{t("trips.greeting")}</p>
         <h1 className="mt-1 text-hero font-black tracking-tight">
-          下一趟去哪裡？
+          {t("trips.whereNext")}
         </h1>
         {/*
           The search the design puts directly under the question.
@@ -462,8 +469,8 @@ const TravelHome: React.FC<Props> = ({
             data-testid="travel-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜尋目的地、景點或想做的事..."
-            aria-label="搜尋你的旅程與筆記"
+            placeholder={t("home.searchPlaceholder")}
+            aria-label={t("home.searchAriaLabel")}
             className="min-w-0 flex-1 bg-transparent py-2 text-[15px] font-medium text-[#11183d] outline-none placeholder:text-slate-300"
           />
           {query.trim() ? (
@@ -471,7 +478,7 @@ const TravelHome: React.FC<Props> = ({
               type="button"
               data-testid="clear-travel-search"
               onClick={() => setQuery("")}
-              aria-label="清除搜尋"
+              aria-label={t("home.clearSearch")}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"
             >
               <X size={20} />
@@ -480,7 +487,7 @@ const TravelHome: React.FC<Props> = ({
             <button
               type="button"
               onClick={onOpenPlanner}
-              aria-label="讓 AI 幫我排行程"
+              aria-label={t("home.askAiToPlan")}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-lg shadow-violet-500/25"
             >
               <ArrowRight size={20} />
@@ -498,9 +505,9 @@ const TravelHome: React.FC<Props> = ({
         */}
         {identityDrifts.length > 0 && (
           <section data-testid="identity-drift" className="rounded-[20px] border border-amber-200 bg-amber-50 p-4">
-            <h2 className="text-[13px] font-black text-amber-900">雲端記得的名稱不一樣</h2>
+            <h2 className="text-[13px] font-black text-amber-900">{t("home.cloudNameDiffers")}</h2>
             <p className="mt-1 text-[11px] font-bold leading-5 text-amber-700">
-              這趟旅程在雲端叫別的名字。如果你沒有自己改過，就是它被蓋掉了。
+              {t("home.cloudNameDiffersBody")}
             </p>
             <ul className="mt-3 space-y-2">
               {identityDrifts.map((drift) => (
@@ -519,7 +526,7 @@ const TravelHome: React.FC<Props> = ({
                     onClick={() => onRestoreTripIdentity?.(drift)}
                     className="shrink-0 rounded-full bg-amber-500 px-3.5 py-1.5 text-[11px] font-black text-white"
                   >
-                    還原
+                    {t("home.restore")}
                   </button>
                 </li>
               ))}
@@ -537,9 +544,9 @@ const TravelHome: React.FC<Props> = ({
         */}
         {recoverable.length > 0 && (
           <section data-testid="recoverable-trips" className="rounded-[20px] border border-sky-200 bg-sky-50 p-4">
-            <h2 className="text-[13px] font-black text-sky-900">雲端還留著這些旅程</h2>
+            <h2 className="text-[13px] font-black text-sky-900">{t("home.cloudStillHasTrips")}</h2>
             <p className="mt-1 text-[11px] font-bold leading-5 text-sky-700">
-              這台裝置刪過它們，所以不會自己拉回來。雲端的資料還在。
+              {t("home.cloudStillHasTripsBody")}
             </p>
             <ul className="mt-3 space-y-2">
               {recoverable.map((trip) => (
@@ -549,7 +556,7 @@ const TravelHome: React.FC<Props> = ({
                   className="flex items-center gap-3 rounded-[16px] bg-white px-3 py-2.5"
                 >
                   <span className="min-w-0 flex-1 text-[12px] font-bold leading-5">
-                    <span className="block truncate text-[13px] font-black text-slate-800">{trip.name || '未命名的旅程'}</span>
+                    <span className="block truncate text-[13px] font-black text-slate-800">{trip.name || t("home.untitledTrip")}</span>
                     {recoverableDates(trip) && (
                       <span className="block truncate text-slate-400">{recoverableDates(trip)}</span>
                     )}
@@ -560,7 +567,7 @@ const TravelHome: React.FC<Props> = ({
                     onClick={() => onRecoverTrip?.(trip)}
                     className="shrink-0 rounded-full bg-sky-600 px-3.5 py-1.5 text-[11px] font-black text-white"
                   >
-                    取回
+                    {t("home.pullBack")}
                   </button>
                 </li>
               ))}
@@ -583,7 +590,7 @@ const TravelHome: React.FC<Props> = ({
               <button
                 type="button"
                 className="absolute right-4 top-4 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-white/70 text-[22px] font-bold leading-none text-[#11183d] shadow-sm backdrop-blur-md transition hover:bg-white/90"
-                aria-label="更多旅程選項"
+                aria-label={t("home.moreTripOptions")}
                 aria-expanded={openMenuDraftId === activeDraft.id}
                 data-testid={`trip-menu-button-${activeDraft.id}`}
                 onClick={() =>
@@ -597,7 +604,7 @@ const TravelHome: React.FC<Props> = ({
               {renderTripMenu(activeDraft)}
               <div className="absolute bottom-5 left-5 right-[150px] text-white">
                 <h2 className="mb-2 text-[27px] font-black leading-none tracking-tight drop-shadow-sm">
-                  {activeDraft.name?.trim() || activeDraft.destination || "未命名旅程"}
+                  {activeDraft.name?.trim() || activeDraft.destination || t("home.untitledTrip")}
                 </h2>
                 {/*
                   Three stacked rows, each on one line.
@@ -635,7 +642,7 @@ const TravelHome: React.FC<Props> = ({
                 onClick={() => onContinueDraft(activeDraft.id)}
                 className="absolute bottom-4 right-4 inline-flex h-[48px] items-center gap-2 rounded-[15px] bg-white px-5 text-[14px] font-extrabold text-violet-600 shadow-[0_6px_18px_rgba(0,0,0,0.12)] transition active:scale-[0.98]"
               >
-                繼續旅程
+                {t("trips.continueTrip")}
                 <span aria-hidden="true" className="text-xl leading-none">→</span>
               </button>
             </div>
@@ -643,12 +650,12 @@ const TravelHome: React.FC<Props> = ({
           ) : (
             <div className="rounded-[1.8rem] bg-white p-8 text-center shadow-sm">
               <MapPinned className="mx-auto text-violet-500" size={30} />
-              <p className="mt-4 text-lg font-black">還沒有旅程</p>
+              <p className="mt-4 text-lg font-black">{t("home.noTripsYet")}</p>
               <button
                 onClick={onCreateNew}
                 className="mt-5 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white"
               >
-                建立第一趟旅程
+                {t("trips.createFirstTrip")}
               </button>
             </div>
           )}
@@ -660,9 +667,9 @@ const TravelHome: React.FC<Props> = ({
             className="rounded-[1.8rem] bg-white px-6 py-10 text-center shadow-sm"
           >
             <Search className="mx-auto text-slate-300" size={28} />
-            <p className="mt-4 text-base font-black">找不到「{query.trim()}」</p>
+            <p className="mt-4 text-base font-black">{t("home.noSearchResults", { query: query.trim() })}</p>
             <p className="mt-2 text-sm font-medium text-slate-400">
-              這裡搜尋的是你自己的旅程、筆記與回憶
+              {t("home.searchScopeHint")}
             </p>
           </div>
         )}
@@ -678,9 +685,9 @@ const TravelHome: React.FC<Props> = ({
           */}
           <div className="grid grid-cols-4 gap-2">
             {([
-              [Sparkles, "AI 幫我排行程", "快速生成專屬行程", onOpenPlanner, "bg-violet-50 text-violet-600"],
-              [FileInput, "匯入旅程資料", "機票・住宿・訂單", onAiImport || onCreateNew, "bg-blue-50 text-blue-600"],
-              [Plus, "新增旅程", "開始規劃下一趟", onCreateNew, "bg-pink-50 text-pink-600"],
+              [Sparkles, t("home.tileAiPlan"), t("home.tileAiPlanHint"), onOpenPlanner, "bg-violet-50 text-violet-600"],
+              [FileInput, t("home.tileImport"), t("home.tileImportHint"), onAiImport || onCreateNew, "bg-blue-50 text-blue-600"],
+              [Plus, t("trips.addTrip"), t("home.tileAddHint"), onCreateNew, "bg-pink-50 text-pink-600"],
               /*
                 探索目的地 goes to the community feed, which is where the
                 app's destination inspiration actually lives — 發現 and
@@ -688,7 +695,7 @@ const TravelHome: React.FC<Props> = ({
                 that does not exist would be the thing this list was trimmed
                 to remove.
               */
-              [Compass, "探索目的地", "發現靈感", () => onSectionChange("community"), "bg-teal-50 text-teal-600"],
+              [Compass, t("home.tileExplore"), t("home.tileExploreHint"), () => onSectionChange("community"), "bg-teal-50 text-teal-600"],
             ] as [React.ElementType, string, string, () => void, string][])
               .map(([Icon, label, hint, action, color]) => (
               <button
@@ -721,15 +728,15 @@ const TravelHome: React.FC<Props> = ({
             <h2 className="min-w-0 truncate text-lg font-black">{savedNotesTitle}</h2>
             <div className="ml-3 flex shrink-0 items-center gap-2">
               {savedNotesStorageStatus === "account_linked" ? (
-                <span className="flex items-center gap-1 text-xs font-bold text-violet-600" title="目前僅代表已連結帳號，尚未啟用雲端同步">
-                  <CloudCheck size={15} /> 已連結帳號
+                <span className="flex items-center gap-1 text-xs font-bold text-violet-600" title={t("home.accountLinkedHint")}>
+                  <CloudCheck size={15} /> {t("home.accountLinked")}
                 </span>
               ) : savedNotesStorageStatus === "cloud_synced" ? (
-                <span className="flex items-center gap-1 text-xs font-bold text-violet-600"><CloudCheck size={15} /> 已同步至 Trippie</span>
+                <span className="flex items-center gap-1 text-xs font-bold text-violet-600"><CloudCheck size={15} /> {t("home.syncedToTrippie")}</span>
               ) : (
-                <span className="flex items-center gap-1 text-xs font-bold text-slate-400"><CloudOff size={15} /> 僅儲存在此裝置</span>
+                <span className="flex items-center gap-1 text-xs font-bold text-slate-400"><CloudOff size={15} /> {t("home.deviceOnly")}</span>
               )}
-              <span className="text-xs font-bold text-slate-400">{savedNotes.length} 則</span>
+              <span className="text-xs font-bold text-slate-400">{t("home.noteCount", { count: savedNotes.length })}</span>
             </div>
           </div>
           {/*
@@ -745,7 +752,7 @@ const TravelHome: React.FC<Props> = ({
               onClick={() => setNotesExpanded((open) => !open)}
               className="mb-2 text-xs font-black text-[#5b3df5]"
             >
-              {notesExpanded ? "收合" : `全部展開（${visibleSavedNotes.length}）`}
+              {notesExpanded ? t("home.collapse") : t("home.expandAll", { count: visibleSavedNotes.length })}
             </button>
           )}
           {visibleSavedNotes.length ? (
@@ -768,7 +775,7 @@ const TravelHome: React.FC<Props> = ({
                   <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/85 to-transparent" />
                   <button
                     className="absolute right-3 top-3 text-white"
-                    aria-label="更多筆記"
+                    aria-label={t("home.moreNotes")}
                   >
                     <Ellipsis size={19} />
                   </button>
@@ -783,18 +790,18 @@ const TravelHome: React.FC<Props> = ({
                     </p>
                     <p className="mt-1 flex items-center gap-1 truncate text-xs text-white/75">
                       <MapPin size={12} />
-                      {note.count} 則
+                      {t("home.noteCount", { count: note.count })}
                     </p>
                   </div>
                 </button>
               ))}
             </div>
-          ) : <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-bold text-slate-400">尚未儲存旅行筆記</div>}
+          ) : <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-bold text-slate-400">{t("home.noSavedNotes")}</div>}
         </section>
         {visibleOtherDrafts.length > 0 && (
           <section>
             <div className="mb-4 flex items-baseline justify-between gap-2">
-              <h2 className="text-xl font-black">編輯中的旅行</h2>
+              <h2 className="text-xl font-black">{t("home.tripsBeingEdited")}</h2>
               {/*
                 The two counts, when they disagree.
 
@@ -830,7 +837,7 @@ const TravelHome: React.FC<Props> = ({
                     type="button"
                     onClick={() => onContinueDraft(draft.id)}
                     className="absolute inset-0 h-full w-full text-left"
-                    aria-label={`開啟 ${draftLabel(draft)}`}
+                    aria-label={t("home.openTrip", { name: draftLabel(draft) })}
                   >
                     <DestinationImageLayer destination={coverImageQuery(draft.destination, draft.name)} />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/85 to-transparent" />
@@ -852,7 +859,7 @@ const TravelHome: React.FC<Props> = ({
                   </button>
                   <button
                     type="button"
-                    aria-label={`${draftLabel(draft)} 更多旅程選項`}
+                    aria-label={t("trips.moreActions", { name: draftLabel(draft) })}
                     aria-expanded={openMenuDraftId === draft.id}
                     data-testid={`trip-menu-button-${draft.id}`}
                     onClick={(event) => {
@@ -877,7 +884,7 @@ const TravelHome: React.FC<Props> = ({
                       data-testid={`trip-not-uploaded-${draft.id}`}
                       className="absolute left-2 top-2 z-20 flex items-center gap-1 rounded-full bg-amber-500/95 px-2 py-0.5 text-[10px] font-black text-white shadow-sm"
                     >
-                      <CloudOff size={11} />未上傳
+                      <CloudOff size={11} />{t("home.notUploaded")}
                     </span>
                   )}
                   {renderTripMenu(draft)}
@@ -888,7 +895,7 @@ const TravelHome: React.FC<Props> = ({
         )}
         <section>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-black">你的旅行回憶</h2>
+            <h2 className="text-xl font-black">{t("home.yourMemories")}</h2>
             <CalendarDays size={20} className="text-violet-500" />
           </div>
           {visibleHistory.length ? (
@@ -921,23 +928,23 @@ const TravelHome: React.FC<Props> = ({
                 </button>
               ))}
             </div>
-          ) : <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-bold text-slate-400">尚未完成旅行回憶</div>}
+          ) : <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm font-bold text-slate-400">{t("home.noMemoriesYet")}</div>}
         </section>
       </main>
       <ConfirmDialog
         request={
           pendingDeleteDraft
             ? {
-                title: "刪除這趟旅程？",
-                description: `「${draftLabel(pendingDeleteDraft)}」刪除後，這趟旅程的行程、記帳與相關資料將從目前的 Trip 資料中移除。`,
-                confirmLabel: "刪除旅程",
+                title: t("trips.deleteConfirmTitle"),
+                description: t("trips.deleteConfirmBody", { name: draftLabel(pendingDeleteDraft) }),
+                confirmLabel: t("trips.deleteTrip"),
                 tone: "danger",
                 icon: "trash",
               }
             : null
         }
         error={deleteError}
-        requireTypedText="刪除"
+        requireTypedText={t("trips.deleteTypedConfirmation")}
         dialogTestId="delete-trip-dialog"
         cancelTestId="cancel-delete-trip"
         confirmTestId="confirm-delete-trip"
@@ -956,7 +963,7 @@ const TravelHome: React.FC<Props> = ({
             return;
           }
           // The card stays, and the dialog explains why.
-          setDeleteError("旅程刪除失敗，這趟旅程沒有被移除，請再試一次。");
+          setDeleteError(t("trips.deleteFailed"));
         }}
       />
       <AppBottomNav
