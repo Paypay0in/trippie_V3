@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ShoppingItem } from '../types';
 import {
   Check,
@@ -100,7 +101,27 @@ interface Props {
 }
 
 /** The chip every list has, whatever is in it. */
+/*
+  Two sentinels, both of which used to double as display text.
+
+  `ALL` is the no-filter state and `UNCATEGORISED` is the heading rows with no
+  category are grouped under — and `renameCategory` matches on it to move those
+  rows. They stay Chinese because they are keys compared against
+  `item.category`, which is traveller data; what the screen shows is looked up
+  from them. Translating the key instead would have renamed a category nobody
+  asked to rename, which moves rows.
+*/
 const ALL = '全部';
+const UNCATEGORISED = '未分類';
+
+/**
+ * What a category heading says on screen.
+ *
+ * The two sentinels above are keys, so they are the only ones translated; a
+ * category the traveller typed is their own word and is shown as written.
+ */
+const categoryLabel = (key: string, t: (k: string) => string): string =>
+  key === ALL ? t('common.all') : key === UNCATEGORISED ? t('shopping.uncategorised') : key;
 
 const ShoppingListPanel: React.FC<Props> = ({
   title,
@@ -119,6 +140,7 @@ const ShoppingListPanel: React.FC<Props> = ({
   onComparisonCountry,
   onResidenceCountry,
 }) => {
+  const { t } = useTranslation();
   const [newItemName, setNewItemName] = useState('');
   const [filter, setFilter] = useState(ALL);
   /** 「搜尋商品、品牌或店家」 — one box over the three fields a row has. */
@@ -235,8 +257,8 @@ const ShoppingListPanel: React.FC<Props> = ({
         if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
       })
       .catch(error => setPhotoTrouble((error as { quota?: boolean })?.quota
-        ? '圖片搜尋的額度用完了，稍後再找。'
-        : '現在找不到商品圖片。'))
+        ? t('shopping.imageQuotaExceeded')
+        : t('shopping.imageNotFound')))
       .finally(() => setFindingImage(null));
   };
 
@@ -288,8 +310,8 @@ const ShoppingListPanel: React.FC<Props> = ({
         found = await findProductImage({ name: item.name, brand: brandOf(item.description) });
       } catch (error) {
         setPhotoTrouble((error as { quota?: boolean })?.quota
-          ? '圖片搜尋的額度用完了，稍後再找。'
-          : '現在找不到商品圖片。');
+          ? t('shopping.imageQuotaExceeded')
+          : t('shopping.imageNotFound'));
         break;
       }
       if (found) onUpdateItem(item.id, { photo: found.imageUrl, photoSource: found.pageUrl });
@@ -427,7 +449,7 @@ const ShoppingListPanel: React.FC<Props> = ({
   const sections = useMemo(() => {
     const groups = new Map<string, ShoppingItem[]>();
     shown.forEach(item => {
-      const key = item.category?.trim() || '未分類';
+      const key = item.category?.trim() || UNCATEGORISED;
       groups.set(key, [...(groups.get(key) ?? []), item]);
     });
     return [...groups.entries()];
@@ -442,7 +464,7 @@ const ShoppingListPanel: React.FC<Props> = ({
     const next = to.trim();
     if (!onUpdateItem || !next || next === from) return;
     shoppingList
-      .filter(item => (item.category?.trim() || '未分類') === from)
+      .filter(item => (item.category?.trim() || UNCATEGORISED) === from)
       .forEach(item => onUpdateItem(item.id, { category: next }));
     if (filter === from) setFilter(next);
   };
@@ -483,7 +505,7 @@ const ShoppingListPanel: React.FC<Props> = ({
         */}
         <h3 className="text-2xl font-black leading-tight text-[#11183d]">{title}</h3>
         <p className="mt-1 mb-4 text-xs leading-5 text-slate-400">
-          把想買的東西收集起來，旅途中不錯過任何好物！
+          {t('shopping.blurb')}
         </p>
 
         {/*
@@ -498,7 +520,7 @@ const ShoppingListPanel: React.FC<Props> = ({
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between">
-                <span className="text-sm font-black text-[#5b3df5]">已買 {bought} / {total}</span>
+                <span className="text-sm font-black text-[#5b3df5]">{t('shopping.boughtOfTotal', { bought, total })}</span>
                 <span className="text-[11px] font-bold text-slate-400">{percent}%</span>
               </span>
               <span className="mt-2 block h-2 rounded-full bg-white">
@@ -523,8 +545,8 @@ const ShoppingListPanel: React.FC<Props> = ({
           <div data-testid="shopping-comparison" className="mb-3 rounded-2xl bg-[#f4f3ff] px-3 py-2.5">
             {needsHome ? (
               <p className="text-[11px] font-black text-[#11183d]">
-                要跟哪裡的價格比？
-                <span className="ml-1 font-bold text-slate-500">選了才能比價</span>
+                {t('shopping.compareWhere')}
+                <span className="ml-1 font-bold text-slate-500">{t('shopping.compareWhereHint')}</span>
               </p>
             ) : (
               <button
@@ -536,7 +558,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                 className="flex w-full items-center justify-between text-[11px] font-black text-[#11183d]"
               >
                 <span>
-                  比價：{destination?.displayName ?? '—'}
+                  {t('shopping.comparingWith', { place: destination?.displayName ?? '—' })}
                   <span className="mx-1 text-slate-400">⇄</span>
                   {home?.displayName}
                 </span>
@@ -598,8 +620,8 @@ const ShoppingListPanel: React.FC<Props> = ({
                 <input
                   value={query}
                   onChange={event => setQuery(event.target.value)}
-                  placeholder="搜尋商品、品牌或店家…"
-                  aria-label="搜尋商品、品牌或店家"
+                  placeholder={t('shopping.searchPlaceholder')}
+                  aria-label={t('shopping.searchAria')}
                   data-testid="shopping-search"
                   className="min-w-0 flex-1 bg-transparent text-xs text-[#11183d] outline-none placeholder:text-slate-300"
                 />
@@ -607,7 +629,7 @@ const ShoppingListPanel: React.FC<Props> = ({
               {/* 「我之後可以篩選商品金額」 — the funnel opens a range, not a sort. */}
               <button
                 type="button"
-                aria-label="依金額篩選"
+                aria-label={t('shopping.filterByAmount')}
                 aria-expanded={amountOpen}
                 data-testid="shopping-amount-filter"
                 onClick={() => setAmountOpen(open => !open)}
@@ -623,15 +645,15 @@ const ShoppingListPanel: React.FC<Props> = ({
 
             {amountOpen && (
               <div data-testid="shopping-amount-range" className="mt-2 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
-                <p className="text-[11px] font-black text-[#11183d]">金額範圍</p>
+                <p className="text-[11px] font-black text-[#11183d]">{t('shopping.amountRange')}</p>
                 <div className="mt-2 flex items-center gap-2">
                   <input
                     type="number"
                     inputMode="numeric"
                     value={minAmount}
                     onChange={event => setMinAmount(event.target.value)}
-                    placeholder="最低"
-                    aria-label="最低金額"
+                    placeholder={t('shopping.min')}
+                    aria-label={t('shopping.minAmount')}
                     data-testid="shopping-amount-min"
                     className="min-w-0 flex-1 rounded-xl bg-white px-2.5 py-2 text-xs text-[#11183d] outline-none ring-1 ring-slate-200"
                   />
@@ -641,8 +663,8 @@ const ShoppingListPanel: React.FC<Props> = ({
                     inputMode="numeric"
                     value={maxAmount}
                     onChange={event => setMaxAmount(event.target.value)}
-                    placeholder="最高"
-                    aria-label="最高金額"
+                    placeholder={t('shopping.max')}
+                    aria-label={t('shopping.maxAmount')}
                     data-testid="shopping-amount-max"
                     className="min-w-0 flex-1 rounded-xl bg-white px-2.5 py-2 text-xs text-[#11183d] outline-none ring-1 ring-slate-200"
                   />
@@ -652,7 +674,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                     onClick={() => { setMinAmount(''); setMaxAmount(''); }}
                     className="shrink-0 rounded-xl px-2 py-2 text-[11px] font-black text-slate-400"
                   >
-                    清除
+                    {t('plan.clear')}
                   </button>
                 </div>
                 {/*
@@ -662,7 +684,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                 */}
                 {unpricedHidden > 0 && (
                   <p data-testid="shopping-amount-unpriced" className="mt-2 text-[10px] leading-4 text-slate-400">
-                    還有 {unpricedHidden} 樣沒有填金額，篩選期間不會出現。
+                    {t('shopping.unpricedHidden', { count: unpricedHidden })}
                   </p>
                 )}
               </div>
@@ -684,9 +706,9 @@ const ShoppingListPanel: React.FC<Props> = ({
             className="mb-3 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-2xl bg-white text-[11px] font-black text-[#5b3df5] ring-1 ring-violet-200 disabled:opacity-60"
           >
             {swapping
-              ? <><Loader2 size={13} className="animate-spin" />正在找商品圖 {swapping.done}/{swapping.total}</>
+              ? <><Loader2 size={13} className="animate-spin" />{t('shopping.findingImages', { done: swapping.done, total: swapping.total })}</>
               : <><ImageIcon size={13} />
-                  {wearingAScreenshot.length > 0 ? '全部換成商品圖' : '全部重新找商品圖'}（{swapTarget.length}）
+                  {t(wearingAScreenshot.length > 0 ? 'shopping.swapAllToProductImages' : 'shopping.refindAllImages', { count: swapTarget.length })}
                 </>}
           </button>
         )}
@@ -711,7 +733,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                   filter === label ? 'bg-[#5b3df5] text-white' : 'bg-slate-100 text-slate-500'
                 }`}
               >
-                {label}{' '}
+                {categoryLabel(label, t)}{' '}
                 <span className={filter === label ? 'text-white/70' : 'text-slate-400'}>{count}</span>
               </button>
             ))}
@@ -721,7 +743,7 @@ const ShoppingListPanel: React.FC<Props> = ({
         {probablyBought.length > 0 && (
           <div data-testid="shopping-bought-offer" className="mb-2 rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5">
             <p className="text-[11px] font-black text-emerald-800">
-              收據上出現了這 {probablyBought.length} 樣，已經買到了嗎？
+              {t('shopping.probablyBought', { count: probablyBought.length })}
             </p>
             <div className="mt-1.5 space-y-1">
               {probablyBought.map(({ item, line, date }) => (
@@ -738,7 +760,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                     onClick={() => onUpdateItem?.(item.id, { isPurchased: true })}
                     className="shrink-0 rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-black text-white"
                   >
-                    標記已買
+                    {t('shopping.markBought')}
                   </button>
                 </div>
               ))}
@@ -751,7 +773,7 @@ const ShoppingListPanel: React.FC<Props> = ({
       <div className="px-5">
         {shown.length === 0 ? (
           <div className="py-6 text-center text-xs text-gray-400">
-            {shoppingList.length === 0 ? '清單是空的，新增一些項目吧！' : `「${filter}」還沒有東西。`}
+            {shoppingList.length === 0 ? t('shopping.emptyList') : t('shopping.emptyFilter', { name: categoryLabel(filter, t) })}
           </div>
         ) : (
           <>
@@ -772,7 +794,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                   <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-white text-[#5b3df5]">
                     <Tag size={13} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-left">{label}（{items.length}）</span>
+                  <span className="min-w-0 flex-1 truncate text-left">{t('shopping.sectionHeading', { name: categoryLabel(label, t), count: items.length })}</span>
                   <ChevronDown
                     size={15}
                     className={`shrink-0 text-slate-400 ${collapsed.has(label) ? '-rotate-90' : ''}`}
@@ -802,7 +824,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                       type="button"
                       role="checkbox"
                       aria-checked={!!item.isPurchased}
-                      aria-label={`${item.name} ${item.isPurchased ? '取消已購買' : '標記已購買'}`}
+                      aria-label={item.isPurchased ? t('shopping.unmarkBought', { name: item.name }) : t('shopping.markBoughtNamed', { name: item.name })}
                       data-testid={`shopping-tick-${item.id}`}
                       disabled={!onUpdateItem}
                       onClick={() => onUpdateItem?.(item.id, { isPurchased: !item.isPurchased })}
@@ -823,7 +845,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                             picture and nothing of what is in it. */}
                         <button
                           type="button"
-                          aria-label={`放大 ${item.name} 的照片`}
+                          aria-label={t('shopping.enlargePhoto', { name: item.name })}
                           onClick={() => setViewingPhoto(item.photo as string)}
                         >
                           <img
@@ -854,7 +876,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                     ) : onUpdateItem ? (
                       <button
                         type="button"
-                        aria-label={`幫 ${item.name} 找商品圖片`}
+                        aria-label={t('shopping.findImageFor', { name: item.name })}
                         data-testid={`shopping-find-photo-${item.id}`}
                         disabled={findingImage === item.id}
                         onClick={() => lookUpImage(item)}
@@ -882,7 +904,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                                 : 'bg-amber-50 text-amber-600'
                             }`}
                           >
-                            {item.isPurchased ? '已購買' : '待購買'}
+                            {item.isPurchased ? t('shopping.bought') : t('shopping.toBuy')}
                           </span>
                         </span>
                         {/*
@@ -893,7 +915,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                         */}
                         <button
                           type="button"
-                          aria-label={`${item.name} 的其他動作`}
+                          aria-label={t('shopping.moreActionsFor', { name: item.name })}
                           aria-expanded={menuFor === item.id}
                           data-testid={`shopping-menu-${item.id}`}
                           onClick={() => setMenuFor(open => (open === item.id ? null : item.id))}
@@ -921,7 +943,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                               onClick={() => { onPurchaseItem(item); setMenuFor(null); }}
                               className="flex items-center gap-1 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-[#5b3df5] ring-1 ring-slate-200"
                             >
-                              <ShoppingBag size={12} /> 記一筆支出
+                              <ShoppingBag size={12} /> {t('shopping.recordExpense')}
                             </button>
                           )}
                           <button
@@ -931,7 +953,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                             onClick={() => comparePrices(item)}
                             className="rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-[#5b3df5] ring-1 ring-slate-200 disabled:opacity-60"
                           >
-                            {checking === item.id ? '查價中…' : '重新查價'}
+                            {checking === item.id ? t('shopping.checkingPrice') : t('shopping.checkPriceAgain')}
                           </button>
                           {/*
                             「這兩個我隨便搜都知道價格」.
@@ -954,7 +976,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                               onClick={() => {
                                 const held = item.priceUrls ?? {};
                                 const given = window.prompt(
-                                  `貼上${country.displayName}的商品頁網址（留空則清除，改回自動搜尋）`,
+                                  t('shopping.pasteProductUrl', { country: country.displayName }),
                                   held[country.code] ?? '',
                                 );
                                 if (given === null) return;
@@ -968,8 +990,8 @@ const ShoppingListPanel: React.FC<Props> = ({
                               className="rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-slate-500 ring-1 ring-slate-200"
                             >
                               {item.priceUrls?.[country.code]
-                                ? `${country.displayName}：已指定網址`
-                                : `指定${country.displayName}網址`}
+                                ? t('shopping.urlSet', { country: country.displayName })
+                                : t('shopping.setUrl', { country: country.displayName })}
                             </button>
                           ))}
                           {/*
@@ -987,7 +1009,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                               {findingImage === item.id
                                 ? <Loader2 size={12} className="animate-spin" />
                                 : <ImageIcon size={12} />}
-                              換一張商品圖
+                              {t('shopping.swapImage')}
                             </button>
                           )}
                           {item.priority && (
@@ -1004,16 +1026,16 @@ const ShoppingListPanel: React.FC<Props> = ({
                                   : 'bg-white text-violet-600'
                               }`}
                             >
-                              {item.priority === 'must' ? '必買' : '想買'}
+                              {item.priority === 'must' ? t('shopping.priorityMust') : t('shopping.priorityWant')}
                             </button>
                           )}
                           <button
                             type="button"
-                            aria-label={`刪除 ${item.name}`}
+                            aria-label={t('shopping.deleteNamed', { name: item.name })}
                             onClick={() => { onRemoveItem(item.id); setMenuFor(null); }}
                             className="flex items-center gap-1 rounded-lg bg-white px-2 py-1.5 text-[11px] font-black text-rose-500 ring-1 ring-slate-200"
                           >
-                            <Trash2 size={12} /> 刪除
+                            <Trash2 size={12} /> {t('common.delete')}
                           </button>
                         </div>
                       )}
@@ -1026,7 +1048,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                       */}
                       {!prices[item.id] ? (
                         <p data-testid={`shopping-prices-pending-${item.id}`} className="mt-1 text-[11px] text-slate-300">
-                          查價中…
+                          {t('shopping.checkingPrice')}
                         </p>
                       ) : (
                         <div data-testid={`shopping-prices-${item.id}`} className="mt-1 space-y-0.5">
@@ -1042,7 +1064,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                             const found = quotesIn(prices[item.id].quotes, country.code);
                             return (
                               <div key={country.code} data-testid={`shopping-prices-${country.code}-${item.id}`} className="text-[11px]">
-                                <span className="font-black text-slate-500">{country.displayName}價格：</span>
+                                <span className="font-black text-slate-500">{t('shopping.countryPrice', { country: country.displayName })}</span>
                                 {found.length === 0 ? (
                                   /*
                                     Why, not just that. Shops found and none
@@ -1060,12 +1082,12 @@ const ShoppingListPanel: React.FC<Props> = ({
                                         : 'text-slate-300'
                                     }`}
                                   >
-                                    {{
-                                      no_match: '找到的是別的商品',
-                                      found_no_price: '找到商品頁，但沒標價',
-                                      quota_exceeded: '搜尋額度用完了，稍後再查',
-                                      search_unavailable: '搜尋暫時不通，稍後再查',
-                                    }[prices[item.id].byCountry?.[country.code] ?? ''] ?? '沒查到'}
+                                    {t({
+                                      no_match: 'shopping.priceNoMatch',
+                                      found_no_price: 'shopping.priceFoundNoPrice',
+                                      quota_exceeded: 'shopping.priceQuotaExceeded',
+                                      search_unavailable: 'shopping.priceSearchUnavailable',
+                                    }[prices[item.id].byCountry?.[country.code] ?? ''] ?? 'shopping.priceNotFound')}
                                   </span>
                                 ) : (
                                   <span className="mt-0.5 block space-y-0.5">
@@ -1103,7 +1125,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                                             data-testid={`shopping-pack-${item.id}`}
                                             className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-black text-slate-500"
                                           >
-                                            {quote.packSize}入組
+                                            {t('shopping.packSize', { size: quote.packSize })}
                                           </span>
                                         )}
                                         {/* 「那要直接換算：約台幣xxxx」 */}
@@ -1129,7 +1151,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                                         */}
                                         {quote.verified === false && (
                                           <span data-testid={`shopping-unverified-${item.id}`} className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-black text-amber-600">
-                                            未比對商品
+                                            {t('shopping.notMatched')}
                                           </span>
                                         )}
                                         {/*
@@ -1146,7 +1168,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                                             data-testid={`shopping-page-text-${item.id}`}
                                             className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-black text-slate-500"
                                           >
-                                            頁面標示價
+                                            {t('shopping.pageListedPrice')}
                                           </span>
                                         )}
                                         {quote.match === 'probable' && (
@@ -1155,7 +1177,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                                             data-testid={`shopping-probable-${item.id}`}
                                             className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-black text-amber-600"
                                           >
-                                            可能同款
+                                            {t('shopping.possiblySame')}
                                           </span>
                                         )}
                                         {/*
@@ -1167,7 +1189,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                                         */}
                                         {quote.placement === 'language' && (
                                           <span data-testid={`shopping-inferred-${item.id}`} className="ml-1 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-black text-slate-400">
-                                            國別推定
+                                            {t('shopping.countryInferred')}
                                           </span>
                                         )}
                                       </span>
@@ -1191,7 +1213,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                           {/* When it was read, so the reader can judge it. */}
                           {prices[item.id].readAt && prices[item.id].quotes.length > 0 && (
                             <p className="text-[10px] text-slate-400">
-                              {prices[item.id].readAt.slice(0, 10).replace(/-/g, '/')} 查到的價格，僅供參考
+                              {t('shopping.priceReadOn', { date: prices[item.id].readAt.slice(0, 10).replace(/-/g, '/') })}
                             </p>
                           )}
                         </div>
@@ -1204,7 +1226,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                         <span className="flex items-center gap-1 rounded-xl px-1 py-0.5 ring-1 ring-slate-200">
                           <button
                             type="button"
-                            aria-label={`${item.name} 減少一個`}
+                            aria-label={t('shopping.decrease', { name: item.name })}
                             data-testid={`shopping-less-${item.id}`}
                             disabled={quantityOf(item) <= 1}
                             onClick={() => onUpdateItem(item.id, { quantity: quantityOf(item) - 1 })}
@@ -1217,7 +1239,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                           </span>
                           <button
                             type="button"
-                            aria-label={`${item.name} 增加一個`}
+                            aria-label={t('shopping.increase', { name: item.name })}
                             data-testid={`shopping-more-${item.id}`}
                             onClick={() => onUpdateItem(item.id, { quantity: quantityOf(item) + 1 })}
                             className="p-1 text-slate-400"
@@ -1234,7 +1256,7 @@ const ShoppingListPanel: React.FC<Props> = ({
                     */}
                     {typeof item.estimatedAmount === 'number' && item.estimatedAmount > 0 && (
                       <span data-testid={`shopping-amount-${item.id}`} className="text-[11px] font-black text-amber-600">
-                        約 {item.estimatedCurrency || 'NT$'} {Math.round(item.estimatedAmount).toLocaleString()}
+                        {t('shopping.approxAmount', { currency: item.estimatedCurrency || 'NT$', amount: Math.round(item.estimatedAmount).toLocaleString() })}
                       </span>
                     )}
                   </div>
@@ -1264,7 +1286,7 @@ const ShoppingListPanel: React.FC<Props> = ({
             onClick={() => { setManaging(open => !open); setAdding(false); }}
             className="flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-xs font-black text-slate-500 ring-1 ring-slate-200"
           >
-            <Tag size={14} />分類管理
+            <Tag size={14} />{t('shopping.manageCategories')}
           </button>
         )}
         <button
@@ -1273,7 +1295,7 @@ const ShoppingListPanel: React.FC<Props> = ({
           onClick={() => { setAdding(open => !open); setManaging(false); }}
           className="flex min-h-12 flex-[1.2] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-xs font-black text-white"
         >
-          <Plus size={16} />新增商品
+          <Plus size={16} />{t('shopping.addItem')}
         </button>
       </div>
 
@@ -1284,13 +1306,13 @@ const ShoppingListPanel: React.FC<Props> = ({
             autoFocus
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
-            placeholder="想買什麼？(如: 轉接頭、伴手禮)"
+            placeholder={t('shopping.addPlaceholder')}
             data-testid="shopping-add-input"
             className="min-w-0 flex-1 rounded-2xl bg-slate-50 px-3 py-2.5 text-sm text-[#11183d] outline-none ring-1 ring-slate-200"
           />
           <button
             type="submit"
-            aria-label="新增"
+            aria-label={t('common.add')}
             disabled={!newItemName.trim()}
             className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#5b3df5] text-white disabled:opacity-40"
           >
@@ -1309,7 +1331,7 @@ const ShoppingListPanel: React.FC<Props> = ({
             <div key={label} className="flex items-center gap-2">
               <input
                 defaultValue={label}
-                aria-label={`${label} 的分類名稱`}
+                aria-label={t('shopping.categoryNameOf', { name: categoryLabel(label, t) })}
                 data-testid={`shopping-category-name-${label}`}
                 onBlur={event => renameCategory(label, event.target.value)}
                 onKeyDown={event => {
@@ -1317,11 +1339,11 @@ const ShoppingListPanel: React.FC<Props> = ({
                 }}
                 className="min-w-0 flex-1 rounded-xl bg-slate-50 px-3 py-2 text-xs font-black text-[#11183d] outline-none ring-1 ring-slate-200"
               />
-              <span className="shrink-0 text-[11px] text-slate-400">{count} 樣</span>
+              <span className="shrink-0 text-[11px] text-slate-400">{t('shopping.itemCount', { count })}</span>
             </div>
           ))}
           <p className="text-[10px] leading-4 text-slate-400">
-            改了名字，這個分類底下的商品會一起搬過去。
+            {t('shopping.renameMovesItems')}
           </p>
         </div>
       )}
