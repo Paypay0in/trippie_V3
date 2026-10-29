@@ -14,6 +14,7 @@
  */
 
 import { addLocalDays, fromLocalIsoDate } from './localDate';
+import { CHECK_IN_PREFIX, CHECK_OUT_PREFIX, isCheckInItem, isCheckOutItem, stayTitleBody } from './stayItemTitles';
 import { reachHotelTime } from './arrivalPlan';
 
 export const STAY_MODEL = 'gemini-3-flash-preview';
@@ -221,7 +222,7 @@ export const stayToItineraryItems = (
     items.push({
       ...base,
       id: makeId(),
-      title: `入住 ${stay.hotelName}`,
+      title: `${CHECK_IN_PREFIX}${stay.hotelName}`,
       date: stay.checkInDate,
       time: stay.checkInTime || defaultCheckInTime(stay.checkInDate, arrivals),
       notes: [
@@ -235,7 +236,7 @@ export const stayToItineraryItems = (
     items.push({
       ...base,
       id: makeId(),
-      title: `退房 ${stay.hotelName}`,
+      title: `${CHECK_OUT_PREFIX}${stay.hotelName}`,
       date: stay.checkOutDate,
       time: stay.checkOutTime || '11:00',
       notes: detail,
@@ -309,8 +310,7 @@ const carryPlace = (
   stay.placeId = item.placeId;
 };
 
-const CHECK_IN_PREFIX = '入住 ';
-const CHECK_OUT_PREFIX = '退房 ';
+// Imported rather than redeclared; see `stayItemTitles`.
 
 /**
  * Reconstructs each stay from the itinerary items it became.
@@ -341,15 +341,15 @@ export const staysFromItinerary = (
   for (const item of items) {
     if (item.type !== 'HOTEL' || item.fixedEventKind !== 'accommodation') continue;
 
-    if (item.title.startsWith(CHECK_IN_PREFIX)) {
-      const stay = ensure(item.title.slice(CHECK_IN_PREFIX.length), item.id);
+    if (isCheckInItem(item)) {
+      const stay = ensure(stayTitleBody(item), item.id);
       stay.checkInDate = item.date;
       stay.address = stay.address ?? item.address ?? item.location;
       carryPlace(stay, item);
       // The check-in item is the one worth opening, so it wins the id.
       stay.itemId = item.id;
-    } else if (item.title.startsWith(CHECK_OUT_PREFIX)) {
-      const stay = ensure(item.title.slice(CHECK_OUT_PREFIX.length), item.id);
+    } else if (isCheckOutItem(item)) {
+      const stay = ensure(stayTitleBody(item), item.id);
       stay.checkOutDate = item.date;
       stay.address = stay.address ?? item.address ?? item.location;
       carryPlace(stay, item);

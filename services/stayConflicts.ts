@@ -1,4 +1,5 @@
 import { ItineraryItem } from '../types';
+import { isCheckInItem, isCheckOutItem, stayTitleBody } from './stayItemTitles';
 
 /**
  * Two bookings that cannot both be true.
@@ -17,8 +18,8 @@ import { ItineraryItem } from '../types';
  * each other and hands the choice to the person holding the booking email.
  */
 
-const CHECK_IN_PREFIX = '入住 ';
-const CHECK_OUT_PREFIX = '退房 ';
+// The prefixes and the predicates live in `stayItemTitles`; this file used to
+// declare its own copy of both.
 
 export type StayRole = 'check_in' | 'check_out';
 
@@ -35,16 +36,15 @@ export const isStayItem = (item: ItineraryItem): boolean =>
   item.type === 'HOTEL' && item.fixedEventKind === 'accommodation';
 
 export const stayRoleOf = (item: ItineraryItem): StayRole | undefined => {
-  if (item.title?.startsWith(CHECK_IN_PREFIX)) return 'check_in';
-  if (item.title?.startsWith(CHECK_OUT_PREFIX)) return 'check_out';
+  if (item.title && isCheckInItem(item)) return 'check_in';
+  if (item.title && isCheckOutItem(item)) return 'check_out';
   return undefined;
 };
 
 /** The property name without the 入住／退房 prefix, for showing the choice. */
 export const stayPropertyName = (item: ItineraryItem): string => {
   const role = stayRoleOf(item);
-  if (role === 'check_in') return item.title.slice(CHECK_IN_PREFIX.length).trim();
-  if (role === 'check_out') return item.title.slice(CHECK_OUT_PREFIX.length).trim();
+  if (role === 'check_in' || role === 'check_out') return stayTitleBody(item);
   return item.title?.trim() || '';
 };
 

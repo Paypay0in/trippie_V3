@@ -4653,7 +4653,20 @@ const App: React.FC = () => {
     // Default category based on phase logic (assuming item.phase matches context)
     let defaultCat = Category.SHOPPING;
     if (item.phase === "pre") defaultCat = Category.SHOPPING_PRE;
-    if (item.name.includes("簽證")) defaultCat = Category.VISA; // Auto detect Visa
+    /*
+      The structured action type first, the word second.
+
+      This used to be `item.name.includes("簽證")` alone — a substring of a
+      title that the entry-rules lookup writes in the traveller's own language.
+      An English row says "Apply for a visa" and the category silently fell
+      back to 購物, filing a visa fee under shopping. `travelRuleActionType` is
+      written by the same lookup and says what the row is; the word stays as a
+      fallback for rows created by hand or before that field existed, and is
+      matched in both languages.
+    */
+    if (item.travelRuleActionType === "visa_or_eta" || /簽證|\bvisa\b/i.test(item.name)) {
+      defaultCat = Category.VISA;
+    }
     if (item.phase === "post") defaultCat = Category.SOUVENIR;
 
     setInitialFormCategory(defaultCat);
