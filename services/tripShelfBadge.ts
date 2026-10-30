@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { TripDraft } from './tripPersistence';
 
 /**
@@ -35,14 +36,14 @@ export const tripShelfBadge = (draft: TripDraft): TripShelfBadge => {
   const bills = (draft.expenses || []).length;
 
   const contents = plans === 0 && bills === 0
-    ? '還是空的'
+    ? i18n.t('trips.shelf.empty')
     : plans > 0
-      ? `${plans} 個行程`
-      : `${bills} 筆帳`;
+      ? i18n.t('trips.shelf.planCount', { count: plans })
+      : i18n.t('trips.shelf.billCount', { count: bills });
 
   return {
     shared,
-    sharing: shared ? `共用 · ${people} 人` : '只有你',
+    sharing: shared ? i18n.t('trips.shelf.sharedWith', { count: people }) : i18n.t('trips.shelf.justYou'),
     contents,
   };
 };
@@ -50,5 +51,5 @@ export const tripShelfBadge = (draft: TripDraft): TripShelfBadge => {
 /** One line, for the places that have room for only one. */
 export const tripShelfBadgeText = (draft: TripDraft): string => {
   const badge = tripShelfBadge(draft);
-  return `${badge.sharing} · ${badge.contents}`;
+  return i18n.t('trips.shelf.line', { sharing: badge.sharing, contents: badge.contents });
 };

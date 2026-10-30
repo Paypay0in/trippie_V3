@@ -23,7 +23,14 @@ export interface ScreenshotRoute {
   kind: ScreenshotKind;
   /** The endpoint the picture is sent to next, unchanged. */
   endpoint: string;
-  /** What the traveller is told while that parser runs. */
+  /**
+   * What the traveller is told while that parser runs.
+   *
+   * // i18n-data: nothing reads this. `screenshotIntake` takes `endpoint` and
+   * // words its own waiting line, so these four strings reach no screen; and
+   * // this module is imported by `server.ts`, which may not reach `i18n`.
+   * Either delete the field or give it a reader — see the batch-AB report.
+   */
   busyLabel: string;
 }
 
@@ -31,16 +38,19 @@ const ROUTES: Record<ScreenshotKind, ScreenshotRoute> = {
   rental: {
     kind: 'rental',
     endpoint: '/api/rentals/parse-image',
+    // i18n-data: nothing reads this field; see the note on ScreenshotRoute.busyLabel
     busyLabel: '讀取租車訂單…',
   },
   stay: {
     kind: 'stay',
     endpoint: '/api/stays/parse-image',
+    // i18n-data: nothing reads this field; see the note on ScreenshotRoute.busyLabel
     busyLabel: '讀取住宿訂單…',
   },
   flight: {
     kind: 'flight',
     endpoint: '/api/flights/parse-image',
+    // i18n-data: nothing reads this field; see the note on ScreenshotRoute.busyLabel
     busyLabel: '讀取機票…',
   },
   /*
@@ -53,6 +63,7 @@ const ROUTES: Record<ScreenshotKind, ScreenshotRoute> = {
   inspiration: {
     kind: 'inspiration',
     endpoint: '/api/itinerary/parse-image',
+    // i18n-data: nothing reads this field; see the note on ScreenshotRoute.busyLabel
     busyLabel: '讀取截圖…',
   },
 };

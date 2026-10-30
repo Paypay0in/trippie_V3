@@ -9,6 +9,7 @@
  * This folds it into a handful of tags someone can sort a collection by. The
  * fold is deliberately coarse. A tag with twelve values is a second name.
  */
+import i18n from '../i18n/config';
 import { ItinerarySlice } from './itineraryImageSlices';
 import { PlaceCategory } from '../types';
 
@@ -33,15 +34,34 @@ export type { PlaceCategory };
  */
 export const CATEGORY_RULES = 2;
 
-export const CATEGORY_LABELS: Record<PlaceCategory, string> = {
-  food: '餐廳',
-  cafe: '咖啡',
-  stay: '住宿',
-  sight: '景點',
-  shop: '購物',
-  transport: '交通',
-  other: '其他',
+/**
+ * The tag's word, resolved when it is asked for.
+ *
+ * Keys rather than strings: this table is built once at import, and a `t()`
+ * called there would freeze every tag to whichever language loaded first. The
+ * table's own keys are the `PlaceCategory` ids, which are English and stored,
+ * and they do not change in any language.
+ */
+const CATEGORY_LABEL_KEYS: Record<PlaceCategory, string> = {
+  food: 'places.category.food',
+  cafe: 'places.category.cafe',
+  stay: 'places.category.stay',
+  sight: 'places.category.sight',
+  shop: 'places.category.shop',
+  transport: 'places.category.transport',
+  other: 'places.category.other',
 };
+
+/**
+ * One home for turning a place's category into a word.
+ *
+ * Six screens and `slotLabel` all asked the old `CATEGORY_LABELS` table
+ * directly, and two of them had grown their own `?? '其他'` fallback beside
+ * it — the same label with a second spelling, waiting to disagree. Asking a
+ * function instead means the fallback lives with the table.
+ */
+export const categoryLabel = (category?: PlaceCategory | string): string =>
+  i18n.t(CATEGORY_LABEL_KEYS[category as PlaceCategory] ?? CATEGORY_LABEL_KEYS.other);
 
 /**
  * Google's `primaryType`, which is an enum and the same in every language.
@@ -98,13 +118,16 @@ const TYPE_STEMS: [RegExp, PlaceCategory][] = [
  * asked for. Substrings rather than whole words: Google writes 「義大利餐廳」 and
  * 「拉麵店」, never the bare word.
  */
+// i18n-data: regex anchors matched against Google's stored category text and
+// place names. Translating one breaks the match; the words shown come from
+// `places.category.*` via `categoryLabel` above.
 const BY_TEXT: [RegExp, PlaceCategory][] = [
-  [/咖啡|cafe|coffee|甜點|麵包|bakery|dessert/i, 'cafe'],
-  [/餐廳|料理|食堂|小吃|燒肉|拉麵|居酒屋|酒吧|restaurant|bar\b|pub\b|烤肉|火鍋|壽司/i, 'food'],
-  [/飯店|旅館|民宿|酒店|青年旅舍|hotel|hostel|lodging|guest ?house/i, 'stay'],
-  [/車站|機場|航站|巴士|地鐵|電車|station|airport|terminal|租車/i, 'transport'],
-  [/商店|百貨|購物|市場|超市|便利|免稅|store|mall|market|shop\b/i, 'shop'],
-  [/景點|公園|博物館|美術|寺|神社|城|塔|展望|劇場|場館|動物園|水族|temple|shrine|museum|gallery|park/i, 'sight'],
+  [/咖啡|cafe|coffee|甜點|麵包|bakery|dessert/i, 'cafe'], // i18n-data: regex anchor matched against stored category text
+  [/餐廳|料理|食堂|小吃|燒肉|拉麵|居酒屋|酒吧|restaurant|bar\b|pub\b|烤肉|火鍋|壽司/i, 'food'], // i18n-data: regex anchor matched against stored category text
+  [/飯店|旅館|民宿|酒店|青年旅舍|hotel|hostel|lodging|guest ?house/i, 'stay'], // i18n-data: regex anchor matched against stored category text
+  [/車站|機場|航站|巴士|地鐵|電車|station|airport|terminal|租車/i, 'transport'], // i18n-data: regex anchor matched against stored category text
+  [/商店|百貨|購物|市場|超市|便利|免稅|store|mall|market|shop\b/i, 'shop'], // i18n-data: regex anchor matched against stored category text
+  [/景點|公園|博物館|美術|寺|神社|城|塔|展望|劇場|場館|動物園|水族|temple|shrine|museum|gallery|park/i, 'sight'], // i18n-data: regex anchor matched against stored category text
 ];
 
 /** What a screenshot slice already said this was. See `SLICE_TYPES`. */
@@ -171,5 +194,5 @@ export const placeCategoryLabel = (
   input: { primaryType?: string; kind?: string; sliceType?: ItinerarySlice['type'] },
 ): string => {
   const category = placeCategory(input);
-  return category === 'other' ? '' : CATEGORY_LABELS[category];
+  return category === 'other' ? '' : categoryLabel(category);
 };

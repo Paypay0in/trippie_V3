@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { supabase, supabaseConfigured } from './supabaseClient';
 import { FriendshipRow, friendIdsFor } from './postVisibility';
 import { CompanionSeat } from './companionSuggestions';
@@ -55,7 +56,7 @@ const classify = (error: { code?: string; message?: string } | null): FriendResu
   if (error?.code && MISSING_OBJECT_CODES.has(error.code)) return { status: 'setup_required' };
   const message = error?.message || '';
   if (/does not exist|schema cache/i.test(message)) return { status: 'setup_required' };
-  return { status: 'error', message: message || '未知的錯誤' };
+  return { status: 'error', message: message || i18n.t('friends.unknownError') };
 };
 
 const ready = (): boolean => supabaseConfigured && supabase !== null;
@@ -74,7 +75,7 @@ export const findPersonByEmail = async (email: string): Promise<FriendResult<Per
   if (!row) return { status: 'ok', data: null };
   return {
     status: 'ok',
-    data: { id: row.id, displayName: row.display_name || '旅人', avatarUrl: row.avatar_url || undefined },
+    data: { id: row.id, displayName: row.display_name || i18n.t('app.label.traveller'), avatarUrl: row.avatar_url || undefined },
   };
 };
 
@@ -139,7 +140,7 @@ export const acceptFriend = async (requesterId: string): Promise<FriendResult<nu
     .select('requester_id');
   if (error) return classify(error);
   if (!data || data.length === 0) {
-    return { status: 'error', message: '這筆邀請沒有被更新，可能已經被處理過或不是寄給這個帳號的。' };
+    return { status: 'error', message: i18n.t('friends.inviteNotUpdated') };
   }
   return { status: 'ok', data: null };
 };
@@ -215,7 +216,7 @@ export const fetchPeople = async (ids: string[]): Promise<FriendResult<Person[]>
     status: 'ok',
     data: (data || []).map(row => ({
       id: row.id,
-      displayName: row.display_name || '旅人',
+      displayName: row.display_name || i18n.t('app.label.traveller'),
       avatarUrl: row.avatar_url || undefined,
       ...(row.bio ? { bio: row.bio } : {}),
       ...(row.cover_url ? { coverUrl: row.cover_url } : {}),

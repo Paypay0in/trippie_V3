@@ -1,4 +1,5 @@
 import { ShoppingItem } from '../types';
+import i18n from '../i18n/config';
 
 /**
  * The bookings and tickets on the plan, as errands somebody else could run.
@@ -40,8 +41,11 @@ export const ticketErrands = (todos: TicketErrandInput[]): ShoppingItem[] =>
       about whether they are booking a table or buying a ticket, and those are
       different errands at different places.
     */
-    name: `${todo.kind === 'booking' ? '訂位' : '購票'}：${todo.placeName}${dayLabel(todo.date)}`,
+    name: i18n.t(todo.kind === 'booking' ? 'marketplace.errand.bookTable' : 'marketplace.errand.buyTicket', {
+      place: todo.placeName,
+      day: dayLabel(todo.date),
+    }),
     isPurchased: false,
     phase: 'pre' as const,
-    ...(todo.bookingUrl ? { description: `參考連結：${todo.bookingUrl}` } : {}),
+    ...(todo.bookingUrl ? { description: i18n.t('marketplace.errand.reference', { url: todo.bookingUrl }) } : {}),
   }));

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bookmark, ChevronLeft, Loader2, MapPinned, Star } from 'lucide-react';
 import { PublishedTrip, PublishedTripStop } from '../types';
 import {
@@ -51,14 +52,6 @@ interface Props {
   onClose: () => void;
 }
 
-const TYPE_LABEL: Record<PublishedTripStop['type'], string> = {
-  FLIGHT: '航班',
-  HOTEL: '住宿',
-  ACTIVITY: '景點',
-  FOOD: '餐廳',
-  TRANSPORT: '交通',
-};
-
 /** 「3/12」 — the chip label, from a plain date and nothing else. */
 const chipDate = (date: string): string => {
   const parts = date.split('-');
@@ -86,6 +79,7 @@ const PublicTripView: React.FC<Props> = ({
   onOpenAuthor,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [tab, setTab] = React.useState<Tab>('days');
   const [openDay, setOpenDay] = React.useState(0);
 
@@ -102,7 +96,7 @@ const PublicTripView: React.FC<Props> = ({
   const backButton = (
     <button
       type="button"
-      aria-label="返回"
+      aria-label={t('common.back')}
       data-testid="public-trip-close"
       onClick={onClose}
       className="flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-[#11183d] shadow-[0_4px_14px_rgba(17,26,74,.18)] backdrop-blur"
@@ -116,7 +110,7 @@ const PublicTripView: React.FC<Props> = ({
       <div className="px-[var(--screen-pad)] py-6">
         {backButton}
         <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-white p-8 text-[13px] text-slate-400">
-          <Loader2 size={15} className="animate-spin" />讀取中…
+          <Loader2 size={15} className="animate-spin" />{t('publicTrip.loading')}
         </p>
       </div>,
     );
@@ -134,8 +128,8 @@ const PublicTripView: React.FC<Props> = ({
       <div className="px-[var(--screen-pad)] py-6">
         {backButton}
         <div className="mt-3 rounded-2xl bg-white p-8 text-center" data-testid="public-trip-missing">
-          <p className="text-[14px] font-black text-[#11183d]">找不到這份行程</p>
-          <p className="mt-1 text-[12px] text-slate-400">連結可能已經失效，或對方已經取消公開。</p>
+          <p className="text-[14px] font-black text-[#11183d]">{t('publicTrip.notFoundTitle')}</p>
+          <p className="mt-1 text-[12px] text-slate-400">{t('publicTrip.notFoundBlurb')}</p>
         </div>
       </div>,
     );
@@ -164,7 +158,7 @@ const PublicTripView: React.FC<Props> = ({
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-black text-[#11183d]">{stop.title}</span>
             <span className="block truncate text-[11px] text-slate-400">
-              {[TYPE_LABEL[stop.type], stop.location].filter(Boolean).join('・')}
+              {[t(`publicTrip.stopType.${stop.type}`), stop.location].filter(Boolean).join(t('planner.placeSeparator'))}
             </span>
             {/* The owner's own words, when they shared them. Absent means withheld. */}
             {stop.notes && (
@@ -184,7 +178,7 @@ const PublicTripView: React.FC<Props> = ({
           {savable && (
             <button
               type="button"
-              aria-label={mine ? '已收藏' : '收藏這個地點'}
+              aria-label={mine ? t('publicTrip.alreadySaved') : t('publicTrip.saveStop')}
               data-testid={`public-trip-save-stop-${stop.id}`}
               onClick={() => (signedIn ? onSaveStop(stop) : onSignIn?.())}
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
@@ -222,24 +216,24 @@ const PublicTripView: React.FC<Props> = ({
           <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-violet-100 to-blue-100 text-[11px] font-black text-violet-700">
             {authorAvatar
               ? <img src={authorAvatar} alt="" className="h-full w-full object-cover" />
-              : (authorName ?? '旅').slice(0, 1)}
+              : (authorName ?? t('publicTrip.authorInitialFallback')).slice(0, 1)}
           </span>
-          <span className="text-[12px] font-black text-[#11183d]">{authorName ?? '某位旅人'}</span>
+          <span className="text-[12px] font-black text-[#11183d]">{authorName ?? t('publicTrip.unknownAuthor')}</span>
         </button>
 
         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-slate-400">
-          {dayTotal > 0 && <span data-testid="public-trip-days">{dayTotal} 天</span>}
-          <span data-testid="public-trip-stop-count">{trip.stops.length} 個地點</span>
+          {dayTotal > 0 && <span data-testid="public-trip-days">{t('publicTrip.dayCount', { days: dayTotal })}</span>}
+          <span data-testid="public-trip-stop-count">{t('publicTrip.stopCount', { stops: trip.stops.length })}</span>
           {saveCount != null && saveCount > 0 && (
-            <span data-testid="public-trip-saves">{compactCount(saveCount)} 收藏</span>
+            <span data-testid="public-trip-saves">{t('publicTrip.saveCount', { saves: compactCount(saveCount) })}</span>
           )}
         </p>
 
         <div className="mt-4 flex gap-1 border-b border-slate-200">
           {([
-            ['days', '行程'],
-            ['map', '地圖'],
-            ['places', `景點 (${places.length})`],
+            ['days', t('publicTrip.tabDays')],
+            ['map', t('publicTrip.tabMap')],
+            ['places', t('publicTrip.tabPlaces', { places: places.length })],
           ] as Array<[Tab, string]>).map(([key, label]) => (
             <button
               key={key}
@@ -261,7 +255,7 @@ const PublicTripView: React.FC<Props> = ({
           <div className="mt-3" data-testid="public-trip-day-tab">
             {days.length === 0 ? (
               <p className="rounded-2xl bg-white p-6 text-center text-[12px] text-slate-400">
-                這份行程還沒有安排地點。
+                {t('publicTrip.emptyDays')}
               </p>
             ) : (
               <>
@@ -305,7 +299,7 @@ const PublicTripView: React.FC<Props> = ({
               if (pins.length === 0) {
                 return (
                   <p className="rounded-2xl bg-white p-6 text-center text-[12px] text-slate-400">
-                    這一天的地點沒有座標，畫不出地圖。
+                    {t('publicTrip.noCoordinates')}
                   </p>
                 );
               }
@@ -314,12 +308,12 @@ const PublicTripView: React.FC<Props> = ({
                 <>
                   <img
                     src={dayMapSrc({ stops: pins, width: 640, height: 420, connect: true })}
-                    alt={`Day ${day?.dayNumber} 的地圖`}
+                    alt={t('publicTrip.dayMapAlt', { day: day?.dayNumber })}
                     className="w-full rounded-2xl bg-white shadow-[0_6px_18px_rgba(17,24,61,.05)]"
                   />
                   {missing > 0 && (
                     <p className="mt-2 text-center text-[11px] font-bold text-slate-400">
-                      另有 {missing} 個地點沒有座標，沒有畫在圖上。
+                      {t('publicTrip.missingPins', { missing })}
                     </p>
                   )}
                 </>
@@ -333,7 +327,7 @@ const PublicTripView: React.FC<Props> = ({
             {places.map(stop => stopRow(stop, false))}
             {places.length === 0 && (
               <p className="rounded-2xl bg-white p-6 text-center text-[12px] text-slate-400">
-                這份行程還沒有可以收藏的地點。
+                {t('publicTrip.emptyPlaces')}
               </p>
             )}
           </ul>
@@ -355,7 +349,7 @@ const PublicTripView: React.FC<Props> = ({
             onClick={() => onSaveTrip(places)}
             className="min-h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-[13px] font-black text-white disabled:opacity-50"
           >
-            收藏這份行程的 {places.length} 個地點
+            {t('publicTrip.saveAllCta', { places: places.length })}
           </button>
         ) : (
           <button
@@ -364,12 +358,12 @@ const PublicTripView: React.FC<Props> = ({
             onClick={() => onSignIn?.()}
             className="min-h-12 w-full rounded-xl bg-white text-[13px] font-black text-[#5b3df5] ring-1 ring-violet-200"
           >
-            登入後就能把這些地點存進你的收藏
+            {t('publicTrip.signInToSave')}
           </button>
         )}
         {onAddStopToTrip && places.length > 0 && signedIn && (
           <p className="mt-1.5 text-center text-[11px] font-bold text-slate-400">
-            想挑幾個就好？點每個地點右邊的書籤。
+            {t('publicTrip.pickSomeHint')}
           </p>
         )}
       </div>

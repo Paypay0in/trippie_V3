@@ -76,18 +76,28 @@ interface Requirement {
   task: PreparationTask;
 }
 
+/*
+  None of the Chinese below is copy this file can translate.
+
+  `mentions` and `satisfiedBy` are matched against the model's schedule and
+  preparation text, and `task.name` is written into the stored plan option by
+  `server.ts` — where it is then read back by `satisfiedBy`, deduplicated by
+  name, and tested by `isBeforeDepartureOnly`. A translated name would stop
+  matching and the same task would be added twice.
+  i18n-data: matching anchors and a stored value.
+*/
 const REQUIREMENTS: Requirement[] = [
   {
     // Hiring a vehicle: turning up without a reservation can end the day, and
     // in Japan and Korea the counters routinely sell out in season.
-    mentions: ['租車', '自駕', 'レンタカー', 'rental car', 'rent a car'],
-    satisfiedBy: ['租車', '車輛', 'レンタカー', 'rental car'],
-    task: { name: '預約租車', canBeHumanAssisted: true },
+    mentions: ['租車', '自駕', 'レンタカー', 'rental car', 'rent a car'], // i18n-data: matching anchor over the model schedule and preparation text
+    satisfiedBy: ['租車', '車輛', 'レンタカー', 'rental car'], // i18n-data: matching anchor over the model schedule and preparation text
+    task: { name: '預約租車', canBeHumanAssisted: true }, // i18n-data: stored task name, matched by `satisfiedBy` and deduplicated by name
   },
   {
-    mentions: ['包車'],
-    satisfiedBy: ['包車'],
-    task: { name: '預約包車與司機', canBeHumanAssisted: true },
+    mentions: ['包車'], // i18n-data: matching anchor over the model schedule and preparation text
+    satisfiedBy: ['包車'], // i18n-data: matching anchor over the model schedule and preparation text
+    task: { name: '預約包車與司機', canBeHumanAssisted: true }, // i18n-data: stored task name, matched by `satisfiedBy` and deduplicated by name
   },
   {
     /*
@@ -99,16 +109,16 @@ const REQUIREMENTS: Requirement[] = [
       inconvenience that can be sorted out locally — the seat does not exist
       any more.
     */
-    mentions: ['觀光列車', '觀光火車', '景觀列車', '觀光小火車', '觀光列車之旅', 'sightseeing train', 'scenic train', '觀光列車行程'],
-    satisfiedBy: ['觀光列車', '列車訂位', '景觀列車', 'sightseeing train'],
-    task: { name: '預約觀光列車座位', canBeHumanAssisted: true, leadTimeDays: 30 },
+    mentions: ['觀光列車', '觀光火車', '景觀列車', '觀光小火車', '觀光列車之旅', 'sightseeing train', 'scenic train', '觀光列車行程'], // i18n-data: matching anchor over the model schedule and preparation text
+    satisfiedBy: ['觀光列車', '列車訂位', '景觀列車', 'sightseeing train'], // i18n-data: matching anchor over the model schedule and preparation text
+    task: { name: '預約觀光列車座位', canBeHumanAssisted: true, leadTimeDays: 30 }, // i18n-data: stored task name, matched by `satisfiedBy` and deduplicated by name
   },
   {
     // Sailings run to a timetable and sell out; missing one is not a delay,
     // it is the next day.
-    mentions: ['渡輪', '渡船', '船班', 'ferry'],
-    satisfiedBy: ['船票', '渡輪', '船班', 'ferry'],
-    task: { name: '確認船班時刻與訂票', canBeHumanAssisted: true },
+    mentions: ['渡輪', '渡船', '船班', 'ferry'], // i18n-data: matching anchor over the model schedule and preparation text
+    satisfiedBy: ['船票', '渡輪', '船班', 'ferry'], // i18n-data: matching anchor over the model schedule and preparation text
+    task: { name: '確認船班時刻與訂票', canBeHumanAssisted: true }, // i18n-data: stored task name, matched by `satisfiedBy` and deduplicated by name
   },
 ];
 
@@ -160,6 +170,7 @@ export const withRequiredPreparation = (
     .filter(place => place.name.trim() && haystack(items).includes(place.name.trim().toLowerCase()))
     .filter(place => !covered(preparation, [place.name]))
     .map(place => ({
+      // i18n-data: stored task name, matched by `covered` and deduplicated by name.
       name: `預訂 ${place.name.trim()}`,
       canBeHumanAssisted: true,
       ...(typeof place.leadTimeDays === 'number' ? { leadTimeDays: place.leadTimeDays } : {}),
@@ -188,15 +199,10 @@ export const withRequiredPreparation = (
  * traveller's own country, where there is no equivalent to be arranged on
  * arrival. Booking a restaurant from abroad is fine; a driving permit is not.
  */
+// i18n-data: matched against the task name, model-written or stored.
 const BEFORE_DEPARTURE_WORDS = [
-  '國際駕照',
-  '駕照譯本',
-  '駕照日文譯本',
-  '簽證',
-  'visa',
-  '國際駕駛',
-  '旅平險',
-  '旅遊保險',
+  '國際駕照', '駕照譯本', '駕照日文譯本', '簽證', 'visa', // i18n-data: matched against the task name, model-written or stored
+  '國際駕駛', '旅平險', '旅遊保險', // i18n-data: matched against the task name, model-written or stored
 ];
 
 export const isBeforeDepartureOnly = (taskName: string): boolean => {

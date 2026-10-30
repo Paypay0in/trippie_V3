@@ -15,12 +15,22 @@ import { DisputeNotice } from './disputeInbox';
  */
 export type NoticeCategory = 'all' | 'itinerary' | 'settlement' | 'travel' | 'system';
 
+/*
+  The shelf and the key its name is looked up by.
+
+  The second element was the Chinese sentence, built once at import — so a
+  `t()` there would have frozen the shelf names to whichever language loaded
+  first, and `NotificationCenter` had already worked around it by keeping its
+  own `FILTER_KEYS` and reading only `[key]` from here. The tuple now carries
+  the same keys that workaround resolves, so the two cannot drift apart and
+  nothing in this file needs a language to be loaded.
+*/
 export const NOTICE_CATEGORIES: [NoticeCategory, string][] = [
-  ['all', '全部'],
-  ['itinerary', '行程提醒'],
-  ['settlement', '分帳與收款'],
-  ['travel', '航班與住宿'],
-  ['system', '系統通知'],
+  ['all', 'common.all'],
+  ['itinerary', 'notifications.filters.itinerary'],
+  ['settlement', 'notifications.filters.settlement'],
+  ['travel', 'notifications.filters.travel'],
+  ['system', 'notifications.filters.system'],
 ];
 
 /**

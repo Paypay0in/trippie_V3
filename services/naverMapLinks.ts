@@ -33,6 +33,8 @@
  * compute a route. That is NAVER's restriction, not a broken link.
  */
 
+import i18n from '../i18n/config';
+
 /** The verified Universal Link base. Not map.naver.com, which declares no app. */
 const LAUNCH_BASE = 'https://app.map.naver.com/launchApp';
 
@@ -71,7 +73,7 @@ export const naverPlaceUrl = (place: NaverPlace): string | null => {
     lat: String(here.latitude),
     lng: String(here.longitude),
     // Verified as the label field: the card's title was the string we sent.
-    name: place.placeName?.trim() || '目的地',
+    name: place.placeName?.trim() || i18n.t('saved.naver.destination'),
     appname: APP_NAME,
   });
 
@@ -133,10 +135,10 @@ export const naverRouteUrl = (
   const params = new URLSearchParams({
     slat: String(from.latitude),
     slng: String(from.longitude),
-    sname: origin.name?.trim() || '出發地',
+    sname: origin.name?.trim() || i18n.t('saved.naver.origin'),
     dlat: String(to.latitude),
     dlng: String(to.longitude),
-    dname: destination.name?.trim() || '目的地',
+    dname: destination.name?.trim() || i18n.t('saved.naver.destination'),
     appname: APP_NAME,
   });
 

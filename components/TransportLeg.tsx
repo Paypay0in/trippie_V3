@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Bus, Car, Footprints, ChevronRight, MapPinned, AlertTriangle, X } from 'lucide-react';
 import { OVERLAY } from '../constants/layers';
 import { naverRouteUrl } from '../services/naverMapLinks';
-import { fetchRouteLeg, RouteLeg, TravelMode, TRAVEL_MODE_LABELS } from '../services/routesService';
+import { fetchRouteLeg, RouteLeg, TravelMode } from '../services/routesService';
 import { isSameSpot, noRouteDetail, noRouteSummary, roughTransitDetail, roughTransitSummary } from '../services/transportLegWording';
 import { transitMinutesBetween } from '../services/itineraryScheduling';
 import { countryDisplayName } from '../services/countryIdentity';
@@ -38,6 +40,7 @@ interface Props {
 
 /** Whether this is the one country whose missing routes have a known reason. */
 const isKorea = (country?: string): boolean =>
+  // i18n-data: regex anchor matched against a stored country name, not copy
   /韓國|南韓|韓国|korea|^kr$/i.test((country || '').trim());
 
 const MODES: TravelMode[] = ['TRANSIT', 'DRIVE', 'WALK'];
@@ -51,12 +54,12 @@ const MODE_ICONS: Record<TravelMode, React.ComponentType<{ size?: number; classN
 const minutesOf = (seconds?: number): number => Math.max(1, Math.round((seconds || 0) / 60));
 
 /** 「搭 1003 · 27 站」 — the one line worth reading without opening anything. */
-const summarize = (leg: RouteLeg): string => {
+const summarize = (leg: RouteLeg, t: TFunction): string => {
   const rides = (leg.steps || []).filter(step => step.travelMode === 'TRANSIT');
   if (rides.length === 0) return '';
   const first = rides[0];
-  const tail = rides.length > 1 ? ` 等 ${rides.length} 段` : '';
-  return `${first.lineName ? `${first.lineName} ` : ''}${first.stopCount ? `${first.stopCount} 站` : ''}${tail}`.trim();
+  const tail = rides.length > 1 ? t('transport.moreLegs', { legs: rides.length }) : '';
+  return `${first.lineName ? `${first.lineName} ` : ''}${first.stopCount ? t('transport.stopCount', { stops: first.stopCount }) : ''}${tail}`.trim();
 };
 
 /**
@@ -73,6 +76,9 @@ const summarize = (leg: RouteLeg): string => {
  * `defaultTravelMode`.
  */
 const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, departureTime, destinationCountry, onPushBackNext }) => {
+  const { t } = useTranslation();
+  /** The mode's own name, in the reader's language. */
+  const modeLabel = (option: TravelMode): string => t(`transport.modes.${option}`);
   /*
     Opening on 大眾運輸 where the provider has no transit data guarantees the
     first thing the traveller sees is a failure, on every leg of the trip.
@@ -93,7 +99,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
     setLeg(null);
     fetchRouteLeg(origin, destination, mode, departureTime)
       .then(result => { if (!cancelled) setLeg(result); })
-      .catch(caught => { if (!cancelled) setError(caught instanceof Error ? caught.message : '路線服務暫時無法使用。'); })
+      .catch(caught => { if (!cancelled) setError(caught instanceof Error ? caught.message : t('transport.serviceUnavailable')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [origin.latitude, origin.longitude, destination.latitude, destination.longitude, mode, departureTime]);
@@ -140,16 +146,16 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
     ? transitMinutesBetween(origin, destination)
     : undefined;
   /** The one line on the plan, repeated at the top of the sheet. */
-  const summaryLine = loading ? '計算交通中…'
+  const summaryLine = loading ? t('transport.calculating')
     : error ? error
-    : leg?.available ? `約 ${minutesOf(leg.durationSeconds)} 分 · ${TRAVEL_MODE_LABELS[mode]}${summarize(leg) ? ` · ${summarize(leg)}` : ''}`
+    : leg?.available ? `${t('transport.durationSummary', { minutes: minutesOf(leg.durationSeconds), mode: modeLabel(mode) })}${summarize(leg, t) ? ` · ${summarize(leg, t)}` : ''}`
     : isKorea(destinationCountry)
-      ? `🚫 因法規限制，Google 地圖無法以「${TRAVEL_MODE_LABELS[mode]}」查詢`
+      ? t('transport.koreaLegalSummary', { mode: modeLabel(mode) })
       : mode === 'TRANSIT' && transitIsUnavailable(destinationCountry)
         // Named from the country, not hardcoded: the coverage table is general
         // and a second entry would otherwise be announced as Japan.
-        ? `${countryDisplayName(destinationCountry)}電車班次不在這個路線服務的範圍內`
-        : noRouteSummary(TRAVEL_MODE_LABELS[mode], sameSpot);
+        ? t('transport.transitOutOfCoverage', { country: countryDisplayName(destinationCountry) })
+        : noRouteSummary(modeLabel(mode), sameSpot);
   // Nothing to open while the answer is still being fetched or the request
   // failed outright; a refused mode still opens, because the sheet is where the
   // reason and the alternative live.
@@ -163,7 +169,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
     <div data-testid="transport-leg" className="ml-[62px] rounded-2xl border border-[#eceaf5] bg-white/80 px-3 py-2">
       <button
         type="button"
-        aria-label="交通方式說明"
+        aria-label={t('transport.explainAria')}
         disabled={!canOpen}
         onClick={() => setOpen(true)}
         className="flex w-full items-center gap-2 text-left disabled:cursor-default"
@@ -198,14 +204,14 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
       */}
       {leg?.available && leg.source === 'transitous' && (
         <p data-testid="transit-open-source" className="mt-1 text-[10px] font-bold leading-4 text-slate-400">
-          班次來自開放資料（Transitous），非 Google 路線服務，出發前請再確認。
+          {t('transport.openDataNotice')}
         </p>
       )}
 
       {/* Pressing the button again will not help, so the next step is named. */}
       {leg && !leg.available && isKorea(destinationCountry) && (
         <div className="mt-1.5 text-[10px] font-bold leading-4 text-slate-400">
-          當地人用 Naver Map 或 KakaoMap，這兩款查得到。
+          {t('transport.koreaUseNaver')}
         </div>
       )}
       {/*
@@ -229,7 +235,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
           className="mt-1.5 flex items-center gap-1.5 rounded-xl bg-[#f0edff] px-2.5 py-2 text-[10px] font-black leading-4 text-[#5b3df5]"
         >
           <MapPinned size={13} className="shrink-0" />
-          <span className="min-w-0 flex-1">用 Google 地圖查這段的大眾運輸</span>
+          <span className="min-w-0 flex-1">{t('transport.openInGoogleTransit')}</span>
           <ChevronRight size={12} className="shrink-0" />
         </a>
       )}
@@ -243,18 +249,18 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
         <div data-testid="transport-too-tight" className="mt-1.5 rounded-lg bg-amber-50 px-2 py-1.5">
           <div className="flex items-start gap-1 text-[10px] font-bold leading-4 text-amber-700">
             <AlertTriangle size={11} className="mt-0.5 shrink-0" />
-            <span className="min-w-0 flex-1">這段只留了 {availableMinutes} 分鐘，實際要 {needed} 分鐘。</span>
+            <span className="min-w-0 flex-1">{t('transport.tooTight', { available: availableMinutes, needed })}</span>
           </div>
           {onPushBackNext && (
             <button
               type="button"
               onClick={() => {
                 setPushBackError('');
-                if (!onPushBackNext(needed!)) setPushBackError('這一天有固定行程擋著，沒有自動順延。請手動調整。');
+                if (!onPushBackNext(needed!)) setPushBackError(t('transport.pushBackBlocked'));
               }}
               className="mt-1.5 min-h-8 w-full rounded-lg bg-white text-[10px] font-black text-amber-700 shadow-sm"
             >
-              順延後面的行程
+              {t('transport.pushBackCta')}
             </button>
           )}
           {pushBackError && <p className="mt-1 text-[10px] font-bold leading-4 text-amber-700">{pushBackError}</p>}
@@ -274,7 +280,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
               onClick={() => setMode(option)}
               className={`flex min-h-7 items-center gap-1 rounded-lg px-2 text-[10px] font-black transition ${mode === option ? 'bg-[#5b3df5] text-white' : 'bg-slate-100 text-slate-500'}`}
             >
-              <OptionIcon size={11} />{TRAVEL_MODE_LABELS[option]}
+              <OptionIcon size={11} />{modeLabel(option)}
             </button>
           );
         })}
@@ -294,7 +300,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
         >
           <div
             role="dialog"
-            aria-label="交通方式"
+            aria-label={t('transport.sheetAria')}
             onClick={event => event.stopPropagation()}
             className="max-h-[80vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl md:max-w-sm md:rounded-3xl"
           >
@@ -304,7 +310,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
                 <h2 className="text-base font-black leading-tight text-[#111A4A]">{origin.title} → {destination.title}</h2>
                 <p className="mt-0.5 text-[11px] font-bold text-slate-500">{summaryLine}</p>
               </div>
-              <button type="button" aria-label="關閉" onClick={() => setOpen(false)} className="shrink-0 rounded-xl p-1 text-slate-400">
+              <button type="button" aria-label={t('common.close')} onClick={() => setOpen(false)} className="shrink-0 rounded-xl p-1 text-slate-400">
                 <X size={18} />
               </button>
             </div>
@@ -321,7 +327,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
                     onClick={() => setMode(option)}
                     className={`flex min-h-9 flex-1 items-center justify-center gap-1 rounded-xl text-[11px] font-black transition ${mode === option ? 'bg-[#5b3df5] text-white' : 'bg-slate-100 text-slate-500'}`}
                   >
-                    <OptionIcon size={12} />{TRAVEL_MODE_LABELS[option]}
+                    <OptionIcon size={12} />{modeLabel(option)}
                   </button>
                 );
               })}
@@ -336,15 +342,15 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
                     </span>
                     <span className="min-w-0 flex-1 text-xs leading-5 text-slate-600">
                       {step.travelMode === 'WALK'
-                        ? <b className="font-black text-[#11183d]">步行 {minutesOf(step.durationSeconds)} 分</b>
+                        ? <b className="font-black text-[#11183d]">{t('transport.walkMinutes', { minutes: minutesOf(step.durationSeconds) })}</b>
                         : (
                           <>
-                            <b className="font-black text-[#11183d]">{step.lineName || '大眾運輸'}</b>
-                            <span className="ml-1.5 text-[11px] font-bold text-slate-400">{minutesOf(step.durationSeconds)} 分</span>
+                            <b className="font-black text-[#11183d]">{step.lineName || modeLabel('TRANSIT')}</b>
+                            <span className="ml-1.5 text-[11px] font-bold text-slate-400">{t('transport.minutes', { minutes: minutesOf(step.durationSeconds) })}</span>
                             {step.departureStop && step.arrivalStop && (
                               <span className="mt-0.5 block text-[11px] leading-4 text-slate-500">{step.departureStop} → {step.arrivalStop}</span>
                             )}
-                            {step.stopCount ? <span className="mt-0.5 block text-[11px] leading-4 text-slate-400">搭 {step.stopCount} 站</span> : null}
+                            {step.stopCount ? <span className="mt-0.5 block text-[11px] leading-4 text-slate-400">{t('transport.rideStops', { stops: step.stopCount })}</span> : null}
                           </>
                         )}
                     </span>
@@ -354,10 +360,10 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
             ) : (
               <p className="mt-4 rounded-2xl bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-700">
                 {isKorea(destinationCountry)
-                  ? '🚫 因法規限制，Google 地圖無法以這個交通方式查詢。當地人用 Naver Map 或 KakaoMap，這兩款查得到。'
+                  ? t('transport.koreaLegalDetail')
                   : mode === 'TRANSIT' && transitIsUnavailable(destinationCountry)
                     ? transitUnavailableReason(destinationCountry)
-                    : noRouteDetail(TRAVEL_MODE_LABELS[mode], sameSpot)}
+                    : noRouteDetail(modeLabel(mode), sameSpot)}
               </p>
             )}
 
@@ -369,7 +375,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
             )}
 
             {leg?.distanceMeters ? (
-              <p className="mt-3 text-[11px] font-bold text-slate-400">全程約 {(leg.distanceMeters / 1000).toFixed(1)} 公里</p>
+              <p className="mt-3 text-[11px] font-bold text-slate-400">{t('transport.totalDistance', { km: (leg.distanceMeters / 1000).toFixed(1) })}</p>
             ) : null}
 
             {/* The label names the app it opens, because 「在地圖開啟」 on a
@@ -384,7 +390,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
                 naverUrl ? 'bg-[#03c75a]' : 'bg-gradient-to-r from-blue-600 to-violet-600'
               }`}
             >
-              <MapPinned size={15} />{naverUrl ? '在 NAVER 地圖開啟' : '在地圖開啟'}
+              <MapPinned size={15} />{naverUrl ? t('transport.openInNaver') : t('transport.openInMaps')}
             </a>
 
             {/* Google still routes transit in Korea; only driving and walking
@@ -398,7 +404,7 @@ const TransportLeg: React.FC<Props> = ({ origin, destination, availableMinutes, 
                 data-testid="transport-google-link"
                 className="mt-2 flex min-h-11 w-full items-center justify-center text-xs font-black text-slate-500"
               >
-                改用 Google 地圖
+                {t('transport.useGoogleInstead')}
               </a>
             )}
           </div>

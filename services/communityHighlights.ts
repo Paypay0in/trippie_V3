@@ -27,18 +27,23 @@ const matchesDestination = (
 
 /** Words too common to mean two texts are about the same thing. */
 const STOPWORDS = new Set([
+  // i18n-data: matching keys weighed against traveller-written posts.
   '想要', '可以', '推薦', '旅行', '旅遊', '行程', '這個', '那個', '一個', '什麼',
+  // i18n-data: matching keys weighed against traveller-written posts.
   '怎麼', '哪裡', '真的', '很多', '需要', '應該', '因為', '所以', '分享', '經驗',
 ]);
 
 const topicWords = (text: string): Set<string> => {
+  // i18n-data: punctuation stripped out of the text being matched.
   const cleaned = (text || '').replace(/[\s,，。、()（）「」【】:：!！?？]/g, '');
   const words = new Set<string>();
+    // i18n-data: Han character range, a regex anchor rather than words.
   for (const match of cleaned.matchAll(/[一-鿿]{2,}|[A-Za-z]{3,}/g)) {
     const word = match[0].toLowerCase();
     if (STOPWORDS.has(word)) continue;
     words.add(word);
     // Every 2-character window, so 滑雪場 answers a search for 滑雪.
+    // i18n-data: Han character range, a regex anchor rather than words.
     if (/^[一-鿿]+$/.test(word)) {
       for (let i = 0; i + 2 <= word.length; i += 1) {
         const piece = word.slice(i, i + 2);

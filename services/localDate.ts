@@ -93,6 +93,17 @@ export const defaultItineraryDate = (dates: string[], now: Date = new Date()): s
  * Parsed as a local date, like everything else here: `new Date('2026-10-26')`
  * is UTC and comes out a day early west of Greenwich.
  */
+/*
+  Left in Chinese, for the same reason `TripRecapScreen` leaves its own copy of
+  this: 「週一」 is a date format and not a label. An English reading of the day
+  beside 10/20 is 「Mon」 with different punctuation and a different position,
+  which is a date-formatting decision nobody has made yet. `dates.weekday.*` in
+  the bundles is the half of that decision that exists.
+
+  // i18n-data: and this module is imported by `server.ts` (`localToday`), so it
+  // may not reach `i18n/config` — the reason `stayDateWording` was split out.
+*/
+// i18n-data: date format, not a label; and server.ts imports this module so it may not reach i18n
 const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
 
 export const weekdayOf = (isoDate?: string): string | undefined => {

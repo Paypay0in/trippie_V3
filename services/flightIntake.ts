@@ -13,7 +13,9 @@
 
 import { FlightAnchor } from '../types';
 import { findAirportByIata } from './airportDirectory';
-import { applyAirport } from './flightAnchorSetup';
+// Not from `flightAnchorSetup`: that module translates its labels, and `server.ts`
+// reaches this file — see `tests/serverNeverImportsBrowserI18n.test.ts`.
+import { applyAirport } from './flightAirportFields';
 
 export const FLIGHT_MODEL = 'gemini-3-flash-preview';
 
@@ -100,6 +102,7 @@ const cleanText = (value: unknown, limit: number): string | undefined => {
  * weekday would move a correct date by years.
  */
 const WEEKDAY_INDEX: Record<string, number> = {
+  // i18n-data: lookup keys matched against the weekday a ticket prints.
   日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6,
   sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
 };
@@ -108,6 +111,7 @@ export const weekdayIndex = (printed: string | undefined): number | undefined =>
   const raw = (printed || '').trim();
   if (!raw) return undefined;
 
+  // i18n-data: regex anchor over the scanned confirmation, not display text.
   const chinese = raw.match(/[日天一二三四五六]/);
   if (chinese) return WEEKDAY_INDEX[chinese[0]];
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, Copy, Layers } from 'lucide-react';
 import { DuplicatePair, describeDuplicate } from '../services/duplicateReceipts';
 import { Expense } from '../types';
@@ -35,6 +36,7 @@ const money = (amount: number, currency: string) =>
   `${Math.round(amount).toLocaleString()} ${currency}`;
 
 const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = 'import' }) => {
+  const { t } = useTranslation();
   /*
     Ticked for an import, clear for a ledger sweep.
 
@@ -56,7 +58,7 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = '
   return (
     <div
       role="dialog"
-      aria-label="可能重複的收據"
+      aria-label={t('duplicates.dialogAria')}
       data-testid="duplicate-receipt-prompt"
       className="fixed inset-0 z-[95] flex flex-col justify-end bg-black/45"
     >
@@ -66,12 +68,12 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = '
             <Copy size={18} />
           </span>
           <h2 className="mt-3 text-lg font-black text-[#11183d]">
-            有 {pairs.length} 組可能是同一筆
+            {t('duplicates.title', { count: pairs.length })}
           </h2>
           <p className="mt-1 text-xs leading-5 text-slate-500">
             {context === 'ledger'
-              ? '這些是帳本裡金額與日期相同的紀錄，在這個檢查存在之前就記進來了。勾起來的會合併成一筆，照片都會留著。'
-              : '店家票據和信用卡簽單常是同一筆消費的兩張紙。勾起來的會合併成一筆，照片都會留著。'}
+              ? t('duplicates.blurbLedger')
+              : t('duplicates.blurbImport')}
           </p>
         </div>
 
@@ -111,8 +113,8 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = '
                       </span>
                       <span className="mt-0.5 block text-[10px] font-bold text-slate-400">
                         {expense.date} · {survivor
-                          ? (pair.againstExisting ? '帳本裡已經有這筆' : '保留這張')
-                          : (chosen ? '併進上面那筆' : '另外記一筆')}
+                          ? (pair.againstExisting ? t('duplicates.alreadyInLedger') : t('duplicates.keepThis'))
+                          : (chosen ? t('duplicates.mergedIntoAbove') : t('duplicates.keptSeparately'))}
                       </span>
                     </span>
                     <ChevronDown
@@ -150,7 +152,7 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = '
                           ))}
                         </ul>
                       ) : (
-                        <p className="mt-1 text-[10px] text-slate-400">這張沒有讀到商品明細</p>
+                        <p className="mt-1 text-[10px] text-slate-400">{t('duplicates.noItemsRead')}</p>
                       )}
                       {expense.receiptPhotos?.length ? (
                         <img
@@ -190,7 +192,7 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = '
                         chosen ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-500'
                       }`}
                     >
-                      {chosen ? '合併為一筆' : '兩筆都保留'}
+                      {chosen ? t('duplicates.mergeIntoOne') : t('duplicates.keepBoth')}
                     </button>
                   </div>
 
@@ -211,10 +213,10 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = '
           >
             <Layers size={16} />
             {merging.length > 0
-              ? `合併 ${merging.length} 組`
+              ? t('duplicates.mergeCount', { count: merging.length })
               : context === 'ledger'
-                ? '都不是同一筆，維持原狀'
-                : '全部分開記，直接匯入'}
+                ? t('duplicates.noneAreDuplicatesLedger')
+                : t('duplicates.noneAreDuplicatesImport')}
           </button>
           {/*
             Only while there is something to abandon.
@@ -236,7 +238,7 @@ const DuplicateReceiptPrompt: React.FC<Props> = ({ pairs, onResolve, context = '
               onClick={() => onResolve([])}
               className="mt-2 w-full py-2 text-xs font-bold text-slate-400"
             >
-              都不是重複的，全部分開記
+              {t('duplicates.keepAllSeparate')}
             </button>
           )}
         </div>

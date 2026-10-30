@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { formatLocaleDate } from '../services/localeFormat';
 import { Trans, useTranslation } from 'react-i18next';
 // Module-scope helpers below render names and durations before any component
 // has a `t`; the shared instance answers in whatever language is current, and
@@ -175,10 +176,7 @@ const dayStart = (date: Date) => {
 const formatDate = (value?: string) => {
   const date = parseDate(value);
   if (!date) return '';
-  return new Intl.DateTimeFormat('zh-TW', {
-    month: 'short',
-    day: 'numeric',
-  }).format(date);
+  return formatLocaleDate(date, { month: 'short', day: 'numeric' });
 };
 
 const getDateRange = (start?: string, end?: string) => {
@@ -470,6 +468,7 @@ const TripSelectionScreen: React.FC<Props> = ({
 
         <section className="pt-1">
           <p className="text-lg font-black tracking-tight text-[#10204a]">
+            {/* i18n-data: compared against `personOrStranger`'s placeholder. */}
             {userName && userName !== '旅人'
                   ? t('trips.greetingNamed', { name: userName })
                   : t('trips.greeting')}

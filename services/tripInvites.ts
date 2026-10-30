@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { supabase } from './supabaseClient';
 import { SyncResult } from './tripSync';
 
@@ -55,7 +56,7 @@ export const createInviteLink = async (
       target_member_id: memberId,
     });
     if (error) throw error;
-    if (typeof data !== 'string' || !data) throw new Error('沒有拿到邀請連結。');
+    if (typeof data !== 'string' || !data) throw new Error(i18n.t('trips.invite.noLink'));
     return { status: 'ok', data };
   } catch (error) {
     return failed(error);
@@ -102,7 +103,7 @@ export const claimInvite = async (token: string): Promise<SyncResult<string>> =>
   try {
     const { data, error } = await supabase.rpc('claim_trip_invite', { invite_token: token });
     if (error) throw error;
-    if (typeof data !== 'string' || !data) throw new Error('加入失敗，請再試一次。');
+    if (typeof data !== 'string' || !data) throw new Error(i18n.t('trips.invite.joinFailed'));
     return { status: 'ok', data };
   } catch (error) {
     return failed(error);

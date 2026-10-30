@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { SavedInspiration } from '../types';
 
 /**
@@ -92,7 +93,7 @@ export const groupSavedByPlace = (items: SavedInspiration[]): CountryGroup[] => 
 };
 
 /** 其他 for the ones that never said where they were. */
-export const countryLabel = (country: string): string => country || '其他';
+export const countryLabel = (country: string): string => country || i18n.t('places.otherArea');
 
 /**
  * Which groups open on arrival.
@@ -108,6 +109,8 @@ export const initiallyOpen = (groups: CountryGroup[]): string[] =>
 /** 「3 個城市・12 個地點」, or just the places when no city is named. */
 export const groupSummary = (group: CountryGroup): string => {
   const namedCities = group.cities.filter(city => city.city).length;
-  const places = `${group.count} 個地點`;
-  return namedCities > 0 ? `${namedCities} 個城市・${places}` : places;
+  const places = i18n.t('saved.groupPlaceCount', { count: group.count });
+  return namedCities > 0
+    ? i18n.t('saved.groupCitiesAndPlaces', { count: namedCities, places })
+    : places;
 };

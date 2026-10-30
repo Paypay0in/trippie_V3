@@ -19,7 +19,9 @@
  * written later still answers the question correctly.
  */
 
+// i18n-data: embedded in stay titles already stored on travellers' devices.
 export const CHECK_IN_PREFIX = '入住 ';
+// i18n-data: embedded in stay titles already stored on travellers' devices.
 export const CHECK_OUT_PREFIX = '退房 ';
 
 /**
@@ -27,7 +29,9 @@ export const CHECK_OUT_PREFIX = '退房 ';
  * translation of the generator. Matching is anchored to the start of the
  * title: 「前往 Kent Hotel」 mentions the hotel and is not a check-in.
  */
+// i18n-data: anchors matching the stored prefix, both spellings.
 const CHECK_IN_PATTERNS = [/^入住\s/, /^check[-\s]?in\s/i];
+// i18n-data: anchors matching the stored prefix, both spellings.
 const CHECK_OUT_PATTERNS = [/^退房\s/, /^check[-\s]?out\s/i];
 
 type TitledItem = { title: string };

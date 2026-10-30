@@ -169,6 +169,16 @@ export const checkUrlReachable = async (
 export interface DeclaredBookingLink {
   provider: string;
   label: string;
+  /**
+   * i18n key for the label, when the label is the product's own words.
+   *
+   * Absent when `label` is a brand name — Klook, KKday — which is the same word
+   * in every language. Resolved by the card rather than here: these links are
+   * built server-side, and `i18n/config` is the browser's. See
+   * `tests/serverNeverImportsBrowserI18n.test.ts`, and `officialTravelLinks` for
+   * the same `labelKey` shape.
+   */
+  labelKey?: string;
   url: string;
   urlType: BookingUrlType;
 }
@@ -192,7 +202,13 @@ export const validateBookingLinks = async (
     const shape = validateBookingUrlShape(link.provider, link.url, link.urlType);
     if (!shape.ok) return null;
     if (deps.skipNetwork) {
-      return { provider: link.provider, label: link.label, url: link.url.trim(), urlType: link.urlType };
+      return {
+        provider: link.provider,
+        label: link.label,
+        ...(link.labelKey ? { labelKey: link.labelKey } : {}),
+        url: link.url.trim(),
+        urlType: link.urlType,
+      };
     }
 
     const reachability = await checkUrlReachable(link.url.trim(), deps);
@@ -202,6 +218,7 @@ export const validateBookingLinks = async (
     return {
       provider: link.provider,
       label: link.label,
+      ...(link.labelKey ? { labelKey: link.labelKey } : {}),
       url: link.url.trim(),
       urlType: link.urlType,
       ...(reachability === 'reachable' ? { verifiedAt: checkedAt } : {}),

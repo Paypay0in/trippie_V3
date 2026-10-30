@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Check, ChevronRight, MapPinned, Plus, Users } from 'lucide-react';
 import { Person } from '../services/friendships';
 import { CommunityPost, PublicProfileCounts, PublishedTripCard } from '../types';
@@ -79,6 +80,7 @@ const FriendProfileScreen: React.FC<Props> = ({
   onSeeAllTrips,
   onSeeAllCollections,
 }) => {
+  const { t } = useTranslation();
   const [tab, setTab] = React.useState<Tab>('trips');
 
   /** 「查看全部 ›」, only when there is more behind it than is already shown. */
@@ -89,7 +91,7 @@ const FriendProfileScreen: React.FC<Props> = ({
         onClick={onPress}
         className="flex items-center gap-0.5 text-[11px] font-bold text-slate-400"
       >
-        查看全部<ChevronRight size={13} />
+        {t('friendProfile.seeAll')}<ChevronRight size={13} />
       </button>
     ) : null;
 
@@ -110,7 +112,7 @@ const FriendProfileScreen: React.FC<Props> = ({
         <button
           type="button"
           data-testid="friend-profile-back"
-          aria-label="返回"
+          aria-label={t('common.back')}
           onClick={onBack}
           className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-[#11183d] shadow-[0_4px_14px_rgba(17,26,74,.18)] backdrop-blur"
         >
@@ -141,7 +143,7 @@ const FriendProfileScreen: React.FC<Props> = ({
                   : 'bg-gradient-to-r from-blue-600 to-violet-600 text-white'
               }`}
             >
-              {following ? <><Check size={13} />追蹤中</> : <><Plus size={13} />追蹤</>}
+              {following ? <><Check size={13} />{t('friendProfile.following')}</> : <><Plus size={13} />{t('friendProfile.follow')}</>}
             </button>
           )}
         </div>
@@ -155,18 +157,18 @@ const FriendProfileScreen: React.FC<Props> = ({
         {person.bio && <p className="mt-1.5 text-[13px] leading-6 text-slate-500">{person.bio}</p>}
 
         <div className="mt-5 flex rounded-[22px] border border-[#eceaf5] bg-white py-4 shadow-[0_6px_18px_rgba(17,26,74,.05)]">
-          <Stat value={counts?.tripCount} label="旅行" testId="friend-stat-trips" />
+          <Stat value={counts?.tripCount} label={t('friendProfile.statTrips')} testId="friend-stat-trips" />
           <span className="my-1 w-px bg-slate-100" />
-          <Stat value={counts?.cityCount} label="城市" testId="friend-stat-cities" />
+          <Stat value={counts?.cityCount} label={t('friendProfile.statCities')} testId="friend-stat-cities" />
           <span className="my-1 w-px bg-slate-100" />
-          <Stat value={counts?.saveCount} label="收藏" testId="friend-stat-saves" accent />
+          <Stat value={counts?.saveCount} label={t('friendProfile.statSaves')} testId="friend-stat-saves" accent />
         </div>
 
         <div className="mt-5 flex gap-1 border-b border-slate-200">
           {([
-            ['trips', `旅行 (${publishedTrips.length})`],
-            ['collections', `收藏 (${publishedCollections.length})`],
-            ['posts', `遊記 (${posts.length})`],
+            ['trips', t('friendProfile.tabTrips', { n: publishedTrips.length })],
+            ['collections', t('friendProfile.tabCollections', { n: publishedCollections.length })],
+            ['posts', t('friendProfile.tabPosts', { n: posts.length })],
           ] as Array<[Tab, string]>).map(([key, label]) => (
             <button
               key={key}
@@ -185,7 +187,7 @@ const FriendProfileScreen: React.FC<Props> = ({
         {tab === 'trips' && (
           <section className="mt-4" data-testid="friend-published-trips">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-black">公開的旅行</h2>
+              <h2 className="text-base font-black">{t('friendProfile.publicTrips')}</h2>
               {seeAll(onSeeAllTrips, publishedTrips.length, counts?.tripCount)}
             </div>
             {publishedTrips.length === 0 ? (
@@ -193,7 +195,7 @@ const FriendProfileScreen: React.FC<Props> = ({
                 data-testid="friend-no-trips"
                 className="mt-2.5 rounded-[20px] border border-dashed border-[#dcd9ec] bg-white/60 px-4 py-8 text-center text-xs font-bold text-slate-400"
               >
-                {person.displayName} 還沒有公開的旅行。
+                {t('friendProfile.noPublicTrips', { name: person.displayName })}
               </p>
             ) : (
               <ul className="mt-2.5 grid grid-cols-2 gap-3">
@@ -210,7 +212,7 @@ const FriendProfileScreen: React.FC<Props> = ({
         {tab === 'collections' && (
           <section className="mt-4" data-testid="friend-published-collections">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-black">公開收藏</h2>
+              <h2 className="text-base font-black">{t('friendProfile.publicCollections')}</h2>
               {seeAll(onSeeAllCollections, publishedCollections.length, counts?.collectionCount)}
             </div>
             {publishedCollections.length === 0 ? (
@@ -218,7 +220,7 @@ const FriendProfileScreen: React.FC<Props> = ({
                 data-testid="friend-no-collections"
                 className="mt-2.5 rounded-[20px] border border-dashed border-[#dcd9ec] bg-white/60 px-4 py-8 text-center text-xs font-bold text-slate-400"
               >
-                {person.displayName} 還沒有公開的收藏。
+                {t('friendProfile.noPublicCollections', { name: person.displayName })}
               </p>
             ) : (
               <ul className="mt-2.5 grid grid-cols-2 gap-3">
@@ -238,7 +240,7 @@ const FriendProfileScreen: React.FC<Props> = ({
 
         {tab === 'posts' && (
           <section className="mt-4">
-            <h2 className="text-base font-black">公開的旅行分享</h2>
+            <h2 className="text-base font-black">{t('friendProfile.publicPosts')}</h2>
             {posts.length === 0 ? (
               /*
                 Said, not left blank. 「他還沒有公開的分享」 is an answer about
@@ -248,7 +250,7 @@ const FriendProfileScreen: React.FC<Props> = ({
                 data-testid="friend-no-posts"
                 className="mt-2.5 rounded-[20px] border border-dashed border-[#dcd9ec] bg-white/60 px-4 py-8 text-center text-xs font-bold text-slate-400"
               >
-                {person.displayName} 還沒有公開的旅行分享。
+                {t('friendProfile.noPublicPosts', { name: person.displayName })}
               </p>
             ) : (
               <ul data-testid="friend-posts" className="mt-2.5 grid grid-cols-2 gap-3">
@@ -291,7 +293,7 @@ const FriendProfileScreen: React.FC<Props> = ({
               <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
                 <Users size={15} />
               </span>
-              共同旅程
+              {t('friendProfile.sharedTrips')}
             </h2>
             <ul className="mt-2.5 space-y-2">
               {sharedTrips.map(trip => (

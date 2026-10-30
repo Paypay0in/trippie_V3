@@ -16,13 +16,14 @@
  *   rather than ranking the stops by something else and calling them 亮點.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, CalendarRange, ChevronRight, ImagePlus, MapPin, NotebookPen, Plus, Receipt, ShoppingBag, Sparkles, Star, UtensilsCrossed, Wallet } from 'lucide-react';
 import { RECEIPT_PHOTO, readAndDownscale } from '../services/postPhotos';
 import { Expense, Trip, TripMember } from '../types';
 import { RecapStop, buildTripRecap, dayOfStop, isGettingThere, starsFor } from '../services/tripRecap';
 import { ITINERARY_PREFIX, buildTripAreas } from '../services/tripAreas';
 import { dayMapSrc } from '../services/dayMapImage';
-import { CATEGORY_LABELS } from '../services/placeCategory';
+import { categoryLabel } from '../services/placeCategory';
 import TripCover from './TripCover';
 import PhotoLightbox from './PhotoLightbox';
 import { PlaceThumbnail } from './PlaceThumbnail';
@@ -77,15 +78,24 @@ interface Props {
 
 type Tab = 'overview' | 'days' | 'picks';
 
+/** The tabs, by the key their label is translated under. */
 const TABS: Array<[Tab, string]> = [
-  ['overview', '總覽'],
-  ['days', '每日行程'],
-  ['picks', '我的精選'],
+  ['overview', 'recap.tabOverview'],
+  ['days', 'recap.tabDays'],
+  ['picks', 'recap.tabPicks'],
 ];
 
 const money = (value: number) => `NT$ ${Math.round(value).toLocaleString()}`;
 
-/** 10/18（六） — the day as the chips and the timeline print it. */
+/**
+ * 10/18（六） — the day as the chips and the timeline print it.
+ *
+ * Left in Chinese by the APP-IN-ENGLISH migration: this is a date format, not
+ * a label. An English reading of the same day is 「Sat 18 Oct」, which is a
+ * different order and different punctuation as well as different words, and
+ * that is a date-formatting decision nobody has made yet.
+ */
+// i18n-data: date format, not a label; the English form is a decision not yet made (see above)
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 const dayLabel = (date: string) => {
   const parsed = new Date(`${date}T00:00:00`);
@@ -107,6 +117,7 @@ const Stars: React.FC<{ stop: RecapStop; testId: string }> = ({ stop, testId }) 
 };
 
 const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberId, members, onBack, onOpenRecords, onWriteDiary, onPlanDay, onRateStop, onAddStopPhotos, journals = {} }) => {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('overview');
   const recap = useMemo(
     () => buildTripRecap({ trip, expenses, today, viewerMemberId, members }),
@@ -187,7 +198,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
 
   const dates = recap.days.length > 0
     ? `${dayLabel(recap.days[0].date)} – ${dayLabel(recap.days[recap.days.length - 1].date)}`
-    : '尚未安排日期';
+    : t('recap.datesNotSet');
 
   /*
     The footprint, with no line through it. A day is walked in an order and
@@ -219,11 +230,11 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
     : undefined;
 
   const stats: Array<[React.ComponentType<{ size?: number }>, string, string, string]> = [
-    [CalendarRange, '旅行天數', String(recap.stats.days), 'text-blue-600'],
-    [MapPin, '造訪景點', String(recap.stats.places), 'text-violet-600'],
-    [UtensilsCrossed, '餐廳美食', String(recap.stats.meals), 'text-amber-500'],
+    [CalendarRange, t('recap.statDays'), String(recap.stats.days), 'text-blue-600'],
+    [MapPin, t('recap.statPlaces'), String(recap.stats.places), 'text-violet-600'],
+    [UtensilsCrossed, t('recap.statMeals'), String(recap.stats.meals), 'text-amber-500'],
     /* 我的花費, because it is: the reader's share, not the trip's total. */
-    [Receipt, '我的花費', money(recap.stats.totalTwd), 'text-emerald-600'],
+    [Receipt, t('recap.statMySpend'), money(recap.stats.totalTwd), 'text-emerald-600'],
   ];
 
   const current = recap.days[Math.min(day, Math.max(0, recap.days.length - 1))];
@@ -258,12 +269,12 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
           onClick={onBack}
           data-testid="recap-back"
           className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-50"
-          aria-label="返回"
+          aria-label={t('common.back')}
         >
           <ArrowLeft size={20} />
         </button>
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-black leading-5 tracking-tight text-[#11183d]">旅程回顧</h1>
+          <h1 className="truncate text-lg font-black leading-5 tracking-tight text-[#11183d]">{t('recap.title')}</h1>
           <p className="truncate text-[11px] font-bold text-slate-400">{trip.name} · {dates}</p>
         </div>
       </header>
@@ -282,7 +293,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
         <section data-testid="recap-cover">
           <TripCover query={trip.name} dateRange={dates} minHeight="min-h-44">
             <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-indigo-700 backdrop-blur">
-              <span className="h-2 w-2 rounded-full bg-violet-500" />RECAP 旅程回顧
+              <span className="h-2 w-2 rounded-full bg-violet-500" />{t('recap.coverBadge')}
             </span>
           </TripCover>
         </section>
@@ -301,7 +312,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                   : 'text-slate-500 hover:bg-slate-50'
               }`}
             >
-              {label}
+              {t(label)}
             </button>
           ))}
         </nav>
@@ -322,7 +333,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
 
             <section className={CARD}>
               <div className="flex items-baseline justify-between gap-2">
-                <h3 className="font-black text-[#11183d]">旅程足跡地圖</h3>
+                <h3 className="font-black text-[#11183d]">{t('recap.footprintTitle')}</h3>
                 {chosen && (
                   <button
                     type="button"
@@ -330,25 +341,25 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                     onClick={() => setArea(null)}
                     className="shrink-0 text-[11px] font-black text-violet-700"
                   >
-                    看整趟
+                    {t('recap.seeWholeTrip')}
                   </button>
                 )}
               </div>
               <div data-testid="recap-map-scope" className="mt-1 text-[11px] font-bold text-slate-400">
-                {chosen ? chosen.label : '整趟旅程'}
+                {chosen ? chosen.label : t('recap.wholeTrip')}
               </div>
               {footprint ? (
                 <img
                   data-testid="recap-footprint"
                   src={footprint}
-                  alt="旅程足跡"
+                  alt={t('recap.footprintAlt')}
                   loading="lazy"
                   className="mt-3 w-full rounded-2xl border border-slate-100"
                 />
               ) : (
                 /* Nothing resolved to a position is nothing to draw. */
                 <p data-testid="recap-footprint-empty" className="mt-2 text-[11px] leading-5 text-slate-500">
-                  這趟旅程的行程還沒有可定位的地點，所以畫不出足跡。
+                  {t('recap.footprintEmpty')}
                 </p>
               )}
               {areas.length > 0 && (
@@ -368,7 +379,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                       }`}
                     >
                       <div className="truncate text-xs font-black text-[#11183d]">{cluster.label}</div>
-                      <div className="mt-0.5 text-[11px] font-bold text-slate-400">{cluster.places.length} 個地點</div>
+                      <div className="mt-0.5 text-[11px] font-bold text-slate-400">{t('recap.placeCount', { count: cluster.places.length })}</div>
                     </button>
                   ))}
                 </div>
@@ -378,7 +389,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
             <section className={CARD}>
               <div className="flex items-center gap-1.5">
                 <Star size={16} className="text-amber-500" />
-                <h3 className="font-black text-[#11183d]">旅程亮點</h3>
+                <h3 className="font-black text-[#11183d]">{t('recap.highlightsTitle')}</h3>
               </div>
               {recap.highlights.length > 0 ? (
                 <ol data-testid="recap-highlights" className="mt-3 space-y-2">
@@ -413,7 +424,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                   that is what it says.
                 */
                 <p data-testid="recap-highlights-empty" className="mt-2 text-[11px] leading-5 text-slate-500">
-                  還沒有評分過的地點。記帳時順手給個星等，這裡就會列出這趟旅程最喜歡的前三名。
+                  {t('recap.highlightsEmpty')}
                 </p>
               )}
             </section>
@@ -425,7 +436,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
             {recap.days.length === 0 ? (
               <section className={CARD}>
                 <p data-testid="recap-days-empty" className="text-[11px] leading-5 text-slate-500">
-                  這趟旅程還沒有排進任何一天的行程。
+                  {t('recap.daysEmpty')}
                 </p>
               </section>
             ) : (
@@ -444,7 +455,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                           : 'border border-slate-100 bg-white text-slate-500'
                       }`}
                     >
-                      <span className="block">第 {entry.index} 天</span>
+                      <span className="block">{t('recap.dayNumber', { day: entry.index })}</span>
                       <span className="block opacity-80">{dayLabel(entry.date)}</span>
                     </button>
                   ))}
@@ -476,13 +487,13 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                           onClick={() => onPlanDay(current.date)}
                           className="flex shrink-0 items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-[11px] font-black text-indigo-700"
                         >
-                          <NotebookPen size={12} />編輯這一天
+                          <NotebookPen size={12} />{t('recap.editThisDay')}
                         </button>
                       )}
                     </div>
                   </div>
                   <h3 className="font-black text-[#11183d]">
-                    第 {current.index} 天 · {dayLabel(current.date)}
+                    {t('recap.dayNumber', { day: current.index })} · {dayLabel(current.date)}
                   </h3>
                   {/*
                     What the day was made of. Counts of what is actually on it
@@ -492,10 +503,10 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                   */}
                   <div data-testid="recap-day-stats" className="mt-3 grid grid-cols-4 gap-1.5">
                     {[
-                      [MapPin, current.stats.sights, '個景點'],
-                      [UtensilsCrossed, current.stats.food, '家餐廳'],
-                      [ShoppingBag, current.stats.shopping, '個購物'],
-                      [Wallet, money(current.stats.twdAmount), '當日花費'],
+                      [MapPin, current.stats.sights, t('recap.dayStatSights')],
+                      [UtensilsCrossed, current.stats.food, t('recap.dayStatFood')],
+                      [ShoppingBag, current.stats.shopping, t('recap.dayStatShopping')],
+                      [Wallet, money(current.stats.twdAmount), t('recap.dayStatSpend')],
                     ].map(([Icon, value, label]) => (
                       <div key={label as string} className="rounded-2xl border border-slate-100 bg-[#f8f9ff] px-2 py-2 text-center">
                         {React.createElement(Icon as React.ElementType, { size: 14, className: 'mx-auto text-violet-600' })}
@@ -538,7 +549,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                 <button
                                   key={value}
                                   type="button"
-                                  aria-label={`${value} 星`}
+                                  aria-label={t('recap.starValue', { count: value })}
                                   data-testid={`recap-rate-${stop.itemId}-${value}`}
                                   onClick={() => onRateStop(stop.itemId, stop.rating === value ? 0 : value)}
                                   className={`text-base leading-none ${
@@ -553,7 +564,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                           <div className="mt-1 flex flex-wrap items-center gap-1">
                             {stop.category !== 'other' && (
                               <span className="inline-flex rounded-lg bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">
-                                {CATEGORY_LABELS[stop.category]}
+                                {categoryLabel(stop.category)}
                               </span>
                             )}
                             {/* The ward, from the same grouping the areas above use. */}
@@ -589,7 +600,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                 <button
                                   key={shot}
                                   type="button"
-                                  aria-label={`放大 ${stop.title} 的第 ${at + 1} 張照片`}
+                                  aria-label={t('recap.enlargeStopPhoto', { place: stop.title, index: at + 1 })}
                                   data-testid={`recap-stop-photo-${stop.itemId}-${at}`}
                                   onClick={() => setViewing({ photos: stop.photos ?? [], index: at })}
                                 >
@@ -635,12 +646,12 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                 onChange={event => setDraft(event.target.value)}
                                 rows={3}
                                 autoFocus
-                                placeholder="這裡發生了什麼？只有你看得到。"
+                                placeholder={t('recap.diaryPlaceholder')}
                                 className="w-full rounded-xl border border-slate-200 p-2 text-[12px] leading-5 text-slate-700 outline-none focus:border-violet-400"
                               />
               {/* 「日記只給自己看」 — and now it is. */}
                               <p data-testid={`recap-diary-private-${stop.itemId}`} className="mt-1 text-[10px] leading-4 text-slate-400">
-                                只有你看得到。
+                                {t('recap.diaryPrivate')}
                               </p>
                               <div className="mt-1.5 flex gap-2">
                                 <button
@@ -649,14 +660,14 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                   onClick={() => { onWriteDiary(stop.itemId, draft.trim()); setEditing(null); }}
                                   className="rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 py-1.5 text-[11px] font-black text-white"
                                 >
-                                  儲存
+                                  {t('common.save')}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setEditing(null)}
                                   className="rounded-xl bg-slate-100 px-3 py-1.5 text-[11px] font-black text-slate-500"
                                 >
-                                  取消
+                                  {t('common.cancel')}
                                 </button>
                               </div>
                             </div>
@@ -672,7 +683,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                   data-testid={`recap-add-photo-${stop.itemId}`}
                                   className="mt-1.5 mr-3 inline-flex cursor-pointer items-center gap-1 text-[11px] font-black text-violet-700"
                                 >
-                                  <ImagePlus size={12} />加照片
+                                  <ImagePlus size={12} />{t('recap.addPhoto')}
                                   <input
                                     type="file"
                                     accept="image/*"
@@ -697,7 +708,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                                   onClick={() => { setDraft(journals[stop.itemId]?.text ?? ''); setEditing(stop.itemId); }}
                                   className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-black text-violet-700"
                                 >
-                                  <NotebookPen size={12} />{journals[stop.itemId]?.text ? '編輯日記' : '寫下日記'}
+                                  <NotebookPen size={12} />{journals[stop.itemId]?.text ? t('recap.editDiary') : t('recap.writeDiary')}
                                 </button>
                               )}
                             </>
@@ -713,7 +724,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                       onClick={() => onPlanDay(current.date)}
                       className="mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-violet-200 text-xs font-black text-violet-700"
                     >
-                      <Plus size={14} />新增行程 / 記錄
+                      <Plus size={14} />{t('recap.addToDay')}
                     </button>
                   )}
                 </section>
@@ -725,11 +736,11 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
         {tab === 'picks' && (
           <>
             {[
-              ['最愛景點', recap.favouritePlace, 'recap-pick-place'] as const,
-              ['最愛餐廳', recap.favouriteMeal, 'recap-pick-meal'] as const,
-            ].map(([label, stop, testId]) => (
+              ['recap.favouritePlace', recap.favouritePlace, 'recap-pick-place', 'recap.noRatedPlace'] as const,
+              ['recap.favouriteMeal', recap.favouriteMeal, 'recap-pick-meal', 'recap.noRatedMeal'] as const,
+            ].map(([label, stop, testId, emptyLabel]) => (
               <section key={label} className={CARD}>
-                <h3 className="font-black text-[#11183d]">{label}</h3>
+                <h3 className="font-black text-[#11183d]">{t(label)}</h3>
                 {stop ? (
                   /* Same gesture as 旅程亮點: the card names a stop, so it reaches it. */
                   <button
@@ -780,7 +791,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                   </button>
                 ) : (
                   <p data-testid={`${testId}-empty`} className="mt-2 text-[11px] leading-5 text-slate-500">
-                    還沒有評分過{label === '最愛餐廳' ? '餐廳' : '景點'}。
+                    {t(emptyLabel)}
                   </p>
                 )}
               </section>
@@ -789,7 +800,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
             <section className={CARD}>
               <div className="flex items-center gap-1.5">
                 <Sparkles size={16} className="text-violet-600" />
-                <h3 className="font-black text-[#11183d]">旅程小結</h3>
+                <h3 className="font-black text-[#11183d]">{t('recap.summaryTitle')}</h3>
               </div>
               {/*
                 Counts, not prose. A paragraph about how the trip felt is the
@@ -798,9 +809,13 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                 this can say is what it was given.
               */}
               <p data-testid="recap-summary" className="mt-2 text-xs leading-6 text-slate-600">
-                {recap.stats.days} 天的旅程，走過 {recap.stats.places} 個地點、吃了 {recap.stats.meals} 餐，
-                你自己花了 {money(recap.stats.totalTwd)}。
-                {recap.highlights.length > 0 && `最喜歡的是 ${recap.highlights[0].title}。`}
+                {t('recap.summaryLine', {
+                  days: recap.stats.days,
+                  places: recap.stats.places,
+                  meals: recap.stats.meals,
+                  spend: money(recap.stats.totalTwd),
+                })}
+                {recap.highlights.length > 0 && t('recap.summaryFavourite', { place: recap.highlights[0].title })}
               </p>
               {onOpenRecords && (
                 <button
@@ -808,7 +823,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
                   onClick={onOpenRecords}
                   className="mt-3 flex min-h-10 w-full items-center justify-center rounded-xl bg-violet-50 text-xs font-black text-violet-700"
                 >
-                  查看完整帳本
+                  {t('recap.openFullLedger')}
                 </button>
               )}
             </section>

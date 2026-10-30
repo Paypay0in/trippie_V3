@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Clock3, Copy, Globe, MapPin, Navigation, NotebookPen, Sparkles, Star, Users, X } from 'lucide-react';
 import PlaceSourceCredit from './PlaceSourceCredit';
 import MyPlaceRecord from './MyPlaceRecord';
@@ -104,6 +105,7 @@ interface Props {
 }
 
 const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, viewerUserId, spend = [], myRecord = [], visited = false, onAddNote, myRecordText = '', myRecordPhotos = [], onSaveMyRecord, onClose }) => {
+  const { t } = useTranslation();
   /** The photograph being looked at, full screen. */
   const [viewing, setViewing] = useState<{ photos: string[]; index: number } | null>(null);
   /*
@@ -147,7 +149,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
 
   const myRecordBlock = myRecord.length > 0 ? (
     <section data-testid="saved-place-my-record" className="rounded-2xl border border-violet-100 bg-violet-50/40 p-3">
-      <h3 className="text-sm font-black text-[#11183d]">我去的時候</h3>
+      <h3 className="text-sm font-black text-[#11183d]">{t('saved.whenIWent')}</h3>
       {myRecord.map(record => (
         <div key={record.itemId} data-testid={`saved-place-my-record-${record.itemId}`} className="mt-2">
           <div className="flex items-center gap-2 text-[11px] font-bold text-slate-500">
@@ -170,7 +172,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                 <button
                   key={shot}
                   type="button"
-                  aria-label={`放大第 ${at + 1} 張照片`}
+                  aria-label={t('saved.enlargePhotoIndexed', { index: at + 1 })}
                   data-testid={`saved-place-my-photo-${record.itemId}-${at}`}
                   onClick={() => setViewing({ photos: record.photos ?? [], index: at })}
                 >
@@ -293,7 +295,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           <button
             type="button"
             onClick={onClose}
-            aria-label="關閉"
+            aria-label={t('common.close')}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-400"
           >
             <X size={16} />
@@ -310,7 +312,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
         {!place.placeId && !place.coordinates && (
           <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-5 text-amber-700">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-            這個收藏還沒對到地圖上的地點，以下連結是用名稱搜尋，請確認是不是同一家。
+            {t('saved.notMatchedToMap')}
           </p>
         )}
 
@@ -336,7 +338,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
             data-testid="saved-place-naver-link"
             className="mt-3 flex min-h-11 items-center justify-center gap-1.5 rounded-2xl bg-[#03c75a] text-sm font-black text-white"
           >
-            <Navigation size={15} />在 NAVER 地圖開啟
+            <Navigation size={15} />{t('saved.openInNaver')}
           </a>
         )}
 
@@ -347,7 +349,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
             data-testid="saved-place-other-providers"
             className="mt-2 min-h-11 w-full text-xs font-black text-slate-500"
           >
-            其他導航方式
+            {t('saved.otherNavigation')}
           </button>
         )}
 
@@ -362,7 +364,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
             data-testid="saved-place-maps-link"
             className="flex min-h-11 items-center justify-center gap-1.5 rounded-2xl bg-[#5b3df5] text-sm font-black text-white"
           >
-            <MapPin size={15} />在 Google 地圖開啟
+            <MapPin size={15} />{t('saved.openInGoogleMaps')}
           </a>
           <a
             href={placeDirectionsUrl(place)}
@@ -371,7 +373,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
             data-testid="saved-place-directions-link"
             className="flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 text-sm font-black text-[#11183d]"
           >
-            <Navigation size={15} />路線
+            <Navigation size={15} />{t('saved.directions')}
           </a>
         </div>
 
@@ -381,7 +383,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           data-testid="saved-place-copy"
           className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl bg-slate-50 text-xs font-black text-slate-600"
         >
-          <Copy size={13} />{copied ? '已複製' : place.formattedAddress ? '複製地址' : '複製店名'}
+          <Copy size={13} />{copied ? t('saved.copied') : place.formattedAddress ? t('saved.copyAddress') : t('saved.copyPlaceName')}
         </button>
 
         {/*
@@ -402,7 +404,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           {mine.length > 0 && (
             <div data-testid="saved-place-notes" className="mt-4 space-y-1.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
               <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800">
-                <NotebookPen size={12} />我的備註
+                <NotebookPen size={12} />{t('saved.myNotes')}
               </div>
               {mine.map(note => (
                 <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
@@ -449,7 +451,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                   onClick={() => { setWriting(true); setDraftNote(''); }}
                   className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-emerald-200 text-[11px] font-black text-emerald-700"
                 >
-                  <NotebookPen size={12} />寫一則我的備註
+                  <NotebookPen size={12} />{t('saved.writeMyNote')}
                 </button>
               ) : (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
@@ -459,9 +461,9 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                     maxLength={300}
                     value={draftNote}
                     onChange={event => setDraftNote(event.target.value)}
-                    aria-label="我的備註"
+                    aria-label={t('saved.myNotes')}
                     data-testid="note-input"
-                    placeholder="想記住這裡的什麼？"
+                    placeholder={t('saved.notePlaceholder')}
                     className="w-full resize-none rounded-xl border border-emerald-200 bg-white px-2.5 py-2 text-xs text-[#11183d] outline-none placeholder:text-slate-300"
                   />
                   <div className="mt-1.5 flex gap-2">
@@ -476,14 +478,14 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                       }}
                       className="flex-1 rounded-xl bg-emerald-600 py-2 text-[11px] font-black text-white disabled:bg-slate-200 disabled:text-slate-400"
                     >
-                      留下
+                      {t('saved.keepNote')}
                     </button>
                     <button
                       type="button"
                       onClick={() => { setWriting(false); setDraftNote(''); }}
                       className="px-3 text-[11px] font-black text-slate-500"
                     >
-                      取消
+                      {t('common.cancel')}
                     </button>
                   </div>
                 </div>
@@ -511,7 +513,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           {theirs.length > 0 && (
             <div data-testid="saved-place-traveller-notes" className="mt-4 space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
               <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
-                <Users size={12} />旅人筆記
+                <Users size={12} />{t('saved.travellerNotes')}
               </div>
               {theirs.map(note => (
                 <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
@@ -542,7 +544,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           */}
           {(basicsLine || basics?.summary || todayHours || basics?.website) && (
             <div data-testid="place-basics" className="mt-4 space-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5">
-              <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Google 基本資料</div>
+              <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{t('saved.googleBasics')}</div>
               {basics?.summary && <p className="text-xs leading-5 text-slate-700">{basics.summary}</p>}
               {basicsLine && (
                 <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
@@ -553,10 +555,10 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                 <p className="flex items-start gap-1.5 text-[11px] font-medium text-slate-600">
                   <Clock3 size={11} className="mt-0.5 shrink-0 text-slate-400" />
                   <span className="min-w-0 flex-1">
-                    今日 {todayHours}
+                    {t('saved.todayHours', { hours: todayHours })}
                     {basics?.openNow !== undefined && (
                       <span className={`ml-1.5 font-black ${basics.openNow ? 'text-emerald-600' : 'text-rose-500'}`}>
-                        {basics.openNow ? '營業中' : '休息中'}
+                        {basics.openNow ? t('saved.openNow') : t('saved.closedNow')}
                       </span>
                     )}
                   </span>
@@ -569,7 +571,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                   rel="noreferrer"
                   className="flex items-center gap-1.5 text-[11px] font-black text-[#5b3df5]"
                 >
-                  <Globe size={11} />官方網站
+                  <Globe size={11} />{t('plan.officialSite')}
                 </a>
               )}
             </div>
@@ -589,7 +591,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           {reviews.length > 0 && (
             <div data-testid="place-reviews" className="mt-4 space-y-1.5">
               <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500">
-                <Star size={12} className="text-amber-500" />Google 評論
+                <Star size={12} className="text-amber-500" />{t('saved.googleReviews')}
               </div>
               {reviews.map(review => (
                 <div key={`${review.authorName}-${review.when}-${review.text.slice(0, 12)}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-2.5">
@@ -598,7 +600,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                       <img src={review.authorPhoto} alt="" loading="lazy" className="h-5 w-5 rounded-full object-cover" />
                     )}
                     <span className="min-w-0 flex-1 truncate text-[11px] font-black text-[#11183d]">
-                      {review.authorName || '旅客'}
+                      {review.authorName || t('saved.anonymousReviewer')}
                     </span>
                     {review.rating !== undefined && (
                       <span className="shrink-0 text-[11px] font-black text-amber-600">★ {review.rating}</span>
@@ -622,7 +624,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           */}
           {(basicsLine || basics?.summary || todayHours || basics?.website) && (
             <div data-testid="place-basics" className="mt-4 space-y-1.5 rounded-xl bg-slate-50 px-3 py-2.5">
-              <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Google 基本資料</div>
+              <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{t('saved.googleBasics')}</div>
               {basics?.summary && <p className="text-xs leading-5 text-slate-700">{basics.summary}</p>}
               {basicsLine && (
                 <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
@@ -633,10 +635,10 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                 <p className="flex items-start gap-1.5 text-[11px] font-medium text-slate-600">
                   <Clock3 size={11} className="mt-0.5 shrink-0 text-slate-400" />
                   <span className="min-w-0 flex-1">
-                    今日 {todayHours}
+                    {t('saved.todayHours', { hours: todayHours })}
                     {basics?.openNow !== undefined && (
                       <span className={`ml-1.5 font-black ${basics.openNow ? 'text-emerald-600' : 'text-rose-500'}`}>
-                        {basics.openNow ? '營業中' : '休息中'}
+                        {basics.openNow ? t('saved.openNow') : t('saved.closedNow')}
                       </span>
                     )}
                   </span>
@@ -649,7 +651,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                   rel="noreferrer"
                   className="flex items-center gap-1.5 text-[11px] font-black text-[#5b3df5]"
                 >
-                  <Globe size={11} />官方網站
+                  <Globe size={11} />{t('plan.officialSite')}
                 </a>
               )}
             </div>
@@ -657,7 +659,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           {mine.length > 0 && (
             <div data-testid="saved-place-notes" className="mt-4 space-y-1.5 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
               <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-800">
-                <NotebookPen size={12} />我的備註
+                <NotebookPen size={12} />{t('saved.myNotes')}
               </div>
               {mine.map(note => (
                 <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
@@ -689,7 +691,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                   onClick={() => { setWriting(true); setDraftNote(''); }}
                   className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-emerald-200 text-[11px] font-black text-emerald-700"
                 >
-                  <NotebookPen size={12} />寫一則我的備註
+                  <NotebookPen size={12} />{t('saved.writeMyNote')}
                 </button>
               ) : (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-2.5">
@@ -699,9 +701,9 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                     maxLength={300}
                     value={draftNote}
                     onChange={event => setDraftNote(event.target.value)}
-                    aria-label="我的備註"
+                    aria-label={t('saved.myNotes')}
                     data-testid="note-input"
-                    placeholder="想記住這裡的什麼？"
+                    placeholder={t('saved.notePlaceholder')}
                     className="w-full resize-none rounded-xl border border-emerald-200 bg-white px-2.5 py-2 text-xs text-[#11183d] outline-none placeholder:text-slate-300"
                   />
                   <div className="mt-1.5 flex gap-2">
@@ -716,14 +718,14 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                       }}
                       className="flex-1 rounded-xl bg-emerald-600 py-2 text-[11px] font-black text-white disabled:bg-slate-200 disabled:text-slate-400"
                     >
-                      留下
+                      {t('saved.keepNote')}
                     </button>
                     <button
                       type="button"
                       onClick={() => { setWriting(false); setDraftNote(''); }}
                       className="px-3 text-[11px] font-black text-slate-500"
                     >
-                      取消
+                      {t('common.cancel')}
                     </button>
                   </div>
                 </div>
@@ -739,7 +741,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           {theirs.length > 0 && (
             <div data-testid="saved-place-traveller-notes" className="mt-4 space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
               <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
-                <Users size={12} />旅人筆記
+                <Users size={12} />{t('saved.travellerNotes')}
               </div>
               {theirs.map(note => (
                 <div key={note.id} className="flex items-start gap-1.5 rounded-lg bg-white/70 px-2 py-1.5 text-xs leading-5 text-slate-700">
@@ -773,7 +775,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
           {reviews.length > 0 && (
             <div data-testid="place-reviews" className="mt-4 space-y-1.5">
               <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500">
-                <Star size={12} className="text-amber-500" />Google 評論
+                <Star size={12} className="text-amber-500" />{t('saved.googleReviews')}
               </div>
               {reviews.map(review => (
                 <div key={`${review.authorName}-${review.when}-${review.text.slice(0, 12)}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-2.5">
@@ -782,7 +784,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                       <img src={review.authorPhoto} alt="" loading="lazy" className="h-5 w-5 rounded-full object-cover" />
                     )}
                     <span className="min-w-0 flex-1 truncate text-[11px] font-black text-[#11183d]">
-                      {review.authorName || '旅客'}
+                      {review.authorName || t('saved.anonymousReviewer')}
                     </span>
                     {review.rating !== undefined && (
                       <span className="shrink-0 text-[11px] font-black text-amber-600">★ {review.rating}</span>
@@ -814,14 +816,14 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                   }}
                   className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-violet-200 bg-violet-50/50 text-xs font-black text-[#5b3df5] disabled:opacity-60"
                 >
-                  <Sparkles size={13} />{lookingUp ? '查詢中…' : '查查這裡有名的是什麼'}
+                  <Sparkles size={13} />{lookingUp ? t('saved.lookingUp') : t('saved.lookUpHighlights')}
                 </button>
               )}
 
               {highlights && (
                 <div data-testid="place-highlights" className="space-y-1.5 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
                   <div className="flex items-center gap-1.5 text-[11px] font-black text-violet-700">
-                    <Sparkles size={12} />AI 查到的重點
+                    <Sparkles size={12} />{t('saved.aiHighlights')}
                   </div>
                   {highlights.points.length > 0 ? (
                     <>
@@ -857,7 +859,7 @@ const SavedPlaceCard: React.FC<Props> = ({ place, notes, credit, onOpenSource, v
                       about this place, not a failure to report.
                     */
                     <p data-testid="place-highlights-empty" className="text-xs leading-5 text-slate-500">
-                      查不到這家店的介紹，網路上沒有寫到什麼。
+                      {t('saved.highlightsEmpty')}
                     </p>
                   )}
                 </div>

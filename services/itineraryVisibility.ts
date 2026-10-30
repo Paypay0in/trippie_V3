@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { ItineraryItem, ItineraryVisibility, TripMember } from '../types';
 
 /**
@@ -96,8 +97,17 @@ export const ownerLabelFor = (
   if (!isPersonal(item)) return undefined;
   if (isOwnItem(item, viewerUserId)) return undefined;
   const named = members.find(member => member.userId && member.userId === item.ownerUserId);
-  return named?.name?.trim() || '同行者';
+  return named?.name?.trim() || i18n.t('itinerary.companion');
 };
 
-/** What a personal item of the viewer's own is called on their own plan. */
+/**
+ * What a personal item of the viewer's own is called on their own plan.
+ *
+ * Not yet moved into the bundles: it is a module-level `const`, so there is no
+ * render to look a language up at, and its only reader renders it directly
+ * (`ItineraryCalendar`, the personal badge). Translating it means turning this
+ * into a function and changing that call site, which is a file batch-AB was
+ * not given. Left for whichever batch owns `ItineraryCalendar.tsx`.
+ */
+// i18n-data: module-level const with no render to translate in; blocked on ItineraryCalendar.tsx
 export const OWN_PERSONAL_LABEL = '我的個人行程';

@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, NotebookPen, Search, X } from 'lucide-react';
 import { BOTTOM_NAV_CLEARANCE } from './AppBottomNav';
 import SuggestedPlaceCards from './SuggestedPlaceCards';
 import { usePlacePhotos } from './usePlacePhotos';
-import { CATEGORY_LABELS } from '../services/placeCategory';
+import { categoryLabel } from '../services/placeCategory';
+import { groupByArea } from '../services/placeAreaGroups';
 import { PlaceCategory } from '../types';
 
 /**
@@ -82,6 +84,7 @@ const NOTE_PREVIEW = 2;
 const PlacePickerSheet: React.FC<Props> = ({
   title, places, onPick, onClose, onClear, onTypeYourOwn, nearby, onPickNearby, onSearchNearby, error,
 }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   /** What a 更多搜尋 came back with, and whether one is in flight. */
   const [found, setFound] = useState<Array<{ placeId: string; placeName: string; rating?: number; kind?: string }>>([]);
@@ -102,16 +105,13 @@ const PlacePickerSheet: React.FC<Props> = ({
         || (place.notes || []).some(note => note.toLocaleLowerCase().includes(wanted)))
       : places;
 
-    const byWard: Array<{ label: string; places: PickablePlace[] }> = [];
-    const index = new Map<string, { label: string; places: PickablePlace[] }>();
-    matching.forEach(place => {
-      const label = place.district?.trim() || place.areaLabel?.trim() || '其他';
-      let group = index.get(label);
-      if (!group) { group = { label, places: [] }; index.set(label, group); byWard.push(group); }
-      group.places.push(place);
-    });
-    // 「其他」 says nothing, so it goes last.
-    return [...byWard.filter(g => g.label !== '其他'), ...byWard.filter(g => g.label === '其他')];
+    /*
+      The rule lives in `services/placeAreaGroups.ts`. `DayBlockPlanner` groups
+      the same way and both screens used to spell it out, including a no-ward
+      bucket whose heading was also the value the ordering compared against —
+      which could not survive the heading being translated.
+    */
+    return groupByArea(matching);
   }, [places, query]);
 
   /*
@@ -138,7 +138,7 @@ const PlacePickerSheet: React.FC<Props> = ({
       >
         <div className="flex items-center justify-between gap-2 px-4 pt-4">
           <h2 className="min-w-0 flex-1 truncate text-sm font-black text-[#11183d]">{title}</h2>
-          <button type="button" aria-label="關閉" onClick={onClose} className="shrink-0 rounded-full p-1.5 text-slate-400">
+          <button type="button" aria-label={t('common.close')} onClick={onClose} className="shrink-0 rounded-full p-1.5 text-slate-400">
             <X size={18} />
           </button>
         </div>
@@ -147,10 +147,10 @@ const PlacePickerSheet: React.FC<Props> = ({
           <Search size={13} className="shrink-0 text-slate-400" />
           <input
             data-testid="place-picker-search"
-            aria-label="搜尋收藏"
+            aria-label={t('placePicker.searchAria')}
             value={query}
             onChange={event => setQuery(event.target.value)}
-            placeholder="找地點或筆記裡的字"
+            placeholder={t('placePicker.searchPlaceholder')}
             className="min-w-0 flex-1 bg-transparent py-2 text-xs text-[#11183d] outline-none placeholder:text-slate-300"
           />
         </label>
@@ -158,7 +158,7 @@ const PlacePickerSheet: React.FC<Props> = ({
         <div className="mt-2 min-h-0 flex-1 overflow-y-auto px-4 pb-2">
           {groups.length === 0 && (
             <p className="py-8 text-center text-xs font-bold text-slate-400">
-              {query.trim() ? '收藏裡沒有符合的地點。' : '這趟旅程還沒有收藏的地點。'}
+              {query.trim() ? t('placePicker.noMatches') : t('placePicker.noneSaved')}
             </p>
           )}
 
@@ -167,7 +167,7 @@ const PlacePickerSheet: React.FC<Props> = ({
           */}
           {(nearby || []).length > 0 && onPickNearby && !query.trim() && (
             <section data-testid="picker-nearby" className="mt-3">
-              <h3 className="text-[11px] font-black text-slate-400">這一帶的其他選擇</h3>
+              <h3 className="text-[11px] font-black text-slate-400">{t('placePicker.otherNearby')}</h3>
               {/*
                 「我需要卡片的展示 有照片 並且告訴我是哪類餐廳」.
 
@@ -186,7 +186,7 @@ const PlacePickerSheet: React.FC<Props> = ({
                 }))}
                 onPick={place => onPickNearby(place.placeName)}
               />
-              <p className="mt-1 text-[10px] text-slate-400">不是你收藏的地點，加入後再自己確認。</p>
+              <p className="mt-1 text-[10px] text-slate-400">{t('placePicker.notYoursHint')}</p>
             </section>
           )}
 
@@ -214,11 +214,11 @@ const PlacePickerSheet: React.FC<Props> = ({
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-white py-2 text-[11px] font-black text-[#5b3df5] disabled:opacity-50"
               >
                 <Search size={12} />
-                {searching ? '搜尋中…' : `在這一帶搜尋「${query.trim()}」`}
+                {searching ? t('placePicker.searching') : t('placePicker.searchNearby', { query: query.trim() })}
               </button>
               {searchedFor && !searching && found.length === 0 && (
                 <p className="mt-1.5 text-center text-[10px] font-bold text-slate-400">
-                  這一帶找不到「{searchedFor}」。
+                  {t('placePicker.nothingNearby', { query: searchedFor })}
                 </p>
               )}
               {found.length > 0 && onPickNearby && (
@@ -233,7 +233,7 @@ const PlacePickerSheet: React.FC<Props> = ({
                     }))}
                     onPick={place => onPickNearby(place.placeName)}
                   />
-                  <p className="mt-1 text-[10px] text-slate-400">不是你收藏的地點，加入後再自己確認。</p>
+                  <p className="mt-1 text-[10px] text-slate-400">{t('placePicker.notYoursHint')}</p>
                 </>
               )}
             </section>
@@ -250,7 +250,13 @@ const PlacePickerSheet: React.FC<Props> = ({
 
           {groups.map(group => (
             <section key={group.label} className="mt-3 first:mt-0">
-              <h3 className="text-[11px] font-black text-slate-400">{group.label}</h3>
+              {/*
+                A ward name is data and reads the same in every language; the
+                no-ward bucket is the product's own word and carries a key.
+              */}
+              <h3 className="text-[11px] font-black text-slate-400">
+                {group.labelKey ? t(group.labelKey) : group.label}
+              </h3>
               <ul className="mt-1.5 space-y-1.5">
                 {group.places.map(place => (
                   <li key={place.id}>
@@ -282,11 +288,11 @@ const PlacePickerSheet: React.FC<Props> = ({
                           <span className="min-w-0 flex-1 truncate text-xs font-black text-[#11183d]">{place.placeName}</span>
                           {place.category && place.category !== 'other' && (
                             <span className="shrink-0 rounded-lg bg-violet-100 px-1.5 py-0.5 text-[9px] font-black text-violet-700">
-                              {CATEGORY_LABELS[place.category]}
+                              {categoryLabel(place.category)}
                             </span>
                           )}
                           {place.alreadyPlanned && (
-                            <span className="shrink-0 text-[9px] font-black text-slate-400">已在行程中</span>
+                            <span className="shrink-0 text-[9px] font-black text-slate-400">{t('placePicker.alreadyInPlan')}</span>
                           )}
                         </span>
 
@@ -300,12 +306,12 @@ const PlacePickerSheet: React.FC<Props> = ({
                             ))}
                             {(place.notes || []).length > NOTE_PREVIEW && (
                               <span className="block text-[10px] font-bold text-slate-300">
-                                還有 {(place.notes || []).length - NOTE_PREVIEW} 則筆記
+                                {t('placePicker.moreNotes', { n: (place.notes || []).length - NOTE_PREVIEW })}
                               </span>
                             )}
                           </span>
                         ) : (
-                          <span className="mt-1 block text-[10px] text-slate-300">這個地點沒有筆記</span>
+                          <span className="mt-1 block text-[10px] text-slate-300">{t('placePicker.noNotes')}</span>
                         )}
                       </span>
                     </button>
@@ -324,7 +330,7 @@ const PlacePickerSheet: React.FC<Props> = ({
               onClick={onClear}
               className="min-h-11 flex-1 rounded-xl border border-slate-200 text-xs font-black text-slate-500"
             >
-              <Check size={12} className="mr-1 inline" />清空這格
+              <Check size={12} className="mr-1 inline" />{t('placePicker.clearSlot')}
             </button>
           )}
           {onTypeYourOwn && (
@@ -334,7 +340,7 @@ const PlacePickerSheet: React.FC<Props> = ({
               onClick={onTypeYourOwn}
               className="min-h-11 flex-1 rounded-xl border border-violet-200 text-xs font-black text-[#5b3df5]"
             >
-              自己輸入地點
+              {t('placePicker.typeYourOwn')}
             </button>
           )}
         </div>

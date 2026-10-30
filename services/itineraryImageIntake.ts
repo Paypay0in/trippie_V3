@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { ItinerarySlice, normalizeItinerarySlices } from './itineraryImageSlices';
 
 /**
@@ -21,12 +22,12 @@ export const readItinerarySlicesFromImage = async (input: {
       body: JSON.stringify(input),
     });
   } catch {
-    throw new Error('現在無法辨識截圖，請確認連線後再試。');
+    throw new Error(i18n.t('plan.screenshotIntake.offline'));
   }
 
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
-    throw new Error(typeof payload?.error === 'string' ? payload.error : '現在無法辨識截圖，請稍後再試。');
+    throw new Error(typeof payload?.error === 'string' ? payload.error : i18n.t('plan.screenshotIntake.unreadable'));
   }
   return normalizeItinerarySlices(payload);
 };

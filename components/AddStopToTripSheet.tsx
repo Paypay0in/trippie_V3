@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CalendarDays, MapPinned, X } from 'lucide-react';
 import { PublishedTripStop } from '../types';
 import { tripDayCount } from '../services/tripPublishing';
@@ -58,6 +59,7 @@ export const tripDayOptions = (trip: TripChoice): Array<{ date: string; label: s
 };
 
 const AddStopToTripSheet: React.FC<Props> = ({ stop, sourceLabel, trips, onAdd, onClose }) => {
+  const { t } = useTranslation();
   const [tripId, setTripId] = React.useState(trips[0]?.id ?? '');
   const [date, setDate] = React.useState('');
   const [remark, setRemark] = React.useState('');
@@ -72,10 +74,10 @@ const AddStopToTripSheet: React.FC<Props> = ({ stop, sourceLabel, trips, onAdd, 
     <div className="fixed inset-0 z-[60] flex items-end bg-black/30" data-testid="add-stop-sheet">
       <div className="max-h-[88vh] w-full overflow-y-auto rounded-t-3xl bg-white px-[var(--screen-pad)] pb-6 pt-4 md:mx-auto md:max-w-2xl md:rounded-3xl">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-black text-[#11183d]">加入我的行程</h2>
+          <h2 className="text-base font-black text-[#11183d]">{t('addStop.title')}</h2>
           <button
             type="button"
-            aria-label="關閉"
+            aria-label={t('common.close')}
             data-testid="add-stop-close"
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-400"
@@ -116,12 +118,12 @@ const AddStopToTripSheet: React.FC<Props> = ({ stop, sourceLabel, trips, onAdd, 
             data-testid="add-stop-no-trips"
             className="mt-4 rounded-2xl border border-dashed border-[#dcd9ec] bg-white px-4 py-8 text-center text-xs font-bold text-slate-400"
           >
-            你還沒有可以加入的行程。先建立一個行程再回來。
+            {t('addStop.noTrips')}
           </p>
         ) : (
           <>
             <label className="mt-4 block text-[12px] font-black text-[#11183d]">
-              選擇要加入的行程
+              {t('addStop.chooseTrip')}
               <select
                 data-testid="add-stop-trip"
                 value={tripId}
@@ -135,7 +137,7 @@ const AddStopToTripSheet: React.FC<Props> = ({ stop, sourceLabel, trips, onAdd, 
             </label>
 
             <label className="mt-3 block text-[12px] font-black text-[#11183d]">
-              選擇日期
+              {t('addStop.chooseDate')}
               {days.length === 0 ? (
                 /*
                   A trip with no dates offers no day rather than a dropdown of
@@ -146,7 +148,7 @@ const AddStopToTripSheet: React.FC<Props> = ({ stop, sourceLabel, trips, onAdd, 
                   data-testid="add-stop-no-days"
                   className="mt-1.5 rounded-xl bg-[#f7f8fc] px-3 py-3 text-[12px] font-bold text-slate-400"
                 >
-                  這個行程還沒有日期，會先放在未排入的地點裡。
+                  {t('addStop.noDates')}
                 </p>
               ) : (
                 <span className="mt-1.5 flex items-center gap-2 rounded-xl border border-[#eceaf5] bg-white px-3">
@@ -157,7 +159,7 @@ const AddStopToTripSheet: React.FC<Props> = ({ stop, sourceLabel, trips, onAdd, 
                     onChange={event => setDate(event.target.value)}
                     className="h-11 w-full bg-transparent text-[13px] font-bold"
                   >
-                    <option value="">還沒決定哪一天</option>
+                    <option value="">{t('addStop.noDayYet')}</option>
                     {days.map(day => (
                       <option key={day.date} value={day.date}>{day.label}</option>
                     ))}
@@ -167,13 +169,13 @@ const AddStopToTripSheet: React.FC<Props> = ({ stop, sourceLabel, trips, onAdd, 
             </label>
 
             <label className="mt-3 block text-[12px] font-black text-[#11183d]">
-              備註（可選）
+              {t('addStop.remarkOptional')}
               <textarea
                 data-testid="add-stop-remark"
                 value={remark}
                 onChange={event => setRemark(event.target.value)}
                 rows={2}
-                placeholder="看起來很棒，想去！"
+                placeholder={t('addStop.remarkPlaceholder')}
                 className="mt-1.5 w-full rounded-xl border border-[#eceaf5] px-3 py-2 text-[13px] placeholder:text-slate-300"
               />
             </label>
@@ -188,7 +190,7 @@ const AddStopToTripSheet: React.FC<Props> = ({ stop, sourceLabel, trips, onAdd, 
               })}
               className="mt-4 min-h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-[13px] font-black text-white"
             >
-              加入行程
+              {t('addStop.confirm')}
             </button>
           </>
         )}

@@ -94,7 +94,9 @@ export const formatTravelDuration = (seconds: number): string => {
   const total = Math.max(1, Math.round(seconds / 60));
   const hours = Math.floor(total / 60);
   const minutes = total % 60;
+  // i18n-data: composed into the stored, synced transfer notes
   if (hours === 0) return `${minutes} 分`;
+  // i18n-data: composed into the stored, synced transfer notes
   return minutes === 0 ? `${hours} 小時` : `${hours} 小時 ${minutes} 分`;
 };
 
@@ -103,6 +105,14 @@ export const formatTravelDuration = (seconds: number): string => {
  *
  * Not marked fixed: a recommendation is a starting point, and the traveller
  * may take a different train, share a taxi, or stop for food on the way.
+ *
+ * Its words are data, not copy. `title`, `location` and `notes` become fields
+ * on an `ItineraryItem`, which is written to localStorage and pushed to
+ * Supabase — so a companion reads whatever language the device that generated
+ * the item was in, and translating here would have the two travellers'
+ * itineraries disagree rather than both read in their own language. Showing it
+ * translated is a decision for whoever renders the card, against the item's
+ * id, the way `itineraryDayFloor` already reads its role.
  */
 export const airportTransferItem = (
   options: {
@@ -144,12 +154,15 @@ export const airportTransferItem = (
 } => ({
   id: options.id,
   type: 'TRANSPORT',
+  // i18n-data: ItineraryItem fields, written to storage and synced; see above
   title: `前往 ${options.hotelName}`,
   location: `${options.airportName} → ${options.hotelName}`,
   // Named by the mode that produced it. Calling a 78-minute transit journey
   // 車程 would have the traveller looking for a taxi that does not exist.
   notes: options.travelSeconds
+    // i18n-data: ItineraryItem notes, written to storage and synced
     ? `${options.mode === 'TRANSIT' ? '大眾運輸' : '車程'}約 ${formatTravelDuration(options.travelSeconds)}，已含入境與提領行李約 ${MINUTES_CLEARING_AIRPORT / 60} 小時`
+    // i18n-data: ItineraryItem notes, written to storage and synced
     : `已含入境與提領行李約 ${MINUTES_CLEARING_AIRPORT / 60} 小時，交通時間請再確認`,
   date: options.date,
   time: options.departTime,

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CircleDollarSign, NotebookPen } from 'lucide-react';
 import { SpendAtPlace } from '../services/spendAtPlace';
 import { currencySymbol } from '../services/currencySymbols';
@@ -27,14 +28,13 @@ interface Props {
   spend: SpendAtPlace[];
 }
 
-const NO_LINES = '這筆沒有留下結帳細目。';
-
 /** 2026-10-20 → 2026/10/20 */
 const readableDate = (date: string): string => date.replace(/-/g, '/');
 
 const twd = (value: number): string => `NT$ ${Math.round(value).toLocaleString()}`;
 
 const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
+  const { t } = useTranslation();
   const dates = useMemo(
     () => Array.from(new Set(spend.map(entry => entry.date))),
     [spend],
@@ -65,7 +65,7 @@ const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
     <div data-testid="place-spend-record" className="mt-4">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-sm font-black text-[#11183d]">
-          <CircleDollarSign size={15} className="text-[#5b3df5]" />當天消費紀錄
+          <CircleDollarSign size={15} className="text-[#5b3df5]" />{t('places.spend.title')}
         </span>
         {dates.length > 1 ? (
           <select
@@ -108,20 +108,24 @@ const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
                     {line.translatedName || line.name}
                   </span>
                   <span className="mt-0.5 block text-[11px] text-slate-400">
-                    {line.quantity && line.quantity > 0 ? `${line.quantity} 份` : '1 份'}
+                    {t('places.spend.quantity', {
+                      n: line.quantity && line.quantity > 0 ? line.quantity : 1,
+                    })}
                   </span>
                 </span>
                 {typeof line.amount === 'number' && (
                   <span className="shrink-0 text-right">
                     <span className="block text-sm font-black text-[#11183d]">{inOriginal(line.amount)}</span>
                     {rate && (
-                      <span className="mt-0.5 block text-[11px] text-slate-400">約 {twd(line.amount * rate)}</span>
+                      <span className="mt-0.5 block text-[11px] text-slate-400">
+                        {t('places.spend.approx', { amount: twd(line.amount * rate) })}
+                      </span>
                     )}
                   </span>
                 )}
               </div>
             )) : (
-              <p className="px-3 py-2.5 text-[11px] text-slate-400">{NO_LINES}</p>
+              <p className="px-3 py-2.5 text-[11px] text-slate-400">{t('places.spend.noLines')}</p>
             )}
 
             {/*
@@ -137,7 +141,7 @@ const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
               className="border-t border-slate-100 bg-emerald-50/50 px-3 py-2"
             >
               <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-700">
-                <NotebookPen size={10} />記帳時寫的備註
+                <NotebookPen size={10} />{t('places.spend.noteHeading')}
                 {/*
                   「也能摘取這些紀錄在收藏或是之後做總覽」 — the rating given at
                   the till, beside the line written at the same moment.
@@ -152,7 +156,7 @@ const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
               </span>
               {bill.note
                 ? <p className="mt-1 text-[11px] leading-5 text-emerald-900">{bill.note}</p>
-                : <p className="mt-1 text-[11px] leading-5 text-slate-400">這筆記帳沒有寫備註。</p>}
+                : <p className="mt-1 text-[11px] leading-5 text-slate-400">{t('places.spend.noNote')}</p>}
             </div>
 
             {bill.photos?.length ? (
@@ -173,10 +177,10 @@ const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
 
         <div className="flex items-end justify-between gap-2 bg-slate-50 px-3 py-2.5">
           <span>
-            <span className="block text-sm font-black text-[#11183d]">合計</span>
+            <span className="block text-sm font-black text-[#11183d]">{t('places.spend.total')}</span>
             {rate && currency && (
               <span data-testid="place-spend-rate" className="mt-0.5 block text-[10px] text-slate-400">
-                當日匯率 {symbol}1 = NT$ {Number(rate.toFixed(4))}
+                {t('places.spend.rateOnDay', { symbol, rate: Number(rate.toFixed(4)) })}
               </span>
             )}
           </span>
@@ -185,7 +189,9 @@ const PlaceSpendRecord: React.FC<Props> = ({ spend }) => {
               <span className="block text-base font-black text-[#11183d]">{inOriginal(totalOriginal)}</span>
             )}
             <span className="mt-0.5 block text-sm font-black text-[#5b3df5]">
-              {currency && totalOriginal > 0 ? '約 ' : ''}{twd(totalTwd)}
+              {currency && totalOriginal > 0
+                ? t('places.spend.approx', { amount: twd(totalTwd) })
+                : twd(totalTwd)}
             </span>
           </span>
         </div>

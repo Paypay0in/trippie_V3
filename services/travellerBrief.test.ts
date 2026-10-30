@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import i18n from '../i18n/config';
 import { DEFAULT_BRIEF, TripPlanBrief } from './tripPlanBrief';
 import { briefChips, promptQuestions, travellerBriefText } from './travellerBrief';
 import { ParsedRental } from './rentalIntake';
@@ -10,6 +11,26 @@ import { ParsedRental } from './rentalIntake';
  *
  * The car is the part that has to be right: 「是租兩天的車等 但旅行有五天」.
  */
+
+/**
+ * The chips and the question headings are asserted through the same keys the
+ * code resolves, not through the Chinese they happen to render.
+ *
+ * The sentences below are unchanged — `t` returns the identical zh-Hant string,
+ * which is the language these tests are pinned to. What changes is what a
+ * failure means: a hardcoded 「3 天有車」 would keep passing if the chip stopped
+ * being translated at all, and would start failing for the wrong reason the day
+ * somebody ran the suite in English. The prompt assertions stay hardcoded on
+ * purpose — `travellerBriefText` is model input and is still Chinese.
+ */
+const chip = {
+  travellers: (count: number) => i18n.t('plan.brief.chips.travellers', { count }),
+  solo: () => i18n.t('plan.brief.chips.solo'),
+  dayStart: (time: string) => i18n.t('plan.brief.chips.dayStart', { time }),
+  pace: (count: number) => i18n.t('plan.brief.chips.pace', { count }),
+  carDays: (count: number) => i18n.t('plan.brief.chips.carDays', { count }),
+  mode: (mode: 'WALK' | 'DRIVE' | 'TRANSIT') => i18n.t(`transport.modes.${mode}`),
+};
 
 const brief = (over: Partial<TripPlanBrief> = {}): TripPlanBrief => ({
   ...DEFAULT_BRIEF, destination: '日本 沖繩', ...over,
@@ -157,13 +178,15 @@ describe('it actually reaches the prompt', () => {
  */
 describe('what the traveller can see', () => {
   it('shows the people, the start and the pace', () => {
-    expect(briefChips({ brief: brief() })).toEqual(['2 人', '09:00 出發', '一天 3 個行程', '步行', '大眾運輸']);
+    expect(briefChips({ brief: brief() })).toEqual([
+      chip.travellers(2), chip.dayStart('09:00'), chip.pace(3), chip.mode('WALK'), chip.mode('TRANSIT'),
+    ]);
   });
 
   it('counts the days with a car rather than saying 開車', () => {
     const chips = briefChips({ brief: brief({ transport: ['drive'] }), rentals: [hire] });
-    expect(chips).toContain('3 天有車');
-    expect(chips).not.toContain('開車');
+    expect(chips).toContain(chip.carDays(3));
+    expect(chips).not.toContain(chip.mode('DRIVE'));
   });
 
   /**
@@ -172,18 +195,18 @@ describe('what the traveller can see', () => {
    */
   it('keeps the other modes beside the car days', () => {
     const chips = briefChips({ brief: brief({ transport: ['drive', 'transit'] }), rentals: [hire] });
-    expect(chips).toContain('3 天有車');
-    expect(chips).toContain('大眾運輸');
-    expect(chips).not.toContain('開車');
+    expect(chips).toContain(chip.carDays(3));
+    expect(chips).toContain(chip.mode('TRANSIT'));
+    expect(chips).not.toContain(chip.mode('DRIVE'));
   });
 
   /** 開車 with no confirmation is all we know, so it is what is shown. */
   it('says 開車 when there is no confirmation to count days from', () => {
-    expect(briefChips({ brief: brief({ transport: ['drive'] }) })).toContain('開車');
+    expect(briefChips({ brief: brief({ transport: ['drive'] }) })).toContain(chip.mode('DRIVE'));
   });
 
   it('says one person as one person', () => {
-    expect(briefChips({ brief: brief({ travellers: 1 }) })[0]).toBe('一個人');
+    expect(briefChips({ brief: brief({ travellers: 1 }) })[0]).toBe(chip.solo());
   });
 
   /**
@@ -195,7 +218,7 @@ describe('what the traveller can see', () => {
   });
 
   it('still shows the car days when only a hire was uploaded', () => {
-    expect(briefChips({ rentals: [hire] })).toEqual(['3 天有車']);
+    expect(briefChips({ rentals: [hire] })).toEqual([chip.carDays(3)]);
   });
 });
 

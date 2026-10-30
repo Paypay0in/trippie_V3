@@ -134,6 +134,7 @@ export interface CompletedBatchInput {
 export const buildCompletedSettlementBatch = (input: CompletedBatchInput): SettlementBatch => ({
   id: input.id,
   tripId: input.tripId,
+  // i18n-data: stored as the settlement batch title, not a display label.
   title: input.title.trim() || '未命名結算',
   expenseIds: [...input.expenseIds],
   memberIds: [...input.targetIds],

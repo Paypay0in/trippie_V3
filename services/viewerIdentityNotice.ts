@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { TripMember } from '../types';
 import { resolveViewer } from './tripRoster';
 
@@ -53,8 +54,8 @@ export const viewerIdentityNotice = ({
   if (!authUserId || !authUserId.trim()) {
     return {
       problem: 'signed-out',
-      message: '這台裝置還沒登入，所以不知道你是這趟旅程裡的哪一位。你記的帳會被當成旅程建立者的帳。',
-      action: '登入帳號',
+      message: i18n.t('ledger.identityNotice.signedOutMessage'),
+      action: i18n.t('ledger.identityNotice.signedOutAction'),
     };
   }
 
@@ -65,7 +66,7 @@ export const viewerIdentityNotice = ({
   */
   return {
     problem: 'seat-unlinked',
-    message: '你的帳號還沒跟這趟旅程裡的任何一位旅伴連起來，所以這台裝置會把你當成旅程建立者。',
-    action: '到旅伴名單認領你的位置',
+    message: i18n.t('ledger.identityNotice.seatUnlinkedMessage'),
+    action: i18n.t('ledger.identityNotice.seatUnlinkedAction'),
   };
 };

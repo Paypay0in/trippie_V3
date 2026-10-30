@@ -215,8 +215,26 @@ export const resolvePlaceCommerce = async (
   // inferred from the place name. No provider links: this layer has none to
   // declare, and it will not invent any.
   const declared: DeclaredBookingLink[] = [
+    /*
+      The only label here that is not a brand name, so it is the only one that
+      carries a key.
+
+      `server.ts` imports this module for `registerPlaceCommerceRoute`, and
+      resolving a key needs `i18n/config`, which pulls react-i18next and a
+      browser language detector into the server runtime — the trap
+      `tests/serverNeverImportsBrowserI18n.test.ts` now guards. So the key
+      travels with the link and the card words it, the way `officialTravelLinks`
+      carries a `labelKey`. `label` is left empty because there is no
+      language-free wording of it; `labelKey` always wins at the card.
+    */
     ...(typeof input.details?.websiteUri === 'string'
-      ? [{ provider: 'official', label: '官方網站', url: input.details.websiteUri, urlType: 'direct' as const }]
+      ? [{
+        provider: 'official',
+        label: '',
+        labelKey: 'plan.officialSite',
+        url: input.details.websiteUri,
+        urlType: 'direct' as const,
+      }]
       : []),
     // Somewhere to buy, for the places nobody has curated — which is nearly
     // all of them. See `searchLinksFor`.

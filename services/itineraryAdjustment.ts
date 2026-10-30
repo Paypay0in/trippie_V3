@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { additionsToTheirArea } from './additionsToTheirArea';
 import { outlierToNearerDay } from './outlierToNearerDay';
 import { notBeforeTheFloor, separateOverlaps, timeTheUntimed } from './separateOverlaps';
@@ -51,7 +52,16 @@ const ALLOWED_CHANGE_TYPES: Record<ItineraryAdjustmentMode, ReadonlySet<Itinerar
 
 export type ItineraryAdjustmentChangeType = 'add' | 'move' | 'update' | 'remove';
 
-/** Shown whenever a proposal touched a pinned item and we dropped the change. */
+/**
+ * Shown whenever a proposal touched a pinned item and we dropped the change.
+ *
+ * A module-scope `const` cannot call `t()` — it would freeze the sentence to
+ * whichever language loaded first — and this one is also imported by name and
+ * compared with `toContain` in `itineraryPinning.test.ts` and rendered directly
+ * by `TripInspirationPlanner.tsx`. Moving it needs both of those changed in the
+ * same commit, which is not this batch's to make.
+ */
+// i18n-data: exported identity compared in tests and read by another module; cannot resolve at module scope
 export const PINNED_CONFLICT_WARNING = '部分 AI 建議與已固定行程衝突，已自動忽略。';
 
 /**
@@ -330,12 +340,22 @@ interface RawChange {
   proposedItem?: unknown;
 }
 
-const MODE_LABELS: Record<ItineraryAdjustmentMode, string> = {
-  add: '補充行程',
-  fill: '把空白的日子排滿',
-  reorder: '重新安排路線',
-  replan: '重新規劃',
+/*
+  The mode's own name, as the button that started it spells it.
+
+  Keys rather than sentences: a module-scope `const` resolved at load time would
+  freeze these to whichever language happened to initialise first. The planner's
+  own buttons already hold this copy, so the warning quotes the same words the
+  traveller just pressed.
+*/
+const MODE_LABEL_KEYS: Record<ItineraryAdjustmentMode, string> = {
+  add: 'planner.mode.add.label',
+  fill: 'planner.mode.fill.label',
+  reorder: 'planner.mode.reorder.label',
+  replan: 'planner.mode.replan.label',
 };
+
+const modeLabel = (mode: ItineraryAdjustmentMode): string => i18n.t(MODE_LABEL_KEYS[mode]);
 
 const toPositiveMinutes = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -533,17 +553,19 @@ export const normalizeItineraryAdjustment = (
 
   if (forbiddenByMode > 0) {
     warnings.push(mode === 'add'
-      ? `AI 想更動 ${forbiddenByMode} 個既有項目，但「${MODE_LABELS.add}」只會新增，不會搬動或刪除既有安排，已全部略過。`
-      : `AI 提出了 ${forbiddenByMode} 個「${MODE_LABELS[mode]}」不允許的更動（例如刪除既有項目），已全部略過。`);
+      ? i18n.t('planner.adjust.warning.addOnly', { count: forbiddenByMode, mode: modeLabel('add') })
+      : i18n.t('planner.adjust.warning.forbiddenByMode', { count: forbiddenByMode, mode: modeLabel(mode) }));
   }
-  if (unknownItemReferences > 0) warnings.push(`AI 有 ${unknownItemReferences} 個更動指向不存在的行程項目，已略過。`);
+  if (unknownItemReferences > 0) warnings.push(i18n.t('planner.adjust.warning.unknownItems', { count: unknownItemReferences }));
   if (pinnedItemReferences > 0) warnings.push(PINNED_CONFLICT_WARNING);
-  if (lockedItemReferences > 0) warnings.push(`AI 有 ${lockedItemReferences} 個更動指向航班錨點或已連結支出的項目，這些不能被調整，已略過。`);
-  if (duplicateAdds > 0) warnings.push(`AI 重複建議了 ${duplicateAdds} 個行程中已有的地點，已略過。`);
-  if (outOfRangeDates > 0) warnings.push(`AI 有 ${outOfRangeDates} 個更動使用了旅程範圍外的日期，已略過。`);
+  if (lockedItemReferences > 0) warnings.push(i18n.t('planner.adjust.warning.lockedItems', { count: lockedItemReferences }));
+  if (duplicateAdds > 0) warnings.push(i18n.t('planner.adjust.warning.duplicateAdds', { count: duplicateAdds }));
+  if (outOfRangeDates > 0) warnings.push(i18n.t('planner.adjust.warning.outOfRangeDates', { count: outOfRangeDates }));
 
   const summary = toTrimmedText(source.summary, 400)
-    || (changes.length > 0 ? `AI 提出 ${changes.length} 項調整。` : 'AI 這次沒有提出可套用的調整。');
+    || (changes.length > 0
+      ? i18n.t('planner.adjust.summaryCount', { count: changes.length })
+      : i18n.t('planner.adjust.summaryNone'));
 
   return { mode, changes, summary, warnings: [...modelWarnings, ...warnings] };
 };
@@ -791,7 +813,9 @@ export async function generateItineraryAdjustment(
     });
   } catch (error) {
     throw new ItineraryAdjustmentRequestError(
-      error instanceof Error && error.name === 'AbortError' ? 'AI 行程調整逾時。' : 'AI 行程調整服務無法連線。',
+      error instanceof Error && error.name === 'AbortError'
+        ? i18n.t('planner.adjust.error.timedOut')
+        : i18n.t('planner.adjust.error.offline'),
       0,
     );
   }
@@ -799,7 +823,7 @@ export async function generateItineraryAdjustment(
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
     throw new ItineraryAdjustmentRequestError(
-      typeof payload?.error === 'string' ? payload.error : 'AI 行程調整服務暫時無法使用。',
+      typeof payload?.error === 'string' ? payload.error : i18n.t('planner.adjust.error.unavailable'),
       response.status,
       {
         provider: typeof payload?.provider === 'string' ? payload.provider : undefined,

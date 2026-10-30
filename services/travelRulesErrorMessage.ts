@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { TravelRulesRequestError } from './travelRulesService';
 
 /**
@@ -20,16 +21,27 @@ import { TravelRulesRequestError } from './travelRulesService';
  *     because 「try later」 and 「never」 are both wrong for it.
  *   anything else, including every 5xx and a dead network → transient.
  */
-export const PERMANENT_MESSAGE = '這個目的地目前查不到旅行規定，請手動建立入境待辦。';
-export const QUOTA_MESSAGE = '今日旅行規定查詢次數已用完，明天會恢復。你仍可以手動建立入境待辦。';
-export const TRANSIENT_MESSAGE = '旅行規定暫時無法更新，稍後可再試。';
+/*
+  Functions rather than constants, and that is not a style choice.
+
+  A module-level `i18n.t(...)` is evaluated while the import graph is being
+  built, and `index.tsx` calls `initI18n` only after `import App from './App'`
+  has pulled this module in — so a constant would freeze to its own key before
+  any bundle exists. Every migrated service in this repo calls `i18n.t` inside a
+  function for that reason. These three used to be exported strings; they are
+  now read at the moment the failure is shown, which is also what lets a reader
+  who changes language see the message in the new one.
+*/
+export const permanentMessage = (): string => i18n.t('plan.researchError.permanent');
+export const quotaMessage = (): string => i18n.t('plan.researchError.quota');
+export const transientMessage = (): string => i18n.t('plan.researchError.transient');
 
 const PERMANENT_STATUSES = new Set([400, 403, 404, 422]);
 
 export const travelRulesErrorMessage = (error: unknown): string => {
   if (error instanceof TravelRulesRequestError) {
-    if (error.status === 429) return QUOTA_MESSAGE;
-    return PERMANENT_STATUSES.has(error.status) ? PERMANENT_MESSAGE : TRANSIENT_MESSAGE;
+    if (error.status === 429) return quotaMessage();
+    return PERMANENT_STATUSES.has(error.status) ? permanentMessage() : transientMessage();
   }
   /*
     Everything else reaching here is a precondition the lookup refused on — no
@@ -37,5 +49,5 @@ export const travelRulesErrorMessage = (error: unknown): string => {
     for the traveller and name the one thing to fix, so they are shown as-is.
   */
   const message = error instanceof Error ? error.message.trim() : '';
-  return message || TRANSIENT_MESSAGE;
+  return message || transientMessage();
 };

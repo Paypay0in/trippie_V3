@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { Companion, TripMember } from '../types';
 import { isOwnerIdentity, normalizeOwnerMemberId } from './memberIdentity';
 
@@ -107,7 +108,7 @@ export const buildTripRoster = ({
   const roster: TripMember[] = [
     {
       id: ownerId,
-      name: ownerName || '我',
+      name: ownerName || '我', // i18n-data: written to the member row and synced to Supabase
       userId: ownerUserId,
       type: 'owner',
     },
@@ -249,5 +250,5 @@ export const canonicalizeMemberId = (
 export const memberNameById = (
   roster: TripMember[],
   memberId: string,
-  fallbackName = '其他旅伴',
+  fallbackName = i18n.t('expense.otherCompanion'),
 ): string => roster.find(member => member.id === memberId)?.name || fallbackName;

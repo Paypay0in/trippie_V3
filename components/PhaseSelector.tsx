@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Phase } from '../types';
 import { PHASES } from '../constants';
 
@@ -8,11 +9,12 @@ interface Props {
 }
 
 const PhaseSelector: React.FC<Props> = ({ currentPhase, onChange }) => {
+  const { t } = useTranslation();
   const phaseMeta: Record<Phase, { title: string; subtitle: string }> = {
-    pre: { title: 'PLAN', subtitle: '旅行前' },
-    during: { title: 'TRIP', subtitle: '旅行中' },
-    post: { title: 'RETURN', subtitle: '返程中' },
-    summary: { title: 'RECAP', subtitle: '回顧紀錄' },
+    pre: { title: 'PLAN', subtitle: t('phase.selector.pre') },
+    during: { title: 'TRIP', subtitle: t('phase.selector.during') },
+    post: { title: 'RETURN', subtitle: t('phase.selector.post') },
+    summary: { title: 'RECAP', subtitle: t('phase.selector.summary') },
   };
   return (
     <div className="relative -mt-1 flex w-full overflow-hidden rounded-b-[1.35rem] border border-slate-100 bg-white shadow-lg shadow-slate-900/5">

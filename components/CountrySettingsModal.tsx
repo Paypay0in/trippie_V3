@@ -1,7 +1,10 @@
 
 import { OVERLAY } from '../constants/layers';
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Globe, Search, Loader2 } from 'lucide-react';
+// i18n-data: country names are the stored value this modal saves and the tax-refund
+// lookup matches on; `countryIdentity` keys off the same spelling.
 import { POPULAR_COUNTRIES } from '../constants';
 
 interface Props {
@@ -12,6 +15,7 @@ interface Props {
 }
 
 const CountrySettingsModal: React.FC<Props> = ({ initialCountry, onSave, onClose, isLoading }) => {
+  const { t } = useTranslation();
   const [country, setCountry] = useState(initialCountry);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -64,7 +68,7 @@ const CountrySettingsModal: React.FC<Props> = ({ initialCountry, onSave, onClose
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-visible shadow-2xl flex flex-col">
         <div className="p-4 border-b bg-gray-50 flex justify-between items-center rounded-t-2xl">
             <h2 className="font-bold text-gray-800 flex items-center gap-2">
-                <Globe className="text-brand-600" size={20} /> 設定旅遊國家
+                <Globe className="text-brand-600" size={20} /> {t('refund.countrySettings.title')}
             </h2>
             <button onClick={onClose} disabled={isLoading} className="p-1 hover:bg-gray-200 rounded-full">
                 <X size={20} className="text-gray-500" />
@@ -73,12 +77,12 @@ const CountrySettingsModal: React.FC<Props> = ({ initialCountry, onSave, onClose
 
         <div className="p-6 overflow-visible">
           <p className="text-xs text-gray-500 mb-4">
-            輸入國家名稱（如：日本、法國），系統將自動為您查詢該國的最新退稅門檻與稅率資訊。
+            {t('refund.countrySettings.blurb')}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div ref={wrapperRef} className="relative">
-                <label className="block text-xs font-bold text-gray-700 mb-1">國家名稱</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">{t('refund.countrySettings.label')}</label>
                 <div className="relative">
                     <Globe className="absolute left-3 top-2.5 text-gray-400" size={16} />
                     <input
@@ -96,7 +100,7 @@ const CountrySettingsModal: React.FC<Props> = ({ initialCountry, onSave, onClose
                             }
                             setShowSuggestions(true);
                         }}
-                        placeholder="例如：日本"
+                        placeholder={t('refund.countrySettings.placeholder')}
                         className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
                     />
                 </div>
@@ -105,7 +109,7 @@ const CountrySettingsModal: React.FC<Props> = ({ initialCountry, onSave, onClose
                 {showSuggestions && suggestions.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
                         <div className="sticky top-0 bg-gray-50 px-4 py-1.5 text-[10px] text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
-                            {country.trim() ? '搜尋結果' : '熱門國家'}
+                            {country.trim() ? t('refund.countrySettings.searchResults') : t('refund.countrySettings.popular')}
                         </div>
                         {suggestions.map((suggestion) => (
                             <button
@@ -129,11 +133,11 @@ const CountrySettingsModal: React.FC<Props> = ({ initialCountry, onSave, onClose
             >
               {isLoading ? (
                   <>
-                    <Loader2 size={18} className="animate-spin" /> 正在查詢退稅資訊...
+                    <Loader2 size={18} className="animate-spin" /> {t('refund.countrySettings.looking')}
                   </>
               ) : (
                   <>
-                    <Search size={18} /> 儲存並查詢
+                    <Search size={18} /> {t('refund.countrySettings.submit')}
                   </>
               )}
             </button>

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bookmark, ChevronDown, Eye, EyeOff, Heart, LayoutGrid, Lock, MapPin, MoreHorizontal, Plane, Plus, Trash2, MessageCircle } from 'lucide-react';
 import { CommunityPost, SavedInspiration } from '../types';
 import { countryLabel, groupSavedByPlace, groupSummary, initiallyOpen } from '../services/savedGrouping';
@@ -64,6 +65,7 @@ const MyPostsPanel: React.FC<Props> = ({
   trips = [],
   onOpenTrip,
 }) => {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<'posts' | 'saved' | 'trips'>('posts');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   /*
@@ -86,9 +88,10 @@ const MyPostsPanel: React.FC<Props> = ({
           be everything this account has.
         */}
         {([
-          ['posts', `我的貼文 (${posts.length})`, <LayoutGrid key="p" size={16} />],
-          ['saved', '我的收藏', <Bookmark key="s" size={16} />],
-          ['trips', '我的旅程', <Plane key="t" size={16} />],
+          // i18n-data: the first entry of each tuple is the stored tab id.
+          ['posts', t('myPosts.tabPosts', { total: posts.length }), <LayoutGrid key="p" size={16} />],
+          ['saved', t('myPosts.tabSaved'), <Bookmark key="s" size={16} />],
+          ['trips', t('myPosts.tabTrips'), <Plane key="t" size={16} />],
         ] as const).map(([id, label, icon]) => (
           <button
             key={id}
@@ -120,7 +123,7 @@ const MyPostsPanel: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => onOpenPost(post.id)}
-                    aria-label={`開啟貼文：${post.title || '未命名貼文'}`}
+                    aria-label={t('myPosts.openPost', { title: post.title || t('app.label.untitledPost') })}
                     className="absolute inset-0 z-0"
                   />
                   <div className="pointer-events-none relative">
@@ -139,7 +142,7 @@ const MyPostsPanel: React.FC<Props> = ({
                       }`}
                     >
                       {isPublic ? null : <Lock size={10} />}
-                      {isPublic ? '公開' : '僅自己可見'}
+                      {isPublic ? t('collectionShare.visibility.publicLabel') : t('myPosts.privateOnly')}
                     </span>
                     {/*
                       The place, on the photo.
@@ -159,7 +162,7 @@ const MyPostsPanel: React.FC<Props> = ({
                     )}
                     <button
                       type="button"
-                      aria-label={`貼文選項：${post.title || '未命名貼文'}`}
+                      aria-label={t('myPosts.postOptions', { title: post.title || t('app.label.untitledPost') })}
                       onClick={() => setOpenMenuId(current => (current === post.id ? null : post.id))}
                       className="pointer-events-auto absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm"
                     >
@@ -167,7 +170,7 @@ const MyPostsPanel: React.FC<Props> = ({
                     </button>
                   </div>
                   <div className="pointer-events-none relative p-3.5">
-                    <p className="line-clamp-2 text-sm font-black leading-5 text-[#11183d]">{post.title || '未命名貼文'}</p>
+                    <p className="line-clamp-2 text-sm font-black leading-5 text-[#11183d]">{post.title || t('app.label.untitledPost')}</p>
                     <p className="mt-1 truncate text-[11px] text-slate-400">
                       {dateRange(post.publishedAt || post.createdAt) || placeWhereLabel(post.country, post.city)}
                     </p>
@@ -204,7 +207,7 @@ const MyPostsPanel: React.FC<Props> = ({
                         className={`ml-auto flex items-center gap-1 ${(saverCounts[post.id] ?? 0) > 0 ? 'text-violet-600' : ''}`}
                       >
                         <Bookmark size={12} fill={(saverCounts[post.id] ?? 0) > 0 ? 'currentColor' : 'none'} />
-                        {(saverCounts[post.id] ?? 0) > 0 && `${saverCounts[post.id]} 人收藏了靈感`}
+                        {(saverCounts[post.id] ?? 0) > 0 && t('myPosts.saverCount', { count: saverCounts[post.id] })}
                       </span>
                     </p>
                   </div>
@@ -220,16 +223,16 @@ const MyPostsPanel: React.FC<Props> = ({
                         className="flex min-h-11 w-full items-center gap-2 px-3 text-xs font-black text-slate-600"
                       >
                         {isPublic ? <EyeOff size={14} /> : <Eye size={14} />}
-                        {isPublic ? '改為僅自己可見' : '公開這篇'}
+                        {isPublic ? t('myPosts.makePrivate') : t('myPosts.makePublic')}
                       </button>
                       <button
                         type="button"
-                        aria-label={`刪除貼文：${post.title || '未命名貼文'}`}
+                        aria-label={t('myPosts.deletePostAria', { title: post.title || t('app.label.untitledPost') })}
                         onClick={() => { onDelete(post); setOpenMenuId(null); }}
                         className="flex min-h-11 w-full items-center gap-2 border-t border-slate-100 px-3 text-xs font-black text-rose-600"
                       >
                         <Trash2 size={14} />
-                        刪除貼文
+                        {t('myPosts.deletePost')}
                       </button>
                     </div>
                   )}
@@ -243,8 +246,8 @@ const MyPostsPanel: React.FC<Props> = ({
               className="flex min-h-[11rem] w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 text-center"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-50 text-violet-600"><Plus size={20} /></span>
-              <span className="text-sm font-black text-[#11183d]">新增貼文</span>
-              <span className="text-[11px] text-slate-400">分享你的旅行故事</span>
+              <span className="text-sm font-black text-[#11183d]">{t('myPosts.createPost')}</span>
+              <span className="text-[11px] text-slate-400">{t('myPosts.createPostHint')}</span>
             </button>
           </div>
         </>
@@ -252,7 +255,7 @@ const MyPostsPanel: React.FC<Props> = ({
         <>
           {trips.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
-              還沒有完成的旅程
+              {t('myPosts.noTrips')}
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -286,7 +289,7 @@ const MyPostsPanel: React.FC<Props> = ({
         <>
           {savedInspirations.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
-              還沒有收藏任何旅行靈感
+              {t('myPosts.noSaved')}
             </p>
           ) : (
             /*

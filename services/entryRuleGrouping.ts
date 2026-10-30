@@ -33,6 +33,7 @@ import type { ShoppingItem } from '../types';
  * could be in either. It is consulted ONLY when the structured field is
  * absent: a visa rule whose title mentions a passport is still a visa rule.
  */
+// i18n-data: regex anchors matched against task names already on devices.
 const LEGACY_PASSPORT_TITLES = [/護照/, /passport/i];
 
 export const isPassportAdvisory = (task: ShoppingItem): boolean => {

@@ -14,6 +14,8 @@
  * fact about today; stored, it becomes a claim about a day that has passed,
  * which is the same reason menu prices are not averaged across years.
  */
+import i18n from '../i18n/config';
+
 export interface PriceQuote {
   /** ISO code of the country the shop is in. */
   countryCode: string;
@@ -59,8 +61,13 @@ export interface PriceQuote {
    * the title was never compared with anything.
    */
   match?: 'exact' | 'probable';
-  /** Why, in words. Shown beside a probable match. */
-  matchReason?: string;
+  /**
+   * Why, as an i18n key. Shown beside a probable match, worded by the card:
+   * these are built server-side, where there is no bundle to resolve against.
+   */
+  matchReasonKey?: string;
+  /** Interpolation for `matchReasonKey`. */
+  matchReasonParams?: Record<string, string>;
   /**
    * How many the listing sells at once, when it sells more than one.
    *
@@ -314,7 +321,7 @@ export const checkPrices = (product: {
       // The server's own sentence, kept: it knows whether this is worth
       // retrying today and a generic one here would hide that.
       if (!response.ok) {
-        return { quotes: [], readAt: '', error: typeof payload.error === 'string' ? payload.error : '現在查不到價格。' };
+        return { quotes: [], readAt: '', error: typeof payload.error === 'string' ? payload.error : i18n.t('shopping.priceLookupFailed') };
       }
       return payload;
     })
@@ -328,7 +335,7 @@ export const checkPrices = (product: {
         : {}),
       ...(typeof payload.error === 'string' ? { error: payload.error } : {}),
     }))
-    .catch(() => ({ ...EMPTY, error: '現在查不到價格。' }))
+    .catch(() => ({ ...EMPTY, error: i18n.t('shopping.priceLookupFailed') }))
     /*
       A failure is not cached. 「今天用完了」 becomes false tomorrow, and a
       cached refusal would outlive the thing that caused it.
@@ -348,7 +355,7 @@ export const approxHomeLabel = (quote: PriceQuote, moneyName: string): string =>
   (quote.currency !== quote.homeCurrency
     && typeof quote.approxHome === 'number'
     && quote.approxHome > 0
-    ? `約${moneyName} ${Math.round(quote.approxHome).toLocaleString()}`
+    ? i18n.t('shopping.approxInMoney', { money: moneyName, amount: Math.round(quote.approxHome).toLocaleString() })
     : '');
 
 /**

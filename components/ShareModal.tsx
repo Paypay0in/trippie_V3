@@ -1,6 +1,7 @@
 
 import { OVERLAY } from '../constants/layers';
 import React, { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { X, Copy, Check, Share2, AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 const ShareModal: React.FC<Props> = ({ link, onClose }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -21,8 +23,8 @@ const ShareModal: React.FC<Props> = ({ link, onClose }) => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Trippie 旅費分享',
-          text: '這是我目前的旅行帳本，點擊連結匯入查看或新增支出：',
+          title: t('ledger.share.shareTitle'),
+          text: t('ledger.share.shareText'),
           url: link,
         });
       } catch (err) {
@@ -36,7 +38,7 @@ const ShareModal: React.FC<Props> = ({ link, onClose }) => {
       <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
         <div className="bg-brand-600 p-4 text-white flex justify-between items-center">
             <h2 className="font-bold flex items-center gap-2">
-                <Share2 size={20} /> 分享旅程帳本
+                <Share2 size={20} /> {t('ledger.share.heading')}
             </h2>
             <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-full transition-colors">
                 <X size={20} />
@@ -47,13 +49,18 @@ const ShareModal: React.FC<Props> = ({ link, onClose }) => {
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-3">
                 <AlertTriangle className="text-amber-500 shrink-0" size={20} />
                 <div className="text-xs text-amber-800">
-                    <p className="font-bold mb-1">關於協作編輯</p>
-                    <p>這是一個「當前快照」連結。旅伴匯入後若有新增支出，<span className="font-bold underline">需要請對方再次產生連結回傳給您</span>，您匯入後才能看到更新。</p>
+                    <p className="font-bold mb-1">{t('ledger.share.collabTitle')}</p>
+                    <p>
+                        <Trans
+                            i18nKey="ledger.share.collabBody"
+                            components={{ strong: <span className="font-bold underline" /> }}
+                        />
+                    </p>
                 </div>
             </div>
 
             <div>
-                <label className="block text-xs font-bold text-gray-500 mb-2">專屬分享連結</label>
+                <label className="block text-xs font-bold text-gray-500 mb-2">{t('ledger.share.linkLabel')}</label>
                 <div className="flex gap-2">
                     <input 
                         type="text" 
@@ -66,7 +73,7 @@ const ShareModal: React.FC<Props> = ({ link, onClose }) => {
                         className={`px-3 py-2 rounded-lg text-white font-bold transition-all flex items-center gap-1 min-w-[80px] justify-center ${copied ? 'bg-emerald-500' : 'bg-brand-600 hover:bg-brand-700'}`}
                     >
                         {copied ? <Check size={16} /> : <Copy size={16} />}
-                        {copied ? '已複製' : '複製'}
+                        {copied ? t('tripShare.copied') : t('common.copy')}
                     </button>
                 </div>
             </div>
@@ -76,7 +83,7 @@ const ShareModal: React.FC<Props> = ({ link, onClose }) => {
                     onClick={handleShareNative}
                     className="w-full py-3 border border-gray-300 rounded-xl text-gray-700 font-bold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                 >
-                    <Share2 size={18} /> 使用系統分享 (Line / AirDrop)
+                    <Share2 size={18} /> {t('ledger.share.systemShare')}
                 </button>
             )}
         </div>

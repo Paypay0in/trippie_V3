@@ -44,7 +44,7 @@ const MAX_PLACE_NAME_LENGTH = 80;
 const nameOf = (change: ProposedChange): string =>
   change.proposedItem?.placeName?.trim()
   || (typeof change.placeName === 'string' ? change.placeName.trim() : '')
-  || '一個新地點';
+  || '一個新地點'; // i18n-data: not migratable here; `server.ts` imports this module
 
 /**
  * Keeps the changes a traveller can actually act on.
@@ -101,23 +101,23 @@ export const checkProposedChanges = (
     // shop name buried at the end — which would have become the title of a card
     // in somebody's itinerary. No real place is anywhere near this long.
     if (placeName.length > MAX_PLACE_NAME_LENGTH) {
-      warnings.push('有一筆新增建議的地點名稱不像地名，已略過，請再試一次。');
+      warnings.push('有一筆新增建議的地點名稱不像地名，已略過，請再試一次。'); // i18n-data: not migratable here; `server.ts` imports this module
       return false;
     }
     if (!placeName) {
-      warnings.push('有一筆新增建議沒有地點名稱，已略過。');
+      warnings.push('有一筆新增建議沒有地點名稱，已略過。'); // i18n-data: not migratable here; `server.ts` imports this module
       return false;
     }
 
     const date = typeof change.toDate === 'string' ? change.toDate.trim() : '';
     if (!ISO_DATE.test(date)) {
-      warnings.push(`${nameOf(change)} 沒有指定要排在哪一天，已略過。`);
+      warnings.push(`${nameOf(change)} 沒有指定要排在哪一天，已略過。`); // i18n-data: not migratable here; `server.ts` imports this module
       return false;
     }
     // A date outside the trip is not a day the traveller is there. Snapping it
     // to the nearest one would be a guess wearing a specific number.
     if (withinTrip.size > 0 && !withinTrip.has(date)) {
-      warnings.push(`${nameOf(change)} 被排在旅程以外的 ${date}，已略過。`);
+      warnings.push(`${nameOf(change)} 被排在旅程以外的 ${date}，已略過。`); // i18n-data: not migratable here; `server.ts` imports this module
       return false;
     }
     return true;
@@ -136,7 +136,7 @@ export const checkProposedChanges = (
     const floor = dayFloors[date];
     const time = typeof change.toTime === 'string' ? change.toTime.trim() : '';
     if (!floor || !CLOCK.test(time) || time >= floor) return change;
-    warnings.push(`${nameOf(change)} 被排在 ${time}，但 ${date} 當天的航班到 ${floor} 才結束，已改排到 ${floor} 之後。`);
+    warnings.push(`${nameOf(change)} 被排在 ${time}，但 ${date} 當天的航班到 ${floor} 才結束，已改排到 ${floor} 之後。`); // i18n-data: not migratable here; `server.ts` imports this module
     return { ...change, toTime: floor };
   });
 
@@ -147,7 +147,7 @@ export const checkProposedChanges = (
     const ceiling = dayCeilings[date];
     const time = typeof change.toTime === 'string' ? change.toTime.trim() : '';
     if (!ceiling || !CLOCK.test(time) || time < ceiling) return true;
-    warnings.push(`${nameOf(change)} 被排在 ${time}，但 ${date} 當天 ${ceiling} 就要出發去機場了，已略過。`);
+    warnings.push(`${nameOf(change)} 被排在 ${time}，但 ${date} 當天 ${ceiling} 就要出發去機場了，已略過。`); // i18n-data: not migratable here; `server.ts` imports this module
     return false;
   });
 

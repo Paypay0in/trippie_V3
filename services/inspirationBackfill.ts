@@ -74,6 +74,7 @@ export interface PlaceGap {
  * cities and reserves 「○○ City」 for Tokyo's wards; applying it everywhere
  * would make 「Ho Chi Minh City」 a ward.
  */
+// i18n-data: regex anchor matched against Google's city names.
 const WARD_SUFFIX = /(-gu|-gun|-eup|-ku|\s+Ward|[区區郡邑])$/i;
 const JAPANESE_WARD_SUFFIX = /\s+City$/i;
 
@@ -85,6 +86,7 @@ export const cityLooksLikeDistrict = (
   // Already split: a save that knows both is not one of these.
   if (place.district?.trim()) return false;
   if (WARD_SUFFIX.test(city)) return true;
+  // i18n-data: regex anchor matched against the stored country value.
   return /日本|japan|^jp$/i.test((place.country || '').trim()) && JAPANESE_WARD_SUFFIX.test(city);
 };
 

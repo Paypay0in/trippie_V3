@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   CalendarDays,
@@ -53,6 +54,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
   onBack,
   onSubmit,
 }) => {
+  const { t } = useTranslation();
   const [destination, setDestination] = useState(initialDestination);
   const [startDate, setStartDate] = useState(initialStartDate);
   const [endDate, setEndDate] = useState(initialEndDate);
@@ -174,12 +176,12 @@ const CreateEditTripScreen: React.FC<Props> = ({
             type="button"
             onClick={onBack}
             className="absolute left-0 flex h-11 w-11 items-center justify-center rounded-full text-ink transition hover:bg-slate-100"
-            aria-label="返回"
+            aria-label={t('common.back')}
           >
             <ArrowLeft size={22} strokeWidth={2.2} />
           </button>
           <h1 className="px-12 text-center text-screen-title font-bold tracking-tight">
-            {mode === 'create' ? 'Create a new trip' : 'Edit trip'}
+            {mode === 'create' ? t('trips.setup.createTitle') : t('trips.setup.editTitle')}
           </h1>
         </header>
 
@@ -194,7 +196,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
               <>
                 <img
                   src={destinationImage.imageUrl}
-                  alt={`${destinationImage.destinationQuery} destination scenery`}
+                  alt={t('trips.setup.coverAlt', { destination: destinationImage.destinationQuery })}
                   className="absolute inset-0 h-full w-full object-cover"
                   onError={() => setDestinationImageFailed(true)}
                 />
@@ -233,7 +235,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
-            <p className="text-section font-semibold tracking-tight">旅程預算</p>
+            <p className="text-section font-semibold tracking-tight">{t('trips.setup.budgetHeading')}</p>
             {/*
               Currency is a three-letter code and takes a three-letter column;
               the amount takes the rest. Two equal halves gave a wide select
@@ -241,7 +243,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
             */}
             <div className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5">
               <label className="text-support font-medium text-ink-soft">
-                幣別
+                {t('trips.setup.currency')}
                 <select
                   value={currency}
                   onChange={event => setCurrency(event.target.value)}
@@ -251,14 +253,14 @@ const CreateEditTripScreen: React.FC<Props> = ({
                 </select>
               </label>
               <label className="text-support font-medium text-ink-soft">
-                總預算
+                {t('trips.setup.totalBudget')}
                 <input
                   type="number"
                   min="0"
                   step="1"
                   value={budget}
                   onChange={event => setBudget(event.target.value)}
-                  placeholder="選填"
+                  placeholder={t('trips.setup.optional')}
                   className="mt-1 h-[var(--control-h)] w-full rounded-field border border-hairline bg-white px-3 text-field font-medium text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
                 />
               </label>
@@ -267,7 +269,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
 
           <section>
             <label htmlFor="trip-destination" className="text-section font-semibold tracking-tight">
-              要去哪裡？
+              {t('trips.setup.destinationHeading')}
             </label>
             <div className="relative mt-2">
               <Search
@@ -279,7 +281,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
                 type="text"
                 value={destination}
                 onChange={(event) => setDestination(event.target.value)}
-                placeholder="例如：日本 東京"
+                placeholder={t('trips.setup.destinationPlaceholder')}
                 autoComplete="off"
                 className="h-[var(--control-h)] w-full rounded-field border border-hairline bg-white pl-10 pr-3 text-field font-medium text-ink outline-none transition placeholder:text-slate-300 focus:border-violet-400"
               />
@@ -287,7 +289,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
-            <p className="text-section font-semibold tracking-tight">什麼時候？</p>
+            <p className="text-section font-semibold tracking-tight">{t('trips.setup.datesHeading')}</p>
             {/*
               Two fields side by side rather than one bordered row holding two
               more bordered fields — the nested frames were most of why this
@@ -313,7 +315,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
             */}
             <div className="mt-2 space-y-2">
               <label className="block">
-                <span className="mb-1 block text-support font-medium text-ink-soft">開始</span>
+                <span className="mb-1 block text-support font-medium text-ink-soft">{t('trips.setup.start')}</span>
                 <span className="relative block">
                   <CalendarDays
                     size={17}
@@ -323,13 +325,13 @@ const CreateEditTripScreen: React.FC<Props> = ({
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
-                    aria-label="開始日期"
+                    aria-label={t('trips.setup.startDateAria')}
                     className="block h-[var(--control-h)] w-full min-w-0 max-w-full rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
                   />
                 </span>
               </label>
               <label className="block">
-                <span className="mb-1 block text-support font-medium text-ink-soft">結束</span>
+                <span className="mb-1 block text-support font-medium text-ink-soft">{t('trips.setup.end')}</span>
                 <span className="relative block">
                   <CalendarDays
                     size={17}
@@ -340,7 +342,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
                     value={endDate}
                     min={startDate || undefined}
                     onChange={(event) => setEndDate(event.target.value)}
-                    aria-label="結束日期"
+                    aria-label={t('trips.setup.endDateAria')}
                     className="block h-[var(--control-h)] w-full min-w-0 max-w-full rounded-field border border-hairline bg-white pl-8 pr-2 text-support font-medium text-ink outline-none focus:border-violet-400"
                   />
                 </span>
@@ -348,13 +350,13 @@ const CreateEditTripScreen: React.FC<Props> = ({
             </div>
             {dateRangeInvalid && (
               <p className="mt-1.5 text-support font-medium text-red-500">
-                結束日期不能早於開始日期。
+                {t('trips.setup.endBeforeStart')}
               </p>
             )}
           </section>
 
           <section>
-            <p className="text-section font-semibold tracking-tight">旅伴</p>
+            <p className="text-section font-semibold tracking-tight">{t('trips.setup.companionsHeading')}</p>
             {/*
               The people, not a count of them.
 
@@ -366,7 +368,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
             */}
             <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
               {/* The owner is on every trip and is not in the companion list. */}
-              {[{ id: 'owner', name: '我' }, ...draftCompanions].map((person) => (
+              {[{ id: 'owner', name: t('trips.setup.me') }, ...draftCompanions].map((person) => (
                 <span
                   key={person.id}
                   data-testid={`traveler-${person.id}`}
@@ -379,12 +381,18 @@ const CreateEditTripScreen: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setIsCompanionsOpen(true)}
-                aria-label="新增旅伴"
+                aria-label={t('trips.setup.addCompanion')}
                 data-testid="add-traveler"
                 className="flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-dashed border-slate-300 px-3.5 text-support font-semibold text-ink-soft transition hover:border-violet-300 hover:text-violet-600"
               >
                 <Users size={16} />
-                {travelerCount} {travelerCount === 1 ? 'person' : 'people'}
+                {/*
+                  The same one/many choice the screen already made, kept as a
+                  ternary over two keys rather than an i18next plural: zh-Hant
+                  has a single plural category, so a `_other` form would answer
+                  「1 people」 for a solo trip.
+                */}
+                {travelerCount} {travelerCount === 1 ? t('trips.setup.travellerOne') : t('trips.setup.travellerMany')}
               </button>
             </div>
           </section>
@@ -399,7 +407,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
               disabled={dateRangeInvalid}
               className="flex h-[var(--cta-h)] w-full items-center justify-center rounded-control bg-violet-600 px-5 text-action font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {mode === 'create' ? '建立旅程' : '儲存變更'}
+              {mode === 'create' ? t('trips.setup.create') : t('trips.setup.saveChanges')}
             </button>
             {/*
               「讓ai 幫你排行程 點擊下去會清空上面所有欄位 直接拿掉」.

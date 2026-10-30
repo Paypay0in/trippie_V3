@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BedDouble, X, MapPin, Phone, ExternalLink, Copy, Check, CalendarDays, Hash, Info } from 'lucide-react';
-import { StaySpan, formatStayDates, stayMapUrl } from '../services/stayIntake';
+import { StaySpan, stayMapUrl } from '../services/stayIntake';
+import { formatStayDates } from '../services/stayDateWording';
 
 interface Props {
   stay: StaySpan;
@@ -32,6 +34,7 @@ interface PlaceFacts {
  * a smaller sheet rather than a row of buttons that do nothing.
  */
 const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
+  const { t } = useTranslation();
   const [facts, setFacts] = useState<PlaceFacts>({});
   const [copied, setCopied] = useState(false);
 
@@ -110,18 +113,20 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
 
   const reference = (notes || '')
     .split('\n')
+    // i18n-data: the prefix the stay intake wrote into the booking's stored notes; translating it would stop finding it.
     .find(line => line.startsWith('訂房編號：'))
+    // i18n-data: same stored prefix, stripped off the matched line.
     ?.replace('訂房編號：', '');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-label="住宿詳情">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-label={t('stay.title')}>
       <div className="max-h-[88vh] w-full overflow-y-auto rounded-t-[28px] bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-[28px]">
         <div className="mb-4 flex items-start justify-between gap-3">
-          <h2 className="font-black text-[#111A4A]">住宿詳情</h2>
+          <h2 className="font-black text-[#111A4A]">{t('stay.title')}</h2>
           <button
             type="button"
             onClick={onClose}
-            aria-label="關閉"
+            aria-label={t('common.close')}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-[#e8e7f4] text-slate-400"
           >
             <X size={17} />
@@ -138,7 +143,7 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
                 href={facts.photoAttribution.uri}
                 target="_blank"
                 rel="noreferrer"
-                aria-label="查看照片來源"
+                aria-label={t('itinerary.photoSource')}
                 className="absolute bottom-1 right-1 rounded bg-black/55 p-0.5 text-white"
               >
                 <Info size={10} />
@@ -163,14 +168,14 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
             rel="noreferrer"
             className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[#e8e7f4] px-3 text-xs font-black text-[#5b3df5]"
           >
-            <MapPin size={14} /> 在地圖中查看
+            <MapPin size={14} /> {t('stay.viewOnMap')}
           </a>
           {facts.phone && (
             <a
               href={`tel:${facts.phone.replace(/\s/g, '')}`}
               className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[#e8e7f4] px-3 text-xs font-black text-[#5b3df5]"
             >
-              <Phone size={14} /> 致電
+              <Phone size={14} /> {t('stay.call')}
             </a>
           )}
           {facts.website && (
@@ -180,7 +185,7 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
               rel="noreferrer"
               className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[#e8e7f4] px-3 text-xs font-black text-[#5b3df5]"
             >
-              <ExternalLink size={14} /> 前往官網
+              <ExternalLink size={14} /> {t('stay.website')}
             </a>
           )}
         </div>
@@ -191,7 +196,7 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
               <CalendarDays size={16} />
             </span>
             <div className="min-w-0">
-              <p className="text-[11px] font-black text-slate-400">入住日期</p>
+              <p className="text-[11px] font-black text-slate-400">{t('stay.datesLabel')}</p>
               <p className="text-sm font-black text-[#111A4A]">{formatStayDates(stay)}</p>
             </div>
           </div>
@@ -202,13 +207,13 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
                 <MapPin size={16} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-black text-slate-400">地址</p>
+                <p className="text-[11px] font-black text-slate-400">{t('stay.addressLabel')}</p>
                 <p className="truncate text-sm font-black text-[#111A4A]">{address}</p>
               </div>
               <button
                 type="button"
                 onClick={copyAddress}
-                aria-label="複製地址"
+                aria-label={t('saved.copyAddress')}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400"
               >
                 {copied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
@@ -222,16 +227,17 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
                 <Hash size={16} />
               </span>
               <div className="min-w-0">
-                <p className="text-[11px] font-black text-slate-400">訂房編號</p>
+                <p className="text-[11px] font-black text-slate-400">{t('stay.referenceLabel')}</p>
                 <p className="truncate text-sm font-black text-[#111A4A]">{reference}</p>
               </div>
             </div>
           )}
         </div>
 
+        {/* i18n-data: matched against the warning the stay intake stored in the notes, not shown. */}
         {notes?.includes('請核對') && (
           <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-            截圖辨識不完全，出發前請再核對一次。
+            {t('stay.verifyWarning')}
           </p>
         )}
       </div>

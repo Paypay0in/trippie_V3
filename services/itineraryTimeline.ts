@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { ItineraryItem } from '../types';
 import { scheduleProposalDay } from './itineraryScheduling';
 
@@ -438,6 +439,9 @@ export const describeCollision = (
     typeof entry.durationMinutes === 'number' && Number.isFinite(entry.durationMinutes) && entry.durationMinutes > 0;
 
   return stated(item) && stated(clash)
-    ? `和「${clash.title}」的時間重疊`
-    : `這裡沒有填停留時間，先以 ${DEFAULT_DURATION_MINUTES} 分鐘估算，和「${clash.title}」重疊了`;
+    ? i18n.t('itinerary.collision.overlap', { title: clash.title })
+    : i18n.t('itinerary.collision.assumedDuration', {
+      title: clash.title,
+      minutes: DEFAULT_DURATION_MINUTES,
+    });
 };

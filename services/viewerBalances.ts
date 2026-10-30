@@ -1,5 +1,6 @@
 import { TripMember } from '../types';
 import { buildMinimumSettlementTransfers } from './minimumSettlement';
+import { isOutstanding, resolveCounterparty } from './settlementParticipants';
 
 /**
  * "Who owes whom" from one member's seat.
@@ -13,14 +14,21 @@ import { buildMinimumSettlementTransfers } from './minimumSettlement';
  * This is the one place that answers the question. Screens render the result.
  */
 
-/** Negative: they owe the viewer. Positive: the viewer owes them. */
+/**
+ * Negative: they owe the viewer. Positive: the viewer owes them.
+ *
+ * `member` is absent when the balance names an id the member list does not
+ * hold. The row is kept anyway: a balance belonging to a departed companion is
+ * still money, and filtering it out here made these totals quietly smaller
+ * than the ones 成員結算明細 was warning about. 「What counts as settled」 and
+ * 「what to do with an id that has no row」 both live in
+ * `settlementParticipants` now, shared with every other settlement surface.
+ */
 export interface ViewerBalanceRow {
-  member: TripMember;
+  memberId: string;
+  member?: TripMember;
   amount: number;
 }
-
-/** Below this, a balance is rounding noise rather than a debt. */
-const SETTLED_TOLERANCE = 0.5;
 
 export const buildViewerBalanceRows = ({
   debts,
@@ -36,15 +44,13 @@ export const buildViewerBalanceRows = ({
 }): ViewerBalanceRow[] => {
   const viewerId = viewerMemberId || ownerMemberId;
   const viewerIsOwner = !viewerId || !ownerMemberId || viewerId === ownerMemberId;
-  const findMember = (id: string) => members.find(member => member.id === id);
 
   if (viewerIsOwner) {
     // The owner is the counterparty of every stored balance, so each member's
     // own net amount already reads from their seat.
     return (Object.entries(debts) as [string, number][])
-      .filter(([id, amount]) => id !== ownerMemberId && Math.abs(amount) > SETTLED_TOLERANCE)
-      .map(([id, amount]) => ({ member: findMember(id), amount }))
-      .filter((row): row is ViewerBalanceRow => Boolean(row.member));
+      .filter(([id, amount]) => id !== ownerMemberId && isOutstanding(amount))
+      .map(([id, amount]) => ({ ...resolveCounterparty(id, members), amount }));
   }
 
   // For anyone else the pairwise transfer plan is what actually names a
@@ -58,11 +64,10 @@ export const buildViewerBalanceRows = ({
       const isPaying = transfer.fromMemberId === viewerId;
       const counterpartId = isPaying ? transfer.toMemberId : transfer.fromMemberId;
       return {
-        member: findMember(counterpartId),
+        ...resolveCounterparty(counterpartId, members),
         amount: isPaying ? transfer.amount : -transfer.amount,
       };
-    })
-    .filter((row): row is ViewerBalanceRow => Boolean(row.member));
+    });
 };
 
 /** Total the viewer is owed. */

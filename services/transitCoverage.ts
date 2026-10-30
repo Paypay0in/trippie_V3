@@ -28,10 +28,16 @@
  * This is the same shape as the Korean driving restriction that has been in
  * `TransportLeg` all along: a known reason for a missing answer, said out loud,
  * with the app that does have it named.
+ *
+ * The two sentences are resolved at call time rather than held in this table,
+ * because the table is built once per page load and the reader can change
+ * language after that.
  */
+import i18n from '../i18n/config';
 
 const NO_TRANSIT = [
   {
+    // i18n-data: matched against the trip's stored destination country.
     match: /日本|japan|^jp$/i,
     /*
       The reason, not just the refusal.
@@ -48,8 +54,8 @@ const NO_TRANSIT = [
       documented; this one is not, and inventing a reason is worse than naming
       the boundary.
     */
-    advice: '這不是沒有車 —— 東京的電車密度是世界最高之一。是 Google 開放給 App 使用的路線服務沒有日本的電車班次，而 Google 地圖 App 本身有。用下面的連結，或日本在地的「乘換案內」這類 App。',
-    short: '不是沒有車，是這個路線服務拿不到日本的班次。',
+    adviceKey: 'transport.japanTransitReason',
+    shortKey: 'transport.japanTransitHint',
   },
 ];
 
@@ -62,10 +68,16 @@ const entryFor = (country?: string) => {
 export const transitIsUnavailable = (country?: string): boolean => Boolean(entryFor(country));
 
 /** The full sentence, for the sheet. Empty where transit works normally. */
-export const transitUnavailableReason = (country?: string): string => entryFor(country)?.advice || '';
+export const transitUnavailableReason = (country?: string): string => {
+  const key = entryFor(country)?.adviceKey;
+  return key ? i18n.t(key) : '';
+};
 
 /** The one line under the summary, where there is less room. */
-export const transitUnavailableHint = (country?: string): string => entryFor(country)?.short || '';
+export const transitUnavailableHint = (country?: string): string => {
+  const key = entryFor(country)?.shortKey;
+  return key ? i18n.t(key) : '';
+};
 
 /**
  * Which mode to open on.

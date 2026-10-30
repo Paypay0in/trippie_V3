@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OVERLAY } from '../constants/layers';
 import { ChevronRight, Ellipsis, MapPin, NotebookPen, Plus, Receipt } from 'lucide-react';
 import { CommunityPost, Expense, ItineraryItem, PlaceCategory, SavedExperienceNote, SavedTravelInspiration } from '../types';
@@ -7,7 +8,7 @@ import { clusterSavedPlaces } from '../services/placeClusters';
 import { keepDistinctNotes } from '../services/distinctNotes';
 import { AREA_COLORS } from '../constants/areaColors';
 import { countryDisplayName } from '../services/countryIdentity';
-import { CATEGORY_LABELS } from '../services/placeCategory';
+import { categoryLabel } from '../services/placeCategory';
 import { PlaceVisit, visitLabel, visitOf } from '../services/visitedPlaces';
 import { cityDisplayName } from '../services/cityNames';
 import { placeWhereLabel } from '../services/placeWhereLabel';
@@ -151,6 +152,7 @@ const journalKeyFor = (place: Parameters<typeof placeIdentities>[0]): string =>
 
 const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, communityPosts, onBack, onRemove, onResolveItem, onOpenCommunityPost, onCreateTrip, onUpdateNotes, onRebindPlace, visits, onToggleVisited, onAddSavedPlace, onSaveScreenshotPlaces, expenses = [], myTrips = [], journals = {}, onLinkExpense, viewerUserId, viewerMemberId, ownerMemberId, memberNames = {}, placeJournals = {}, onSaveMyRecord,
 }) => {
+  const { t } = useTranslation();
   /*
     「收藏裡也要分區」 — the same clusterer the planner uses, so an area is one
     area on both screens rather than two screens each inventing their own.
@@ -237,9 +239,9 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
       */
       const found = await findPlaceCandidates(text, { country });
       setCandidates(found);
-      if (found.length === 0) setRebindError('找不到這個地點，換個說法試試。');
+      if (found.length === 0) setRebindError(t('saved.rebindNoResults'));
     } catch {
-      setRebindError('現在查不到，請稍後再試。');
+      setRebindError(t('saved.rebindFailed'));
     } finally {
       setRebindBusy(false);
     }
@@ -375,22 +377,22 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
       product, and this one puts a back button under the clock.
     */}
     <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="bg-white px-[var(--screen-pad)] pb-2">
-      <button type="button" onClick={onBack} className="-ml-2 flex min-h-11 items-center px-2 text-sm font-black text-violet-600">← 旅行</button>
+      <button type="button" onClick={onBack} className="-ml-2 flex min-h-11 items-center px-2 text-sm font-black text-violet-600">← {t('saved.travel')}</button>
     </header>
     <section className="relative h-[200px] overflow-hidden">
       <img src={heroImage} alt={`${country}・${city}`} className="h-full w-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/80 via-transparent to-transparent" />
       <div className="absolute bottom-5 left-5 text-white">
         <h1 className="text-3xl font-black">{countryDisplayName(country)}・{cityDisplayName(city)}</h1>
-        <p className="mt-1 text-sm font-semibold text-white/90">{items.length} 則旅行靈感</p>
-        <p className="mt-1 text-xs text-white/75">來自你在社群收藏的旅行筆記</p>
+        <p className="mt-1 text-sm font-semibold text-white/90">{t('saved.inspirationCount', { count: items.length })}</p>
+        <p className="mt-1 text-xs text-white/75">{t('saved.fromCommunity')}</p>
       </div>
     </section>
     <section className="px-4 pt-4">
       <button type="button" onClick={() => onCreateTrip(country, city)} className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition active:scale-[.99]">
-        <Plus size={17} strokeWidth={3} />建立{cityDisplayName(city)}旅行
+        <Plus size={17} strokeWidth={3} />{t('saved.createTripIn', { city: cityDisplayName(city) })}
       </button>
-      <p className="mt-2 text-center text-[11px] text-slate-400">建立後可在行程規劃中挑選這裡的收藏靈感</p>
+      <p className="mt-2 text-center text-[11px] text-slate-400">{t('saved.createTripHint')}</p>
 
       {/*
         「這裡也要可以手動與讀取截圖來加入旅行靈感」.
@@ -439,7 +441,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
       {items.length > 1 && (
         <div className="space-y-2" data-testid="saved-filters">
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-            {([['all', '全部'], ['visited', '已訪'], ['not', '待訪']] as const).map(([value, label]) => (
+            {([['all', 'common.all'], ['visited', 'saved.filterVisited'], ['not', 'saved.filterNotVisited']] as const).map(([value, label]) => (
               <button
                 key={value}
                 type="button"
@@ -450,7 +452,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   visitFilter === value ? 'bg-[#5b3df5] text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'
                 }`}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -465,7 +467,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   category === 'all' ? 'bg-violet-100 text-[#5b3df5]' : 'bg-white text-slate-500 ring-1 ring-slate-200'
                 }`}
               >
-                分類
+                {t('saved.categoryFilter')}
               </button>
               {categoriesHere.map(([key, count]) => (
                 <button
@@ -478,7 +480,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                     category === key ? 'bg-violet-100 text-[#5b3df5]' : 'bg-white text-slate-500 ring-1 ring-slate-200'
                   }`}
                 >
-                  {CATEGORY_LABELS[key] ?? '其他'} {count}
+                  {categoryLabel(key)} {count}
                 </button>
               ))}
             </div>
@@ -491,7 +493,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
       */}
       {ordered.length === 0 && items.length > 0 && (
         <p data-testid="saved-filter-empty" className="rounded-2xl bg-white p-6 text-center text-[12px] text-slate-400">
-          這個篩選底下沒有地點。
+          {t('saved.filterEmpty')}
         </p>
       )}
       {ordered.map((item, index) => {
@@ -511,8 +513,8 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
             <div data-testid={`saved-area-${area?.label || 'unplaced'}`} className="pt-1">
               <div className="flex items-center gap-2">
                 <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${AREA_COLORS[(area?.colorIndex ?? 0) % AREA_COLORS.length].dot}`} />
-                <span className="text-xs font-black text-[#11183d]">{area?.label || '還沒定位的地點'}</span>
-                <span className="text-[11px] font-bold text-slate-400">{areaSize} 個</span>
+                <span className="text-xs font-black text-[#11183d]">{area?.label || t('saved.unplacedArea')}</span>
+                <span className="text-[11px] font-bold text-slate-400">{t('saved.areaCount', { count: areaSize })}</span>
               </div>
               {/*
                 「收藏區可以每一區也都給一張靜態地圖嗎」.
@@ -540,7 +542,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   <img
                     data-testid={`saved-area-map-${area?.label || 'unplaced'}`}
                     src={dayMapSrc({ stops: pins, width: 640, height: 220, connect: false })}
-                    alt={`${area?.label || ''} 的收藏地點分布`}
+                    alt={t('saved.areaMapAlt', { area: area?.label || '' })}
                     loading="lazy"
                     className="mt-2 h-[110px] w-full rounded-2xl object-cover"
                   />
@@ -550,14 +552,14 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
           )}
           <article className="relative flex gap-3 rounded-[20px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,.06)]">
           <PlaceThumbnail saved={item} sourcePost={communityPosts.find(post => post.id === item.sourcePostId)} />
-          <div className="min-w-0 flex-1 pr-5"><h2 className="truncate text-base font-black text-[#11183d]"><button type="button" data-testid={`open-place-${item.id}`} onClick={() => setOpenPlaceId(item.id)} className="text-left">{item.placeName}</button></h2><p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{placeWhereLabel(cityDisplayName(item.city), countryDisplayName(item.country))}{/* 「每個收藏給個標籤🏷️景點、餐廳、等等」. See `placeCategory`. */}{item.category && item.category !== 'other' && <span data-testid={`category-${item.id}`} className="ml-1 rounded-lg bg-violet-100 px-1.5 py-0.5 text-[10px] font-black text-violet-700">{CATEGORY_LABELS[item.category]}</span>}{/*
+          <div className="min-w-0 flex-1 pr-5"><h2 className="truncate text-base font-black text-[#11183d]"><button type="button" data-testid={`open-place-${item.id}`} onClick={() => setOpenPlaceId(item.id)} className="text-left">{item.placeName}</button></h2><p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{placeWhereLabel(cityDisplayName(item.city), countryDisplayName(item.country))}{/* 「每個收藏給個標籤🏷️景點、餐廳、等等」. See `placeCategory`. */}{item.category && item.category !== 'other' && <span data-testid={`category-${item.id}`} className="ml-1 rounded-lg bg-violet-100 px-1.5 py-0.5 text-[10px] font-black text-violet-700">{categoryLabel(item.category)}</span>}{/*
             「若某次旅行有去過。要記錄：去的時間，並標註『已訪』」. Derived from the
             trips themselves — see `visitedPlaces` — so it cannot go stale and
             there is no seventh field for a rebuilder to drop.
           */}{visits && visitOf(item, visits) && <span data-testid={`visited-${item.id}`} className="ml-1 rounded-lg bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black text-emerald-700">{visitLabel(visitOf(item, visits))}</span>}</p>
-          <button type="button" aria-label={`${item.placeName} 更多選項`} onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-50"><Ellipsis size={20} /></button>
+          <button type="button" aria-label={t('itinerary.moreOptionsFor', { title: item.placeName })} onClick={() => setMenuItemId(current => current === item.id ? null : item.id)} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-50"><Ellipsis size={20} /></button>
           {menuItemId === item.id && <div className="absolute right-3 top-12 z-10 w-48 rounded-2xl border border-slate-100 bg-white p-1.5 text-left shadow-xl">
-            <button type="button" data-testid={`edit-notes-${item.id}`} onClick={() => { setEditing({ id: item.id, drafts: item.notes.map(note => ({ ...note })) }); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">編輯收藏內容<span className="mt-0.5 block text-[10px] font-medium text-slate-400">調整這個地點已收藏的旅行經驗</span></button>
+            <button type="button" data-testid={`edit-notes-${item.id}`} onClick={() => { setEditing({ id: item.id, drafts: item.notes.map(note => ({ ...note })) }); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50">{t('saved.editNotes')}<span className="mt-0.5 block text-[10px] font-medium text-slate-400">{t('saved.editNotesHint')}</span></button>
             {onRebindPlace && (
               <button
                 type="button"
@@ -570,7 +572,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 }}
                 className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-violet-50"
               >
-                重新對應地圖地點<span className="mt-0.5 block text-[10px] font-medium text-slate-400">對到錯的店時，搜尋正確的那家</span>
+                {t('saved.rebindPlace')}<span className="mt-0.5 block text-[10px] font-medium text-slate-400">{t('saved.rebindHint')}</span>
               </button>
             )}
             {/*
@@ -589,9 +591,9 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 onClick={() => { onToggleVisited(item); setMenuItemId(null); }}
                 className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-emerald-50"
               >
-                {visitOf(item, visits || new Map())?.stated ? '取消「已訪」' : '標記為去過'}
+                {visitOf(item, visits || new Map())?.stated ? t('saved.unmarkVisited') : t('saved.markVisited')}
                 <span className="mt-0.5 block text-[10px] font-medium text-slate-400">
-                  {visitOf(item, visits || new Map())?.stated ? '這裡其實還沒去過' : '沒排進行程、但你去過了'}
+                  {visitOf(item, visits || new Map())?.stated ? t('saved.unmarkVisitedHint') : t('saved.markVisitedHint')}
                 </span>
               </button>
             )}
@@ -612,10 +614,10 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 onClick={() => { setLinkingId(item.id); setMenuItemId(null); }}
                 className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-emerald-50"
               >
-                連結一筆記帳<span className="mt-0.5 block text-[10px] font-medium text-slate-400">這家店的收據沒對到地圖時用</span>
+                {t('saved.linkExpense')}<span className="mt-0.5 block text-[10px] font-medium text-slate-400">{t('saved.linkExpenseHint')}</span>
               </button>
             )}
-            <button type="button" onClick={() => { setRemoveTarget(item); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">移除這個地點<span className="mt-0.5 block text-[10px] font-medium text-rose-400">從我的旅行筆記移除</span></button>
+            <button type="button" onClick={() => { setRemoveTarget(item); setMenuItemId(null); }} className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">{t('saved.removePlace')}<span className="mt-0.5 block text-[10px] font-medium text-rose-400">{t('saved.removePlaceHint')}</span></button>
           </div>}
           {rebinding?.id === item.id && (
             <div data-testid={`rebind-panel-${item.id}`} className="mt-2 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
@@ -626,7 +628,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   data-testid={`rebind-input-${item.id}`}
                   onChange={event => setRebinding(current => current && ({ ...current, query: event.target.value }))}
                   onKeyDown={event => { if (event.key === 'Enter') void runRebindSearch(item, rebinding.query); }}
-                  placeholder="店名或景點名稱"
+                  placeholder={t('saved.rebindPlaceholder')}
                   className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-2.5 py-1.5 text-xs font-bold text-[#11183d] outline-none"
                 />
                 <button
@@ -636,7 +638,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   onClick={() => void runRebindSearch(item, rebinding.query)}
                   className="shrink-0 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
                 >
-                  {rebindBusy ? '搜尋中' : '搜尋'}
+                  {rebindBusy ? t('saved.searching') : t('saved.search')}
                 </button>
               </div>
               {rebindError && <p className="mt-1.5 text-[11px] font-bold text-amber-600">{rebindError}</p>}
@@ -649,7 +651,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                       data-testid={`rebind-pick-${candidate.placeId}`}
                       onClick={async () => {
                         const resolved = await resolveCandidate(candidate).catch(() => null);
-                        if (!resolved) { setRebindError('這個地點的資料讀不到，換一個試試。'); return; }
+                        if (!resolved) { setRebindError(t('saved.candidateUnreadable')); return; }
                         onRebindPlace?.(item.id, resolved);
                         setRebinding(null);
                         setCandidates([]);
@@ -662,7 +664,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   ))}
                 </div>
               )}
-              <button type="button" onClick={() => { setRebinding(null); setCandidates([]); setRebindError(''); }} className="mt-2 text-[11px] font-black text-slate-500">取消</button>
+              <button type="button" onClick={() => { setRebinding(null); setCandidates([]); setRebindError(''); }} className="mt-2 text-[11px] font-black text-slate-500">{t('common.cancel')}</button>
             </div>
           )}
           {notesOf(item).length === 0 && basicsById[item.id] && (
@@ -725,7 +727,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   onClick={() => setOpenPlaceId(item.id)}
                   className="flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1 text-[11px] font-black text-violet-700"
                 >
-                  查看記錄<ChevronRight size={11} />
+                  {t('saved.viewRecord')}<ChevronRight size={11} />
                 </button>
               </div>
             )}
@@ -768,14 +770,14 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   onClick={() => setOpenPlaceId(item.id)}
                   className="flex shrink-0 items-center gap-0.5 rounded-lg bg-white px-2 py-1 text-[11px] font-black text-emerald-700"
                 >
-                  查看記錄<ChevronRight size={11} />
+                  {t('saved.viewRecord')}<ChevronRight size={11} />
                 </button>
               </div>
             )}
             {linkingId === item.id && onLinkExpense && (
               <div data-testid={`link-expense-list-${item.id}`} className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/40 p-2">
-                <span className="block text-[11px] font-black text-emerald-900">哪一筆是在這裡花的？</span>
-                <span className="mt-0.5 block text-[10px] text-emerald-700">只列出還沒對到地圖地點的記帳。</span>
+                <span className="block text-[11px] font-black text-emerald-900">{t('saved.whichExpense')}</span>
+                <span className="mt-0.5 block text-[10px] text-emerald-700">{t('saved.whichExpenseHint')}</span>
                 <span className="mt-2 block space-y-1">
                   {linkableExpenses.map(expense => (
                     <button
@@ -797,7 +799,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                   onClick={() => setLinkingId(null)}
                   className="mt-1.5 text-[10px] font-black text-slate-500"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
               </div>
             )}
@@ -808,8 +810,8 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 onClick={(event) => { event.stopPropagation(); onOpenCommunityPost(onlyAuthor.postId); }}
                 className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-slate-500"
               >
-                <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">{onlyAuthor.avatar ? <img src={onlyAuthor.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}</span>
-                {notesOf(item).length} 則筆記 · 全部來自 {onlyAuthor.name || '原作者'}
+                {/* i18n-data: 旅 is the avatar glyph standing in for a missing picture, not a word on the screen. */}<span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">{onlyAuthor.avatar ? <img src={onlyAuthor.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}</span>
+                {t('saved.allNotesFrom', { count: notesOf(item).length, author: onlyAuthor.name || t('saved.originalAuthor') })}
               </button>
             )}
           <div className="mt-2 space-y-1.5">
@@ -817,7 +819,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
               const sourcePost = note.sourcePostId ? communityPosts.find(post => post.id === note.sourcePostId) : undefined;
               const noteCreator = sourcePost ? { name: sourcePost.authorName, avatar: sourcePost.authorAvatar } : creatorById.get(note.sourceCreatorId) || creator;
               return <div key={note.id} className="flex min-w-0 items-start gap-1.5 rounded-lg bg-violet-50/75 px-2 py-1.5 text-xs leading-5 text-slate-700">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" /><p className="min-w-0 flex-1 break-words">{note.text}</p>{!onlyAuthor && <button type="button" aria-label={`查看 ${noteCreator?.name || '原作者'} 的原貼文`} onClick={(event) => { event.stopPropagation(); onOpenCommunityPost(note.sourcePostId); }} className="ml-1 inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-slate-500 transition-opacity hover:opacity-70"><span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">{noteCreator?.avatar ? <img src={noteCreator.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}</span>{noteCreator?.name || '原作者'}</button>}
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" /><p className="min-w-0 flex-1 break-words">{note.text}</p>{!onlyAuthor && <button type="button" aria-label={t('saved.viewOriginalPost', { author: noteCreator?.name || t('saved.originalAuthor') })} onClick={(event) => { event.stopPropagation(); onOpenCommunityPost(note.sourcePostId); }} className="ml-1 inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-slate-500 transition-opacity hover:opacity-70"><span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">{noteCreator?.avatar ? <img src={noteCreator.avatar} alt="" className="h-full w-full object-cover" /> : /* i18n-data: 旅 is the avatar glyph standing in for a missing picture, not a word on the screen. */ '旅'}</span>{noteCreator?.name || t('saved.originalAuthor')}</button>}
               </div>;
             })}
           </div>
@@ -828,7 +830,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 onClick={(event) => { event.stopPropagation(); setOpenNotes(current => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; }); }}
                 className="mt-1.5 text-[11px] font-black text-violet-600"
               >
-                {expanded ? '收合' : `展開其餘 ${notesOf(item).length - NOTE_PREVIEW} 則`}
+                {expanded ? t('home.collapse') : t('saved.expandRest', { count: notesOf(item).length - NOTE_PREVIEW })}
               </button>
             )}
             </>;
@@ -909,8 +911,8 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
       return (
         <div className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-950/35 sm:items-center`}>
           <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:max-w-md sm:rounded-3xl">
-            <h2 className="text-lg font-black text-[#11183d]">編輯收藏內容</h2>
-            <p className="mt-1 text-xs text-slate-500">{place.placeName}・清空一則就是刪掉它</p>
+            <h2 className="text-lg font-black text-[#11183d]">{t('saved.editNotes')}</h2>
+            <p className="mt-1 text-xs text-slate-500">{t('saved.editNotesBlurb', { place: place.placeName })}</p>
             <div className="mt-4 space-y-2">
               {editing.drafts.map((note, index) => (
                 <textarea
@@ -946,10 +948,10 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
               }))}
               className="mt-2 w-full rounded-xl border border-dashed border-[#d9d5f5] py-2 text-[11px] font-black text-[#5b3df5]"
             >
-              + 新增一則
+              {t('saved.addNote')}
             </button>
             <div className="mt-5 flex gap-3">
-              <button type="button" onClick={() => setEditing(null)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-black text-slate-600">取消</button>
+              <button type="button" onClick={() => setEditing(null)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-black text-slate-600">{t('common.cancel')}</button>
               <button
                 type="button"
                 data-testid="save-notes"
@@ -961,7 +963,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
                 }}
                 className="flex-1 rounded-xl bg-[#5b3df5] py-3 text-sm font-black text-white"
               >
-                儲存
+                {t('common.save')}
               </button>
             </div>
           </div>
@@ -969,7 +971,7 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
       );
     })()}
     {removeTarget && <div className={`fixed inset-0 ${OVERLAY.modal} flex items-center justify-center bg-slate-950/35 p-6`}>
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-black">移除這個地點？</h2><p className="mt-2 text-sm leading-6 text-slate-500">只會移除你收藏的「{removeTarget.placeName}」，不會刪除原始貼文。</p><div className="mt-5 flex gap-3"><button type="button" onClick={() => setRemoveTarget(null)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-black text-slate-600">取消</button><button type="button" onClick={() => { onRemove(removeTarget.id); setRemoveTarget(null); }} className="flex-1 rounded-xl bg-rose-600 py-3 text-sm font-black text-white">確認移除</button></div></div>
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"><h2 className="text-lg font-black">{t('saved.removeConfirmTitle')}</h2><p className="mt-2 text-sm leading-6 text-slate-500">{t('saved.removeConfirmBody', { place: removeTarget.placeName })}</p><div className="mt-5 flex gap-3"><button type="button" onClick={() => setRemoveTarget(null)} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-black text-slate-600">{t('common.cancel')}</button><button type="button" onClick={() => { onRemove(removeTarget.id); setRemoveTarget(null); }} className="flex-1 rounded-xl bg-rose-600 py-3 text-sm font-black text-white">{t('saved.confirmRemove')}</button></div></div>
     </div>}
   </main>;
 };

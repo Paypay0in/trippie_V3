@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { MessageCircleQuestion, CheckCircle2, X } from 'lucide-react';
 import { DisputeNotice, describeNotice } from '../services/disputeInbox';
 
@@ -21,6 +22,7 @@ interface Props {
 }
 
 const DisputeNoticeBanner: React.FC<Props> = ({ notices, onOpen, onDismiss }) => {
+  const { t } = useTranslation();
   if (notices.length === 0) return null;
 
   return (
@@ -53,15 +55,15 @@ const DisputeNoticeBanner: React.FC<Props> = ({ notices, onOpen, onDismiss }) =>
                 answered on the spot.
               */}
               <span className="mt-0.5 block truncate text-[11px] font-medium text-slate-600">
-                「{notice.message}」
+                {t('notifications.quoted', { message: notice.message })}
               </span>
               <span className="mt-0.5 block text-[10px] font-bold text-slate-400">
-                {waiting ? '點一下回覆' : '點一下查看'}
+                {waiting ? t('notifications.tapToReply') : t('notifications.tapToView')}
               </span>
             </button>
             <button
               type="button"
-              aria-label="知道了"
+              aria-label={t('notifications.dismiss')}
               data-testid={`dismiss-dispute-${notice.disputeId}`}
               onClick={() => onDismiss(notice)}
               className="shrink-0 rounded-lg p-1 text-slate-400"

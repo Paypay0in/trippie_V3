@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ImagePlus, X } from 'lucide-react';
 import { MAX_POST_PHOTOS, addPhotos, readAndDownscale, removePhoto } from '../services/postPhotos';
 import { CommunityPost, UserProfile } from '../types';
@@ -6,6 +7,7 @@ import { CommunityPost, UserProfile } from '../types';
 interface Props { userId: string; profile: UserProfile; initialPost?: CommunityPost; onBack: () => void; onSave: (post: CommunityPost) => void; onPublish: (post: CommunityPost) => void; }
 
 const CreateCommunityPostScreen: React.FC<Props> = ({ userId, profile, initialPost, onBack, onSave, onPublish }) => {
+  const { t } = useTranslation();
   const [title, setTitle] = useState(initialPost?.title || '');
   const [content, setContent] = useState(initialPost?.content || '');
   const [country, setCountry] = useState(initialPost?.country || '');
@@ -26,9 +28,9 @@ const CreateCommunityPostScreen: React.FC<Props> = ({ userId, profile, initialPo
       const read = await Promise.all(Array.from(files).map(file => readAndDownscale(file)));
       const result = addPhotos(photos, read);
       setPhotos(result.photos);
-      if (result.rejected > 0) setPhotoNotice(`一篇最多 ${MAX_POST_PHOTOS} 張，有 ${result.rejected} 張沒有加入`);
+      if (result.rejected > 0) setPhotoNotice(t('community.create.photoLimitNotice', { max: MAX_POST_PHOTOS, rejected: result.rejected }));
     } catch {
-      setPhotoNotice('有照片讀取失敗，請再試一次');
+      setPhotoNotice(t('community.create.photoReadFailed'));
     }
   };
   const buildPost = (status: CommunityPost['status']): CommunityPost => {
@@ -37,30 +39,30 @@ const CreateCommunityPostScreen: React.FC<Props> = ({ userId, profile, initialPo
   };
   const valid = title.trim() && content.trim() && country.trim() && city.trim();
   return <main data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className="min-h-screen bg-[#f7f8fc] px-4 pb-10 text-[#11183d] md:max-w-2xl md:mx-auto">
-    <button type="button" onClick={onBack} className="mb-5 text-sm font-bold text-violet-600">← 返回社群</button>
-    <h1 className="text-2xl font-black">發布旅行貼文</h1><p className="mt-1 text-sm text-slate-500">分享一段旅途中的風景與故事。</p>
+    <button type="button" onClick={onBack} className="mb-5 text-sm font-bold text-violet-600">← {t('community.backToCommunity')}</button>
+    <h1 className="text-2xl font-black">{t('community.create.title')}</h1><p className="mt-1 text-sm text-slate-500">{t('community.create.subtitle')}</p>
     <section className="mt-6" data-testid="post-photos">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-bold">照片</span>
+        <span className="text-sm font-bold">{t('community.create.photosLabel')}</span>
         <span className="text-xs font-bold text-slate-400">{photos.length} / {MAX_POST_PHOTOS}</span>
       </div>
       <div className="grid grid-cols-3 gap-2">
         {photos.map(photo => (
           <div key={photo} className="relative overflow-hidden rounded-xl">
             <img src={photo} alt="" className="h-24 w-full object-cover" />
-            <button type="button" aria-label="移除照片" onClick={() => setPhotos(current => removePhoto(current, photo))} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white"><X size={13} /></button>
+            <button type="button" aria-label={t('community.create.removePhoto')} onClick={() => setPhotos(current => removePhoto(current, photo))} className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white"><X size={13} /></button>
           </div>
         ))}
         {photos.length < MAX_POST_PHOTOS && (
           <button type="button" onClick={() => fileInput.current?.click()} className="flex h-24 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
             <ImagePlus size={18} />
-            <span className="text-[11px] font-bold">新增照片</span>
+            <span className="text-[11px] font-bold">{t('community.create.addPhoto')}</span>
           </button>
         )}
       </div>
       <input ref={fileInput} type="file" accept="image/*" multiple className="hidden" onChange={event => { void handleFiles(event.target.files); event.target.value = ''; }} />
       {photoNotice && <p className="mt-2 text-xs font-bold text-amber-600">{photoNotice}</p>}
-      <p className="mt-2 text-[11px] text-slate-400">照片會在上傳前縮圖，第一張會成為封面。</p>
+      <p className="mt-2 text-[11px] text-slate-400">{t('community.create.photoHint')}</p>
       {/*
         The link, demoted to what it is.
 
@@ -80,14 +82,28 @@ const CreateCommunityPostScreen: React.FC<Props> = ({ userId, profile, initialPo
           value={coverImage}
           data-testid="cover-url"
           onChange={event => setCoverImage(event.target.value)}
-          placeholder="或貼上封面圖片網址"
+          placeholder={t('community.create.coverUrlPlaceholder')}
           className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-slate-300 focus:border-violet-400"
         />
       )}
     </section>
-    <div className="mt-6 space-y-4">{[['標題', title, setTitle, '東京三日遊'], ['內容', content, setContent, '今天去了淺草寺、晴空塔和 Shibuya Sky...'], ['國家', country, setCountry, '日本'], ['城市', city, setCity, '東京']].map(([label, value, setter, placeholder]) => <label key={label as string} className="block text-sm font-bold"><span>{label as string}</span>{label === '內容' ? <textarea value={value as string} onChange={event => (setter as (value: string) => void)(event.target.value)} placeholder={placeholder as string} rows={5} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white p-4 outline-none focus:border-violet-400" /> : <input value={value as string} onChange={event => (setter as (value: string) => void)(event.target.value)} placeholder={placeholder as string} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-violet-400" />}</label>)}</div>
+    {/*
+      The fields, described rather than spelled.
 
-    <div className="mt-6 flex gap-3"><button type="button" disabled={!valid} onClick={() => onSave(buildPost('draft'))} className="flex-1 rounded-2xl border border-violet-200 bg-white px-4 py-3 font-black text-violet-700 disabled:opacity-40">儲存為草稿</button><button type="button" disabled={!valid} onClick={() => onPublish(buildPost('published'))} className="flex-1 rounded-2xl bg-violet-600 px-4 py-3 font-black text-white disabled:opacity-40">發布</button></div>
+      The row used to be a tuple whose first member was the visible label, and
+      that label did two more jobs it could not keep once it was translated: it
+      was the React key, and `label === '內容'` was what chose the textarea. In
+      English both of those stop working. Each field now carries its own id and
+      says whether it is multiline.
+    */}
+    <div className="mt-6 space-y-4">{([
+      { id: 'title', value: title, setter: setTitle, multiline: false },
+      { id: 'content', value: content, setter: setContent, multiline: true },
+      { id: 'country', value: country, setter: setCountry, multiline: false },
+      { id: 'city', value: city, setter: setCity, multiline: false },
+    ] as const).map(field => <label key={field.id} className="block text-sm font-bold"><span>{t(`community.create.field.${field.id}.label`)}</span>{field.multiline ? <textarea value={field.value} onChange={event => field.setter(event.target.value)} placeholder={t(`community.create.field.${field.id}.placeholder`)} rows={5} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white p-4 outline-none focus:border-violet-400" /> : <input value={field.value} onChange={event => field.setter(event.target.value)} placeholder={t(`community.create.field.${field.id}.placeholder`)} className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-violet-400" />}</label>)}</div>
+
+    <div className="mt-6 flex gap-3"><button type="button" disabled={!valid} onClick={() => onSave(buildPost('draft'))} className="flex-1 rounded-2xl border border-violet-200 bg-white px-4 py-3 font-black text-violet-700 disabled:opacity-40">{t('community.create.saveDraft')}</button><button type="button" disabled={!valid} onClick={() => onPublish(buildPost('published'))} className="flex-1 rounded-2xl bg-violet-600 px-4 py-3 font-black text-white disabled:opacity-40">{t('collectionShare.publish')}</button></div>
   </main>;
 };
 export default CreateCommunityPostScreen;

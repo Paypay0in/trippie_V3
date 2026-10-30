@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bookmark, Heart, MapPinned } from 'lucide-react';
 import { PublishedTripCard } from '../types';
 import { tripDayCount } from '../services/tripPublishing';
@@ -30,6 +31,7 @@ interface TripCardProps {
 }
 
 export const TripCard: React.FC<TripCardProps> = ({ trip, onOpen, saved, onToggleSave }) => {
+  const { t } = useTranslation();
   const days = tripDayCount(trip);
   return (
     <div className="relative">
@@ -48,11 +50,11 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onOpen, saved, onToggl
             {dateRange(trip.startDate, trip.endDate)}
           </span>
           <span className="mt-1.5 flex flex-wrap items-center gap-x-3 text-[11px] font-bold text-slate-400">
-            {days > 0 && <span className="flex items-center gap-1"><Heart size={11} />{days} 天</span>}
-            <span className="flex items-center gap-1"><MapPinned size={11} />{trip.stopCount} 個地點</span>
+            {days > 0 && <span className="flex items-center gap-1"><Heart size={11} />{t('publicTrip.dayCount', { days })}</span>}
+            <span className="flex items-center gap-1"><MapPinned size={11} />{t('publicTrip.stopCount', { stops: trip.stopCount })}</span>
             {trip.saveCount > 0 && (
               <span className="flex items-center gap-1">
-                <Bookmark size={11} />{compactCount(trip.saveCount)} 收藏
+                <Bookmark size={11} />{t('publicTrip.saveCount', { saves: compactCount(trip.saveCount) })}
               </span>
             )}
           </span>
@@ -61,7 +63,7 @@ export const TripCard: React.FC<TripCardProps> = ({ trip, onOpen, saved, onToggl
       {onToggleSave && (
         <button
           type="button"
-          aria-label={saved ? '已收藏' : '收藏這份行程'}
+          aria-label={t(saved ? 'publicTrip.alreadySaved' : 'publicTrip.saveTrip')}
           data-testid={`published-trip-save-${trip.id}`}
           onClick={() => onToggleSave(trip.id)}
           className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-[#5b3df5] shadow-[0_4px_14px_rgba(17,26,74,.18)] backdrop-blur"
@@ -97,10 +99,13 @@ interface CollectionCardProps {
 export const CollectionCard: React.FC<CollectionCardProps> = ({
   collection, onOpen, layout = 'row',
 }) => {
+  const { t } = useTranslation();
   const meta = [
-    `${collection.itemCount} 個地點`,
-    ...(collection.saveCount ? [`${compactCount(collection.saveCount)} 收藏`] : []),
-  ].join('・');
+    t('publicTrip.stopCount', { stops: collection.itemCount }),
+    ...(collection.saveCount
+      ? [t('publicTrip.saveCount', { saves: compactCount(collection.saveCount) })]
+      : []),
+  ].join(t('planner.placeSeparator'));
 
   if (layout === 'tile') {
     return (

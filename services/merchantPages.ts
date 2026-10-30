@@ -27,6 +27,7 @@
  * maintenance burden pretending to be a rule; these are the ones that have
  * actually turned up in a search for a product on this list.
  */
+// i18n-data: regex anchor matched against scraped page titles and hostnames.
 const PUBLISHER = /roomie\.tw|elle\.|vogue|marieclaire|cosmopolitan|popbee|harpersbazaar|beauty321|bella\.tw|mombaby|businessweekly|storm\.mg|ettoday|setn\.com|ltn\.com|udn\.com|chinatimes|lipscosme|hypebeast|engadget|mobile01|kocpc|t客邦|techbang/i;
 
 /**
@@ -102,6 +103,7 @@ export const looksSecondHand = (url: string): boolean => {
  *
  * Every phrase here was taken off a page that produced a wrong figure.
  */
+// i18n-data: regex anchor matched against scraped page titles.
 const LISTING_TITLE = /(?:\dページ目|並び順|よりどり|検索結果|商品一覧|一覧|メーカー別|カテゴリ|ランキング|の通販|品牌專區|全部商品|搜尋結果|商品列表|分類|系列商品|collections?|category|search results)/i;
 
 export const looksLikeAListingTitle = (name: string): boolean =>

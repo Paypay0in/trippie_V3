@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Copy, Globe, Link2, Lock, Share2, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ItineraryItem, PublishedTrip, PublishedTripStop, ShareVisibility } from '../types';
@@ -44,13 +45,21 @@ interface Props {
 
 const CHOICES: Array<{
   value: ShareVisibility;
-  label: string;
-  detail: string;
+  /**
+   * Keys rather than strings. This list is built once at import, and a `t()`
+   * called there would freeze the language to whatever was loaded first — the
+   * sheet has to answer in the language the reader is in now.
+   *
+   * The three names are the same decision as a collection's, so they are the
+   * same strings; only the two details that talk about a 行程 are the trip's own.
+   */
+  labelKey: string;
+  detailKey: string;
   icon: React.ReactNode;
 }> = [
-  { value: 'public', label: '公開', detail: '任何人都可以查看這個行程', icon: <Globe size={15} /> },
-  { value: 'link', label: '僅連結', detail: '知道連結的人可以查看', icon: <Link2 size={15} /> },
-  { value: 'private', label: '私人', detail: '只有我可以查看（預設）', icon: <Lock size={15} /> },
+  { value: 'public', labelKey: 'collectionShare.visibility.publicLabel', detailKey: 'tripShare.visibility.publicDetail', icon: <Globe size={15} /> },
+  { value: 'link', labelKey: 'collectionShare.visibility.linkLabel', detailKey: 'collectionShare.visibility.linkDetail', icon: <Link2 size={15} /> },
+  { value: 'private', labelKey: 'collectionShare.visibility.privateLabel', detailKey: 'tripShare.visibility.privateDetail', icon: <Lock size={15} /> },
 ];
 
 /**
@@ -93,6 +102,7 @@ export const previewPayload = (
 const TripShareSheet: React.FC<Props> = ({
   trip, itinerary, origin, onClose, onPublish, onUnpublish,
 }) => {
+  const { t } = useTranslation();
   const [visibility, setVisibility] = React.useState<ShareVisibility>(trip.visibility ?? 'private');
   const [notes, setNotes] = React.useState(trip.sharesOwnNotes !== false);
   const [photos, setPhotos] = React.useState(trip.sharesPhotos !== false);
@@ -152,11 +162,11 @@ const TripShareSheet: React.FC<Props> = ({
       <div className="max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white px-[var(--screen-pad)] pb-6 pt-4 md:mx-auto md:max-w-2xl md:rounded-3xl">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-black text-[#11183d]">
-            <Share2 size={16} />分享設定
+            <Share2 size={16} />{t('tripShare.title')}
           </h2>
           <button
             type="button"
-            aria-label="關閉"
+            aria-label={t('common.close')}
             data-testid="trip-share-close"
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-400"
@@ -167,7 +177,7 @@ const TripShareSheet: React.FC<Props> = ({
 
         <p className="mt-3 text-[13px] font-black text-[#11183d]">{trip.name}</p>
 
-        <h3 className="mt-4 text-[12px] font-black text-slate-400">公開範圍</h3>
+        <h3 className="mt-4 text-[12px] font-black text-slate-400">{t('tripShare.scopeHeading')}</h3>
         <div className="mt-1.5 space-y-2">
           {CHOICES.map(choice => (
             <button
@@ -185,14 +195,14 @@ const TripShareSheet: React.FC<Props> = ({
                 {choice.icon}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[13px] font-black text-[#11183d]">{choice.label}</span>
-                <span className="block text-[11px] text-slate-400">{choice.detail}</span>
+                <span className="block text-[13px] font-black text-[#11183d]">{t(choice.labelKey)}</span>
+                <span className="block text-[11px] text-slate-400">{t(choice.detailKey)}</span>
               </span>
             </button>
           ))}
         </div>
 
-        <h3 className="mt-5 text-[12px] font-black text-slate-400">公開內容</h3>
+        <h3 className="mt-5 text-[12px] font-black text-slate-400">{t('tripShare.contentHeading')}</h3>
         <div className="mt-0.5 divide-y divide-slate-100">
           {/*
             Always on and said so, rather than a switch that cannot be moved.
@@ -200,14 +210,14 @@ const TripShareSheet: React.FC<Props> = ({
             not a published trip, it is a title.
           */}
           <p className="flex items-center justify-between py-2.5 text-[13px] font-bold text-[#11183d]">
-            行程與景點
-            <span className="text-[11px] font-bold text-slate-400">一律包含</span>
+            {t('tripShare.daysAndPlaces')}
+            <span className="text-[11px] font-bold text-slate-400">{t('tripShare.alwaysIncluded')}</span>
           </p>
-          {toggle('notes', '我撰寫的心得筆記', notes, setNotes)}
-          {toggle('photos', '照片（我上傳的）', photos, setPhotos)}
+          {toggle('notes', t('tripShare.ownNotes'), notes, setNotes)}
+          {toggle('photos', t('tripShare.photos'), photos, setPhotos)}
           {toggle(
-            'details', '地點詳細資訊', placeDetails, setPlaceDetails,
-            '地址、座標。關掉之後地點名稱和日期仍然看得到。',
+            'details', t('tripShare.placeDetails'), placeDetails, setPlaceDetails,
+            t('tripShare.placeDetailsHint'),
           )}
         </div>
 
@@ -220,12 +230,12 @@ const TripShareSheet: React.FC<Props> = ({
           data-testid="trip-share-never-shared"
           className="mt-4 rounded-2xl bg-[#f7f8fc] px-3 py-3 text-[11px] leading-5 text-slate-500"
         >
-          花費、分帳與結算、同行者名單都不會被分享。看到這個連結的人只能讀行程。
+          {t('tripShare.neverShared')}
         </p>
 
         {link && (
           <div className="mt-4 rounded-2xl border border-[#eceaf5] p-3">
-            <p className="text-[12px] font-black text-slate-400">分享連結</p>
+            <p className="text-[12px] font-black text-slate-400">{t('tripShare.linkHeading')}</p>
             <p data-testid="trip-share-link" className="mt-1 break-all text-[11px] text-slate-500">{link}</p>
             <div className="mt-2 flex items-center gap-3">
               <QRCodeSVG value={link} size={72} />
@@ -238,7 +248,7 @@ const TripShareSheet: React.FC<Props> = ({
                 }}
                 className="flex min-h-10 flex-1 items-center justify-center gap-1 rounded-xl bg-white text-[12px] font-black text-[#5b3df5] ring-1 ring-violet-200"
               >
-                <Copy size={13} />{copied ? '已複製' : '複製連結'}
+                <Copy size={13} />{copied ? t('tripShare.copied') : t('tripShare.copyLink')}
               </button>
             </div>
           </div>
@@ -250,7 +260,7 @@ const TripShareSheet: React.FC<Props> = ({
           onClick={() => setPreviewing(true)}
           className="mt-4 min-h-12 w-full rounded-xl bg-white text-[13px] font-black text-[#5b3df5] ring-1 ring-violet-200"
         >
-          預覽公開版本
+          {t('tripShare.previewPublic')}
         </button>
 
         {visibility === 'private' ? (
@@ -266,7 +276,7 @@ const TripShareSheet: React.FC<Props> = ({
               onClick={() => { onUnpublish(unpublishTrip(trip)); onClose(); }}
               className="mt-2 min-h-12 w-full rounded-xl bg-white text-[13px] font-black text-rose-500 ring-1 ring-rose-200"
             >
-              取消公開
+              {t('tripShare.unpublish')}
             </button>
           ) : null
         ) : (
@@ -276,7 +286,7 @@ const TripShareSheet: React.FC<Props> = ({
             onClick={() => { onPublish(publishTrip(draft, visibility)); onClose(); }}
             className="mt-2 min-h-12 w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-[13px] font-black text-white"
           >
-            {isTripPublished(trip) ? '更新公開設定' : '發佈'}
+            {isTripPublished(trip) ? t('tripShare.updateSettings') : t('tripShare.publish')}
           </button>
         )}
       </div>

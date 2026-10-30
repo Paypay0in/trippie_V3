@@ -10,5 +10,17 @@
  * itself and restore it afterwards.
  */
 import { initI18n, FALLBACK_LANGUAGE } from '../../i18n/config';
+import { loadPendingLocales } from '../../i18n/pendingBundles';
 
 initI18n({ language: FALLBACK_LANGUAGE });
+
+/**
+ * Keys that are in `locales/pending/` but not merged yet still resolve.
+ *
+ * A migration in flight means a function resolves a key the real bundle does
+ * not hold yet, so a runtime test asserting on the sentence it used to return
+ * fails on the staging directory rather than on the behaviour. Non-destructive
+ * and self-clearing: a key the real bundle already has wins, and once the
+ * Builder merges a batch and deletes its two files there is nothing to add.
+ */
+loadPendingLocales();

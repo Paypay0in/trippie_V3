@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight, Pencil, Plus, WalletCards } from 'lucide-react';
 import { Category, Expense, TripMember } from '../types';
+import { categoryLabel } from '../services/categoryDisplay';
 import { totalPaidByMember } from '../services/expensePaidBy';
 import { partitionByConcern } from '../services/expenseConcernsMember';
 import { expenseCostToViewer } from '../services/viewerSpend';
@@ -24,21 +26,23 @@ interface Props {
   taxRule?: unknown;
 }
 
-const categoryLabel = (category: Category) => {
-  const labels: Partial<Record<Category, string>> = {
-    [Category.FLIGHT]: '機票',
-    [Category.ACCOMMODATION]: '住宿',
-    [Category.VISA]: '簽證／入境費',
-    [Category.INSURANCE]: '旅遊保險',
-    [Category.SHOPPING]: '伴手禮／購物',
-    [Category.OTHER]: '其他',
-  };
-  return labels[category] || category;
-};
+/*
+  This screen used to keep its own copy of the category labels, and answered
+  簽證／入境費, 旅遊保險 and 伴手禮／購物 where the rest of the app answered the
+  stored string. One label, two spellings. The canonical label now has exactly
+  one home in `services/categoryDisplay`.
+*/
 
 const money = (value: number, currency: string) => `${currency === 'TWD' ? 'NT$' : currency} ${Math.round(value).toLocaleString()}`;
 
 const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBudget, onQuickAdd, onDeleteExpense, onEditExpense, taxRule, viewerMemberId, tripOwnerMemberId, onOpenDisputes, members }) => {
+  const { t, i18n } = useTranslation();
+  /*
+    The category label is a lookup on the stored value, not a translation key:
+    `Category.FLIGHT` IS the 機票 written to localStorage and Supabase. `categoryDisplay`
+    stays the one home for it, so this only tells it which language to answer in.
+  */
+  const displayLocale = i18n.language?.startsWith('en') ? 'en' : 'zh-Hant';
   const normalizedCurrency = currency?.trim().toUpperCase();
   const preExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'pre'), [expenses]);
   /*
@@ -144,8 +148,8 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
   return (
     <div className="space-y-5">
       <section className="px-1 pt-1">
-        <h1 className="text-[1.65rem] font-black tracking-[-0.04em] text-[#11183d]">旅行前・預估與已付費用</h1>
-        <p className="mt-1 text-sm font-medium text-slate-500">先規劃預算，掌握整趟旅程的花費。</p>
+        <h1 className="text-[1.65rem] font-black tracking-[-0.04em] text-[#11183d]">{t('wallet.pre.title')}</h1>
+        <p className="mt-1 text-sm font-medium text-slate-500">{t('wallet.pre.blurb')}</p>
       </section>
 
       {/*
@@ -164,49 +168,49 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
       <section className={`grid gap-3 ${hasBudget ? 'sm:grid-cols-[3fr_2fr]' : ''}`}>
         {hasBudget && (
         <div className="rounded-[1.75rem] bg-white p-5 shadow-[0_12px_32px_rgba(49,46,129,.08)] ring-1 ring-indigo-50">
-          <div className="flex items-start justify-between"><div><p className="text-xs font-bold tracking-[.14em] text-indigo-500">旅行總預算</p><p className="mt-2 text-[2.2rem] font-black tracking-[-.05em] text-[#11183d]">{money(budget, normalizedCurrency || 'TWD')}</p></div><button type="button" onClick={onEditBudget} aria-label="編輯預算" className="rounded-full p-2 text-indigo-600 hover:bg-indigo-50"><Pencil size={17} /></button></div>
-          <div className="mt-5 h-3 overflow-hidden rounded-full bg-indigo-50"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${Math.min(percent || 0, 100)}%` }} /></div><div className="mt-2 flex justify-between text-xs font-bold text-slate-500"><span>已使用 {actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD')}</span><span className="text-sm font-black text-indigo-600">{percent === undefined ? '—' : `${percent}%`}</span></div>
+          <div className="flex items-start justify-between"><div><p className="text-xs font-bold tracking-[.14em] text-indigo-500">{t('wallet.pre.budgetTotal')}</p><p className="mt-2 text-[2.2rem] font-black tracking-[-.05em] text-[#11183d]">{money(budget, normalizedCurrency || 'TWD')}</p></div><button type="button" onClick={onEditBudget} aria-label={t('wallet.pre.editBudget')} className="rounded-full p-2 text-indigo-600 hover:bg-indigo-50"><Pencil size={17} /></button></div>
+          <div className="mt-5 h-3 overflow-hidden rounded-full bg-indigo-50"><div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${Math.min(percent || 0, 100)}%` }} /></div><div className="mt-2 flex justify-between text-xs font-bold text-slate-500"><span>{t('wallet.pre.used', { amount: actualSpent === undefined ? '—' : money(actualSpent, normalizedCurrency || 'TWD') })}</span><span className="text-sm font-black text-indigo-600">{percent === undefined ? '—' : `${percent}%`}</span></div>
         </div>
         )}
         <div className={`grid gap-3 ${hasBudget ? 'grid-cols-2 sm:grid-cols-1' : 'grid-cols-1'}`}>
           <div className="rounded-[1.35rem] bg-white p-4 shadow-sm ring-1 ring-slate-100">
-            <p className="text-xs font-bold text-slate-400">{borneByViewer === undefined ? '與你有關的支出' : '你的實際支出'}</p>
+            <p className="text-xs font-bold text-slate-400">{borneByViewer === undefined ? t('wallet.pre.concernsYou') : t('wallet.pre.yourActualSpend')}</p>
             <p className="mt-2 text-lg font-black text-[#11183d]">{(borneByViewer ?? actualSpent) === undefined ? '—' : money((borneByViewer ?? actualSpent) as number, normalizedCurrency || 'TWD')}</p>
             {/* Money that left this traveller's pocket, not bills that concern them. */}
             {borneByViewer !== undefined && paidByViewer !== undefined && Math.round(paidByViewer) !== borneByViewer && (
               <p data-testid="fronted" className="mt-1 text-[11px] font-bold text-slate-400">
-                你先付出去 {money(paidByViewer, normalizedCurrency || 'TWD')}
+                {t('wallet.pre.youFronted', { amount: money(paidByViewer, normalizedCurrency || 'TWD') })}
               </p>
             )}
             {/* Stated whenever the trip has spent more than this traveller has,
                 so the difference is visible rather than quietly absent. */}
             {tripWideSpent !== undefined && actualSpent !== undefined && tripWideSpent > actualSpent && (
               <p data-testid="trip-wide-spent" className="mt-1 text-[11px] font-bold text-slate-400">
-                旅程總支出 {money(tripWideSpent, normalizedCurrency || 'TWD')}
+                {t('wallet.pre.tripWideSpent', { amount: money(tripWideSpent, normalizedCurrency || 'TWD') })}
               </p>
             )}
             {/* Said only when it changes the meaning of the number above it. */}
             {othersPaid !== undefined && othersPaid > 0 && (
               <div data-testid="paid-split" className="mt-2 space-y-0.5 border-t border-slate-100 pt-2 text-[11px] font-bold">
-                <p className="text-slate-500">你付的 <span className="text-[#11183d]">{money(paidByViewer || 0, normalizedCurrency || 'TWD')}</span></p>
-                <p className="text-slate-400">旅伴先付的 <span className="text-slate-500">{money(othersPaid, normalizedCurrency || 'TWD')}</span></p>
+                <p className="text-slate-500">{t('wallet.pre.youPaid')} <span className="text-[#11183d]">{money(paidByViewer || 0, normalizedCurrency || 'TWD')}</span></p>
+                <p className="text-slate-400">{t('wallet.pre.companionsFronted')} <span className="text-slate-500">{money(othersPaid, normalizedCurrency || 'TWD')}</span></p>
               </div>
             )}
 
           </div>
           {/* Nothing left over to report when nothing was budgeted. */}
           {hasBudget && (
-            <div data-testid="budget-remaining" className="rounded-[1.35rem] bg-[#f0efff] p-4"><p className="text-xs font-bold text-indigo-500">剩餘預算</p><p className={`mt-2 text-lg font-black ${actualSpent !== undefined && budget - actualSpent < 0 ? 'text-rose-600' : 'text-[#11183d]'}`}>{actualSpent === undefined ? '—' : money(budget - actualSpent, normalizedCurrency || 'TWD')}</p></div>
+            <div data-testid="budget-remaining" className="rounded-[1.35rem] bg-[#f0efff] p-4"><p className="text-xs font-bold text-indigo-500">{t('wallet.pre.budgetRemaining')}</p><p className={`mt-2 text-lg font-black ${actualSpent !== undefined && budget - actualSpent < 0 ? 'text-rose-600' : 'text-[#11183d]'}`}>{actualSpent === undefined ? '—' : money(budget - actualSpent, normalizedCurrency || 'TWD')}</p></div>
           )}
         </div>
       </section>
 
       <section className="rounded-[1.6rem] bg-white p-5 shadow-[0_10px_28px_rgba(49,46,129,.06)] ring-1 ring-slate-100">
-        <div className="flex items-center justify-between"><div><h2 className="text-lg font-black text-[#11183d]">旅行前支出項目</h2><p className="mt-1 text-xs font-medium text-slate-400">目前資料僅包含已記錄的旅行前支出</p></div><button type="button" onClick={onQuickAdd} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-600"><Plus size={14} />新增項目</button></div>
-        {plannedRows.length ? <div className="mt-3 divide-y divide-slate-100">{plannedRows.map(expense => <div key={expense.id} className="flex items-center gap-3 py-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-sm font-black text-indigo-600">{categoryLabel(expense.category).slice(0, 1)}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-[#11183d]">{categoryLabel(expense.category)}</p><p className="mt-0.5 text-[11px] font-semibold text-emerald-600">已記錄支出 · {expense.currency} {Math.round(expense.amount).toLocaleString()}</p></div><ChevronRight size={17} className="text-slate-300" /></div>)}</div> : <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">尚未有旅行前支出項目。</div>}
+        <div className="flex items-center justify-between"><div><h2 className="text-lg font-black text-[#11183d]">{t('wallet.pre.itemsHeading')}</h2><p className="mt-1 text-xs font-medium text-slate-400">{t('wallet.pre.itemsBlurb')}</p></div><button type="button" onClick={onQuickAdd} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-600"><Plus size={14} />{t('wallet.pre.addItem')}</button></div>
+        {plannedRows.length ? <div className="mt-3 divide-y divide-slate-100">{plannedRows.map(expense => <div key={expense.id} className="flex items-center gap-3 py-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-sm font-black text-indigo-600">{categoryLabel(expense.category, displayLocale).slice(0, 1)}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-[#11183d]">{categoryLabel(expense.category, displayLocale)}</p><p className="mt-0.5 text-[11px] font-semibold text-emerald-600">{t('wallet.pre.recordedSpend', { currency: expense.currency, amount: Math.round(expense.amount).toLocaleString() })}</p></div><ChevronRight size={17} className="text-slate-300" /></div>)}</div> : <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">{t('wallet.pre.itemsEmpty')}</div>}
       </section>
 
-      <section className="rounded-[1.6rem] bg-white p-5 shadow-[0_10px_28px_rgba(49,46,129,.06)] ring-1 ring-slate-100"><div className="mb-3 flex items-end justify-between"><div><h2 className="text-lg font-black text-[#11183d]">最近記錄</h2><p className="mt-1 text-xs font-medium text-slate-400">旅行前的實際支出</p></div><button type="button" onClick={() => undefined} className="text-xs font-black text-indigo-600">查看全部</button></div><ExpenseList expenses={recentExpenses} onDelete={onDeleteExpense} onEdit={onEditExpense} taxRule={taxRule as never} viewerMemberId={viewerMemberId} tripOwnerMemberId={tripOwnerMemberId} members={members} onOpenDisputes={onOpenDisputes} /></section>
+      <section className="rounded-[1.6rem] bg-white p-5 shadow-[0_10px_28px_rgba(49,46,129,.06)] ring-1 ring-slate-100"><div className="mb-3 flex items-end justify-between"><div><h2 className="text-lg font-black text-[#11183d]">{t('wallet.pre.recentHeading')}</h2><p className="mt-1 text-xs font-medium text-slate-400">{t('wallet.pre.recentBlurb')}</p></div><button type="button" onClick={() => undefined} className="text-xs font-black text-indigo-600">{t('wallet.pre.viewAll')}</button></div><ExpenseList expenses={recentExpenses} onDelete={onDeleteExpense} onEdit={onEditExpense} taxRule={taxRule as never} viewerMemberId={viewerMemberId} tripOwnerMemberId={tripOwnerMemberId} members={members} onOpenDisputes={onOpenDisputes} /></section>
     </div>
   );
 };

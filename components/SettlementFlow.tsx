@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { formatLocaleDate } from "../services/localeFormat";
 import i18n from "../i18n/config";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,6 +21,7 @@ import {
 import { Expense, TripMember, SettlementBatch, FrozenSettlementResult } from "../types";
 import { grossPositionFor } from '../services/grossPositions';
 import { buildMinimumSettlementTransfers } from "../services/minimumSettlement";
+import { isOutstanding, resolveCounterparty } from "../services/settlementParticipants";
 import {
   buildCompletedSettlementBatch,
   buildSettlementTargets,
@@ -221,13 +223,17 @@ const SettlementFlow: React.FC<Props> = ({
     [selectedExpenses, members, confirmTargetIds.join("|"), ownerId],
   );
   const debts = frozenResult ? frozenResult.balances : liveDebts;
+  /*
+    The third hand-written copy of 「what counts as settled, and what to do
+    with an id the member list does not hold」 — a literal 0.5 here, against
+    `SETTLED_TOLERANCE` in `viewerBalances` and `SPLIT_TOLERANCE` in
+    `memberSettlementDetail`, each over its own net map. Nothing made the three
+    agree, and the reviewer found the cost inside the fix meant to address it.
+    One module answers it now; this renders the answer.
+  */
   const relative = (Object.entries(debts) as [string, number][])
-    .filter(([id, amount]) => id !== ownerId && Math.abs(amount) > 0.5)
-    .map(([id, amount]) => ({
-      member: members.find((member) => member.id === id),
-      amount,
-    }))
-    .filter((item) => item.member);
+    .filter(([id, amount]) => id !== ownerId && isOutstanding(amount))
+    .map(([id, amount]) => ({ ...resolveCounterparty(id, members), amount }));
   // Expenses still carrying an unanswered question. Display only: these stay
   // in every total and in the minimum-transfer plan, exactly as before.
   const disputedExpenses = expenses
@@ -561,18 +567,26 @@ const SettlementFlow: React.FC<Props> = ({
             )}
             <div className="flex items-center justify-between pt-1"><h2 className="text-lg font-black tracking-tight">{t("settle.memberSettlement")}</h2></div>
             <div className="space-y-2">
-              {overviewRows.map(({ member, amount }) => {
-                  const id = member.id;
+              {overviewRows.map(({ memberId, member, amount }) => {
+                  const id = memberId;
+                  /*
+                    A balance can name an id the member list no longer holds —
+                    a companion removed after the bill was recorded. That money
+                    is real, so the row is shown and labelled absent rather
+                    than filtered out behind the reader's back.
+                  */
+                  const name = member?.name || t("settle.absentTraveller");
                   return (
                     <button
                       key={id}
+                      data-absent={member ? undefined : "true"}
                       onClick={() => { setSelectedMemberId(id); setScreen("member"); }}
                       className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]"
                     >
                       {/* amount > 0: the viewer pays out, so the arrow leaves them. */}
                       {amount > 0
-                        ? transferFlow(viewerName, member.name)
-                        : transferFlow(member.name, viewerName)}
+                        ? transferFlow(viewerName, name)
+                        : transferFlow(name, viewerName)}
                       <span className="min-w-0 flex-1 text-right">
                         <span
                           className={`block whitespace-nowrap font-black ${
@@ -733,7 +747,15 @@ const SettlementFlow: React.FC<Props> = ({
         tripName={tripName || t("settle.thisTrip")}
         dateRange={tripDateRange || ""}
         coverImage={tripCoverImage}
-        expenses={expenses}
+        /*
+          The outstanding set, which is what the summary above is also about.
+
+          Given the full visible ledger, this table went on counting bills that
+          had already been settled — so it disagreed with the 應收／應付 figures
+          on the previous screen, and its own sum-to-zero invariant read as
+          broken over data that was fine.
+        */
+        expenses={outstandingExpenses}
         members={members}
         ownerMemberId={ownerId}
         onBack={() => setScreen("overview")}
@@ -851,7 +873,7 @@ const SettlementFlow: React.FC<Props> = ({
               {t("settle.chooseExpenses")}
             </h2>
             <div className="relative z-10 mt-3 grid grid-cols-3 rounded-xl bg-gray-100 p-1 text-center text-xs font-bold">
-              {EXPENSE_SELECTION_MODES.map(({ mode, label }) => (
+              {EXPENSE_SELECTION_MODES.map(({ mode, labelKey }) => (
                 <button
                   key={mode}
                   type="button"
@@ -859,7 +881,7 @@ const SettlementFlow: React.FC<Props> = ({
                   onClick={() => setSelectionMode(mode)}
                   className={`rounded-lg py-2 ${selectionMode === mode ? "bg-white text-violet-700 shadow-sm" : "text-gray-500"}`}
                 >
-                  {label}
+                  {t(labelKey)}
                 </button>
               ))}
             </div>
@@ -1086,11 +1108,7 @@ const SettlementFlow: React.FC<Props> = ({
             <p>
               {t("settle.settleDate")}{" "}
               <b className="float-right">
-                {selectedBatch.settledAt
-                  ? new Date(selectedBatch.settledAt).toLocaleDateString(
-                      "zh-TW",
-                    )
-                  : "-"}
+                {formatLocaleDate(selectedBatch.settledAt) || "-"}
               </b>
             </p>
           )}
@@ -1112,13 +1130,17 @@ const SettlementFlow: React.FC<Props> = ({
           </p>
         </div>
         <div className="mt-2 space-y-2">
-          {relative.map(({ member, amount }) => (
+          {relative.map(({ memberId, member, amount }) => (
             <div
-              key={member!.id}
+              key={memberId}
+              data-absent={member ? undefined : "true"}
               className="flex items-center gap-3 rounded-xl bg-white p-3"
             >
-              {avatar(member!.name)}
-              <span className="flex-1 font-bold">{member!.name}</span>
+              {/* Absent counterparty: named, never dropped. See `relative`. */}
+              {avatar(member?.name || t("settle.absentTraveller"))}
+              <span className="flex-1 font-bold">
+                {member?.name || t("settle.absentTraveller")}
+              </span>
               <b className={amount < 0 ? "text-emerald-600" : "text-red-500"}>
                 {amount < 0
                   ? t("settle.receivableAmount", { amount: money(amount) })

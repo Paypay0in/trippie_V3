@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   BookOpenText,
@@ -51,6 +52,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
   onSectionChange,
   onQuickAdd,
 }) => {
+  const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = useState(false);
 
   /*
@@ -78,7 +80,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
     <div className={`min-h-screen w-full bg-[#f6f7fc] text-[#11183d] ${BOTTOM_NAV_CLEARANCE}`}>
       <header data-safe-top className="mx-auto w-full max-w-2xl bg-white px-4 pb-3">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <button className={actionClass} onClick={onBack} aria-label="回到旅程首頁"><ArrowLeft size={21} /></button>
+          <button className={actionClass} onClick={onBack} aria-label={t('workspace.backAria')}><ArrowLeft size={21} /></button>
           {/*
             The seventh copy.
 
@@ -94,7 +96,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <AppWordmark />
             {currentSection === 'records' && (
-              <span className="truncate text-meta font-bold text-ink-soft">旅費管理</span>
+              <span className="truncate text-meta font-bold text-ink-soft">{t('workspace.ledgerLabel')}</span>
             )}
           </div>
           {/* Hidden on phones, where five 44px targets and a title do not fit a
@@ -102,20 +104,20 @@ const TripWorkspaceShell: React.FC<Props> = ({
               one of them is in 「更多」 at the bottom, which is within thumb
               reach anyway — so this is a duplicate, not the only way in. */}
           <div className="hidden shrink-0 gap-1.5 sm:flex">
-            <button className={actionClass} onClick={onEdit} aria-label="編輯旅程"><Pencil size={18} /></button>
-            <button className={actionClass} onClick={onDestination} aria-label="目的地設定"><Globe size={18} /></button>
-            <button className={`${actionClass} relative`} onClick={onTravelers} aria-label="旅伴管理">
+            <button className={actionClass} onClick={onEdit} aria-label={t('app.trip.edit')}><Pencil size={18} /></button>
+            <button className={actionClass} onClick={onDestination} aria-label={t('workspace.destinationSettings')}><Globe size={18} /></button>
+            <button className={`${actionClass} relative`} onClick={onTravelers} aria-label={t('app.trip.manageCompanions')}>
               <Users size={18} />
               {companionCount > 0 && <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-blue-500" />}
             </button>
-            <button className={actionClass} onClick={onShare} aria-label="分享旅程"><Share2 size={18} /></button>
+            <button className={actionClass} onClick={onShare} aria-label={t('trips.shareTrip')}><Share2 size={18} /></button>
           </div>
         </div>
 
         <TripCover query={imageQuery} dateRange={dateRange}>
           {currentSection !== 'records' && <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-indigo-700 backdrop-blur">
             <span className={`h-2 w-2 rounded-full ${currentPhase === 'during' ? 'bg-emerald-500' : 'bg-violet-500'}`} />
-            {currentPhase === 'during' ? 'TRIP 旅行中' : currentPhase === 'pre' ? 'PLAN 旅行前' : currentPhase === 'post' ? 'RETURN 返程中' : 'RECAP 回顧紀錄'}
+            {currentPhase === 'during' ? t('workspace.phaseDuring') : currentPhase === 'pre' ? t('workspace.phasePre') : currentPhase === 'post' ? t('workspace.phasePost') : t('workspace.phaseRecap')}
           </div>}
         </TripCover>
         {/* No phase tabs on the overview. The trip has dates, so asking the
@@ -128,22 +130,22 @@ const TripWorkspaceShell: React.FC<Props> = ({
 
             {/* Floating, for the same reason as the app bar. See AppBottomNav. */}
       <nav className="fixed bottom-[max(0.85rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex w-[calc(100%-1.5rem)] max-w-2xl -translate-x-1/2 items-end justify-around rounded-[1.9rem] border border-slate-200/70 bg-white/90 px-3 pb-2.5 pt-2 shadow-[0_14px_40px_rgba(30,41,90,.16)] backdrop-blur-2xl">
-        <button onClick={() => onSectionChange('overview')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'overview' ? 'text-blue-600' : 'text-slate-400'}`}><BookOpenText size={20} />總覽</button>
-        <button onClick={() => onSectionChange('planning')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'planning' ? 'text-blue-600' : 'text-slate-400'}`}><ListChecks size={20} />規劃</button>
-        <button onClick={onQuickAdd} className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-lg shadow-violet-500/30" aria-label="新增記錄"><Plus size={28} /></button>
-        <button onClick={() => onSectionChange('records')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'records' ? 'text-blue-600' : 'text-slate-400'}`}><BookOpenText size={20} />記帳</button>
+        <button onClick={() => onSectionChange('overview')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'overview' ? 'text-blue-600' : 'text-slate-400'}`}><BookOpenText size={20} />{t('workspace.navOverview')}</button>
+        <button onClick={() => onSectionChange('planning')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'planning' ? 'text-blue-600' : 'text-slate-400'}`}><ListChecks size={20} />{t('workspace.navPlanning')}</button>
+        <button onClick={onQuickAdd} className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-lg shadow-violet-500/30" aria-label={t('workspace.quickAddAria')}><Plus size={28} /></button>
+        <button onClick={() => onSectionChange('records')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'records' ? 'text-blue-600' : 'text-slate-400'}`}><BookOpenText size={20} />{t('workspace.navRecords')}</button>
         <div className="relative">
           {moreOpen && (
             <div className="absolute bottom-16 right-0 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-              {[[Pencil, '編輯旅程', onEdit], [Globe, '目的地設定', onDestination], [Users, '旅伴管理', onTravelers], [Share2, '分享旅程', onShare]].map(([Icon, label, handler]) => (
-                <button key={label as string} onClick={() => { (handler as () => void)(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold text-slate-700 hover:bg-slate-50">
-                  {React.createElement(Icon as React.ElementType, { size: 17 })}{label as string}
+              {[[Pencil, 'app.trip.edit', onEdit], [Globe, 'workspace.destinationSettings', onDestination], [Users, 'app.trip.manageCompanions', onTravelers], [Share2, 'trips.shareTrip', onShare]].map(([Icon, labelKey, handler]) => (
+                <button key={labelKey as string} onClick={() => { (handler as () => void)(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold text-slate-700 hover:bg-slate-50">
+                  {React.createElement(Icon as React.ElementType, { size: 17 })}{t(labelKey as string)}
                 </button>
               ))}
             </div>
           )}
           <button onClick={() => setMoreOpen(value => !value)} className="relative flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold text-slate-400">
-            {moreOpen ? <ChevronUp size={20} /> : <MoreHorizontal size={20} />}更多
+            {moreOpen ? <ChevronUp size={20} /> : <MoreHorizontal size={20} />}{t('common.more')}
             {/* The companion marker lived on the header's 旅伴 button, which is
                 not on screen at phone width. Without this it would simply
                 vanish on the devices this trip is actually run from. */}

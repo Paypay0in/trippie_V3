@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { FixedEventKind, ItineraryItem } from '../types';
 import {
   durationOf,
@@ -262,17 +263,19 @@ const aboutTheFixedItem = (governing?: ItineraryItem): {
 } => {
   const kind = governing ? fixedKindOf(governing) : undefined;
   if (kind === 'flight' || kind === 'train') {
+    const leg = kind === 'train' ? 'train' : 'flight';
     return {
-      headline: kind === 'train' ? '新增車次後，當日行程需要調整' : '新增航班後，當日行程需要調整',
-      reason: kind === 'train' ? '需預留前往車站與上車時間。' : '需預留機場交通與報到時間。',
-      forWhat: kind === 'train' ? '為了預留前往車站與上車時間' : '為了預留前往機場與報到時間',
+      headline: i18n.t(`itinerary.fixedAdjust.headline.${leg}`),
+      reason: i18n.t(`itinerary.fixedAdjust.reason.${leg}`),
+      forWhat: i18n.t(`itinerary.fixedAdjust.forWhat.${leg}`),
     };
   }
-  const name = governing?.title?.trim() || governing?.location?.trim() || '固定的行程';
+  const name = governing?.title?.trim() || governing?.location?.trim()
+    || i18n.t('itinerary.fixedAdjust.fallbackName');
   return {
-    headline: '固定行程前面的安排需要調整',
-    reason: `需趕上固定的「${name}」。`,
-    forWhat: `為了趕上固定的「${name}」`,
+    headline: i18n.t('itinerary.fixedAdjust.headline.generic'),
+    reason: i18n.t('itinerary.fixedAdjust.reason.generic', { name }),
+    forWhat: i18n.t('itinerary.fixedAdjust.forWhat.generic', { name }),
   };
 };
 
@@ -306,7 +309,7 @@ export const buildFixedEventAdjustment = (
 
   const warnings: string[] = [];
   if (fixed.some(item => boundaryFor(item, context).estimated && (fixedKindOf(item) === 'flight' || fixedKindOf(item) === 'train'))) {
-    warnings.push('交通時間為估算值，請再次確認。');
+    warnings.push(i18n.t('itinerary.fixedAdjust.transitEstimated'));
   }
 
   if (fixed.length === 0 || conflicts.length === unresolved.length) {
@@ -317,9 +320,11 @@ export const buildFixedEventAdjustment = (
       // This branch covers both 「two fixed events fight」 and 「nothing needs
       // doing」; only the first is a conflict, and the second must not say so.
       headline: unresolved.length > 0
-        ? '目前有兩個固定行程發生衝突'
+        ? i18n.t('itinerary.twoFixedConflict')
         : aboutTheFixedItem(fixed[0]).headline,
-      summary: unresolved.length > 0 ? '目前有兩個固定行程發生衝突' : '目前行程沒有需要調整的地方。',
+      summary: unresolved.length > 0
+        ? i18n.t('itinerary.twoFixedConflict')
+        : i18n.t('itinerary.fixedAdjust.nothingToAdjust'),
     };
   }
 
@@ -336,7 +341,11 @@ export const buildFixedEventAdjustment = (
     .filter(item => isFlexibleItem(item) && timeToMinutes(item.time)! < governingStart)
     .sort((left, right) => left.time.localeCompare(right.time));
   if (before.length === 0) {
-    return { changes: [], unresolved, warnings, headline: words.headline, summary: '目前行程沒有需要調整的地方。' };
+    return {
+      changes: [], unresolved, warnings,
+      headline: words.headline,
+      summary: i18n.t('itinerary.fixedAdjust.nothingToAdjust'),
+    };
   }
 
   const offsets = relativeOffsets(before);
@@ -372,7 +381,7 @@ export const buildFixedEventAdjustment = (
         fromTime: item.time,
         fromDate: item.date,
         toDate: context.previousDate,
-        reason: '當日已無足夠時間，建議改到其他日期。',
+        reason: i18n.t('itinerary.fixedAdjust.moveToAnotherDay'),
       });
     });
 
@@ -381,7 +390,7 @@ export const buildFixedEventAdjustment = (
       unresolved,
       warnings,
       headline: words.headline,
-      summary: `${words.forWhat}，我們建議調整 ${changes.length} 個行程。`,
+      summary: i18n.t('itinerary.fixedAdjust.summary', { forWhat: words.forWhat, count: changes.length }),
     };
   }
 
@@ -393,12 +402,12 @@ export const buildFixedEventAdjustment = (
       fromTime: item.time,
       fromDate: item.date,
       toDate: context.previousDate,
-      reason: '當日已無足夠時間，建議改到其他日期。',
+      reason: i18n.t('itinerary.fixedAdjust.moveToAnotherDay'),
     })),
     unresolved,
     warnings,
     headline: words.headline,
-    summary: `${words.forWhat}，我們建議調整 ${before.length} 個行程。`,
+    summary: i18n.t('itinerary.fixedAdjust.summary', { forWhat: words.forWhat, count: before.length }),
   };
 };
 
@@ -482,6 +491,11 @@ export const describeUnresolvedConflicts = (
       all.findIndex(other => other[0] === pair[0] && other[1] === pair[1]) === index);
 
   if (pairs.length === 0) return '';
-  if (pairs.length === 1) return `「${pairs[0][0]}」和「${pairs[0][1]}」的時間互相衝突。`;
-  return pairs.map(pair => `「${pair[0]}」和「${pair[1]}」`).join('、') + ' 的時間互相衝突。';
+  if (pairs.length === 1) {
+    return i18n.t('itinerary.fixedAdjust.conflictPairOne', { left: pairs[0][0], right: pairs[0][1] });
+  }
+  const listed = pairs
+    .map(pair => i18n.t('itinerary.fixedAdjust.conflictPair', { left: pair[0], right: pair[1] }))
+    .join(i18n.t('common.listSeparator'));
+  return i18n.t('itinerary.fixedAdjust.conflictPairMany', { pairs: listed });
 };

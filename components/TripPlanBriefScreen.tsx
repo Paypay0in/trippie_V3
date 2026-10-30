@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TripInspirationProposal } from '../services/itineraryPlanningService';
 import {
   BedDouble, CalendarDays, Clock, ListOrdered, MapPin, Pencil, Plane, Sparkles, Users, Wand2, X,
@@ -55,7 +56,9 @@ interface Props {
 const Section: React.FC<{
   icon: React.ReactNode; title: string; hint?: string; optional?: boolean;
   children: React.ReactNode;
-}> = ({ icon, title, hint, optional, children }) => (
+}> = ({ icon, title, hint, optional, children }) => {
+  const { t } = useTranslation();
+  return (
   <section className="mt-3 rounded-card border border-hairline bg-white p-3.5">
     <div className="flex items-start gap-2.5">
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600">
@@ -64,18 +67,24 @@ const Section: React.FC<{
       <div className="min-w-0 flex-1">
         <p className="text-field font-bold text-ink">
           {title}
-          {optional && <span className="ml-1.5 text-meta font-semibold text-ink-soft">（選填）</span>}
+          {optional && (
+            <span className="ml-1.5 text-meta font-semibold text-ink-soft">
+              {t('plan.brief.optional')}
+            </span>
+          )}
         </p>
         {hint && <p className="mt-0.5 text-meta text-ink-soft">{hint}</p>}
         <div className="mt-2.5">{children}</div>
       </div>
     </div>
   </section>
-);
+  );
+};
 
 const TripPlanBriefScreen: React.FC<Props> = ({
   initialDestination, onClose, onPreview, onGenerate, onUploadBookings,
 }) => {
+  const { t } = useTranslation();
   const [brief, setBrief] = useState<TripPlanBrief>({
     ...DEFAULT_BRIEF,
     destination: initialDestination || '',
@@ -123,19 +132,19 @@ const TripPlanBriefScreen: React.FC<Props> = ({
         <div className="flex items-start justify-between gap-3 pt-1">
           <div className="min-w-0">
             <p className="flex items-center gap-1.5 text-support font-black text-violet-600">
-              <Sparkles size={15} />AI 幫我排行程
+              <Sparkles size={15} />{t('plan.brief.kicker')}
             </p>
             <h1 className="mt-1 text-hero font-black tracking-tight text-ink">
-              告訴我你的旅行計畫
+              {t('plan.brief.title')}
             </h1>
             <p className="mt-1 text-support leading-6 text-ink-soft">
-              輸入幾個簡單的資訊，<br />我會為你生成專屬行程 ✨
+              {t('plan.brief.blurbLine1')}<br />{t('plan.brief.blurbLine2')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="關閉"
+            aria-label={t('common.close')}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-slate-400"
           >
             <X size={19} />
@@ -151,15 +160,15 @@ const TripPlanBriefScreen: React.FC<Props> = ({
         */}
         <section className="mt-4 rounded-3xl border border-violet-100 bg-white p-4 shadow-sm">
           <h2 className="flex items-center gap-1.5 text-support font-black text-ink">
-            <Wand2 size={16} className="text-violet-600" />一句話說完也可以
+            <Wand2 size={16} className="text-violet-600" />{t('plan.brief.sentenceHeading')}
           </h2>
           <textarea
             value={sentence}
             data-testid="brief-sentence"
-            aria-label="一句話描述你的旅行"
+            aria-label={t('plan.brief.sentenceAria')}
             onChange={event => setSentence(event.target.value.slice(0, 600))}
             rows={3}
-            placeholder="例如：11 月去東京五天，兩個人，喜歡美術館、咖啡廳和購物，不想太趕。住宿在新宿，想去 teamLab。"
+            placeholder={t('plan.brief.sentencePlaceholder')}
             className="mt-2.5 w-full resize-none rounded-field border border-hairline bg-[#fafafd] p-3 text-field leading-6 text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
           />
           <button
@@ -180,13 +189,13 @@ const TripPlanBriefScreen: React.FC<Props> = ({
                 .catch((error: unknown) => setReadError(
                   error instanceof Error && error.message.trim()
                     ? error.message
-                    : '這句話現在讀不出來，直接填下面的表單也可以。',
+                    : t('plan.brief.sentenceUnreadable'),
                 ))
                 .finally(() => setReading(false));
             }}
             className="mt-2.5 flex h-11 w-full items-center justify-center gap-1.5 rounded-control bg-violet-50 text-support font-black text-violet-700 disabled:bg-slate-50 disabled:text-slate-300"
           >
-            <Wand2 size={15} />{reading ? '讀這句話…' : '幫我填好下面'}
+            <Wand2 size={15} />{reading ? t('plan.brief.reading') : t('plan.brief.fillFromSentence')}
           </button>
 
           {readError && (
@@ -212,16 +221,20 @@ const TripPlanBriefScreen: React.FC<Props> = ({
           */}
           {stillAsking.length > 0 && (
             <p data-testid="brief-still-asking" className="mt-2 text-[11px] leading-5 text-slate-400">
-              這句話沒提到{stillAsking.join('、')}，下面是預設值，改一下。
+              {t('plan.brief.stillAsking', { fields: stillAsking.join(t('common.listSeparator')) })}
             </p>
           )}
         </section>
 
-        <Section icon={<Users size={16} />} title="幾人旅行？" hint="包含你自己">
+        <Section
+          icon={<Users size={16} />}
+          title={t('plan.brief.travellersTitle')}
+          hint={t('plan.brief.travellersHint')}
+        >
           <div className="flex items-center justify-end gap-3">
             <button
               type="button"
-              aria-label="減少人數"
+              aria-label={t('plan.brief.travellersMinus')}
               data-testid="brief-travellers-minus"
               onClick={() => set('travellers', Math.max(1, brief.travellers - 1))}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-lg font-black text-ink"
@@ -233,7 +246,7 @@ const TripPlanBriefScreen: React.FC<Props> = ({
             </span>
             <button
               type="button"
-              aria-label="增加人數"
+              aria-label={t('plan.brief.travellersPlus')}
               data-testid="brief-travellers-plus"
               onClick={() => set('travellers', Math.min(20, brief.travellers + 1))}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-50 text-lg font-black text-ink"
@@ -243,18 +256,22 @@ const TripPlanBriefScreen: React.FC<Props> = ({
           </div>
         </Section>
 
-        <Section icon={<MapPin size={16} />} title="要去哪裡？" hint="可搜尋國家、城市或多個地點">
+        <Section
+          icon={<MapPin size={16} />}
+          title={t('plan.brief.destinationTitle')}
+          hint={t('plan.brief.destinationHint')}
+        >
           <input
             value={brief.destination}
             data-testid="brief-destination"
-            aria-label="要去哪裡"
+            aria-label={t('plan.brief.destinationAria')}
             onChange={event => set('destination', event.target.value)}
-            placeholder="例如：日本 東京、韓國 釜山"
+            placeholder={t('plan.brief.destinationPlaceholder')}
             className="h-[var(--control-h)] w-full rounded-field border border-hairline bg-[#fafafd] px-3.5 text-field font-medium text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
           />
         </Section>
 
-        <Section icon={<CalendarDays size={16} />} title="幾天的行程？">
+        <Section icon={<CalendarDays size={16} />} title={t('plan.brief.daysTitle')}>
           {datesUnknown ? (
             <div className="flex items-center gap-2">
               <input
@@ -262,19 +279,19 @@ const TripPlanBriefScreen: React.FC<Props> = ({
                 min={1}
                 max={60}
                 data-testid="brief-approx-days"
-                aria-label="大約幾天"
+                aria-label={t('plan.brief.approxDaysAria')}
                 value={brief.approximateDays ?? ''}
                 onChange={event => set('approximateDays', Number(event.target.value) || undefined)}
                 className="h-[var(--control-h)] w-24 rounded-field border border-hairline bg-[#fafafd] px-3 text-field font-bold text-ink outline-none focus:border-violet-400"
               />
-              <span className="text-field font-bold text-ink">天</span>
+              <span className="text-field font-bold text-ink">{t('plan.brief.daysUnit')}</span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
               <input
                 type="date"
                 data-testid="brief-start"
-                aria-label="出發日期"
+                aria-label={t('plan.brief.startDateAria')}
                 value={brief.startDate || ''}
                 onChange={event => set('startDate', event.target.value || undefined)}
                 className="h-[var(--control-h)] min-w-0 flex-1 rounded-field border border-hairline bg-[#fafafd] px-2.5 text-support font-bold text-ink outline-none focus:border-violet-400"
@@ -283,7 +300,7 @@ const TripPlanBriefScreen: React.FC<Props> = ({
               <input
                 type="date"
                 data-testid="brief-end"
-                aria-label="回程日期"
+                aria-label={t('plan.brief.endDateAria')}
                 value={brief.endDate || ''}
                 min={brief.startDate || undefined}
                 onChange={event => set('endDate', event.target.value || undefined)}
@@ -291,7 +308,7 @@ const TripPlanBriefScreen: React.FC<Props> = ({
               />
               {days !== null && (
                 <span data-testid="brief-days" className="shrink-0 text-field font-black text-ink">
-                  {days} 天
+                  {t('plan.brief.dayCount', { count: days })}
                 </span>
               )}
             </div>
@@ -314,15 +331,15 @@ const TripPlanBriefScreen: React.FC<Props> = ({
               }}
               className="h-4 w-4 accent-violet-600"
             />
-            尚未確定日期，我只知道大約天數
+            {t('plan.brief.datesUnknown')}
           </label>
         </Section>
 
         <Section
           icon={<Plane size={16} />}
-          title="機票與住宿資訊"
+          title={t('plan.brief.bookingsTitle')}
           optional
-          hint="若還沒訂可以先跳過，這一頁照樣排得出行程。但旅程建立後的「AI 調整行程」會需要它們——知道幾點落地才知道第一天剩多少時間，知道住哪裡才排得出同一區的動線。"
+          hint={t('plan.brief.bookingsHint')}
         >
           <div className="flex gap-2.5">
             <button
@@ -333,8 +350,8 @@ const TripPlanBriefScreen: React.FC<Props> = ({
               className="flex min-h-[4.25rem] flex-1 flex-col items-center justify-center gap-0.5 rounded-card border border-dashed border-violet-200 bg-violet-50/40 px-2 text-violet-700 disabled:opacity-40"
             >
               <Plane size={17} />
-              <span className="text-support font-bold">上傳機票 / 航班資訊</span>
-              <span className="text-meta text-ink-soft">可上傳截圖或訂位信</span>
+              <span className="text-support font-bold">{t('plan.brief.uploadFlight')}</span>
+              <span className="text-meta text-ink-soft">{t('plan.brief.uploadFlightHint')}</span>
             </button>
             <button
               type="button"
@@ -344,13 +361,17 @@ const TripPlanBriefScreen: React.FC<Props> = ({
               className="flex min-h-[4.25rem] flex-1 flex-col items-center justify-center gap-0.5 rounded-card border border-dashed border-violet-200 bg-violet-50/40 px-2 text-violet-700 disabled:opacity-40"
             >
               <BedDouble size={17} />
-              <span className="text-support font-bold">上傳住宿資訊</span>
-              <span className="text-meta text-ink-soft">可上傳訂房確認信</span>
+              <span className="text-support font-bold">{t('plan.brief.uploadStay')}</span>
+              <span className="text-meta text-ink-soft">{t('plan.brief.uploadStayHint')}</span>
             </button>
           </div>
         </Section>
 
-        <Section icon={<MapPin size={16} />} title="主要交通工具（可複選）" hint="告訴我你會使用哪些交通方式">
+        <Section
+          icon={<MapPin size={16} />}
+          title={t('plan.brief.transportTitle')}
+          hint={t('plan.brief.transportHint')}
+        >
           <div className="flex gap-2">
             {(['walk', 'drive', 'transit'] as BriefTransport[]).map(mode => {
               const on = brief.transport.includes(mode);
@@ -374,18 +395,26 @@ const TripPlanBriefScreen: React.FC<Props> = ({
           </div>
         </Section>
 
-        <Section icon={<Clock size={16} />} title="每天幾點開始安排行程？" hint="選擇你平均希望每天開始玩耍的時間">
+        <Section
+          icon={<Clock size={16} />}
+          title={t('plan.brief.startTimeTitle')}
+          hint={t('plan.brief.startTimeHint')}
+        >
           <input
             type="time"
             data-testid="brief-start-time"
-            aria-label="每天幾點開始"
+            aria-label={t('plan.brief.startTimeAria')}
             value={brief.dayStartTime}
             onChange={event => set('dayStartTime', event.target.value || '09:00')}
             className="h-[var(--control-h)] w-full rounded-field border border-hairline bg-[#fafafd] px-3.5 text-field font-bold text-ink outline-none focus:border-violet-400"
           />
         </Section>
 
-        <Section icon={<ListOrdered size={16} />} title="一天大約安排幾個行程？" hint="根據你的旅行節奏調整行程安排">
+        <Section
+          icon={<ListOrdered size={16} />}
+          title={t('plan.brief.paceTitle')}
+          hint={t('plan.brief.paceHint')}
+        >
           <div className="flex gap-2">
             {([2, 3, 4] as TravelPace[]).map(pace => (
               <button
@@ -409,15 +438,20 @@ const TripPlanBriefScreen: React.FC<Props> = ({
           </div>
         </Section>
 
-        <Section icon={<Pencil size={16} />} title="補充描述" optional hint="可以描述想做什麼事，AI 會幫你提案">
+        <Section
+          icon={<Pencil size={16} />}
+          title={t('plan.brief.notesTitle')}
+          optional
+          hint={t('plan.brief.notesHint')}
+        >
           <textarea
             rows={3}
             maxLength={500}
             data-testid="brief-notes"
-            aria-label="補充描述"
+            aria-label={t('plan.brief.notesAria')}
             value={brief.notes || ''}
             onChange={event => set('notes', event.target.value)}
-            placeholder="例如：想去咖啡廳、逛當地市集、拍照景點、美食、自然景觀、特別體驗…"
+            placeholder={t('plan.brief.notesPlaceholder')}
             className="w-full resize-none rounded-field border border-hairline bg-[#fafafd] px-3.5 py-2.5 text-support leading-6 text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
           />
           <p className="mt-1 text-right text-meta text-ink-soft">{(brief.notes || '').length}/500</p>
@@ -453,14 +487,14 @@ const TripPlanBriefScreen: React.FC<Props> = ({
               */
               .catch((error: unknown) => setPlanError(
                 error instanceof Error && error.message.trim()
-                  ? `${error.message} 你的旅程沒有被建立。`
-                  : 'AI 行程規劃現在無法使用，你的旅程沒有被建立。稍後再試一次。',
+                  ? t('plan.brief.planFailedWithReason', { message: error.message })
+                  : t('plan.brief.planFailed'),
               ))
               .finally(() => setPlanning(false));
           }}
           className="mt-3 flex h-[var(--cta-h)] w-full items-center justify-center gap-2 rounded-control bg-violet-600 text-action font-bold text-white disabled:bg-slate-200 disabled:text-slate-400"
         >
-          <Sparkles size={17} />{planning ? 'AI 正在排行程…' : '生成我的專屬行程 →'}
+          <Sparkles size={17} />{planning ? t('plan.brief.generating') : t('plan.brief.generate')}
         </button>
 
         {planError && (
@@ -479,9 +513,12 @@ const TripPlanBriefScreen: React.FC<Props> = ({
         {proposal && (
           <div data-testid="brief-preview" className="mt-3 rounded-2xl border border-[#e8e7f4] bg-white p-3">
             <h3 className="text-sm font-black text-[#11183d]">
-              AI 排了 {proposal.days.reduce((total, day) => total + day.items.length, 0)} 個行程，共 {proposal.days.length} 天
+              {t('plan.brief.previewHeading', {
+                items: proposal.days.reduce((total, day) => total + day.items.length, 0),
+                days: proposal.days.length,
+              })}
             </h3>
-            <p className="mt-0.5 text-[11px] text-slate-400">看過再決定要不要建立。取消的話什麼都不會留下。</p>
+            <p className="mt-0.5 text-[11px] text-slate-400">{t('plan.brief.previewBlurb')}</p>
 
             <ul className="mt-2 space-y-2">
               {proposal.days.map(day => (
@@ -509,12 +546,14 @@ const TripPlanBriefScreen: React.FC<Props> = ({
             */}
             {(proposal.preparation?.length ?? 0) > 0 && (
               <div data-testid="brief-preparation" className="mt-2 rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2">
-                <p className="text-[11px] font-black text-violet-700">出發前要先確認</p>
+                <p className="text-[11px] font-black text-violet-700">{t('plan.brief.preparationHeading')}</p>
                 <ul className="mt-1 space-y-0.5">
                   {proposal.preparation?.map(task => (
                     <li key={task.name} className="text-[11px] leading-5 text-violet-900">
                       ・{task.name}
-                      {task.leadTimeDays ? `（建議提前 ${task.leadTimeDays} 天）` : ''}
+                      {task.leadTimeDays
+                        ? t('plan.brief.preparationLead', { days: task.leadTimeDays })
+                        : ''}
                     </li>
                   ))}
                 </ul>
@@ -534,14 +573,14 @@ const TripPlanBriefScreen: React.FC<Props> = ({
                 onClick={() => onGenerate(brief, proposal)}
                 className="min-h-11 flex-1 rounded-control bg-violet-600 text-sm font-black text-white"
               >
-                建立這趟旅程
+                {t('plan.brief.createTrip')}
               </button>
               <button
                 type="button"
                 onClick={() => setProposal(null)}
                 className="min-h-11 rounded-control border border-slate-200 px-4 text-sm font-bold text-slate-500"
               >
-                取消
+                {t('common.cancel')}
               </button>
             </div>
           </div>

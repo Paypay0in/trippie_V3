@@ -156,6 +156,7 @@ const isCodeLine = (name: string): boolean => {
   // Eight digits or more with nothing else in them: an EAN, a till code, an
   // approval number. No product is named that.
   if (/^\d{8,}$/.test(bare)) return true;
+  // i18n-data: regex anchors matched against printed receipt text
   return /^(바코드|상품코드|條碼編號|条码编号|barcode)/i.test(name.trim());
 };
 
@@ -164,6 +165,7 @@ const usableTranslation = (translated: string, printed: string): string => {
   if (translated.length > MAX_TRANSLATED_NAME) return '';
   if (translated.length > printed.length * 3 + TRANSLATION_SLACK) return '';
   // A name does not explain itself in parentheses, and does not need commas.
+  // i18n-data: CJK punctuation matched inside model output
   if (/[（(][^）)]{8,}/.test(translated) || /[，,、。]/.test(translated)) return '';
   return translated;
 };

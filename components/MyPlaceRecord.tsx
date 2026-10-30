@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Camera, Lock, NotebookPen, X } from 'lucide-react';
 import { RECEIPT_PHOTO, addPhotos, readAndDownscale, removePhoto } from '../services/postPhotos';
 
@@ -27,6 +28,7 @@ interface Props {
 }
 
 const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
+  const { t } = useTranslation();
   const [writing, setWriting] = React.useState(false);
   const [draft, setDraft] = React.useState(text);
   const [shots, setShots] = React.useState(photos);
@@ -63,11 +65,11 @@ const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
       <div className="mt-3" data-testid="my-place-record">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1 text-[11px] font-black text-[#5b3df5]">
-            <NotebookPen size={12} />我的紀錄
+            <NotebookPen size={12} />{t('placeRecord.title')}
           </span>
           {/* Said on the screen, not only in the row policy. */}
           <span className="flex items-center gap-0.5 text-[10px] font-bold text-slate-400">
-            <Lock size={10} />只有你看得到
+            <Lock size={10} />{t('placeRecord.privateOnly')}
           </span>
         </div>
 
@@ -79,7 +81,7 @@ const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
             onClick={begin}
             className="mt-1.5 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-violet-200 text-[11px] font-black text-[#5b3df5] disabled:opacity-50"
           >
-            <Camera size={12} />寫點什麼、放幾張照片
+            <Camera size={12} />{t('placeRecord.startCta')}
           </button>
         ) : (
           <button
@@ -110,7 +112,7 @@ const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
   return (
     <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5" data-testid="my-place-record-form">
       <span className="flex items-center gap-1 text-[11px] font-black text-[#5b3df5]">
-        <NotebookPen size={12} />我的紀錄
+        <NotebookPen size={12} />{t('placeRecord.title')}
       </span>
 
       {shots.length > 0 && (
@@ -120,7 +122,7 @@ const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
               <img src={shot} alt="" className="h-16 w-16 rounded-lg object-cover" />
               <button
                 type="button"
-                aria-label="移除照片"
+                aria-label={t('placeRecord.removePhoto')}
                 data-testid={`my-place-record-remove-${shots.indexOf(shot)}`}
                 onClick={() => setShots(current => removePhoto(current, shot))}
                 className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-slate-500 shadow"
@@ -133,7 +135,7 @@ const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
       )}
 
       <label className="mt-2 flex min-h-10 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-white text-[11px] font-black text-[#5b3df5] ring-1 ring-violet-200">
-        <Camera size={12} />{busy ? '處理中…' : '加照片'}
+        <Camera size={12} />{busy ? t('placeRecord.addingPhotos') : t('placeRecord.addPhoto')}
         <input type="file" accept="image/*" multiple className="hidden" onChange={pick} data-testid="my-place-record-photos" />
       </label>
 
@@ -142,8 +144,8 @@ const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
         maxLength={500}
         value={draft}
         onChange={event => setDraft(event.target.value)}
-        placeholder="那天吃了什麼、跟誰去的、想記得什麼"
-        aria-label="我的紀錄"
+        placeholder={t('placeRecord.placeholder')}
+        aria-label={t('placeRecord.title')}
         className="mt-2 w-full rounded-xl bg-white px-2.5 py-2 text-[12px] leading-5 outline-none"
       />
 
@@ -154,7 +156,7 @@ const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
           onClick={() => setWriting(false)}
           className="min-h-10 flex-1 rounded-xl bg-white text-[11px] font-black text-slate-500"
         >
-          取消
+          {t('common.cancel')}
         </button>
         <button
           type="button"
@@ -163,7 +165,7 @@ const MyPlaceRecord: React.FC<Props> = ({ text, photos, onSave }) => {
           className="min-h-10 flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-[11px] font-black text-white"
         >
           {/* Emptied means deleted, which the writer already implements. */}
-          {!draft.trim() && shots.length === 0 ? '清除紀錄' : '儲存'}
+          {!draft.trim() && shots.length === 0 ? t('placeRecord.clear') : t('common.save')}
         </button>
       </div>
     </div>

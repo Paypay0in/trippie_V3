@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FlightAirport, FlightAnchor, TripFlightMode } from '../types';
 import { Plane, PlaneTakeoff, PlaneLanding, Settings2, Clock, MapPin, X, Check, Camera, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
 import { formatAirportLabel, searchAirports } from '../services/airportDirectory';
@@ -26,8 +27,8 @@ type Props = {
   onFlightModeChange?: (mode: TripFlightMode) => void;
 };
 
-const dateLabel = (value: string) => (value ? value.replace(/-/g, '/') : '日期未設定');
-const legLabel = (direction: FlightAnchor['direction']) => (direction === 'RETURN' ? '回程' : '去程');
+const legKey = (direction: FlightAnchor['direction']) =>
+  (direction === 'RETURN' ? 'itinerary.flights.legReturn' : 'itinerary.flights.legOutbound');
 
 /** Airport field with search/autocomplete over the curated directory. */
 function AirportField({
@@ -47,6 +48,7 @@ function AirportField({
   invalid: boolean;
   onSelect: (airport: FlightAirport | undefined) => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const results = useMemo(() => (query.trim() ? searchAirports(query) : suggestions), [query, suggestions]);
@@ -76,7 +78,7 @@ function AirportField({
           <input
             aria-label={label}
             data-testid={testId}
-            placeholder="搜尋城市或機場代碼"
+            placeholder={t('itinerary.flights.airportSearchPlaceholder')}
             value={query}
             onFocus={() => setOpen(true)}
             onChange={event => {
@@ -88,7 +90,7 @@ function AirportField({
           {value && (
             <button
               type="button"
-              aria-label={`清除${label}`}
+              aria-label={t('itinerary.flights.clearField', { label })}
               onClick={() => {
                 onSelect(undefined);
                 setQuery('');
@@ -203,6 +205,10 @@ export default function FlightAnchorsForm({
   flightMode = 'ROUND_TRIP',
   onFlightModeChange,
 }: Props) {
+  const { t } = useTranslation();
+  const dateLabel = (value: string) =>
+    (value ? value.replace(/-/g, '/') : t('itinerary.flights.noDate'));
+  const legLabel = (direction: FlightAnchor['direction']) => t(legKey(direction));
   const context = useMemo(
     () => ({ destination, startDate, endDate, homeAirportIata }),
     [destination, startDate, endDate, homeAirportIata],
@@ -307,7 +313,7 @@ export default function FlightAnchorsForm({
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setScanError(body?.error || '辨識失敗，請手動輸入。');
+        setScanError(body?.error || t('itinerary.flights.scanFailed'));
         return;
       }
       const legs = await response.json() as { OUTBOUND?: ParsedFlight; RETURN?: ParsedFlight };
@@ -322,7 +328,7 @@ export default function FlightAnchorsForm({
       const applicable = legsToApply(legs, flightMode);
 
       if (applicable.length === 0) {
-        setScanError('這張截圖看不出航班資訊，請手動輸入。');
+        setScanError(t('itinerary.flights.scanNoFlight'));
         return;
       }
 
@@ -333,15 +339,15 @@ export default function FlightAnchorsForm({
         ),
       );
 
-      const filled = applicable.map(([leg]) => (leg === 'RETURN' ? '回程' : '去程'));
+      const filled = applicable.map(([leg]) => legLabel(leg));
       const uncertain = applicable.some(([, flight]) => flight.isUncertain);
-      setScanNote(
-        uncertain
-          ? `已填入${filled.join('、')}，但截圖辨識不完全，請逐欄核對。`
-          : `已填入${filled.join('、')}，請確認後儲存。`,
-      );
+      const legList = filled.join(t('common.listSeparator'));
+      setScanNote(t(
+        uncertain ? 'itinerary.flights.filledUncertain' : 'itinerary.flights.filledConfirm',
+        { legs: legList },
+      ));
     } catch {
-      setScanError('辨識失敗，請手動輸入。');
+      setScanError(t('itinerary.flights.scanFailed'));
     } finally {
       setScanning(false);
       if (fileInput.current) fileInput.current.value = '';
@@ -370,7 +376,7 @@ export default function FlightAnchorsForm({
             </span>
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#8b3dff]">FLIGHT ANCHORS</p>
-              <h2 className="mt-1 font-black text-[#111A4A]">航班資訊</h2>
+              <h2 className="mt-1 font-black text-[#111A4A]">{t('itinerary.flights.title')}</h2>
             </div>
           </div>
           <button
@@ -382,7 +388,7 @@ export default function FlightAnchorsForm({
             className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-black text-[#5b3df5]"
           >
             <Settings2 size={14} />
-            編輯
+            {t('common.edit')}
           </button>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -410,13 +416,13 @@ export default function FlightAnchorsForm({
                     <span
                       className={`rounded-full px-2 py-1 text-[10px] font-bold ${item ? 'bg-[#eeeaff] text-[#5b3df5]' : 'bg-white text-slate-400'}`}
                     >
-                      {item ? '已儲存' : '尚未設定'}
+                      {item ? t('itinerary.flights.saved') : t('itinerary.flights.notSet')}
                     </span>
                     {item && (
                       <button
                         type="button"
                         data-testid={`clear-flight-${direction}`}
-                        aria-label={`清除${legLabel(direction)}航班`}
+                        aria-label={t('itinerary.flights.clearLegAria', { leg: legLabel(direction) })}
                         onClick={() => setClearing(direction)}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300"
                       >
@@ -443,21 +449,29 @@ export default function FlightAnchorsForm({
                           )}
                         </>
                       ) : (
-                        <span className="ml-1.5 text-[11px] font-bold text-amber-600">抵達時間未填</span>
+                        <span className="ml-1.5 text-[11px] font-bold text-amber-600">
+                          {t('itinerary.flights.arrivalTimeMissing')}
+                        </span>
                       )}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
                       {departure ? formatAirportLabel(departure) : item.departureAirport}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {arrival ? formatAirportLabel(arrival) : item.arrivalAirport || '抵達機場未設定'}
+                      {arrival
+                        ? formatAirportLabel(arrival)
+                        : item.arrivalAirport || t('itinerary.flights.arrivalAirportNotSet')}
                     </p>
                     <p className="mt-2 text-[10px] text-slate-400">
-                      抵達機場目標：起飛前 {item.airportArrivalBufferMinutes || 120} 分鐘
+                      {t('itinerary.flights.bufferSummary', {
+                        minutes: item.airportArrivalBufferMinutes || 120,
+                      })}
                     </p>
                   </>
                 ) : (
-                  <p className="mt-3 text-xs text-slate-400">新增{legLabel(direction)}航班資訊</p>
+                  <p className="mt-3 text-xs text-slate-400">
+                    {t('itinerary.flights.addLeg', { leg: legLabel(direction) })}
+                  </p>
                 )}
 
                 {/*
@@ -470,7 +484,7 @@ export default function FlightAnchorsForm({
                 {clearing === direction && (
                   <div data-testid={`clear-flight-confirm-${direction}`} className="mt-3 rounded-xl bg-rose-50 px-3 py-2.5">
                     <p className="text-[11px] font-black leading-4 text-rose-800">
-                      清除{legLabel(direction)}航班？行程表上由它產生的卡片也會一起移除。
+                      {t('itinerary.flights.clearConfirm', { leg: legLabel(direction) })}
                     </p>
                     <div className="mt-2 flex gap-2">
                       <button
@@ -479,7 +493,7 @@ export default function FlightAnchorsForm({
                         onClick={() => clearLeg(direction)}
                         className="min-h-9 flex-1 rounded-lg bg-rose-600 px-3 text-[11px] font-black text-white"
                       >
-                        清除
+                        {t('itinerary.flights.clear')}
                       </button>
                       <button
                         type="button"
@@ -487,7 +501,7 @@ export default function FlightAnchorsForm({
                         onClick={() => setClearing(null)}
                         className="min-h-9 flex-1 rounded-lg border border-rose-200 bg-white px-3 text-[11px] font-black text-rose-700"
                       >
-                        取消
+                        {t('common.cancel')}
                       </button>
                     </div>
                   </div>
@@ -505,13 +519,13 @@ export default function FlightAnchorsForm({
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#8b3dff]">FLIGHT ANCHORS</p>
-          <h2 className="mt-1 font-black text-[#111A4A]">航班資訊</h2>
-          <p className="mt-1 text-xs text-slate-400">儲存後會自動更新行程中的航班錨點。</p>
+          <h2 className="mt-1 font-black text-[#111A4A]">{t('itinerary.flights.title')}</h2>
+          <p className="mt-1 text-xs text-slate-400">{t('itinerary.flights.saveHint')}</p>
         </div>
         <button
           type="button"
           onClick={cancel}
-          aria-label="取消"
+          aria-label={t('common.cancel')}
           className="flex h-10 w-10 items-center justify-center rounded-full border border-[#e8e7f4] text-slate-400"
         >
           <X size={17} />
@@ -519,7 +533,7 @@ export default function FlightAnchorsForm({
       </div>
 
       {onFlightModeChange && (
-        <div role="radiogroup" aria-label="航班類型" className="mb-4 inline-flex rounded-2xl bg-[#f5f3ff] p-1">
+        <div role="radiogroup" aria-label={t('itinerary.flights.flightTypeAria')} className="mb-4 inline-flex rounded-2xl bg-[#f5f3ff] p-1">
           {(['ROUND_TRIP', 'ONE_WAY'] as const).map(mode => (
             <button
               key={mode}
@@ -531,7 +545,9 @@ export default function FlightAnchorsForm({
                 flightMode === mode ? 'bg-white text-[#5b3df5] shadow-sm' : 'text-slate-400'
               }`}
             >
-              {mode === 'ROUND_TRIP' ? '往返' : '單程'}
+              {mode === 'ROUND_TRIP'
+                ? t('itinerary.flights.roundTrip')
+                : t('itinerary.flights.oneWay')}
             </button>
           ))}
         </div>
@@ -539,7 +555,7 @@ export default function FlightAnchorsForm({
 
       <div className="mb-4 rounded-[20px] border border-dashed border-[#d9d5f5] bg-[#fbfaff] p-3">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-bold text-slate-500">有機票或登機證截圖？直接上傳</p>
+          <p className="text-xs font-bold text-slate-500">{t('itinerary.flights.uploadPrompt')}</p>
           <button
             type="button"
             disabled={scanning}
@@ -550,7 +566,7 @@ export default function FlightAnchorsForm({
             className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-black text-[#5b3df5] disabled:opacity-50"
           >
             {scanning ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-            {scanning ? '辨識中' : '上傳截圖'}
+            {scanning ? t('itinerary.flights.scanning') : t('itinerary.flights.upload')}
           </button>
         </div>
         <input
@@ -589,9 +605,11 @@ export default function FlightAnchorsForm({
                   ) : (
                     <PlaneTakeoff size={16} className="text-[#6b4df6]" />
                   )}
-                  {legLabel(anchor.direction)}航班
+                  {t('itinerary.flights.legFlight', { leg: legLabel(anchor.direction) })}
                 </span>
-                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-400">編輯中</span>
+                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-slate-400">
+                  {t('itinerary.flights.editingBadge')}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label
@@ -599,7 +617,7 @@ export default function FlightAnchorsForm({
                 >
                   <Clock size={13} />
                   <input
-                    aria-label={`${legLabel(anchor.direction)}出發日期`}
+                    aria-label={t('itinerary.flights.departureDateAria', { leg: legLabel(anchor.direction) })}
                     type="date"
                     value={anchor.departureDate}
                     onChange={event => update(anchor.id, { departureDate: event.target.value })}
@@ -607,7 +625,7 @@ export default function FlightAnchorsForm({
                   />
                 </label>
                 <TimeField
-                  label={`${legLabel(anchor.direction)}出發時間`}
+                  label={t('itinerary.flights.departureTimeAria', { leg: legLabel(anchor.direction) })}
                   anchorId={anchor.id}
                   value={anchor.departureTime}
                   invalid={Boolean(timeError)}
@@ -625,9 +643,9 @@ export default function FlightAnchorsForm({
                 who checks bags wants more.
               */}
               <label className="flex items-center justify-between gap-2 rounded-xl border border-[#e5e5ef] bg-white px-2.5 py-2">
-                <span className="text-xs text-slate-500">提前到機場</span>
+                <span className="text-xs text-slate-500">{t('itinerary.flights.bufferLabel')}</span>
                 <select
-                  aria-label={`${legLabel(anchor.direction)}提前到機場的時間`}
+                  aria-label={t('itinerary.flights.bufferAria', { leg: legLabel(anchor.direction) })}
                   data-testid={`airport-buffer-${anchor.id}`}
                   value={String(anchor.airportArrivalBufferMinutes || 120)}
                   onChange={event => update(anchor.id, { airportArrivalBufferMinutes: Number(event.target.value) })}
@@ -635,13 +653,15 @@ export default function FlightAnchorsForm({
                 >
                   {[60, 90, 120, 150, 180].map(minutes => (
                     <option key={minutes} value={minutes}>
-                      {minutes % 60 === 0 ? `${minutes / 60} 小時前` : `${minutes} 分鐘前`}
+                      {minutes % 60 === 0
+                        ? t('itinerary.flights.bufferHours', { count: minutes / 60 })
+                        : t('itinerary.flights.bufferMinutes', { minutes })}
                     </option>
                   ))}
                 </select>
               </label>
               <AirportField
-                label={`${legLabel(anchor.direction)}出發機場`}
+                label={t('itinerary.flights.departureAirportLabel', { leg: legLabel(anchor.direction) })}
                 anchorId={anchor.id}
                 side="departure"
                 value={airportOf(anchor, 'departure')}
@@ -650,7 +670,7 @@ export default function FlightAnchorsForm({
                 onSelect={airport => selectAirport(anchor.id, 'departure', airport)}
               />
               <AirportField
-                label={`${legLabel(anchor.direction)}抵達機場`}
+                label={t('itinerary.flights.arrivalAirportLabel', { leg: legLabel(anchor.direction) })}
                 anchorId={anchor.id}
                 side="arrival"
                 value={airportOf(anchor, 'arrival')}
@@ -676,7 +696,7 @@ export default function FlightAnchorsForm({
                 <label className="flex items-center gap-1.5 rounded-xl border border-[#e5e5ef] bg-white px-2 text-slate-400">
                   <PlaneLanding size={13} />
                   <input
-                    aria-label={`${legLabel(anchor.direction)}抵達日期`}
+                    aria-label={t('itinerary.flights.arrivalDateAria', { leg: legLabel(anchor.direction) })}
                     type="date"
                     value={anchor.arrivalDate || anchor.departureDate || ''}
                     onChange={event => update(anchor.id, { arrivalDate: event.target.value })}
@@ -684,7 +704,7 @@ export default function FlightAnchorsForm({
                   />
                 </label>
                 <TimeField
-                  label={`${legLabel(anchor.direction)}抵達時間`}
+                  label={t('itinerary.flights.arrivalTimeAria', { leg: legLabel(anchor.direction) })}
                   anchorId={`${anchor.id}-arrival`}
                   value={anchor.arrivalTime || ''}
                   invalid={false}
@@ -692,7 +712,7 @@ export default function FlightAnchorsForm({
                 />
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
-                填了抵達時間，才會自動推算出關時間、機場到住宿的交通，以及入住時間。
+                {t('itinerary.flights.arrivalHint')}
               </p>
             </div>
           );
@@ -716,14 +736,14 @@ export default function FlightAnchorsForm({
           className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-[#2f5bff] to-[#7b3ff2] px-4 text-sm font-black text-white shadow-[0_10px_20px_rgba(91,61,245,.2)]"
         >
           <Check size={15} />
-          儲存航班
+          {t('itinerary.flights.save')}
         </button>
         <button
           type="button"
           onClick={cancel}
           className="min-h-12 rounded-2xl border border-[#e8e7f4] px-5 text-sm font-bold text-[#5b3df5]"
         >
-          取消
+          {t('common.cancel')}
         </button>
       </div>
     </section>

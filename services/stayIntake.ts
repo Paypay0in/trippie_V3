@@ -94,6 +94,9 @@ export const normalizeParsedStay = (raw: unknown): ParsedStay | null => {
   return stay;
 };
 
+// i18n-prompt: the Chinese below is addressed to the model, not to a traveller.
+// Prompt language is independent of interface language — `aiOutputLanguage.ts`
+// decides what the model answers in — so an English screen is served by this.
 export const stayPrompt = () => `
       Analyze this image. It shows where somebody will sleep on a trip.
 
@@ -207,9 +210,13 @@ export const stayToItineraryItems = (
   };
 
   const detail = [
+    // i18n-data: written into the itinerary item's stored, synced notes field
     stay.confirmationNumber ? `訂房編號：${stay.confirmationNumber}` : '',
+    // i18n-data: written into the itinerary item's stored, synced notes field
     stay.guestName ? `訂房人：${stay.guestName}` : '',
+    // i18n-data: written into the itinerary item's stored, synced notes field
     stay.totalAmount !== undefined && stay.currency ? `訂房金額：${stay.currency} ${stay.totalAmount}` : '',
+    // i18n-data: written into the itinerary item's stored, synced notes field
     stay.isUncertain ? '⚠️ 截圖辨識不完全，請核對' : '',
   ].filter(Boolean).join('\n');
 
@@ -226,6 +233,7 @@ export const stayToItineraryItems = (
       date: stay.checkInDate,
       time: stay.checkInTime || defaultCheckInTime(stay.checkInDate, arrivals),
       notes: [
+        // i18n-data: written into the itinerary item's stored, synced notes field
         nights > 0 ? `共 ${nights} 晚，${stay.checkOutDate} 退房` : '',
         detail,
       ].filter(Boolean).join('\n'),
@@ -377,34 +385,17 @@ export const staysFromItinerary = (
 export const stayForNight = (stays: StaySpan[], date: string): StaySpan | undefined =>
   date ? stays.find(stay => stay.nights.includes(date)) : undefined;
 
-const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+/*
+  `formatStayDates` used to live here and now lives in
+  `services/stayDateWording.ts`.
 
-/**
- * The stay's dates as one line: 10/02（五）– 10/04（日）· 2 晚.
- *
- * Built from the local calendar rather than a locale formatter so the weekday
- * matches the day tab beside it. A date read in UTC is a day out east of
- * Greenwich, which is the bug this project has already paid for once.
- */
-export const formatStayDates = (stay: Pick<StaySpan, 'checkInDate' | 'checkOutDate' | 'nights'>): string => {
-  const label = (iso?: string) => {
-    if (!iso) return '';
-    const date = fromLocalIsoDate(iso);
-    if (Number.isNaN(date.getTime())) return '';
-    return `${iso.slice(5).replace('-', '/')}（${WEEKDAYS[date.getDay()]}）`;
-  };
-
-  const checkIn = label(stay.checkInDate);
-  const checkOut = label(stay.checkOutDate);
-  const nights = stay.nights.length;
-
-  if (checkIn && checkOut) {
-    return nights > 0 ? `${checkIn} – ${checkOut} · ${nights} 晚` : `${checkIn} – ${checkOut}`;
-  }
-  if (checkIn) return `${checkIn} 入住`;
-  if (checkOut) return `${checkOut} 退房`;
-  return '尚未設定日期';
-};
+  It had to move to be translatable. Writing the line in the reader's language
+  needs `i18n/config`, and `server.ts` imports this module for
+  `normalizeParsedStay` and `stayPrompt` — a module-level import of i18n would
+  drag react-i18next and a browser language detector into the server runtime
+  whether the server ever called the function or not. Parsing stays here; the
+  wording went where only the browser looks.
+*/
 
 /**
  * A maps link for a place, preferring the one Google resolved.

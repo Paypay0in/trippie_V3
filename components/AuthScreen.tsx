@@ -1,20 +1,29 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import AppWordmark from './AppWordmark';
 import { resendSignupConfirmation, signIn, signUp } from '../services/authService';
 import { isValidEmail, normalizeEmail } from '../services/emailValidation';
 
 interface Props { onBack: () => void; onSuccess: () => void; unavailable?: boolean; }
 
-const messageFor = (error: unknown) => {
+/*
+  The matched substrings are Supabase's own English error text, not copy: they
+  are what the service returns and must stay exactly as they are.
+  i18n-data: `auth_unavailable`, `invalid login` and the rest are upstream
+  values matched with `includes`.
+*/
+const messageFor = (error: unknown, t: TFunction) => {
   const text = error instanceof Error ? error.message.toLowerCase() : '';
-  if (text.includes('auth_unavailable') || text.includes('fetch') || text.includes('network')) return '目前無法連線帳號服務';
-  if (text.includes('invalid login')) return 'Email 或密碼錯誤';
-  if (text.includes('already registered') || text.includes('user already exists')) return '這個 Email 已有帳號，請直接登入。';
-  if (text.includes('password')) return '密碼長度不足或格式不符合要求';
-  return '目前無法完成操作，請稍後再試';
+  if (text.includes('auth_unavailable') || text.includes('fetch') || text.includes('network')) return t('auth.unavailable');
+  if (text.includes('invalid login')) return t('auth.wrongCredentials');
+  if (text.includes('already registered') || text.includes('user already exists')) return t('auth.alreadyRegistered');
+  if (text.includes('password')) return t('auth.weakPassword');
+  return t('auth.genericFailure');
 };
 
 const AuthScreen: React.FC<Props> = ({ onBack, onSuccess, unavailable }) => {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -49,14 +58,14 @@ const AuthScreen: React.FC<Props> = ({ onBack, onSuccess, unavailable }) => {
     */
     const missing = [
       !normalizedEmail ? 'Email' : '',
-      !typedPassword ? '密碼' : '',
-      mode === 'signUp' && !displayName.trim() ? '顯示名稱' : '',
+      !typedPassword ? t('auth.fieldPassword') : '',
+      mode === 'signUp' && !displayName.trim() ? t('auth.fieldDisplayName') : '',
     ].filter(Boolean);
-    if (missing.length > 0) { setError(`請輸入${missing.join('、')}`); return; }
+    if (missing.length > 0) { setError(t('auth.missingFields', { fields: missing.join(t('common.listSeparator')) })); return; }
     // Quoting what was actually received. "格式不正確" on an address that looks
     // perfect on screen is impossible to act on; seeing the string the form
     // really holds says immediately whether it is truncated, doubled, or fine.
-    if (!isValidEmail(normalizedEmail)) { setError(`Email 格式不正確：「${normalizedEmail}」`); return; }
+    if (!isValidEmail(normalizedEmail)) { setError(t('auth.emailMalformed', { email: normalizedEmail })); return; }
     setBusy(true);
     try {
       const result = mode === 'signUp'
@@ -64,16 +73,16 @@ const AuthScreen: React.FC<Props> = ({ onBack, onSuccess, unavailable }) => {
         : await signIn({ email: normalizedEmail, password: typedPassword });
       if (mode === 'signUp' && !result.session) {
         setVerificationEmail(normalizedEmail);
-        setNotice('請查看信箱完成驗證。\n如果你已經有 Trippie 帳號，請直接登入。');
+        setNotice(t('auth.verifyNotice'));
       } else onSuccess();
-    } catch (reason) { setError(messageFor(reason)); } finally { setBusy(false); }
+    } catch (reason) { setError(messageFor(reason, t)); } finally { setBusy(false); }
   };
 
   const resendVerification = async () => {
     if (!verificationEmail) return;
     setResending(true); setError('');
-    try { await resendSignupConfirmation(verificationEmail); setNotice('驗證信已重新寄出，請查看信箱。\n如果你已經有 Trippie 帳號，請直接登入。'); }
-    catch (reason) { setError(messageFor(reason)); }
+    try { await resendSignupConfirmation(verificationEmail); setNotice(t('auth.resentNotice')); }
+    catch (reason) { setError(messageFor(reason, t)); }
     finally { setResending(false); }
   };
 
@@ -90,19 +99,19 @@ const AuthScreen: React.FC<Props> = ({ onBack, onSuccess, unavailable }) => {
     of its own.
   */
   return <main data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="min-h-screen bg-[#f7f8fc] px-[var(--screen-pad)] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
-    <button type="button" onClick={onBack} className="-ml-2 mb-4 flex min-h-11 items-center px-2 text-sm font-bold text-violet-600">← 返回</button>
+    <button type="button" onClick={onBack} className="-ml-2 mb-4 flex min-h-11 items-center px-2 text-sm font-bold text-violet-600">← {t('auth.back')}</button>
     <div className="rounded-[28px] bg-white p-6 shadow-sm">
-      <div className="mb-6"><AppWordmark /><h1 className="mt-5 text-screen-title font-bold">{mode === 'signIn' ? '登入 Trippie' : '建立 Trippie 帳號'}</h1><p className="mt-2 text-sm text-slate-500">保留你的創作者身份，未來也能跨裝置同步旅行資料。</p></div>
-      {unavailable && <p className="mb-4 rounded-2xl bg-amber-50 p-3 text-sm font-bold text-amber-700">目前無法連線帳號服務</p>}
+      <div className="mb-6"><AppWordmark /><h1 className="mt-5 text-screen-title font-bold">{mode === 'signIn' ? t('auth.signInTitle') : t('auth.signUpTitle')}</h1><p className="mt-2 text-sm text-slate-500">{t('auth.blurb')}</p></div>
+      {unavailable && <p className="mb-4 rounded-2xl bg-amber-50 p-3 text-sm font-bold text-amber-700">{t('auth.unavailable')}</p>}
       {error && <p className="mb-4 rounded-2xl bg-rose-50 p-3 text-sm font-bold text-rose-600">{error}</p>}
-      {notice && <div className="mb-4 rounded-2xl bg-violet-50 p-3 text-sm font-bold leading-6 whitespace-pre-line text-violet-700">{notice}{verificationEmail && <div className="mt-3 flex gap-2"><button type="button" onClick={() => { setMode('signIn'); setNotice(''); setVerificationEmail(''); }} className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white">前往登入</button><button type="button" onClick={resendVerification} disabled={resending} className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-black text-violet-700 disabled:opacity-50">{resending ? '寄送中…' : '重新寄送驗證信'}</button></div>}</div>}
+      {notice && <div className="mb-4 rounded-2xl bg-violet-50 p-3 text-sm font-bold leading-6 whitespace-pre-line text-violet-700">{notice}{verificationEmail && <div className="mt-3 flex gap-2"><button type="button" onClick={() => { setMode('signIn'); setNotice(''); setVerificationEmail(''); }} className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white">{t('auth.goToSignIn')}</button><button type="button" onClick={resendVerification} disabled={resending} className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs font-black text-violet-700 disabled:opacity-50">{resending ? t('auth.resending') : t('auth.resendVerification')}</button></div>}</div>}
       <form noValidate onSubmit={submit} className="space-y-4">
-        {mode === 'signUp' && <label className="block text-sm font-bold">名稱<input value={displayName} onChange={e => setDisplayName(e.target.value)} required className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3" /></label>}
+        {mode === 'signUp' && <label className="block text-sm font-bold">{t('auth.nameLabel')}<input value={displayName} onChange={e => setDisplayName(e.target.value)} required className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3" /></label>}
         <label className="block text-sm font-bold">Email<input type="text" inputMode="email" name="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3" /></label>
         <label className="block text-sm font-bold">Password<input type="password" name="password" autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3" /></label>
-        <button type="submit" disabled={busy || !!unavailable} className="w-full rounded-2xl bg-violet-600 px-4 py-3 font-black text-white disabled:opacity-50">{busy ? '處理中…' : mode === 'signIn' ? '登入' : '建立帳號'}</button>
+        <button type="submit" disabled={busy || !!unavailable} className="w-full rounded-2xl bg-violet-600 px-4 py-3 font-black text-white disabled:opacity-50">{busy ? t('auth.busy') : mode === 'signIn' ? t('auth.signIn') : t('auth.createAccount')}</button>
       </form>
-      <button type="button" onClick={() => { setMode(mode === 'signIn' ? 'signUp' : 'signIn'); setError(''); setNotice(''); }} className="mt-5 w-full text-sm font-bold text-violet-600">{mode === 'signIn' ? '還沒有帳號？建立帳號' : '已有帳號？登入'}</button>
+      <button type="button" onClick={() => { setMode(mode === 'signIn' ? 'signUp' : 'signIn'); setError(''); setNotice(''); }} className="mt-5 w-full text-sm font-bold text-violet-600">{mode === 'signIn' ? t('auth.switchToSignUp') : t('auth.switchToSignIn')}</button>
     </div>
   </main>;
 };

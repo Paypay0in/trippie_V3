@@ -114,13 +114,40 @@ describe('balances from another member seat', () => {
     ).toEqual([]);
   });
 
-  it('skips ids that are no longer on the roster', () => {
+  /*
+    This used to assert the opposite — that an id no longer on the roster is
+    skipped — and that assertion was the defect, written down. The independent
+    reviewer (CGX-20261029-001) found the same rule in `memberSettlementDetail`
+    reporting a departed participant in a warning while the rows beneath it
+    deleted every transfer naming them: two halves of one screen describing
+    different settlements.
+
+    500 owed by a companion removed after the bill was recorded is still 500.
+    Skipping it makes these totals quietly smaller than the figures the
+    settlement page is warning about, and nothing on screen says why. So the
+    row is kept, with no member attached and no name invented; the screen
+    labels it absent.
+  */
+  it('reports an id no longer on the roster instead of dropping its money', () => {
     const rows = buildViewerBalanceRows({
       debts: { [OWNER]: 500, 'member-gone': -500 },
       members,
       ownerMemberId: OWNER,
       viewerMemberId: OWNER,
     });
-    expect(rows).toEqual([]);
+
+    expect(rows).toEqual([{ memberId: 'member-gone', member: undefined, amount: -500 }]);
+    expect(sumReceivable(rows)).toBe(500);
+  });
+
+  it('still drops an id whose balance is rounding noise, roster or not', () => {
+    expect(
+      buildViewerBalanceRows({
+        debts: { [OWNER]: 0.2, 'member-gone': -0.2 },
+        members,
+        ownerMemberId: OWNER,
+        viewerMemberId: OWNER,
+      }),
+    ).toEqual([]);
   });
 });

@@ -55,19 +55,42 @@ const country = (
 /**
  * Hosts are listed for the shops travellers from here actually use, and a
  * country's own top-level domain is always one of them.
+ *
+ * Every row is DATA, so each one carries a marker rather than moving into the
+ * locale bundles. `priceWords` is appended to a live search query in
+ * `priceFromSearch.queryFor` — 「価格 通販」 is what makes a Japanese shop page
+ * come back, and an English translation finds nothing. `displayName` and
+ * `moneyName` are passed as interpolation values into keys the shopping panel
+ * has already migrated (`shopping.comparingWith`, `shopping.countryPrice`,
+ * `shopping.setUrl`), so the sentence around them is localised while the
+ * country keeps the one spelling the rest of the repo matches on; see
+ * `countryIdentity.ts`. This module is also imported directly by `server.ts`,
+ * so `i18n/config` must never reach it.
  */
 export const COMPARISON_COUNTRIES: ComparisonCountry[] = [
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('TW', '台灣', 'TWD', '台幣', '價格 購買', /(^|\.)tw$|shopee\.tw|momoshop|pchome|cosmed|watsons\.com\.tw|books\.com\.tw|tw\.(bid|buy|mall)\.yahoo|ruten\.com/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('JP', '日本', 'JPY', '日圓', '価格 通販', /(^|\.)jp$|amazon\.co\.jp|rakuten|matsukiyo|welcia|donki|cosme\.net/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('KR', '韓國', 'KRW', '韓元', '가격 구매', /(^|\.)kr$|coupang|gmarket|oliveyoung|11st/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('HK', '香港', 'HKD', '港幣', '價錢 購買', /(^|\.)hk$|hktvmall|shampoosecret/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('CN', '中國', 'CNY', '人民幣', '价格 购买', /(^|\.)cn$|taobao|tmall|jd\.com|1688|pinduoduo|xiaohongshu|dangdang|vip\.com|suning/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('SG', '新加坡', 'SGD', '新幣', 'price buy', /(^|\.)sg$|lazada\.sg|shopee\.sg/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('US', '美國', 'USD', '美元', 'price buy', /(^|\.)us$|amazon\.com|walmart|target\.com|sephora\.com/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('GB', '英國', 'GBP', '英鎊', 'price buy', /(^|\.)uk$|amazon\.co\.uk|boots\.com|superdrug/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('AU', '澳洲', 'AUD', '澳幣', 'price buy', /(^|\.)au$|amazon\.com\.au|chemistwarehouse/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('CA', '加拿大', 'CAD', '加幣', 'price buy', /(^|\.)ca$|amazon\.ca|shoppersdrugmart/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('TH', '泰國', 'THB', '泰銖', 'ราคา ซื้อ', /(^|\.)th$|lazada\.co\.th|shopee\.co\.th/i),
+  // i18n-data: priceWords is a live search query, displayName/moneyName are interpolated into already-translated keys
   country('MY', '馬來西亞', 'MYR', '馬幣', 'harga beli', /(^|\.)my$|shopee\.com\.my|lazada\.com\.my/i),
 ];
 

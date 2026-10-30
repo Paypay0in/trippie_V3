@@ -68,6 +68,7 @@ export const needsBookingAhead = (note: string): boolean =>
     the ordinary way to write it, and the pattern had only the words a museum
     uses. 「安排的餐廳 有需要預約的」.
   */
+  // i18n-data: phrases matched against model and traveller-written notes.
   /(事先|提前|事前|須|需|必須|要)[^。；]{0,4}(預約|訂位|劃位|訂票|購票|予約)|預售|指定日時|完全予約|timed.?entry|advance (booking|purchase|reservation)/i
     .test(note);
 

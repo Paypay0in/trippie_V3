@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Category, PaymentMethod, TaxRule, VisaInfo, Expense, Trip, TravelBook, ItineraryItem, PublicTrip } from '../types';
+import i18n from '../i18n/config';
 
 const cleanJsonString = (str: string) => {
     // Remove markdown code blocks if present
@@ -79,11 +80,11 @@ let lastFailure = '';
 export const lastExpenseIntakeFailure = (): string => lastFailure;
 
 const describeIntakeStatus = (status: number): string => {
-  if (status === 413) return '照片檔案太大';
-  if (status === 429) return '辨識服務達到使用上限，請稍後再試';
-  if (status === 503) return '辨識服務暫時無法使用';
-  if (status >= 500) return `伺服器錯誤（${status}）`;
-  return `伺服器回應 ${status}`;
+  if (status === 413) return i18n.t('expense.intake.fileTooLarge');
+  if (status === 429) return i18n.t('expense.intake.quotaReached');
+  if (status === 503) return i18n.t('expense.intake.serviceDown');
+  if (status >= 500) return i18n.t('expense.intake.serverError', { status });
+  return i18n.t('expense.intake.serverReplied', { status });
 };
 
 /**
@@ -119,9 +120,9 @@ const postExpenseIntake = async <T>(path: string, body: unknown): Promise<T | nu
     return await response.json() as T;
   } catch (error) {
     lastFailure = (error as Error)?.name === 'AbortError'
-      ? '這張等太久，已跳過'
+      ? i18n.t('expense.intake.tookTooLong')
       // A network error, which on a phone mid-trip usually means exactly that.
-      : '連線中斷，請確認網路後再試';
+      : i18n.t('expense.intake.connectionLost');
     console.error(`Expense intake failed (${path}):`, error);
     return null;
   } finally {
@@ -225,6 +226,9 @@ export const fetchVisaAndEntryInfo = async (destination: string, origin: string)
   if (!ai || !destination || !origin) return null;
 
   try {
+    // i18n-prompt: the Chinese below is addressed to the model, not to a traveller.
+    // Prompt language is independent of interface language — `aiOutputLanguage.ts`
+    // decides what the model answers in — so an English screen is served by this.
     const prompt = `
       I am a citizen from "${origin}" traveling to "${destination}".
       I need to know the entry requirements.
@@ -430,6 +434,9 @@ export const fetchShoppingSuggestions = async (tripDescription: string): Promise
     if (!ai || !tripDescription) return { suggestions: [], country: '' };
 
     try {
+        // i18n-prompt: the Chinese below is addressed to the model, not to a traveller.
+        // Prompt language is independent of interface language — `aiOutputLanguage.ts`
+        // decides what the model answers in — so an English screen is served by this.
         const prompt = `
             Based on the user's trip description: "${tripDescription}", 
             1. Identify the main destination country (in Traditional Chinese, e.g. 日本, 冰島, 法國). If multiple or unclear, pick the primary one or leave empty.

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Copy, Globe, Link2, Lock, Share2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { SavedCollection, SavedTravelInspiration, ShareVisibility } from '../types';
@@ -34,13 +35,18 @@ interface Props {
 
 const CHOICES: Array<{
   value: ShareVisibility;
-  label: string;
-  detail: string;
+  /**
+   * Keys rather than strings. This list is built once at import, and a `t()`
+   * called there would freeze the language to whatever was loaded first — the
+   * sheet has to answer in the language the reader is in now.
+   */
+  labelKey: string;
+  detailKey: string;
   icon: React.ReactNode;
 }> = [
-  { value: 'public', label: '公開', detail: '任何人都可以查看收藏', icon: <Globe size={15} /> },
-  { value: 'link', label: '僅連結', detail: '知道連結的人可以查看', icon: <Link2 size={15} /> },
-  { value: 'private', label: '私人', detail: '只有我可以查看', icon: <Lock size={15} /> },
+  { value: 'public', labelKey: 'collectionShare.visibility.publicLabel', detailKey: 'collectionShare.visibility.publicDetail', icon: <Globe size={15} /> },
+  { value: 'link', labelKey: 'collectionShare.visibility.linkLabel', detailKey: 'collectionShare.visibility.linkDetail', icon: <Link2 size={15} /> },
+  { value: 'private', labelKey: 'collectionShare.visibility.privateLabel', detailKey: 'collectionShare.visibility.privateDetail', icon: <Lock size={15} /> },
 ];
 
 const CollectionShareSheet: React.FC<Props> = ({
@@ -51,6 +57,7 @@ const CollectionShareSheet: React.FC<Props> = ({
   onPublish,
   onUnpublish,
 }) => {
+  const { t } = useTranslation();
   const [visibility, setVisibility] = React.useState<ShareVisibility>(collection.visibility);
   const [sharesOwnNotes, setSharesOwnNotes] = React.useState(collection.sharesOwnNotes !== false);
   const [sharesPhotos, setSharesPhotos] = React.useState(collection.sharesPhotos !== false);
@@ -115,10 +122,10 @@ const CollectionShareSheet: React.FC<Props> = ({
   return (
     <div className="space-y-4" data-testid="collection-share-sheet">
       <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-        <h2 className="text-lg font-black text-[#11183d]">分享設定</h2>
-        <p className="mt-0.5 text-[12px] text-slate-400">{collection.title}・{places.length} 個地點</p>
+        <h2 className="text-lg font-black text-[#11183d]">{t('collectionShare.title')}</h2>
+        <p className="mt-0.5 text-[12px] text-slate-400">{t('collectionShare.subtitle', { title: collection.title, n: places.length })}</p>
 
-        <h3 className="mt-4 text-[13px] font-black text-[#11183d]">公開範圍</h3>
+        <h3 className="mt-4 text-[13px] font-black text-[#11183d]">{t('collectionShare.scopeHeading')}</h3>
         <div className="mt-2 space-y-2">
           {CHOICES.map(choice => (
             <button
@@ -135,29 +142,29 @@ const CollectionShareSheet: React.FC<Props> = ({
             >
               {choice.icon}
               <span className="min-w-0">
-                <span className="block text-[13px] font-black">{choice.label}</span>
-                <span className="block text-[11px] text-slate-400">{choice.detail}</span>
+                <span className="block text-[13px] font-black">{t(choice.labelKey)}</span>
+                <span className="block text-[11px] text-slate-400">{t(choice.detailKey)}</span>
               </span>
             </button>
           ))}
         </div>
 
-        <h3 className="mt-4 text-[13px] font-black text-[#11183d]">公開內容</h3>
+        <h3 className="mt-4 text-[13px] font-black text-[#11183d]">{t('collectionShare.contentHeading')}</h3>
         <div className="divide-y divide-slate-100">
-          {toggle('notes', '我撰寫的心得筆記', sharesOwnNotes, setSharesOwnNotes,
+          {toggle('notes', t('collectionShare.ownNotes'), sharesOwnNotes, setSharesOwnNotes,
             noteCount > ownCount
-              ? `這些地點共有 ${noteCount} 則筆記，其中 ${ownCount} 則是你寫的。別人寫的不會公開。`
+              ? t('collectionShare.ownNotesHint', { total: noteCount, own: ownCount })
               : undefined)}
-          {toggle('photos', '照片（我上傳的）', sharesPhotos, setSharesPhotos)}
-          {toggle('details', '餐廳與景點資訊', sharesPlaceDetails, setSharesPlaceDetails,
-            '地址、座標、分類。關掉之後地點名稱和城市仍然看得到。')}
+          {toggle('photos', t('collectionShare.photos'), sharesPhotos, setSharesPhotos)}
+          {toggle('details', t('collectionShare.placeDetails'), sharesPlaceDetails, setSharesPlaceDetails,
+            t('collectionShare.placeDetailsHint'))}
         </div>
       </div>
 
       {previewing && (
         <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]" data-testid="collection-preview">
-          <h2 className="text-[15px] font-black text-[#11183d]">預覽公開版本</h2>
-          <p className="mt-0.5 text-[11px] text-slate-400">這就是別人會看到的內容，一字不差。</p>
+          <h2 className="text-[15px] font-black text-[#11183d]">{t('collectionShare.previewHeading')}</h2>
+          <p className="mt-0.5 text-[11px] text-slate-400">{t('collectionShare.previewBlurb')}</p>
           <ul className="mt-3 space-y-2">
             {items.map(item => (
               <li key={item.id} className="rounded-xl bg-slate-50 px-3 py-2">
@@ -172,14 +179,14 @@ const CollectionShareSheet: React.FC<Props> = ({
             ))}
           </ul>
           {items.length === 0 && (
-            <p className="mt-2 text-[12px] text-slate-400">這個收藏集還沒有地點可以公開。</p>
+            <p className="mt-2 text-[12px] text-slate-400">{t('collectionShare.previewEmpty')}</p>
           )}
         </div>
       )}
 
       {live && link && (
         <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]" data-testid="collection-live-link">
-          <p className="text-[13px] font-black text-[#11183d]">已公開</p>
+          <p className="text-[13px] font-black text-[#11183d]">{t('collectionShare.livePublished')}</p>
           <div className="mt-3 flex flex-col items-center gap-2 rounded-2xl bg-white p-3 ring-1 ring-slate-200">
             <QRCodeSVG value={link} size={132} level="M" includeMargin={false} />
           </div>
@@ -192,7 +199,7 @@ const CollectionShareSheet: React.FC<Props> = ({
                 onClick={() => { void navigator.share({ url: link, text: collection.title }).catch(() => undefined); }}
                 className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-xs font-black text-white"
               >
-                <Share2 size={14} />分享
+                <Share2 size={14} />{t('collectionShare.share')}
               </button>
             )}
             <button
@@ -201,7 +208,7 @@ const CollectionShareSheet: React.FC<Props> = ({
               onClick={() => { void navigator.clipboard?.writeText(link).catch(() => undefined); }}
               className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-white text-xs font-black text-[#5b3df5] ring-1 ring-violet-200"
             >
-              <Copy size={14} />複製
+              <Copy size={14} />{t('collectionShare.copy')}
             </button>
           </div>
         </div>
@@ -214,7 +221,7 @@ const CollectionShareSheet: React.FC<Props> = ({
           onClick={() => setPreviewing(current => !current)}
           className="min-h-12 flex-1 rounded-xl bg-white text-[13px] font-black text-[#5b3df5] ring-1 ring-violet-200"
         >
-          {previewing ? '收起預覽' : '預覽公開版本'}
+          {previewing ? t('collectionShare.collapsePreview') : t('collectionShare.previewHeading')}
         </button>
         {visibility === 'private' ? (
           <button
@@ -224,7 +231,7 @@ const CollectionShareSheet: React.FC<Props> = ({
             onClick={() => { onUnpublish(collection); onClose(); }}
             className="min-h-12 flex-1 rounded-xl bg-slate-100 text-[13px] font-black text-slate-500 disabled:opacity-50"
           >
-            {live ? '取消公開' : '目前是私人'}
+            {live ? t('collectionShare.unpublish') : t('collectionShare.alreadyPrivate')}
           </button>
         ) : (
           <button
@@ -233,7 +240,7 @@ const CollectionShareSheet: React.FC<Props> = ({
             onClick={() => { onPublish(draft); onClose(); }}
             className="min-h-12 flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-[13px] font-black text-white"
           >
-            {live ? '更新公開內容' : '發布'}
+            {live ? t('collectionShare.updatePublished') : t('collectionShare.publish')}
           </button>
         )}
       </div>

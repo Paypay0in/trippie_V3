@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OVERLAY } from '../constants/layers';
 import { Check, ChevronRight, MessageCircleQuestion, Pencil, Undo2, X } from 'lucide-react';
 import { Expense, ExpenseDispute, TripMember } from '../types';
@@ -36,10 +37,11 @@ interface Props {
   onOpenExpense?: (expense: Expense) => void;
 }
 
-const STATUS_LABEL: Record<ExpenseDispute['status'], string> = {
-  open: '等待回覆',
-  resolved: '已回覆',
-  withdrawn: '已收回',
+/** The status is the stored value; the label is what gets read. */
+const STATUS_KEY: Record<ExpenseDispute['status'], string> = {
+  open: 'expense.dispute.statusOpen',
+  resolved: 'expense.dispute.statusResolved',
+  withdrawn: 'expense.dispute.statusWithdrawn',
 };
 
 const STATUS_STYLE: Record<ExpenseDispute['status'], string> = {
@@ -68,6 +70,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
   onWithdraw,
   onOpenExpense,
 }) => {
+  const { t } = useTranslation();
   const [message, setMessage] = useState('');
   const [responses, setResponses] = useState<Record<string, string>>({});
 
@@ -80,7 +83,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
   const Icon = getCategoryIcon(expense.category);
   const paymentLabel = PAYMENT_METHODS_CONFIG[expense.paymentMethod]?.label;
   const nameOf = (memberId: string) =>
-    roster.find(member => member.id === memberId)?.name || '旅伴';
+    roster.find(member => member.id === memberId)?.name || t('settle.aCompanion');
 
   const meta = [expense.date.replace(/-/g, '/'), paymentLabel].filter(Boolean);
   const mayEditExpense = canEditExpense(context);
@@ -100,15 +103,15 @@ const ExpenseDisputeModal: React.FC<Props> = ({
         onClick={event => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="支出疑問"
+        aria-label={t('expense.dispute.title')}
       >
         <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4">
-          <button onClick={onClose} aria-label="關閉" className="-ml-2 rounded-full p-2 text-slate-500 hover:bg-slate-100">
+          <button onClick={onClose} aria-label={t('common.close')} className="-ml-2 rounded-full p-2 text-slate-500 hover:bg-slate-100">
             <X size={20} />
           </button>
           <h2 className="flex items-center gap-2 text-xl font-black text-[#11183d]">
             <MessageCircleQuestion size={20} className="text-violet-600" />
-            支出疑問
+            {t('expense.dispute.title')}
           </h2>
         </div>
 
@@ -126,7 +129,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
             </div>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-bold text-[#11183d]">
-                {expense.description || '這筆支出'}
+                {expense.description || t('expense.dispute.thisExpense')}
               </div>
               <div className="mt-0.5 truncate text-xs font-medium text-slate-400">
                 {meta.join(' · ')}
@@ -146,7 +149,9 @@ const ExpenseDisputeModal: React.FC<Props> = ({
               className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-violet-200 py-2.5 text-sm font-black text-violet-600 transition-colors hover:bg-violet-50"
             >
               <Pencil size={15} />
-              {mayEditExpense ? '開啟並修改這筆支出' : '修改數字並提出建議'}
+              {mayEditExpense
+                ? t('expense.dispute.openAndEdit')
+                : t('expense.dispute.editAndPropose')}
             </button>
           )}
 
@@ -182,7 +187,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                         {nameOf(dispute.raisedByMemberId)}
                       </span>
                       <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${STATUS_STYLE[dispute.status]}`}>
-                        {STATUS_LABEL[dispute.status]}
+                        {t(STATUS_KEY[dispute.status])}
                       </span>
                     </div>
 
@@ -193,7 +198,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                     {dispute.response && (
                       <div className="mt-3 rounded-xl bg-[#f5f1ff] p-3 ring-1 ring-violet-100">
                         <div className="text-[10px] font-black text-violet-700">
-                          {nameOf(dispute.respondedByMemberId || '')} 的回覆
+                          {t('expense.dispute.replyBy', { name: nameOf(dispute.respondedByMemberId || '') })}
                         </div>
                         <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-700">
                           {dispute.response}
@@ -214,7 +219,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                         {dispute.status === 'open' &&
                           isDisputeProposalStale(dispute, expense) && (
                           <p className="mt-2 rounded-xl bg-amber-100/70 px-3 py-2 text-[11px] font-bold leading-relaxed text-amber-900">
-                            這筆支出在建議提出後已被修改，無法直接套用。請先與提出者確認。
+                            {t('expense.dispute.proposalStale')}
                           </p>
                           )}
                       </>
@@ -229,7 +234,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                           onClick={() => onApprove(dispute.id, responses[dispute.id] || '')}
                           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-sm font-black text-white transition-colors hover:bg-emerald-700"
                         >
-                          <Check size={15} /> 核准並套用
+                          <Check size={15} /> {t('expense.dispute.approveAndApply')}
                         </button>
                       )}
 
@@ -241,7 +246,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                           onChange={e =>
                             setResponses(prev => ({ ...prev, [dispute.id]: e.target.value }))
                           }
-                          placeholder="回覆說明（選填）"
+                          placeholder={t('expense.dispute.replyPlaceholder')}
                           className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200"
                         />
                         <button
@@ -249,7 +254,9 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                           onClick={() => onResolve(dispute.id, responses[dispute.id] || '')}
                           className="w-full rounded-xl bg-violet-600 py-2.5 text-sm font-black text-white transition-colors hover:bg-violet-700"
                         >
-                          {dispute.proposal ? '不採用，僅回覆' : '標記為已回覆'}
+                          {dispute.proposal
+                            ? t('expense.dispute.replyOnly')
+                            : t('expense.dispute.markReplied')}
                         </button>
                       </div>
                     )}
@@ -262,7 +269,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                         onClick={() => onRevert(dispute.id)}
                         className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-50"
                       >
-                        <Undo2 size={15} /> 撤銷這次修正
+                        <Undo2 size={15} /> {t('expense.dispute.revertCorrection')}
                       </button>
                     )}
 
@@ -272,7 +279,7 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                         onClick={() => onWithdraw(dispute.id)}
                         className="mt-3 w-full rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-50"
                       >
-                        收回這則疑問
+                        {t('expense.dispute.withdraw')}
                       </button>
                     )}
                   </div>
@@ -286,16 +293,16 @@ const ExpenseDisputeModal: React.FC<Props> = ({
             <div className="mt-5">
               <div className="mb-2 flex items-center gap-2">
                 <span className="h-4 w-1 rounded-full bg-violet-500" />
-                <span className="text-sm font-black tracking-tight text-[#11183d]">提出疑問</span>
+                <span className="text-sm font-black tracking-tight text-[#11183d]">{t('expense.dispute.raise')}</span>
               </div>
               <p className="mb-2 text-xs font-medium leading-relaxed text-slate-500">
-                這筆帳由其他旅伴建立，你的修改不會直接生效。可以在這裡提問，或直接改數字送出修正建議，由建立者核准。
+                {t('expense.dispute.raiseBlurb')}
               </p>
               <textarea
                 rows={3}
                 value={message}
                 onChange={e => setMessage(e.target.value)}
-                placeholder="例如：這筆我那天不在，應該不用分攤？"
+                placeholder={t('expense.dispute.raisePlaceholder')}
                 className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200"
               />
 
@@ -308,20 +315,20 @@ const ExpenseDisputeModal: React.FC<Props> = ({
                 }}
                 className="mt-3 w-full rounded-2xl bg-violet-600 py-3.5 text-sm font-black text-white shadow-[0_10px_24px_rgba(124,58,237,.3)] transition-colors hover:bg-violet-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
               >
-                送出疑問
+                {t('expense.dispute.submit')}
               </button>
             </div>
           )}
 
           {!raisePermission.allowed && raisePermission.reason === 'already-open' && (
             <p className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-medium leading-relaxed text-amber-800 ring-1 ring-amber-100">
-              你已經提出過一則疑問，等待建立者回覆中。
+              {t('expense.dispute.alreadyOpen')}
             </p>
           )}
 
           {disputes.length === 0 && !raisePermission.allowed && (
             <p className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-medium leading-relaxed text-slate-500 ring-1 ring-slate-100">
-              目前這筆支出沒有任何疑問。
+              {t('expense.dispute.none')}
             </p>
           )}
         </div>

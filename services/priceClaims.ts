@@ -17,18 +17,26 @@
  * wrong, and now it looks broken as well.
  */
 
-/** A currency named next to a number, in the forms these three languages use. */
+/**
+ * A currency named next to a number, in the forms these three languages use.
+ *
+ * i18n-data: regex anchors matched against model-written prose, not copy. This
+ * module is also imported by `server.ts`, so it must never reach `i18n/config`.
+ */
 const CURRENCY_WORDS = [
+  // i18n-data: regex anchors matched against model prose, never displayed
   '台幣', '新台幣', '日圓', '日元', '美金', '美元', '韓元', '韓圜', '歐元', '人民幣', '港幣',
   'NTD', 'TWD', 'JPY', 'USD', 'KRW', 'EUR', 'CNY', 'HKD',
 ];
 
+// i18n-data: regex anchor — the characters a written amount is matched on.
 const AMOUNT = String.raw`\d[\d,.]*\s*[萬万千]?`;
 const SYMBOL_FIRST = String.raw`(?:NT\$|US\$|HK\$|[$¥￥€₩])\s*${AMOUNT}`;
 const WORD_AFTER = String.raw`${AMOUNT}\s*(?:${CURRENCY_WORDS.join('|')})`;
 const WORD_BEFORE = String.raw`(?:${CURRENCY_WORDS.join('|')})\s*${AMOUNT}`;
 // 「兩天一夜」 is not money and 「2000 元」 is, so a bare number is never enough:
 // a currency has to be named or symbolised beside it.
+// i18n-data: regex anchor — the currency units written after an amount.
 const UNIT_AFTER = String.raw`${AMOUNT}\s*[元円塊]`;
 
 const PRICE_CLAIM = new RegExp(
@@ -46,6 +54,7 @@ export const statesAPrice = (text: string): boolean => PRICE_CLAIM.test(text);
  * sentence and must not be broken apart.
  */
 const sentences = (text: string): string[] =>
+  // i18n-data: regex anchor — the sentence terminators a split happens on.
   text.split(/(?<=[。！？!?\n])/).filter(part => part.length > 0);
 
 /**

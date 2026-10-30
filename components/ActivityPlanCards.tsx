@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ArrowRight, CalendarDays, ChevronLeft, Clock, ExternalLink, Handshake, MapPinned, Sparkles } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import {
@@ -79,30 +81,40 @@ const Tag: React.FC<{ children: React.ReactNode; tone?: 'violet' | 'slate' }> = 
   </span>
 );
 
-const budgetLine = (plan: ActivityPlanProposal): string => {
+const budgetLine = (plan: ActivityPlanProposal, t: TFunction): string => {
   // A remembered price and a looked-up one are indistinguishable once rendered,
   // and the traveller budgets against whichever appears. So: the plan's own
   // budget only when research verified it, then the venue's price band from the
   // map service, and only then an admission that we do not know.
   if (plan.budgetConfidence === 'verified' && plan.budget) {
     const { min, max, currency } = plan.budget;
-    return `${currency} ${min.toLocaleString()}–${max.toLocaleString()} / 人`;
+    return t('activityPlan.budgetPerPerson', {
+      currency,
+      min: min.toLocaleString(),
+      max: max.toLocaleString(),
+    });
   }
   const venue = plan.venuePrice;
   if (venue?.currency && (venue.start || venue.end)) {
     if (venue.start && venue.end) {
       return `${venue.currency} ${venue.start.toLocaleString()}–${venue.end.toLocaleString()}`;
     }
-    return `${venue.currency} ${(venue.start || venue.end)!.toLocaleString()} ${venue.start ? '起' : '以下'}`;
+    const amount = (venue.start || venue.end)!.toLocaleString();
+    return t(venue.start ? 'activityPlan.budgetFrom' : 'activityPlan.budgetUnder', {
+      currency: venue.currency,
+      amount,
+    });
   }
-  return '價格需確認';
+  return t('activityPlan.budgetUnknown');
 };
 
 /** Says what the figure covers, so a venue band is never read as a plan total. */
-const budgetNote = (plan: ActivityPlanProposal): string => {
-  if (plan.budgetConfidence === 'verified' && plan.budget) return '整個方案的估計花費';
+const budgetNote = (plan: ActivityPlanProposal, t: TFunction): string => {
+  if (plan.budgetConfidence === 'verified' && plan.budget) return t('activityPlan.budgetNoteWholePlan');
   if (plan.venuePrice?.currency && (plan.venuePrice.start || plan.venuePrice.end)) {
-    return `${plan.venuePrice.venueName || '主要場館'}的價位，不含交通與其他花費`;
+    return t('activityPlan.budgetNoteVenue', {
+      venue: plan.venuePrice.venueName || t('activityPlan.budgetNoteVenueFallback'),
+    });
   }
   return '';
 };
@@ -124,6 +136,7 @@ const ActivityPlanCards: React.FC<Props> = ({
   isRevising,
   onRestoreOriginal,
 }) => {
+  const { t } = useTranslation();
   const [openPlanId, setOpenPlanId] = useState<string | null>(null);
   const [chosenDate, setChosenDate] = useState('');
   const [revisionNote, setRevisionNote] = useState('');
@@ -152,17 +165,19 @@ const ActivityPlanCards: React.FC<Props> = ({
           }}
           className="mb-3 flex items-center gap-1 text-[11px] font-bold text-slate-500"
         >
-          <ChevronLeft size={14} />回到方案比較
+          <ChevronLeft size={14} />{t('activityPlan.backToComparison')}
         </button>
 
         <div className="text-sm font-black text-[#11183d]">{openPlan.title}</div>
         <p className="mt-1 text-xs leading-5 text-slate-600">{openPlan.whyItFits}</p>
 
         <div className="mt-3 space-y-1.5">
-          <div className="text-[11px] font-black text-[#11183d]">行程安排</div>
+          <div className="text-[11px] font-black text-[#11183d]">{t('activityPlan.schedule')}</div>
           {openPlan.items.map((item, index) => (
             <div key={`${item.title}-${index}`} className="flex gap-2 text-[11px] text-slate-600">
-              <span className="w-20 shrink-0 font-bold text-slate-400">第 {item.dayOffset + 1} 天 {item.time}</span>
+              <span className="w-20 shrink-0 font-bold text-slate-400">
+                {t('activityPlan.dayTime', { day: item.dayOffset + 1, time: item.time })}
+              </span>
               <span className="min-w-0 flex-1">
                 {item.title}
                 {item.placeName && <span className="text-slate-400">・{item.placeName}</span>}
@@ -176,13 +191,13 @@ const ActivityPlanCards: React.FC<Props> = ({
           /* Only now. Licences, insurance and rental rules shown before the
              traveller has chosen what to do are noise they scroll past. */
           <div className="mt-4 rounded-xl bg-slate-50 p-3">
-            <div className="text-[11px] font-black text-[#11183d]">這個方案需要準備</div>
+            <div className="text-[11px] font-black text-[#11183d]">{t('activityPlan.preparationTitle')}</div>
             {tooLateForDepartureTasks && (
               /* Said once, about the plan, before the list — by the time
                  someone reads down to the item itself they have already
                  started picturing the day. */
               <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-800">
-                這個方案有需要出發前在國內辦好的手續，旅程已經開始了，可能來不及。
+                {t('activityPlan.tooLateForDeparture')}
               </p>
             )}
             <div className="mt-2 space-y-2">
@@ -191,7 +206,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                   <span className="min-w-0 flex-1 text-[11px] text-slate-700">
                     □ {task.name}
                     {task.beforeDeparture && (
-                      <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[9px] font-black text-slate-600">出發前</span>
+                      <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[9px] font-black text-slate-600">{t('activityPlan.beforeDeparture')}</span>
                     )}
                     {/*
                       「有些觀光列車是提前一個月要預約的」.
@@ -203,7 +218,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                     */}
                     {typeof task.leadTimeDays === 'number' && (
                       <span className="ml-1 rounded bg-[#f0edff] px-1 py-0.5 text-[9px] font-black text-[#5b3df5]">
-                        需提前 {task.leadTimeDays} 天
+                        {t('activityPlan.leadTimeDays', { count: task.leadTimeDays })}
                       </span>
                     )}
                   </span>
@@ -213,7 +228,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                       onClick={() => onRequestHelp(task.name)}
                       className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg bg-blue-50 px-2 text-[10px] font-black text-blue-700"
                     >
-                      <Handshake size={11} />加入協助任務
+                      <Handshake size={11} />{t('activityPlan.addToHelpTasks')}
                     </button>
                   )}
                 </div>
@@ -225,7 +240,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                 onClick={() => onAddPreparation(openPlan.preparation.map(task => task.name))}
                 className="mt-2 text-[11px] font-black text-violet-700"
               >
-                全部加入待辦清單
+                {t('activityPlan.addAllToTodo')}
               </button>
             )}
           </div>
@@ -236,12 +251,12 @@ const ActivityPlanCards: React.FC<Props> = ({
              to a plan that is nearly right are to take it whole or throw it
              away and ask again, losing the parts that were fine. */
           <div className="mt-4 rounded-xl border border-violet-100 bg-violet-50/50 p-3">
-            <div className="text-[11px] font-black text-[#11183d]">想改哪裡？</div>
+            <div className="text-[11px] font-black text-[#11183d]">{t('activityPlan.reviseTitle')}</div>
             <textarea
               value={revisionNote}
               onChange={event => setRevisionNote(event.target.value)}
               rows={2}
-              placeholder="例如：想在城之島多留一點時間、不想開車、第一天早一點出發"
+              placeholder={t('activityPlan.revisePlaceholder')}
               className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] leading-5 text-slate-700 outline-none focus:border-violet-300"
             />
             <div className="mt-2 flex items-center gap-2">
@@ -260,7 +275,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                 }}
                 className="inline-flex min-h-9 items-center gap-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-[11px] font-black text-white disabled:opacity-40"
               >
-                <Sparkles size={12} />{isRevising ? '修改中…' : '請 AI 改一版'}
+                <Sparkles size={12} />{isRevising ? t('activityPlan.revising') : t('activityPlan.reviseCta')}
               </button>
               {originalPlan && onRestoreOriginal && (
                 <button
@@ -271,7 +286,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                   }}
                   className="min-h-9 text-[11px] font-bold text-slate-500 underline underline-offset-2"
                 >
-                  回到原本那版
+                  {t('activityPlan.restoreOriginal')}
                 </button>
               )}
             </div>
@@ -280,10 +295,10 @@ const ActivityPlanCards: React.FC<Props> = ({
 
         <div className="mt-4">
           <div className="mb-1.5 flex items-baseline justify-between gap-2">
-            <label className="text-[11px] font-black text-[#11183d]">安排在哪一天</label>
+            <label className="text-[11px] font-black text-[#11183d]">{t('activityPlan.whichDay')}</label>
             {days.length > 0 && (
               <span className="text-[10px] font-bold text-slate-400">
-                這趟旅程 {days[0].date} ~ {days[days.length - 1].date}
+                {t('activityPlan.tripRange', { start: days[0].date, end: days[days.length - 1].date })}
               </span>
             )}
           </div>
@@ -297,8 +312,12 @@ const ActivityPlanCards: React.FC<Props> = ({
             {days.length > 0
               ? days.map((day, index) => (
                   <option key={day.date} value={day.date}>
-                    第 {index + 1} 天・{day.date}
-                    {day.hasPinned ? '（有固定行程）' : day.isFree ? '（空著）' : `（已有 ${day.itemCount} 項）`}
+                    {t('activityPlan.dayOption', { day: index + 1, date: day.date })}
+                    {day.hasPinned
+                      ? t('activityPlan.dayHasPinned')
+                      : day.isFree
+                        ? t('activityPlan.dayFree')
+                        : t('activityPlan.dayHasItems', { count: day.itemCount })}
                   </option>
                 ))
               : /* The trip has no dates yet, so there are no trip days to
@@ -311,11 +330,11 @@ const ActivityPlanCards: React.FC<Props> = ({
                 ))}
           </select>
           {days.length === 0 && (
-            <p className="mt-1 text-[10px] text-slate-400">這趟旅程還沒設定日期，先選一天，設定日期後可以再調整。</p>
+            <p className="mt-1 text-[10px] text-slate-400">{t('activityPlan.noTripDatesYet')}</p>
           )}
           {days.length > 0 && openPlan.durationDays > 1 && (
             <p className="mt-1 text-[10px] text-slate-400">
-              這個方案需要 {openPlan.durationDays} 天，會從選定的日期往後排。
+              {t('activityPlan.spansDays', { count: openPlan.durationDays })}
             </p>
           )}
         </div>
@@ -326,7 +345,10 @@ const ActivityPlanCards: React.FC<Props> = ({
           <div className="mt-2 flex gap-2 rounded-xl bg-amber-50 p-3">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
             <p className="text-[11px] leading-4 text-amber-800">
-              {conflicts.join('、')} 已有你固定住的行程。這個方案會佔掉 {openPlan.durationDays} 天，加入後兩者會在同一天，需要你自己決定取捨。
+              {t('activityPlan.pinnedConflict', {
+                dates: conflicts.join(t('common.listSeparator')),
+                count: openPlan.durationDays,
+              })}
             </p>
           </div>
         )}
@@ -343,7 +365,7 @@ const ActivityPlanCards: React.FC<Props> = ({
           }
           className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 text-sm font-black text-white disabled:opacity-40"
         >
-          加入行程<ArrowRight size={16} />
+          {t('activityPlan.addToItinerary')}<ArrowRight size={16} />
         </button>
       </div>
     );
@@ -365,7 +387,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                   {CHARACTERISTIC_LABELS[characteristic as PlanCharacteristic] || characteristic}
                 </Tag>
               ))}
-              <Tag>{plan.durationDays} 天</Tag>
+              <Tag>{t('activityPlan.durationDays', { count: plan.durationDays })}</Tag>
               {plan.logistics.burden && <Tag>{BURDEN_LABELS[plan.logistics.burden]}</Tag>}
             </div>
 
@@ -375,20 +397,20 @@ const ActivityPlanCards: React.FC<Props> = ({
               <div className="flex items-center gap-1.5 text-slate-500">
                 <Clock size={12} className="shrink-0 text-slate-400" />
                 {/* Measured by the routing service, or absent. Never estimated. */}
-                <span className="min-w-0 truncate">{travelTimeLabel(plan.logistics.travelMinutesEachWay) || '交通時間需確認'}</span>
+                <span className="min-w-0 truncate">{travelTimeLabel(plan.logistics.travelMinutesEachWay) || t('activityPlan.travelTimeUnknown')}</span>
               </div>
               <div className="flex items-center gap-1.5 text-slate-500">
                 <CalendarDays size={12} className="shrink-0 text-slate-400" />
-                <span className="min-w-0 truncate">{budgetLine(plan)}</span>
+                <span className="min-w-0 truncate">{budgetLine(plan, t)}</span>
               </div>
             </div>
 
-            {budgetNote(plan) && (
-              <div className="mt-1 text-[10px] text-slate-400">{budgetNote(plan)}</div>
+            {budgetNote(plan, t) && (
+              <div className="mt-1 text-[10px] text-slate-400">{budgetNote(plan, t)}</div>
             )}
 
             {plan.tradeoff && (
-              <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] leading-4 text-slate-600">取捨：{plan.tradeoff}</p>
+              <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] leading-4 text-slate-600">{t('activityPlan.tradeoff', { text: plan.tradeoff })}</p>
             )}
 
             {/*
@@ -400,8 +422,8 @@ const ActivityPlanCards: React.FC<Props> = ({
             {unrealistic && (
               <p data-testid="plan-travel-warning" className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] leading-4 text-amber-800">
                 {plan.durationDays > 1
-                  ? '單程交通時間長到不像在這趟旅程的範圍內，請確認這個旅程的目的地設定是否正確。'
-                  : '來回交通就超過六小時，當天往返會很趕。'}
+                  ? t('activityPlan.travelWarningMultiDay')
+                  : t('activityPlan.travelWarningDayTrip')}
               </p>
             )}
 
@@ -418,7 +440,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                 }}
                 className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-violet-600 text-xs font-black text-white"
               >
-                看這個方案<ArrowRight size={14} />
+                {t('activityPlan.viewPlan')}<ArrowRight size={14} />
               </button>
               {onDismiss && (
                 <button
@@ -426,7 +448,7 @@ const ActivityPlanCards: React.FC<Props> = ({
                   onClick={() => onDismiss(plan)}
                   className="min-h-11 shrink-0 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-500"
                 >
-                  不考慮
+                  {t('activityPlan.dismiss')}
                 </button>
               )}
             </div>
@@ -442,14 +464,14 @@ const ActivityPlanCards: React.FC<Props> = ({
       {!grounded && (
         <p data-testid="plan-ungrounded" className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold leading-4 text-amber-700">
           {ungroundedReason === 'quota'
-            ? '今天的搜尋額度已經用完，以下方案來自模型既有的認識，可能已經過時。是否開放、價格與是否需預約請自行再確認。'
-            : '這次沒有連上搜尋，以下方案來自模型既有的認識，可能已經過時。是否開放、價格與是否需預約請自行再確認。'}
+            ? t('activityPlan.ungroundedQuota')
+            : t('activityPlan.ungroundedError')}
         </p>
       )}
 
       {sources.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[11px] font-bold text-slate-400">查到的資料來源</div>
+          <div className="text-[11px] font-bold text-slate-400">{t('activityPlan.sources')}</div>
           {sources.map(source => (
             <a
               key={source.url}

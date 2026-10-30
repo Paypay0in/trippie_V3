@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { RefreshCw } from 'lucide-react';
 import { BUILD_ID } from '../services/buildStamp';
 import {
@@ -22,6 +23,7 @@ import {
  * is how a battery disappears.
  */
 const StaleBuildBanner: React.FC = () => {
+  const { t } = useTranslation();
   const [stale, setStale] = useState(false);
 
   const check = useCallback(async (trigger: 'load' | 'foreground') => {
@@ -106,7 +108,7 @@ const StaleBuildBanner: React.FC = () => {
       style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
     >
       <RefreshCw size={14} />
-      有新版本可以更新，點一下重新載入
+      {t('app.staleBuild.updateAvailable')}
     </button>
   );
 };

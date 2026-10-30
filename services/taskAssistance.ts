@@ -38,9 +38,11 @@ const SELF_ONLY_ACTIONS = new Set([
 ]);
 
 /** Verbs that describe reading something off a page. */
+// i18n-data: matched against the model-written task name by `includesAny`.
 const LOOKUP_VERBS = ['查詢', '確認', '查看', '了解', '比較', '搜尋'];
 
 /** Verbs that describe dealing with a person or a business. */
+// i18n-data: matched against the model-written task name by `includesAny`.
 const HUMAN_VERBS = ['預約', '訂位', '聯絡', '致電', '打電話', '洽詢', '安排', '代訂', '協助', '翻譯', '陪同'];
 
 const includesAny = (text: string, needles: string[]): boolean =>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, ChevronRight, Globe, Link2, Lock, Plus, Share2 } from 'lucide-react';
 import { PlaceCategory, SavedCollection, SavedTravelInspiration } from '../types';
 /*
@@ -6,7 +7,7 @@ import { PlaceCategory, SavedCollection, SavedTravelInspiration } from '../types
   this file had 「咖啡廳」 where `placeCategory` says 「咖啡」, which is two
   answers to 「what is this place」 waiting to disagree on screen.
 */
-import { CATEGORY_LABELS } from '../services/placeCategory';
+import { categoryLabel } from '../services/placeCategory';
 import { isPublished } from '../services/collectionLifecycle';
 import CollectionShareSheet from './CollectionShareSheet';
 
@@ -45,14 +46,20 @@ interface Props {
   onChangeMembership?: (collectionId: string, placeIds: string[]) => void;
 }
 
+/*
+  Keys, not strings. This runs at module scope on the row that calls it, and
+  the three labels are the same three the share sheet offers — so they read
+  from `collectionShare.visibility.*` rather than growing a second home for
+  the same words.
+*/
 const badgeFor = (collection: SavedCollection) => {
   if (!isPublished(collection)) {
-    return { icon: <Lock size={11} />, label: '私人', tone: 'bg-slate-100 text-slate-500' };
+    return { icon: <Lock size={11} />, labelKey: 'collectionShare.visibility.privateLabel', tone: 'bg-slate-100 text-slate-500' };
   }
   if (collection.visibility === 'link') {
-    return { icon: <Link2 size={11} />, label: '僅連結', tone: 'bg-amber-50 text-amber-600' };
+    return { icon: <Link2 size={11} />, labelKey: 'collectionShare.visibility.linkLabel', tone: 'bg-amber-50 text-amber-600' };
   }
-  return { icon: <Globe size={11} />, label: '公開', tone: 'bg-violet-50 text-[#5b3df5]' };
+  return { icon: <Globe size={11} />, labelKey: 'collectionShare.visibility.publicLabel', tone: 'bg-violet-50 text-[#5b3df5]' };
 };
 
 const SavedCollectionsPanel: React.FC<Props> = ({
@@ -66,6 +73,7 @@ const SavedCollectionsPanel: React.FC<Props> = ({
   onOpenPlace,
   onChangeMembership,
 }) => {
+  const { t } = useTranslation();
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [sharingId, setSharingId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
@@ -131,7 +139,7 @@ const SavedCollectionsPanel: React.FC<Props> = ({
           onClick={() => setOpenId(null)}
           className="text-[12px] font-bold text-slate-400"
         >
-          ← 所有收藏集
+          {t('collections.backToAll')}
         </button>
 
         <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
@@ -140,14 +148,14 @@ const SavedCollectionsPanel: React.FC<Props> = ({
               <h2 className="text-lg font-black text-[#11183d]">{open.title}</h2>
               <p className="mt-0.5 text-[12px] text-slate-400">
                 {[open.city, open.country].filter(Boolean).join('・')}
-                {held.length > 0 && `・${held.length} 個地點`}
+                {held.length > 0 && t('collections.placeCountWithDot', { n: held.length })}
               </p>
               {open.description && (
                 <p className="mt-2 text-[12px] leading-5 text-slate-500">{open.description}</p>
               )}
             </div>
             <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black ${badgeFor(open).tone}`}>
-              {badgeFor(open).icon}{badgeFor(open).label}
+              {badgeFor(open).icon}{t(badgeFor(open).labelKey)}
             </span>
           </div>
 
@@ -165,7 +173,7 @@ const SavedCollectionsPanel: React.FC<Props> = ({
               onClick={() => { setPicking(picking === open.id ? null : open.id); setQuery(''); }}
               className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-xl bg-white text-[13px] font-black text-[#5b3df5] ring-1 ring-violet-200"
             >
-              <Plus size={14} />{picking === open.id ? '收起' : '加入地點'}
+              <Plus size={14} />{picking === open.id ? t('collections.collapse') : t('collections.addPlaces')}
             </button>
           )}
 
@@ -174,8 +182,8 @@ const SavedCollectionsPanel: React.FC<Props> = ({
               <input
                 value={query}
                 onChange={event => setQuery(event.target.value)}
-                placeholder="搜尋你收藏的地點"
-                aria-label="搜尋你收藏的地點"
+                placeholder={t('collections.searchSaved')}
+                aria-label={t('collections.searchSaved')}
                 className="w-full rounded-lg bg-white px-2.5 py-2 text-[12px] outline-none"
               />
               <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
@@ -212,7 +220,7 @@ const SavedCollectionsPanel: React.FC<Props> = ({
                 })}
                 {pickable.length === 0 && (
                   <p className="px-2 py-3 text-center text-[11px] text-slate-400">
-                    {query.trim() ? '找不到符合的收藏地點。' : '你還沒有收藏任何地點。'}
+                    {query.trim() ? t('collections.noMatches') : t('collections.noSavedPlaces')}
                   </p>
                 )}
               </div>
@@ -225,14 +233,18 @@ const SavedCollectionsPanel: React.FC<Props> = ({
             onClick={() => setSharingId(open.id)}
             className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-[13px] font-black text-white"
           >
-            <Share2 size={14} />分享設定
+            <Share2 size={14} />{t('collections.shareSettings')}
           </button>
 
           {Object.keys(facets).length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {Object.entries(facets).map(([key, count]) => (
                 <span key={key} className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">
-                  {CATEGORY_LABELS[key as PlaceCategory] ?? '其他'} {count}
+                  {/*
+                    The fallback used to live here, as a second spelling of a
+                    word the table already had. `categoryLabel` owns both now.
+                  */}
+                  {categoryLabel(key as PlaceCategory)} {count}
                 </span>
               ))}
             </div>
@@ -261,7 +273,7 @@ const SavedCollectionsPanel: React.FC<Props> = ({
           ))}
           {held.length === 0 && (
             <p className="rounded-2xl bg-white p-4 text-center text-[12px] text-slate-400 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-              這個收藏集還沒有地點。
+              {t('collections.emptyCollection')}
             </p>
           )}
         </div>
@@ -272,14 +284,14 @@ const SavedCollectionsPanel: React.FC<Props> = ({
   return (
     <div className="space-y-3" data-testid="collection-list">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-black text-[#11183d]">我的收藏集</h2>
+        <h2 className="text-lg font-black text-[#11183d]">{t('collections.myCollections')}</h2>
         <button
           type="button"
           data-testid="collection-add"
           onClick={() => setAdding(current => !current)}
           className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-3 py-1.5 text-[12px] font-black text-[#5b3df5]"
         >
-          <Plus size={13} />新增
+          <Plus size={13} />{t('collections.add')}
         </button>
       </div>
 
@@ -300,17 +312,17 @@ const SavedCollectionsPanel: React.FC<Props> = ({
             autoFocus
             value={title}
             onChange={event => setTitle(event.target.value)}
-            placeholder="例如：東京咖啡地圖"
-            aria-label="收藏集名稱"
+            placeholder={t('collections.namePlaceholder')}
+            aria-label={t('collections.nameAria')}
             className="w-full rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] outline-none"
           />
           {/* Private until published, and said so before anything is created. */}
-          <p className="mt-1.5 text-[11px] text-slate-400">建立後只有你看得到，要分享再去設定。</p>
+          <p className="mt-1.5 text-[11px] text-slate-400">{t('collections.privateUntilShared')}</p>
           <button
             type="submit"
             className="mt-2 min-h-11 w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-[13px] font-black text-white"
           >
-            建立
+            {t('collections.create')}
           </button>
         </form>
       )}
@@ -329,11 +341,13 @@ const SavedCollectionsPanel: React.FC<Props> = ({
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-black text-[#11183d]">{collection.title}</span>
               <span className="block truncate text-[11px] text-slate-400">
-                {count} 個地點{collection.city ? `・${collection.city}` : ''}
+                {collection.city
+                  ? t('collections.rowSubtitleWithCity', { n: count, city: collection.city })
+                  : t('collections.rowSubtitle', { n: count })}
               </span>
             </span>
             <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black ${badge.tone}`}>
-              {badge.icon}{badge.label}
+              {badge.icon}{t(badge.labelKey)}
             </span>
           </button>
         );
@@ -341,7 +355,7 @@ const SavedCollectionsPanel: React.FC<Props> = ({
 
       {collections.length === 0 && !adding && (
         <p className="rounded-2xl bg-white p-6 text-center text-[12px] text-slate-400 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
-          還沒有收藏集。把想一起分享的地點收成一份清單吧。
+          {t('collections.noCollections')}
         </p>
       )}
     </div>

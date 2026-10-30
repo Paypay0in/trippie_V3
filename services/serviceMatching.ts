@@ -30,14 +30,18 @@ export interface ServiceMatch {
 
 /** Words that appear in nearly every request and every listing alike. */
 const STOPWORDS = new Set([
+  // i18n-data: matching keys weighed against request and listing text.
   '預約', '查詢', '確認', '準備', '購買', '申請', '安排', '服務', '協助', '幫忙',
+  // i18n-data: matching keys weighed against request and listing text.
   '旅行', '旅遊', '行程', '可以', '需要', '推薦', '一下', '怎麼', '哪裡',
   'the', 'and', 'for', 'with', 'you', 'your',
 ]);
 
 const tokens = (text: string): string[] => {
+  // i18n-data: punctuation stripped out of the text being matched.
   const cleaned = (text || '').replace(/[\s,，。、()（）「」【】:：!！?？]/g, '');
   const found: string[] = [];
+    // i18n-data: Han character range, a regex anchor rather than words.
   for (const match of cleaned.matchAll(/[一-鿿]{2,}|[A-Za-z]{3,}/g)) {
     found.push(match[0].toLowerCase());
   }
@@ -49,6 +53,7 @@ const expand = (words: string[]): Set<string> => {
   const all = new Set<string>();
   words.forEach(word => {
     all.add(word);
+      // i18n-data: Han character range, a regex anchor rather than words.
     if (/^[一-鿿]+$/.test(word)) {
       for (let i = 0; i + 2 <= word.length; i += 1) all.add(word.slice(i, i + 2));
     }

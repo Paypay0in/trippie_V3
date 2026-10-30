@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { TripPlanBrief } from './tripPlanBrief';
 
 /**
@@ -36,20 +37,22 @@ export interface DrivingRequirement {
  * and the keys are specific enough that a false hit would have to be
  * deliberate.
  */
-const BY_COUNTRY: Array<{ names: string[]; item: string }> = [
+const BY_COUNTRY: Array<{ names: string[]; itemKey: string }> = [
   {
-    names: ['日本', 'japan'],
+    names: ['日本', 'japan'], // i18n-data: the stored destination is matched against these, not shown
     // Taiwan and Japan recognise each other's licences through a translation
     // rather than an International Driving Permit. The translation is issued
     // in Taiwan — by the monitoring office or the Taiwan-Japan Relations
     // Association — so it cannot be sorted out after landing.
-    item: '辦理台灣駕照的日文譯本（在監理站或日本台灣交流協會辦理，出國前完成）',
+    itemKey: 'plan.driving.japanTranslation',
   },
 ];
 
 /** The wording for a country nobody has checked, which is most of them. */
 const GENERIC = (destination: string) =>
-  `確認在${destination || '目的地'}開車需要的駕照文件，出國前辦妥`;
+  i18n.t('plan.driving.generic', {
+    destination: destination || i18n.t('plan.driving.destinationFallback'),
+  });
 
 /**
  * The reminder this trip needs, or nothing.
@@ -69,6 +72,6 @@ export const drivingPreparationFor = (
     entry.names.some(name => haystack.includes(name.toLowerCase())));
 
   return known
-    ? { item: known.item, specific: true }
+    ? { item: i18n.t(known.itemKey), specific: true }
     : { item: GENERIC(destination), specific: false };
 };

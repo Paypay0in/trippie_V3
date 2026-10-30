@@ -3,10 +3,19 @@ import { Expense } from '../types';
 /** How the Founder is browsing eligible expenses. Selection itself is shared. */
 export type ExpenseSelectionMode = 'date' | 'category' | 'manual';
 
-export const EXPENSE_SELECTION_MODES: Array<{ mode: ExpenseSelectionMode; label: string }> = [
-  { mode: 'date', label: '依日期' },
-  { mode: 'category', label: '依分類' },
-  { mode: 'manual', label: '手動選擇' },
+/**
+ * The three tabs, in order, each with the key its name is looked up by.
+ *
+ * The key travels and the sentence is fetched where it is drawn. A `t()` in
+ * this module would run once at import and freeze the tabs to whichever
+ * language loaded first — the trap `NotificationCenter` documents on its own
+ * shelf names — and `SettlementFlow` is already a `t()` caller, so resolving
+ * it there costs nothing and is right in both directions.
+ */
+export const EXPENSE_SELECTION_MODES: Array<{ mode: ExpenseSelectionMode; labelKey: string }> = [
+  { mode: 'date', labelKey: 'settle.selectionMode.date' },
+  { mode: 'category', labelKey: 'settle.selectionMode.category' },
+  { mode: 'manual', labelKey: 'settle.selectionMode.manual' },
 ];
 
 /** Categories actually present in the eligible expenses, in first-seen order. */

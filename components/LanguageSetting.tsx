@@ -25,8 +25,10 @@ import {
  */
 
 /** What each option says, in its own language. Never translated. */
+// i18n-data: endonyms. Each option names itself so a traveller stranded in the
+// wrong language can still read the row that gets them out.
 const LANGUAGE_ENDONYMS: Record<SupportedLanguage, string> = {
-  'zh-Hant': '繁體中文',
+  'zh-Hant': '繁體中文', // i18n-data: endonym — a language names itself so a stranded traveller can read it
   en: 'English',
 };
 

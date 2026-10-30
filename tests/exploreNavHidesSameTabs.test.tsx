@@ -20,9 +20,15 @@ import { cleanup, render, screen } from '@testing-library/react';
 import ExploreBottomNav from '../components/ExploreBottomNav';
 import AppBottomNav from '../components/AppBottomNav';
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
+/*
+  No react-i18next mock here, deliberately.
+
+  A stub returning the key means `queryByText('社群')` finds nothing whatever the
+  bar renders, so the three assertions guarding the hidden tabs pass even if a
+  tab comes back — the exact regression they exist to catch. `tests/setup/
+  language.ts` pins every test to Traditional Chinese, so the real `t` answers
+  with the words a traveller sees and these stay assertions about the bar.
+*/
 
 afterEach(cleanup);
 

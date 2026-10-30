@@ -1,7 +1,9 @@
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Category, Expense } from '../types';
 import { PRE_TRIP_SUGGESTIONS } from '../constants';
+import { categoryLabel } from '../services/categoryDisplay';
 import { CheckCircle2 } from 'lucide-react';
 
 interface Props {
@@ -10,7 +12,15 @@ interface Props {
 }
 
 const PreTripChecklist: React.FC<Props> = ({ onQuickAddCategory, expenses }) => {
-  
+  const { t, i18n } = useTranslation();
+  /*
+    The suggestion's label is a lookup on the stored value, not a translation
+    key: `Category.FLIGHT` IS the 機票 written to localStorage and Supabase.
+    `categoryDisplay` stays the one home for it, so this only tells it which
+    language to answer in.
+  */
+  const displayLocale = i18n.language?.startsWith('en') ? 'en' : 'zh-Hant';
+
   const isCategoryCompleted = (category: Category) => {
     return expenses.some(e => e.phase === 'pre' && e.category === category);
   };
@@ -18,7 +28,7 @@ const PreTripChecklist: React.FC<Props> = ({ onQuickAddCategory, expenses }) => 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
         <h3 className="font-bold text-gray-700 text-sm flex items-center gap-2 mb-3">
-            ✨ 行前準備項目
+            ✨ {t('plan.preTrip.title')}
         </h3>
         <div className="grid grid-cols-3 gap-2">
             {PRE_TRIP_SUGGESTIONS.map((item) => {
@@ -41,7 +51,7 @@ const PreTripChecklist: React.FC<Props> = ({ onQuickAddCategory, expenses }) => 
                     </div>
                 )}
                 <Icon size={18} className={`mb-1 ${isDone ? 'text-emerald-600' : ''}`} />
-                <span className={isDone ? 'font-bold' : ''}>{item.label}</span>
+                <span className={isDone ? 'font-bold' : ''}>{categoryLabel(item.category, displayLocale)}</span>
                 </button>
             );
             })}

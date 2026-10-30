@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { AlertTriangle, Check, Route, Loader2, Sparkles } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { fetchRouteLeg } from '../services/routesService';
-import { CheckedLeg, checkDayTransport, DayTransportVerdict } from '../services/dayTransportCheck';
+import { useTranslation } from 'react-i18next';
+import { CheckedLeg, checkDayTransport, DayTransportVerdict, minutesLabel } from '../services/dayTransportCheck';
 import { durationOf } from '../services/itineraryTimeline';
 import { TripAreas } from '../services/tripAreas';
 
@@ -47,10 +48,8 @@ const timeToMinutes = (time?: string): number | undefined => {
   return hours * 60 + minutes;
 };
 
-const minutesLabel = (minutes: number): string =>
-  (minutes >= 60 ? `${Math.floor(minutes / 60)} 小時 ${minutes % 60} 分`.replace(' 0 分', '') : `${minutes} 分`);
-
 const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCountry, onOptimise }) => {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [verdict, setVerdict] = useState<DayTransportVerdict | null>(null);
   const [error, setError] = useState('');
@@ -101,7 +100,7 @@ const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCou
       }
       setVerdict(checkDayTransport(legs));
     } catch {
-      setError('路線服務暫時無法使用，稍後再試一次。');
+      setError(t('transport.dayCheck.routeServiceUnavailable'));
     } finally {
       setBusy(false);
     }
@@ -125,7 +124,7 @@ const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCou
         className="flex w-full items-center justify-center gap-1.5 rounded-[18px] border border-[#ded7fb] bg-gradient-to-r from-[#f4f1ff] to-[#f8f4ff] px-3 py-2.5 text-xs font-black text-[#5b3df5] disabled:opacity-60"
       >
         {busy ? <Loader2 size={14} className="animate-spin" /> : <Route size={14} />}
-        {busy ? '檢查今天的交通…' : '一鍵檢查今天的交通'}
+        {busy ? t('transport.dayCheck.running') : t('transport.dayCheck.runCta')}
       </button>
 
       {error && <p data-testid="transport-check-error" className="mt-2 text-[11px] font-bold text-rose-600">{error}</p>}
@@ -135,7 +134,7 @@ const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCou
           {verdict.smooth ? (
             <p className="flex items-start gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-2 text-[11px] font-bold leading-5 text-emerald-700">
               <Check size={12} className="mt-0.5 shrink-0" />
-              今天的交通接得上，總移動約 {minutesLabel(verdict.travelMinutes)}。
+              {t('transport.dayCheck.smooth', { total: minutesLabel(verdict.travelMinutes) })}
             </p>
           ) : (
             verdict.findings.map((finding, index) => (
@@ -161,7 +160,7 @@ const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCou
                       onClick={onOptimise}
                       className="ml-1.5 inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-100 px-2 text-[10px] font-black text-amber-800"
                     >
-                      <Sparkles size={10} />優化動線
+                      <Sparkles size={10} />{t('itinerary.optimiseRoute')}
                     </button>
                   )}
                 </span>
@@ -172,9 +171,10 @@ const DayTransportCheck: React.FC<Props> = ({ date, items, areas, destinationCou
             Korea publishes no Google driving or walking routes, so a day with
             unanswered legs there has a known reason rather than a fault.
           */}
+          {/* i18n-data: regex anchor matched against the trip's stored destinationCountry value, not shown to anyone */}
           {verdict.unknownLegs > 0 && /韓國|南韓|korea/i.test(destinationCountry || '') && (
             <p className="px-1 text-[10px] font-medium leading-4 text-slate-400">
-              韓國的路線資料由當地業者提供，部分路段 Google 查不到，可改用 Naver 或 Kakao 地圖確認。
+              {t('transport.dayCheck.koreaRoutesNotice')}
             </p>
           )}
         </div>

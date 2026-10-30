@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ParsedStay, defaultCheckInTime, formatStayDates, normalizeParsedStay, stayForNight, stayMapUrl, stayNights, staysFromItinerary, stayToItineraryItems, stayWithTripDates } from './stayIntake';
+import { ParsedStay, defaultCheckInTime, normalizeParsedStay, stayForNight, stayMapUrl, stayNights, staysFromItinerary, stayToItineraryItems, stayWithTripDates } from './stayIntake';
+import { formatStayDates } from './stayDateWording';
 
 let counter = 0;
 const makeId = () => `stay-${++counter}`;

@@ -13,6 +13,8 @@
  * have travelled with」 would be a second answer to the same question.
  */
 
+import i18n from '../i18n/config';
+
 export interface TripLike {
   id: string;
   name?: string;
@@ -83,7 +85,7 @@ export const tripsWithFriend = (trips: TripLike[], friendUserId: string): Shared
     })
     .map(trip => ({
       id: trip.id,
-      label: trip.name?.trim() || trip.destination?.trim() || '未命名的旅程',
+      label: trip.name?.trim() || trip.destination?.trim() || i18n.t('friends.trips.untitled'),
       ...(trip.startDate ? { startDate: trip.startDate } : {}),
       ...(trip.endDate ? { endDate: trip.endDate } : {}),
     }))

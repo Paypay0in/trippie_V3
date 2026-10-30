@@ -30,6 +30,7 @@ export const ownerMemberIdForTrip = (tripId?: string): string | undefined =>
 export const migrateLegacyExpense = (raw: any, ownerMemberId?: string): Expense => {
   const updated: any = { ...raw };
 
+  // i18n-data: the legacy stored PaymentMethod value, compared with ===.
   if (updated.paymentMethod === '現金') {
     updated.paymentMethod =
       updated.currency === 'TWD' ? PaymentMethod.CASH_TWD : PaymentMethod.CASH_FOREIGN;

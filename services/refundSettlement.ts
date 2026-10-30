@@ -1,6 +1,7 @@
 import { Expense } from '../types';
 
 /** What a refund entry is called in the ledger. */
+// i18n-data: stored as Expense.description and compared with === by findDuplicateRefund/isRefundEntry
 export const REFUND_DESCRIPTION = '退稅入帳 (Tax Refund)';
 
 /**

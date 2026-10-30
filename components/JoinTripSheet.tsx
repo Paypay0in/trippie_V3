@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Loader2, LogIn, Users } from 'lucide-react';
 import { InvitePreview, claimInvite, inviteTokenFromUrl, previewInvite } from '../services/tripInvites';
 import { claimFailureMessage } from '../services/inviteFailure';
@@ -85,6 +86,7 @@ export const stripInviteFromUrl = () => {
 };
 
 const JoinTripSheet: React.FC = () => {
+  const { t } = useTranslation();
   const [authUserId, setAuthUserId] = useState<string | undefined>(undefined);
   const [token, setToken] = useState<string | null>(null);
   const [preview, setPreview] = useState<InvitePreview | null>(null);
@@ -130,7 +132,7 @@ const JoinTripSheet: React.FC = () => {
       if (result.status === 'ok' && result.data) { setPreview(result.data); return; }
       if (result.status === 'ok') {
         setState('error');
-        setError('這個邀請連結已經失效了，請對方重新產生一次。');
+        setError(t('joinTrip.linkExpired'));
         return;
       }
       /*
@@ -141,8 +143,8 @@ const JoinTripSheet: React.FC = () => {
       */
       setState('error');
       setError(result.status === 'unavailable'
-        ? '雲端尚未設定，無法確認這個邀請。'
-        : `確認邀請失敗：${result.message}`);
+        ? t('joinTrip.cloudNotSetUpPreview')
+        : t('joinTrip.previewFailed', { message: result.message }));
     });
   }, []);
 
@@ -191,7 +193,7 @@ const JoinTripSheet: React.FC = () => {
         return;
       }
       setState('error');
-      setError(result.status === 'unavailable' ? '雲端尚未設定，無法加入。' : claimFailureMessage(result.message));
+      setError(result.status === 'unavailable' ? t('joinTrip.cloudNotSetUpJoin') : claimFailureMessage(result.message));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, authUserId, state]);
@@ -212,17 +214,17 @@ const JoinTripSheet: React.FC = () => {
 
         {state === 'error' ? (
           <>
-            <h2 className="mt-2 text-lg font-black text-[#11183d]">這個邀請沒辦法使用</h2>
+            <h2 className="mt-2 text-lg font-black text-[#11183d]">{t('joinTrip.unusableTitle')}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{error}</p>
           </>
         ) : (
           <>
             <h2 className="mt-2 text-lg font-black text-[#11183d]">
-              {preview ? `一起去「${preview.tripName}」` : '正在確認邀請…'}
+              {preview ? t('joinTrip.heading', { name: preview.tripName }) : t('joinTrip.checking')}
             </h2>
             {preview && (
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                你會以「{preview.memberName}」的身分加入，行程與帳目都看得到，也可以一起編輯。
+                {t('joinTrip.asMember', { name: preview.memberName })}
               </p>
             )}
             {!authUserId && (
@@ -231,7 +233,7 @@ const JoinTripSheet: React.FC = () => {
                  lands them in the trip rather than in an empty app. */
               <>
                 <p className="mt-3 rounded-2xl bg-[#f3f0ff] px-3.5 py-3 text-xs leading-5 text-[#4d35c7]">
-                  先登入或註冊，完成後會自動加入這趟旅程——這個邀請會保留著。
+                  {t('joinTrip.signInNotice')}
                 </p>
                 {/* The sentence above described a next step that had no button
                     under it: the only thing to press was 稍後再說. */}
@@ -243,18 +245,18 @@ const JoinTripSheet: React.FC = () => {
                   }}
                   className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-sm font-black text-white"
                 >
-                  <LogIn size={16} />登入 / 註冊並加入
+                  <LogIn size={16} />{t('joinTrip.signInAndJoin')}
                 </button>
               </>
             )}
             {state === 'joining' && (
               <p className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-500">
-                <Loader2 size={14} className="animate-spin" />正在加入…
+                <Loader2 size={14} className="animate-spin" />{t('joinTrip.joining')}
               </p>
             )}
             {preview?.alreadyClaimed && (
               <p className="mt-3 text-xs font-bold text-slate-500">
-                <Check size={13} className="mr-1 inline" />這個邀請已經被使用過了。
+                <Check size={13} className="mr-1 inline" />{t('joinTrip.alreadyClaimed')}
               </p>
             )}
           </>
@@ -268,7 +270,7 @@ const JoinTripSheet: React.FC = () => {
           }}
           className="mt-4 min-h-11 w-full rounded-2xl bg-slate-100 text-sm font-black text-slate-600"
         >
-          {state === 'error' ? '關閉' : '稍後再說'}
+          {state === 'error' ? t('common.close') : t('joinTrip.later')}
         </button>
       </div>
     </div>

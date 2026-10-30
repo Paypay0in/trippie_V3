@@ -55,6 +55,7 @@ export const stayBookings = (items: ItineraryItem[]): Map<string, ItineraryItem[
 
 /** 「訂房編號：ABC123」, as `stayToItineraryItems` wrote it. */
 const confirmationIn = (notes?: string): string =>
+  // i18n-data: regex anchor on the stored, synced note text stayIntake writes
   (notes || '').match(/訂房編號：(.+)/)?.[1]?.trim() || '';
 
 export const stayFormFromItems = (items: ItineraryItem[]): StayForm => {

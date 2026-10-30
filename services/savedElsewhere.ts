@@ -16,6 +16,7 @@
  */
 import { SavedTravelInspiration } from '../types';
 import { countryDisplayName, sameCountry } from './countryIdentity';
+import i18n from '../i18n/config';
 
 export interface ElsewhereCount {
   /** As the trip would display it. */
@@ -53,4 +54,6 @@ export const savedElsewhere = (
 
 /** 「韓國 18、日本 3」. */
 export const elsewhereLabel = (counts: ElsewhereCount[]): string =>
-  counts.map(entry => `${entry.country} ${entry.count}`).join('、');
+  counts
+    .map(entry => i18n.t('saved.elsewhere.entry', { country: entry.country, n: entry.count }))
+    .join(i18n.t('common.listSeparator'));

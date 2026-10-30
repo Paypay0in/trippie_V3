@@ -31,8 +31,20 @@ export type MatchConfidence = 'exact' | 'probable' | 'none';
 
 export interface Match {
   confidence: MatchConfidence;
-  /** Why, in words, for the screen and for a person reading a test failure. */
-  reason: string;
+  /**
+   * Why, as an i18n key rather than a sentence.
+   *
+   * `matchProduct` is called only from `server.ts`, and resolving a key needs
+   * `i18n/config` — react-i18next plus a browser language detector — in the
+   * server's process. `tests/serverNeverImportsBrowserI18n.test.ts` forbids
+   * that, and the reason is genuinely traveller-visible copy, so the key
+   * travels out through the response and the card words it. A key also reads
+   * perfectly well in a test failure, which is the other thing this field is
+   * for.
+   */
+  reasonKey: string;
+  /** Interpolation for `reasonKey`, where the reason names what differed. */
+  reasonParams?: Record<string, string>;
 }
 
 /** Full-width forms and punctuation, flattened so two spellings can be compared. */
@@ -40,6 +52,7 @@ const normalise = (text: string): string =>
   (text || '')
     .normalize('NFKC')
     .toLowerCase()
+    // i18n-data: punctuation stripped from scraped product names
     .replace(/[【】\[\]（）()《》〈〉「」『』,，.。、·・/／|｜~〜\-－—_+＋:：;；!！?？"'`]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -50,6 +63,7 @@ const latinWords = (text: string): string[] =>
 
 /** Every CJK character, which is the unit of meaning those names are built from. */
 const cjkChars = (text: string): string[] =>
+  // i18n-data: CJK range matched in scraped product names
   [...normalise(text)].filter(char => /[぀-ヿ一-鿿]/.test(char));
 
 /**
@@ -58,6 +72,7 @@ const cjkChars = (text: string): string[] =>
  * Only the ones written with a unit. A bare number in a product name is a
  * model, a year or a count of colours far more often than it is a size.
  */
+// i18n-data: unit anchors matched in scraped product names
 const SIZE = /(\d+(?:\.\d+)?)\s*(ml|l|g|kg|mg|oz|枚|片|包|入|錠|粒|個|本|gb|tb|吋|inch|cm|mm)(?![a-z0-9])/gi;
 
 export const sizesIn = (text: string): string[] => {
@@ -65,6 +80,7 @@ export const sizesIn = (text: string): string[] => {
   for (const match of normalise(text).matchAll(SIZE)) {
     const unit = match[2].toLowerCase();
     // 枚/片/包/入 all count sheets or pieces; a 12枚 and a 12片 are the same box.
+    // i18n-data: unit anchors matched in scraped product names
     const family = /枚|片|包|入|個|本|錠|粒/.test(unit) ? 'count' : unit;
     found.add(`${Number(match[1])}${family}`);
   }
@@ -92,8 +108,10 @@ export const sizesIn = (text: string): string[] => {
  */
 const PACK = [
   // 45ml*3個セット, 3本セット, 3点セット, 3セット
+  // i18n-data: pack-size anchors matched in scraped product names
   /(\d+)\s*(?:個|本|枚|点|コ|袋|箱|缶)?\s*セット/i,
   // 3入組, 3件組, 3瓶組
+  // i18n-data: pack-size anchors matched in scraped product names
   /(\d+)\s*(?:入|件|瓶|支|盒|罐)組/,
   // pack of 3, 3-pack
   /pack\s*of\s*(\d+)/i,
@@ -154,13 +172,17 @@ const says = (text: string, brand: string): boolean =>
  *
  * `wanted.spec` is the row's own note — 「Muji · 12片裝」 — which is where a
  * size read off a screenshot ends up.
+ *
+ * Every reason is returned as a `shopping.match.*` key. See `Match.reasonKey`:
+ * this module runs in the server's process, which has no bundle to resolve
+ * against and must not acquire one.
  */
 export const matchProduct = (
   wanted: { name: string; brand?: string; spec?: string },
   offeredName: string,
 ): Match => {
   if (!offeredName.trim()) {
-    return { confidence: 'none', reason: '這一頁沒有說它在賣什麼' };
+    return { confidence: 'none', reasonKey: 'shopping.match.nothingOffered' };
   }
 
   /*
@@ -174,7 +196,8 @@ export const matchProduct = (
     && !wantedSizes.some(size => offeredSizes.includes(size))) {
     return {
       confidence: 'none',
-      reason: `規格不同（要 ${wantedSizes.join('／')}，這頁是 ${offeredSizes.join('／')}）`,
+      reasonKey: 'shopping.match.sizeDiffers',
+      reasonParams: { wanted: wantedSizes.join('／'), offered: offeredSizes.join('／') },
     };
   }
 
@@ -200,22 +223,26 @@ export const matchProduct = (
     its own name to the header.
   */
   if (score >= 0.8 && !missingLatin) {
-    return { confidence: 'exact', reason: '商品名稱相符' };
+    return { confidence: 'exact', reasonKey: 'shopping.match.nameMatches' };
   }
   if (score >= 0.6 && brandMatches !== false && !missingLatin) {
-    return { confidence: 'exact', reason: '品牌與名稱相符' };
+    return { confidence: 'exact', reasonKey: 'shopping.match.brandAndNameMatch' };
   }
   if (score >= 0.6) {
     return {
       confidence: 'probable',
-      reason: missingLatin ? '名稱相近，但型號或版本可能不同' : '名稱相符，但這頁沒寫品牌',
+      reasonKey: missingLatin
+        ? 'shopping.match.nameCloseVariantUnsure'
+        : 'shopping.match.nameMatchesNoBrandStated',
     };
   }
   if (score >= 0.34) {
     return {
       confidence: 'probable',
-      reason: brandMatches ? '品牌相符，名稱部分相符' : '名稱部分相符',
+      reasonKey: brandMatches
+        ? 'shopping.match.brandMatchesNamePartly'
+        : 'shopping.match.namePartly',
     };
   }
-  return { confidence: 'none', reason: '這一頁賣的是別的商品' };
+  return { confidence: 'none', reasonKey: 'shopping.match.differentProduct' };
 };

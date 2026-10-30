@@ -1,3 +1,5 @@
+import i18n from '../i18n/config';
+
 export type RouteEstimate = {
   distanceMeters: number;
   durationSeconds: number;
@@ -8,10 +10,12 @@ export type RouteCoordinates = { latitude: number; longitude: number };
 /** How a leg may be travelled. Transit is the default; see `fetchRouteLeg`. */
 export type TravelMode = 'TRANSIT' | 'DRIVE' | 'WALK';
 
+// i18n-data: unused duplicate of the migrated `transport.modes.*` table; see
+// `TransportLeg`/`travellerBrief`, which resolve those keys instead.
 export const TRAVEL_MODE_LABELS: Record<TravelMode, string> = {
-  TRANSIT: '大眾運輸',
-  DRIVE: '開車',
-  WALK: '步行',
+  TRANSIT: '大眾運輸', // i18n-data: unused duplicate of the migrated transport.modes.* table
+  DRIVE: '開車', // i18n-data: unused duplicate of the migrated transport.modes.* table
+  WALK: '步行', // i18n-data: unused duplicate of the migrated transport.modes.* table
 };
 
 export interface RouteLegStep {
@@ -80,7 +84,7 @@ export async function fetchRouteLeg(
   });
   const body = await response.json().catch(() => null) as (RouteLeg & { error?: string }) | null;
   if (!response.ok || !body || typeof body.available !== 'boolean') {
-    throw new Error(typeof body?.error === 'string' ? body.error : '路線服務暫時無法使用。');
+    throw new Error(typeof body?.error === 'string' ? body.error : i18n.t('transport.serviceUnavailable'));
   }
   return {
     mode,

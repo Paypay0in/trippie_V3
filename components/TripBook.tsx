@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Trip } from '../types';
 import { Calendar, Trash2, Edit3, Check, Plus } from 'lucide-react';
 
@@ -41,6 +42,7 @@ const TripBook: React.FC<Props> = ({
   onDelete,
   onRename 
 }) => {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +57,7 @@ const TripBook: React.FC<Props> = ({
     return COVER_COLORS[index];
   };
 
-  const displayTitle = isDraft ? (draftName || '未命名旅程') : trip?.name;
+  const displayTitle = isDraft ? (draftName || t('home.untitledTrip')) : trip?.name;
 
   useEffect(() => {
     if (isEditing) {
@@ -122,7 +124,7 @@ const TripBook: React.FC<Props> = ({
            <div className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center mb-2 group-hover:bg-white group-hover:scale-110 transition-all text-gray-400 group-hover:text-brand-500">
               <Plus size={24} />
            </div>
-           <span className="font-bold text-gray-400 group-hover:text-brand-600 text-sm">開啟新旅程</span>
+           <span className="font-bold text-gray-400 group-hover:text-brand-600 text-sm">{t('trips.book.newTrip')}</span>
         </div>
       </div>
     );
@@ -208,7 +210,10 @@ const TripBook: React.FC<Props> = ({
                     
                     {/* Subtitle / Location Placeholder */}
                     <p className={`text-xs font-medium opacity-60 truncate ${isDraft ? 'text-gray-500' : 'text-white'}`}>
-                        {count} 筆消費記錄 • {isDraft ? '編輯中' : '已結算'}
+                        {t('trips.book.expenseCountStatus', {
+                            count,
+                            status: isDraft ? t('trips.book.statusEditing') : t('trips.book.statusSettled'),
+                        })}
                     </p>
                 </div>
 

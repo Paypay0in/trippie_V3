@@ -108,20 +108,36 @@ const isClock = (value?: string): value is string => /^([01]\d|2[0-3]):[0-5]\d$/
  * inside the window — a 14:00 block is the afternoon, even though lunch ran
  * until then.
  */
-export const MEAL_WINDOWS: Array<{ label: string; from: string; to: string }> = [
-  { label: '早餐', from: '06:00', to: '10:00' },
-  { label: '午餐', from: '11:30', to: '14:00' },
-  { label: '晚餐', from: '17:30', to: '20:30' },
+// i18n-data: `slotLabel.ts` matches these against MEAL_LABELS and
+// `optimiseTripRoute` carries them as the missing-meal key; a translated label
+// stops matching and renames a block nobody renamed.
+/**
+ * Which meal a window is, independent of what the block is called.
+ *
+ * `label` is the block's identity — `slotLabel.ts` recognises a meal window by
+ * matching it, and `dayTemplate` keys 「a meal happens once」 on it — so it
+ * cannot be translated. `key` is the same window said in a way a screen can
+ * look a sentence up by, which is what anything *rendering* a meal window
+ * should carry instead of the label.
+ */
+export type MealKey = 'breakfast' | 'lunch' | 'dinner';
+
+export const MEAL_WINDOWS: Array<{ key: MealKey; label: string; from: string; to: string }> = [
+  { key: 'breakfast', label: '早餐', from: '06:00', to: '10:00' }, // i18n-data: `slotLabel.ts` matches this against MEAL_LABELS and `dayTemplate` keys the block on it; render through `key` instead
+  { key: 'lunch', label: '午餐', from: '11:30', to: '14:00' }, // i18n-data: `slotLabel.ts` matches this against MEAL_LABELS and `dayTemplate` keys the block on it; render through `key` instead
+  { key: 'dinner', label: '晚餐', from: '17:30', to: '20:30' }, // i18n-data: `slotLabel.ts` matches this against MEAL_LABELS and `dayTemplate` keys the block on it; render through `key` instead
 ];
 
 const mealAt = (startMinutes: number): string | undefined =>
   MEAL_WINDOWS.find(window => startMinutes >= toMinutes(window.from) && startMinutes < toMinutes(window.to))?.label;
 
 /** What to call an activity block, by the time of day it falls in. */
+// i18n-data: the slot label `slotLabel.ts` reads back and returns unchanged for
+// an empty block; display happens there, keyed on this value.
 const activityLabel = (startMinutes: number): string => {
-  if (startMinutes < toMinutes('12:00')) return '上午行程';
-  if (startMinutes < toMinutes('17:00')) return '下午行程';
-  return '晚上行程';
+  if (startMinutes < toMinutes('12:00')) return '上午行程'; // i18n-data: the slot label `slotLabel.ts` reads back and returns unchanged for an empty block
+  if (startMinutes < toMinutes('17:00')) return '下午行程'; // i18n-data: the slot label `slotLabel.ts` reads back and returns unchanged for an empty block
+  return '晚上行程'; // i18n-data: the slot label `slotLabel.ts` reads back and returns unchanged for an empty block
 };
 
 export interface DayTemplateInput {

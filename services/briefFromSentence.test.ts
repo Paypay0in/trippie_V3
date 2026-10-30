@@ -86,6 +86,25 @@ describe('briefFromSentence', () => {
     expect(brief.transport).toEqual(DEFAULT_BRIEF.transport);
   });
 
+  /**
+   * The chip read 「交通：walk、transit」 — the stored ids, printed raw.
+   *
+   * Wrong in Chinese already, and under an English interface it would have
+   * looked deliberate rather than broken. The words live at `transport.modes.*`
+   * keyed on the uppercase mode the routing code uses; the brief stores them
+   * lowercase, so the chip has to bridge the two spellings.
+   */
+  it('names the transport modes in words, never as the stored ids', () => {
+    const { read } = briefFromSentence({ transport: ['walk', 'transit'] });
+
+    const chip = read.find(line => line.includes('交通'));
+    expect(chip).toBeDefined();
+    expect(chip).toContain('步行');
+    expect(chip).toContain('大眾運輸');
+    expect(chip).not.toContain('walk');
+    expect(chip).not.toContain('transit');
+  });
+
   it('shows back everything it understood', () => {
     const { read } = briefFromSentence(THE_SENTENCE);
 

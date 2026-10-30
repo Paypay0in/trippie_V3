@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Camera, Check, Image as ImageIcon, Loader2, Pencil, ShoppingBag, Sparkles } from 'lucide-react';
 import { ShoppingItem } from '../types';
 import { readAndDownscale, SHOPPING_THUMB } from '../services/postPhotos';
@@ -34,6 +35,7 @@ interface Props {
 }
 
 const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   /*
     A separate input, because 拍照 and 從相簿選擇 differ only by `capture` and
@@ -95,7 +97,7 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
             collected.push(candidate);
           });
         } catch (failure) {
-          failures.push((failure as Error)?.message || '這張讀不出來');
+          failures.push((failure as Error)?.message || t('shopping.screenshotIntake.oneUnreadable'));
         }
         setProgress({ done: index + 1, total: batch.length });
       }
@@ -105,7 +107,7 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
       // unticking three is less work than ticking six.
       setChosen(new Set(collected.map(candidate => candidate.id)));
       if (collected.length === 0) {
-        setError(failures[0] || '這幾張截圖裡沒有讀到商品，可以手動新增。');
+        setError(failures[0] || t('shopping.screenshotIntake.nothingFound'));
       }
     } finally {
       setBusy(false);
@@ -186,10 +188,10 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
       {found.length === 0 ? (
         <>
           <div className="flex items-center gap-2 text-[11px] font-black text-[#5b3df5]">
-            <Sparkles size={13} />從截圖加入購物清單
+            <Sparkles size={13} />{t('shopping.screenshotIntake.title')}
           </div>
           <p className="mt-1 text-[10px] leading-4 text-slate-500">
-            Instagram、小紅書、聊天截圖都可以，一次最多 {MAX_SCREENSHOTS} 張。
+            {t('shopping.screenshotIntake.blurb', { max: MAX_SCREENSHOTS })}
           </p>
           <button
             type="button"
@@ -199,8 +201,8 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
             className="mt-2 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-xs font-black text-white disabled:opacity-60"
           >
             {busy
-              ? <><Loader2 size={14} className="animate-spin" />辨識中 {progress.done}/{progress.total}</>
-              : <><ImageIcon size={14} />選擇照片</>}
+              ? <><Loader2 size={14} className="animate-spin" />{t('itinerary.screenshotIntake.readingProgress', { done: progress.done, total: progress.total })}</>
+              : <><ImageIcon size={14} />{t('shopping.screenshotIntake.pickPhotos')}</>}
           </button>
 
           {/*
@@ -219,7 +221,7 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
               onClick={() => cameraRef.current?.click()}
               className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-white text-[11px] font-black text-[#5b3df5] disabled:opacity-60"
             >
-              <Camera size={13} />拍照
+              <Camera size={13} />{t('shopping.screenshotIntake.camera')}
             </button>
             <button
               type="button"
@@ -228,7 +230,7 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
               onClick={() => inputRef.current?.click()}
               className="flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-white text-[11px] font-black text-[#5b3df5] disabled:opacity-60"
             >
-              <ImageIcon size={13} />從相簿選擇
+              <ImageIcon size={13} />{t('shopping.screenshotIntake.album')}
             </button>
           </div>
         </>
@@ -236,7 +238,7 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
         <>
           <div className="flex items-center gap-1.5 text-[11px] font-black text-[#5b3df5]">
             <Sparkles size={13} />
-            已從 {shots} 張截圖中辨識出 {found.length} 個商品
+            {t('shopping.screenshotIntake.foundCount', { shots, found: found.length })}
           </div>
           {/*
             Said before the list, not after it. The model is guessing at the
@@ -244,7 +246,7 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
             who has been told that reads the 待確認 marks as information
             rather than as clutter.
           */}
-          <p className="mt-1 text-[10px] leading-4 text-slate-500">請確認以下結果，取消勾選不要的。</p>
+          <p className="mt-1 text-[10px] leading-4 text-slate-500">{t('shopping.screenshotIntake.confirmBlurb')}</p>
 
           <div className="mt-2 space-y-1.5">
             {found.map(candidate => (
@@ -280,20 +282,21 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
                       {candidateDetail(candidate) && (
                         <span className="mt-0.5 block text-[10px] text-slate-500">
                           {candidateDetail(candidate)}
-                          <span className="ml-1 text-slate-400">（待確認）</span>
+                          <span className="ml-1 text-slate-400">{t('shopping.screenshotIntake.unconfirmed')}</span>
                         </span>
                       )}
                       <span className="mt-0.5 flex flex-wrap gap-1.5 text-[10px] text-slate-400">
+                        {/* i18n-data: the category and shop are model-returned text about the traveller's screenshot, not product copy. */}
                         {candidate.category && (
                           <span className="rounded bg-violet-50 px-1.5 py-0.5 font-bold text-violet-600">{candidate.category}</span>
                         )}
-                        {candidate.shop && <span>@ {candidate.shop}（待確認）</span>}
+                        {candidate.shop && <span>{t('shopping.screenshotIntake.atShopUnconfirmed', { shop: candidate.shop })}</span>}
                       </span>
                     </span>
                   </button>
                   <button
                     type="button"
-                    aria-label={`修改 ${candidate.name}`}
+                    aria-label={t('shopping.screenshotIntake.editNamed', { name: candidate.name })}
                     data-testid={`shopping-candidate-edit-${candidate.id}`}
                     onClick={() => setEditing(editing === candidate.id ? null : candidate.id)}
                     className="shrink-0 p-1 text-slate-400"
@@ -311,16 +314,16 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
                 {editing === candidate.id && (
                   <div data-testid={`shopping-candidate-fields-${candidate.id}`} className="mt-2 space-y-1.5">
                     {([
-                      ['name', '商品名稱'],
-                      ['brand', '品牌'],
-                      ['spec', '規格'],
-                      ['shop', '在哪買'],
-                    ] as const).map(([field, label]) => (
+                      ['name', 'shopping.screenshotIntake.fieldName'],
+                      ['brand', 'shopping.screenshotIntake.fieldBrand'],
+                      ['spec', 'shopping.screenshotIntake.fieldSpec'],
+                      ['shop', 'shopping.screenshotIntake.fieldShop'],
+                    ] as const).map(([field, labelKey]) => (
                       <label key={field} className="block">
-                        <span className="block text-[10px] font-bold text-slate-400">{label}</span>
+                        <span className="block text-[10px] font-bold text-slate-400">{t(labelKey)}</span>
                         <input
                           value={candidate[field] ?? ''}
-                          aria-label={`${candidate.name} ${label}`}
+                          aria-label={`${candidate.name} ${t(labelKey)}`}
                           data-testid={`shopping-candidate-${field}-${candidate.id}`}
                           onChange={event => edit(candidate.id, { [field]: event.target.value } as Partial<ShoppingCandidate>)}
                           className="mt-0.5 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-[#11183d] outline-none"
@@ -335,7 +338,7 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
 
           <div className="mt-2 flex items-center justify-between gap-2">
             <span data-testid="shopping-candidates-count" className="text-[11px] font-bold text-slate-500">
-              已選 {chosen.size} 項
+              {t('shopping.screenshotIntake.selectedCount', { n: chosen.size })}
             </span>
           </div>
 
@@ -347,7 +350,9 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
             className="mt-2 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-xs font-black text-white disabled:bg-slate-200 disabled:bg-none disabled:text-slate-400"
           >
             <ShoppingBag size={14} />
-            {findingImages ? '正在找商品圖片…' : `加入購物清單（${chosen.size}）`}
+            {findingImages
+              ? t('shopping.screenshotIntake.findingImages')
+              : t('shopping.screenshotIntake.addToList', { n: chosen.size })}
           </button>
         </>
       )}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Bookmark, MessageCircle, PenLine } from 'lucide-react';
 import { CommunityPost, PostComment, SavedInspiration } from '../types';
 import { placeWhereLabel } from '../services/placeWhereLabel';
@@ -28,6 +29,7 @@ const CreatorCenterScreen: React.FC<Props> = ({
   onOpenPost,
   onCreatePost,
 }) => {
+  const { t } = useTranslation();
   const published = posts.filter(post => post.status === 'published');
   const postIds = new Set(posts.map(post => post.id));
 
@@ -55,37 +57,37 @@ const CreatorCenterScreen: React.FC<Props> = ({
     .slice(0, 3);
 
   const stats: Array<[React.ElementType, string, number]> = [
-    [PenLine, '已公開貼文', published.length],
-    [Bookmark, '收藏你的旅人', allSavers.size],
-    [MessageCircle, '收到的留言', receivedComments.length],
+    [PenLine, 'creator.statPublished', published.length],
+    [Bookmark, 'creator.statSavers', allSavers.size],
+    [MessageCircle, 'creator.statComments', receivedComments.length],
   ];
 
   return (
     <main data-safe-top style={{ ["--safe-top-base" as string]: "1.5rem" }} className="min-h-screen bg-[#f7f8fc] px-4 pb-28 text-[#11183d] md:mx-auto md:max-w-2xl">
       <button type="button" onClick={onBack} className="mb-5 flex min-h-11 items-center gap-1.5 text-sm font-bold text-violet-600">
-        <ArrowLeft size={16} />返回
+        <ArrowLeft size={16} />{t('common.back')}
       </button>
 
-      <h1 className="text-2xl font-black">創作者中心</h1>
-      <p className="mt-1 text-sm text-slate-500">你的旅行紀錄幫到了誰。</p>
+      <h1 className="text-2xl font-black">{t('account.creatorCenter')}</h1>
+      <p className="mt-1 text-sm text-slate-500">{t('creator.blurb')}</p>
 
       <section className="mt-5 grid grid-cols-3 gap-3">
-        {stats.map(([Icon, label, value]) => (
-          <div key={label} className="rounded-2xl bg-white p-4 text-center shadow-sm">
+        {stats.map(([Icon, labelKey, value]) => (
+          <div key={labelKey} className="rounded-2xl bg-white p-4 text-center shadow-sm">
             <Icon size={17} className="mx-auto text-violet-600" />
             <div className="mt-2 text-2xl font-black">{value}</div>
-            <div className="mt-0.5 text-[11px] font-bold text-slate-400">{label}</div>
+            <div className="mt-0.5 text-[11px] font-bold text-slate-400">{t(labelKey)}</div>
           </div>
         ))}
       </section>
 
       <section className="mt-6">
-        <h2 className="mb-3 text-lg font-black">最多人收藏的貼文</h2>
+        <h2 className="mb-3 text-lg font-black">{t('creator.topSavedHeading')}</h2>
         {ranked.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center">
-            <p className="text-sm text-slate-400">還沒有人從你的貼文收藏旅行靈感</p>
+            <p className="text-sm text-slate-400">{t('creator.emptyState')}</p>
             <button type="button" onClick={onCreatePost} className="mt-3 min-h-11 rounded-2xl bg-violet-600 px-5 text-sm font-black text-white">
-              寫一篇新的
+              {t('creator.writeNew')}
             </button>
           </div>
         ) : (
@@ -101,12 +103,12 @@ const CreatorCenterScreen: React.FC<Props> = ({
                   {index + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-black">{post.title || '未命名貼文'}</span>
+                  <span className="block truncate text-sm font-black">{post.title || t('app.label.untitledPost')}</span>
                   <span className="mt-0.5 block truncate text-[11px] text-slate-400">
                     {placeWhereLabel(post.country, post.city)}
                   </span>
                 </span>
-                <span className="shrink-0 text-xs font-black text-violet-600">{savers} 人</span>
+                <span className="shrink-0 text-xs font-black text-violet-600">{t('creator.saverCount', { count: savers })}</span>
               </button>
             ))}
           </div>
@@ -114,7 +116,7 @@ const CreatorCenterScreen: React.FC<Props> = ({
       </section>
 
       <p className="mt-6 text-[11px] leading-4 text-slate-400">
-        數字只計算目前同步到這個帳號的資料。
+        {t('creator.footnote')}
       </p>
     </main>
   );

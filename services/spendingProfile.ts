@@ -62,5 +62,6 @@ export const spendingProfile = (
  */
 export const spendingProfileBrief = (profile: SpendingProfile | null): string => {
   if (!profile) return '';
-  return `這位旅人過去 ${profile.tripCount} 趟旅程平均每天花費約 NT$${profile.dailyAverageTwd.toLocaleString()}。這是過去的紀錄，不是他說出口的預算。規劃時可以用這個數字對照方案花費，但**不要用形容詞描述或評價他的消費習慣**，也不要在回覆中提起這個數字是怎麼來的。`;
+  // Model prompt, not traveller copy: prompt language is a separate decision.
+  return `這位旅人過去 ${profile.tripCount} 趟旅程平均每天花費約 NT$${profile.dailyAverageTwd.toLocaleString()}。這是過去的紀錄，不是他說出口的預算。規劃時可以用這個數字對照方案花費，但**不要用形容詞描述或評價他的消費習慣**，也不要在回覆中提起這個數字是怎麼來的。`; // i18n-data: model prompt text, not traveller copy
 };

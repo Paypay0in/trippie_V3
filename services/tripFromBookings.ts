@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { ParsedFlight } from './flightIntake';
 import { ParsedStay } from './stayIntake';
 import { findAirportByIata } from './airportDirectory';
@@ -124,7 +125,9 @@ export const worthKeeping = (trip: DerivedTrip): boolean =>
 /** 「讀到 1 張機票・2 筆住宿」, so the count is visible before anything is saved. */
 export const readoutSummary = ({ flights, stays }: BookingReadout): string => {
   const parts: string[] = [];
-  if (flights.length) parts.push(`${flights.length} 張機票`);
-  if (stays.length) parts.push(`${stays.length} 筆住宿`);
-  return parts.length ? `讀到 ${parts.join('・')}` : '沒有讀到可用的資料';
+  if (flights.length) parts.push(i18n.t('bookingImport.readout.flights', { count: flights.length }));
+  if (stays.length) parts.push(i18n.t('bookingImport.readout.stays', { count: stays.length }));
+  return parts.length
+    ? i18n.t('bookingImport.readout.summary', { parts: parts.join(i18n.t('bookingImport.readout.separator')) })
+    : i18n.t('bookingImport.readout.nothing');
 };

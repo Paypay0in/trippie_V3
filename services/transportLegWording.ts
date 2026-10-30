@@ -10,7 +10,12 @@
  * Everything below says what is actually known and what to do next. The
  * traveller has three mode chips immediately above this text, and a line that
  * ends in a dead claim is a line that does not mention them.
+ *
+ * The sentences are resolved at call time rather than at module load, because
+ * these functions are called while the leg renders and the reader can change
+ * language after the module is first imported.
  */
+import i18n from '../i18n/config';
 
 /** Two points this close are the same spot; a route between them is noise. */
 const SAME_SPOT_METRES = 150;
@@ -43,7 +48,9 @@ export const isSameSpot = (from: Point, to: Point): boolean =>
  * and only the second is worth another tap.
  */
 export const noRouteSummary = (modeLabel: string, sameSpot: boolean): string =>
-  sameSpot ? '就在同一個地點，不用移動' : `查不到這段的${modeLabel}路線`;
+  sameSpot
+    ? i18n.t('transport.sameSpotSummary')
+    : i18n.t('transport.noRouteSummary', { mode: modeLabel });
 
 /**
  * A rough transit time, for a journey no route service will answer.
@@ -63,13 +70,13 @@ export const noRouteSummary = (modeLabel: string, sameSpot: boolean): string =>
  * train, and a number presented as a route would be a lie about what was asked.
  */
 export const roughTransitSummary = (minutes: number): string =>
-  `⏱ 粗估大約 ${minutes} 分鐘（含進出站）`;
+  i18n.t('transport.roughTransitSummary', { minutes });
 
 export const roughTransitDetail = (minutes: number): string =>
-  `這段直線距離換算下來大約 ${minutes} 分鐘，含進出站與等車的時間。這是估算、不是班次查詢——沒有算進轉乘、末班車或實際路線，排行程抓個大概可以，出門前請用 Google 地圖 App 或當地的轉乘 App 再確認。`;
+  i18n.t('transport.roughTransitDetail', { minutes });
 
 /** The fuller sentence inside the sheet, where there is room to say what to try. */
 export const noRouteDetail = (modeLabel: string, sameSpot: boolean): string =>
   sameSpot
-    ? '這兩個行程在同一個地點，中間沒有需要安排的交通。'
-    : `查不到這兩個地點之間的${modeLabel}路線，換上面其他方式可能查得到。`;
+    ? i18n.t('transport.sameSpotDetail')
+    : i18n.t('transport.noRouteDetail', { mode: modeLabel });

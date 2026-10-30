@@ -16,6 +16,8 @@
  * A city that genuinely *is* its country — 新加坡, 香港, 摩納哥 — collapses here
  * too, and for those 「新加坡・新加坡」 was always the wrong line.
  */
+import i18n from '../i18n/config';
+
 export const placeWhereLabel = (...parts: Array<string | undefined>): string => {
   const seen = new Set<string>();
   return parts
@@ -27,5 +29,10 @@ export const placeWhereLabel = (...parts: Array<string | undefined>): string => 
       seen.add(key);
       return true;
     })
-    .join('・');
+    /*
+      The separator is ours, not the place's. 「東京・日本」 is how a Chinese
+      reader expects two place names joined; an English reader expects
+      「Tokyo, Japan」, and 「Tokyo・Japan」 reads as a typesetting accident.
+    */
+    .join(i18n.t('places.whereSeparator'));
 };

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { formatLocaleDate } from '../services/localeFormat';
+import { useTranslation } from 'react-i18next';
 import { CommunityPost, PostComment, PostSlice, SavedTravelInspiration } from '../types';
 import PostComments from './PostComments';
 import PostSliceConfirmation from './PostSliceConfirmation';
@@ -6,6 +8,7 @@ import { extractPostSliceCandidates } from '../services/communityPostSlicingServ
 
 type SlicingState = 'idle' | 'analyzing' | 'candidates_ready' | 'extracted' | 'confirmed';
 const CommunityPostDetail: React.FC<{ post: CommunityPost; fallbackImage: string; currentUserId: string; savedTravelInspirations: SavedTravelInspiration[]; onResetPersonalSaves: (postId: string) => void; onBack: () => void; onSaveSlices: (slices: PostSlice[]) => unknown; comments: PostComment[]; onAddComment: (content: string) => void; onDeleteComment: (comment: PostComment) => void; saverCount: number }> = ({ post, fallbackImage, currentUserId, savedTravelInspirations, onResetPersonalSaves, onBack, onSaveSlices, comments, onAddComment, onDeleteComment, saverCount }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [candidates, setCandidates] = useState<PostSlice[] | null>(null);
@@ -25,17 +28,17 @@ const CommunityPostDetail: React.FC<{ post: CommunityPost; fallbackImage: string
         const candidateId = `candidate-${index}`;
         return { ...slice, id: candidateId, postId: post.id, creatorId: post.creatorId, country: post.country, city: post.city, createdAt: now, notes: slice.notes.map((note, noteIndex) => ({ ...note, id: `${candidateId}-note-${noteIndex}`, sliceId: candidateId, postId: post.id, creatorId: post.creatorId, createdAt: now })) };
       });
-      if (nextCandidates.length) setCandidates(nextCandidates); else setError('沒有找到可切成旅行靈感的內容');
-    } catch (e) { setError(e instanceof Error ? e.message : 'AI 分析目前無法使用。'); } finally { setLoading(false); }
+      if (nextCandidates.length) setCandidates(nextCandidates); else setError(t('community.detail.noSliceCandidates'));
+    } catch (e) { setError(e instanceof Error ? e.message : t('community.detail.analysisUnavailable')); } finally { setLoading(false); }
   };
   const confirmSlices = async (slices: PostSlice[]) => {
     if (!slices.length) return;
     const result = await onSaveSlices(slices);
-    if (!result) { setError('無法儲存：找不到原始貼文'); return; }
+    if (!result) { setError(t('community.detail.saveFailedPostMissing')); return; }
     setCandidates(null);
-    setSavedMessage(`已儲存 ${slices.length} 個旅行靈感`);
+    setSavedMessage(t('community.detail.savedCount', { count: slices.length }));
   };
-  const ctaLabel = state === 'analyzing' ? '正在整理旅行靈感…' : state === 'candidates_ready' || state === 'extracted' ? '✓ 已抓出旅行靈感' : state === 'confirmed' ? '✓ 已收藏旅行靈感' : '✨ 抓出這篇值得收藏的旅行靈感';
+  const ctaLabel = state === 'analyzing' ? t('community.detail.cta.analyzing') : state === 'candidates_ready' || state === 'extracted' ? t('community.detail.cta.extracted') : state === 'confirmed' ? t('community.detail.cta.confirmed') : t('community.detail.cta.idle');
   return <main className="min-h-screen bg-[#f7f8fc] pb-10 text-[#11183d] md:mx-auto md:max-w-2xl">
     {/*
       「滿版不好點」.
@@ -50,7 +53,7 @@ const CommunityPostDetail: React.FC<{ post: CommunityPost; fallbackImage: string
       of text.
     */}
     <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="px-[var(--screen-pad)] pb-2">
-      <button type="button" onClick={onBack} className="-ml-2 flex min-h-11 items-center gap-1 px-2 text-sm font-bold text-violet-600">← 返回社群</button>
+      <button type="button" onClick={onBack} className="-ml-2 flex min-h-11 items-center gap-1 px-2 text-sm font-bold text-violet-600">← {t('community.backToCommunity')}</button>
     </header>
     <img src={post.coverImage || fallbackImage} alt={post.title} className="h-72 w-full object-cover" />
     {/*
@@ -58,10 +61,10 @@ const CommunityPostDetail: React.FC<{ post: CommunityPost; fallbackImage: string
       had just been put on one page margin; body text meeting the bezel is the
       hardest version of it to read, because every line ends on the edge.
     */}
-    <article className="px-[var(--screen-pad)] py-5"><div className="text-sm font-bold text-slate-500">{post.authorName} · {post.country}・{post.city}</div><h1 className="mt-2 text-3xl font-black">{post.title}</h1><p className="mt-6 whitespace-pre-wrap text-base leading-8 text-slate-700">{post.content}</p>{post.photos && post.photos.length > 0 && <div className="mt-6 grid grid-cols-2 gap-2">{post.photos.map((photo, index) => <img key={photo.slice(0, 40) + index} src={photo} alt="" className="h-40 w-full rounded-xl object-cover" />)}</div>}<time className="mt-8 block text-xs text-slate-400">{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('zh-TW') : ''}</time>
-      <div className="mt-6"><button type="button" disabled={state !== 'idle'} onClick={analyze} className={`rounded-2xl px-4 py-3 text-sm font-black text-white ${state === 'candidates_ready' || state === 'extracted' || state === 'confirmed' ? 'bg-violet-100 text-violet-700' : 'bg-violet-600'} disabled:opacity-80`}>{ctaLabel}</button>{hasSourceSlices && <button type="button" onClick={() => { onResetPersonalSaves(post.id); setCachedSelectionDismissed(false); setCandidates(null); setSavedMessage(''); }} className="ml-2 rounded-2xl border border-rose-300 px-3 py-3 text-xs font-bold text-rose-600">重置這篇的個人收藏（DEV）</button>}{state === 'idle' && <p className="mt-2 text-xs text-slate-500">自動找出景點、餐廳與實用旅行經驗</p>}{state === 'extracted' && <p className="mt-2 text-xs font-semibold text-slate-500">這篇已整理出 {post.slices?.length ?? 0} 個旅行靈感，可直接選取收藏</p>}{state === 'candidates_ready' && <p className="mt-2 text-xs font-semibold text-slate-500">請檢查並選擇要儲存的內容</p>}{state === 'confirmed' && <p className="mt-2 text-xs font-semibold text-emerald-600">已收藏 {savedFromThisPost.length} 個旅行靈感</p>}{error && <p className="mt-3 text-sm font-bold text-rose-600">{error}</p>}{savedMessage && <p className="mt-3 text-sm font-bold text-emerald-600">{savedMessage}</p>}</div>
-      {saverCount > 0 && <p className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-700">{saverCount} 人從這篇收藏了旅行靈感</p>}
-      <section className="mt-8"><h2 className="text-xl font-black">這篇提到的地方</h2>{state === 'idle' && <div className="mt-3 rounded-2xl bg-white p-5 text-center text-sm text-slate-500 shadow-sm"><p className="font-black text-slate-700">尚未分析</p><p className="mt-1">點擊上方按鈕，讓 AI 幫你找出這篇提到的景點與美食</p></div>}{state === 'extracted' && post.slices && <PostSliceConfirmation candidates={post.slices} onCancel={() => setCachedSelectionDismissed(true)} onConfirm={confirmSlices} />}{state === 'candidates_ready' && candidates && <PostSliceConfirmation candidates={candidates} onCancel={() => setCandidates(null)} onConfirm={confirmSlices} />}{(state === 'confirmed') && post.slices && <div className="mt-3 space-y-4">{post.slices.map(slice => <div key={slice.id} className="rounded-2xl bg-white p-4 shadow-sm"><div className="text-xs font-black text-violet-600">{slice.type}・{slice.city}・{slice.country}</div><h3 className="mt-1 text-base font-black">{slice.title}</h3>{slice.summary && <p className="mt-1 text-sm leading-6 text-slate-600">{slice.summary}</p>}<div className="mt-3 space-y-2 border-t border-slate-100 pt-3">{slice.notes.map(note => <div key={note.id} className="text-sm text-slate-700"><span className="mr-2 rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700">{note.type}</span>{note.text}</div>)}</div></div>)}</div>}</section>
+    <article className="px-[var(--screen-pad)] py-5"><div className="text-sm font-bold text-slate-500">{post.authorName} · {post.country}・{post.city}</div><h1 className="mt-2 text-3xl font-black">{post.title}</h1><p className="mt-6 whitespace-pre-wrap text-base leading-8 text-slate-700">{post.content}</p>{post.photos && post.photos.length > 0 && <div className="mt-6 grid grid-cols-2 gap-2">{post.photos.map((photo, index) => <img key={photo.slice(0, 40) + index} src={photo} alt="" className="h-40 w-full rounded-xl object-cover" />)}</div>}<time className="mt-8 block text-xs text-slate-400">{formatLocaleDate(post.publishedAt)}</time>
+      <div className="mt-6"><button type="button" disabled={state !== 'idle'} onClick={analyze} className={`rounded-2xl px-4 py-3 text-sm font-black text-white ${state === 'candidates_ready' || state === 'extracted' || state === 'confirmed' ? 'bg-violet-100 text-violet-700' : 'bg-violet-600'} disabled:opacity-80`}>{ctaLabel}</button>{hasSourceSlices && <button type="button" onClick={() => { onResetPersonalSaves(post.id); setCachedSelectionDismissed(false); setCandidates(null); setSavedMessage(''); }} className="ml-2 rounded-2xl border border-rose-300 px-3 py-3 text-xs font-bold text-rose-600">{t('community.detail.resetPersonalSaves')}</button>}{state === 'idle' && <p className="mt-2 text-xs text-slate-500">{t('community.detail.idleHint')}</p>}{state === 'extracted' && <p className="mt-2 text-xs font-semibold text-slate-500">{t('community.detail.extractedHint', { count: post.slices?.length ?? 0 })}</p>}{state === 'candidates_ready' && <p className="mt-2 text-xs font-semibold text-slate-500">{t('community.detail.reviewHint')}</p>}{state === 'confirmed' && <p className="mt-2 text-xs font-semibold text-emerald-600">{t('community.detail.confirmedCount', { count: savedFromThisPost.length })}</p>}{error && <p className="mt-3 text-sm font-bold text-rose-600">{error}</p>}{savedMessage && <p className="mt-3 text-sm font-bold text-emerald-600">{savedMessage}</p>}</div>
+      {saverCount > 0 && <p className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-700">{t('community.detail.saverCount', { count: saverCount })}</p>}
+      <section className="mt-8"><h2 className="text-xl font-black">{t('community.detail.mentionedPlaces')}</h2>{state === 'idle' && <div className="mt-3 rounded-2xl bg-white p-5 text-center text-sm text-slate-500 shadow-sm"><p className="font-black text-slate-700">{t('community.detail.notAnalyzed')}</p><p className="mt-1">{t('community.detail.notAnalyzedHint')}</p></div>}{state === 'extracted' && post.slices && <PostSliceConfirmation candidates={post.slices} onCancel={() => setCachedSelectionDismissed(true)} onConfirm={confirmSlices} />}{state === 'candidates_ready' && candidates && <PostSliceConfirmation candidates={candidates} onCancel={() => setCandidates(null)} onConfirm={confirmSlices} />}{(state === 'confirmed') && post.slices && <div className="mt-3 space-y-4">{post.slices.map(slice => <div key={slice.id} className="rounded-2xl bg-white p-4 shadow-sm"><div className="text-xs font-black text-violet-600">{slice.type}・{slice.city}・{slice.country}</div><h3 className="mt-1 text-base font-black">{slice.title}</h3>{slice.summary && <p className="mt-1 text-sm leading-6 text-slate-600">{slice.summary}</p>}<div className="mt-3 space-y-2 border-t border-slate-100 pt-3">{slice.notes.map(note => <div key={note.id} className="text-sm text-slate-700"><span className="mr-2 rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-700">{note.type}</span>{note.text}</div>)}</div></div>)}</div>}</section>
       <PostComments comments={comments} viewerId={currentUserId} postCreatorId={post.creatorId} onSubmit={onAddComment} onDelete={onDeleteComment} />
     </article></main>;
 };

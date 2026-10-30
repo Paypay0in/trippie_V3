@@ -1,10 +1,12 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { AreaGroup, groupByArea } from '../services/placeAreaGroups';
 import { AlertTriangle, ChevronDown, ChevronUp, Clock3, Plus, Trash2 } from 'lucide-react';
 import PlacePickerSheet from './PlacePickerSheet';
 import { suggestionsForSlot } from '../services/suggestionsForSlot';
 import { fetchNearbyRestaurants, LookingFor, NearbyRestaurant } from '../services/nearbyRestaurantsService';
 import { ItineraryItem, PlaceCategory } from '../types';
-import { CATEGORY_LABELS } from '../services/placeCategory';
+import { categoryLabel } from '../services/placeCategory';
 import { slotLabelFor } from '../services/slotLabel';
 import { AREA_COLORS } from '../constants/areaColors';
 import { cleanManualTitle, MAX_TITLE } from '../services/manualBlockEntry';
@@ -166,9 +168,6 @@ interface Props {
 /** 「一個行程都預設抓 2 小時」, and the lengths worth offering around it. */
 const DURATION_CHOICES = [30, 60, 90, 120, 150, 180, 240];
 
-const minutesLabel = (minutes: number): string =>
-  (minutes % 60 === 0 ? `${minutes / 60} 小時` : `${Math.floor(minutes / 60)} 小時 ${minutes % 60} 分`);
-
 const DayBlockPlanner: React.FC<Props> = ({
   date,
   items,
@@ -189,6 +188,13 @@ const DayBlockPlanner: React.FC<Props> = ({
   country,
   isFixed,
 }) => {
+  const { t } = useTranslation();
+  const minutesLabel = (minutes: number): string =>
+    (minutes % 60 === 0
+      ? t('itinerary.dayBlocks.lengthHours', { count: minutes / 60 })
+      : t('itinerary.dayBlocks.lengthHoursMinutes', {
+        hours: Math.floor(minutes / 60), minutes: minutes % 60,
+      }));
   /*
     Which slot is being typed into, if any. One at a time: two open inputs on
     one day is two half-finished entries, and the second one is the one that
@@ -259,7 +265,7 @@ const DayBlockPlanner: React.FC<Props> = ({
     if (sitting) onClearBlock?.(sitting.id);
     const result = fill();
     if (typeof result === 'string') return result;
-    return result === false ? '這個地點沒有排進去。' : true;
+    return result === false ? t('itinerary.dayBlocks.notScheduled') : true;
   };
 
   const commitTyped = (slot: DaySlot) => {
@@ -322,8 +328,8 @@ const DayBlockPlanner: React.FC<Props> = ({
   }, [items]);
   const shiftLabel = shift
     ? (shift.shiftMinutes % 60 === 0
-        ? `${shift.shiftMinutes / 60} 小時`
-        : `${shift.shiftMinutes} 分`)
+        ? t('itinerary.dayBlocks.shiftHours', { count: shift.shiftMinutes / 60 })
+        : t('itinerary.dayBlocks.shiftMinutes', { count: shift.shiftMinutes }))
     : '';
 
   /*
@@ -421,7 +427,7 @@ const DayBlockPlanner: React.FC<Props> = ({
 
   /** 「(餐廳)」 beside a name, or nothing when no tag is known. */
   const tagOf = (place: PlaceOption): string =>
-    (place.category && place.category !== 'other' ? CATEGORY_LABELS[place.category] : '');
+    (place.category && place.category !== 'other' ? categoryLabel(place.category) : '');
 
   /**
    * The same list, under 區 headings, with the 🏷️ tag beside each name.
@@ -440,7 +446,7 @@ const DayBlockPlanner: React.FC<Props> = ({
    * leads rather than filters: a café can be lunch, and hiding it would answer
    * a question nobody asked.
    */
-  const groupedOptionsFor = (slot: DaySlot): { label: string; places: PlaceOption[] }[] => {
+  const groupedOptionsFor = (slot: DaySlot): Array<AreaGroup<PlaceOption>> => {
     const leading: PlaceCategory[] = slot.kind === 'meal'
       ? ['food', 'cafe', 'sight', 'shop', 'stay', 'transport']
       : ['sight', 'shop', 'cafe', 'food', 'stay', 'transport'];
@@ -451,21 +457,18 @@ const DayBlockPlanner: React.FC<Props> = ({
 
     /*
       `optionsFor` has already floated the day's own areas to the front, so the
-      first heading is the ward the day is being built in.
-    */
-    const groups: { label: string; places: PlaceOption[] }[] = [];
-    const byLabel = new Map<string, { label: string; places: PlaceOption[] }>();
-    optionsFor(slot).forEach(place => {
-      const label = place.district?.trim() || place.areaLabel?.trim() || '其他';
-      let group = byLabel.get(label);
-      if (!group) { group = { label, places: [] }; byLabel.set(label, group); groups.push(group); }
-      group.places.push(place);
-    });
+      first heading is the ward the day is being built in, and `groupByArea`
+      keeps that order.
 
+      The grouping itself lives in `services/placeAreaGroups.ts` because this
+      screen and `PlacePickerSheet` both need it and both used to write it out —
+      including the no-ward bucket, which was the word 其他 doing double duty as
+      a heading and as the value compared with `!==`. One of those two uses had
+      to break the moment the heading was translated.
+    */
+    const groups = groupByArea(optionsFor(slot));
     groups.forEach(group => { group.places.sort((left, right) => rank(left) - rank(right)); });
-    // A place with no ward goes last; it is the one heading that says nothing.
-    return [...groups.filter(group => group.label !== '其他'),
-      ...groups.filter(group => group.label === '其他')];
+    return groups;
   };
 
   /*
@@ -653,11 +656,11 @@ const DayBlockPlanner: React.FC<Props> = ({
       */}
       <div className="flex min-w-0 items-center justify-between gap-2">
         <h3 className="flex shrink-0 items-center gap-1.5 text-sm font-black text-[#11183d]">
-          <Clock3 size={14} className="text-[#5b3df5]" />排今天
+          <Clock3 size={14} className="text-[#5b3df5]" />{t('itinerary.dayBlocks.title')}
         </h3>
         {(
           <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold text-slate-500">
-            <span className="shrink-0">幾點出門</span>
+            <span className="shrink-0">{t('itinerary.dayBlocks.dayStart')}</span>
             {/*
               「這個也填過很多次了」.
 
@@ -702,8 +705,12 @@ const DayBlockPlanner: React.FC<Props> = ({
           onClick={() => onShiftDay(shift.items)}
           className="mt-2 w-full rounded-xl border border-[#d9d5f5] bg-[#faf9ff] px-3 py-2 text-left text-[11px] font-bold text-[#5b3df5]"
         >
-          今天的第一個行程排在 {firstMovableTime}，要把 {shift.movedCount} 個行程往後移 {shiftLabel} 嗎？
-          <span className="mt-0.5 block font-medium text-slate-400">航班與入住時間不會動</span>
+          {t('itinerary.dayBlocks.shiftPrompt', {
+            time: firstMovableTime, count: shift.movedCount, amount: shiftLabel,
+          })}
+          <span className="mt-0.5 block font-medium text-slate-400">
+            {t('itinerary.dayBlocks.shiftNote')}
+          </span>
         </button>
       )}
 
@@ -742,13 +749,17 @@ const DayBlockPlanner: React.FC<Props> = ({
           */}
           <span>
             {spread.chosenCount <= 1
-              ? (spread.firstArea ? `第一個行程在 ${spread.firstArea}` : '今天只排了一個行程')
+              ? (spread.firstArea
+                ? t('itinerary.dayBlocks.firstStopArea', { area: spread.firstArea })
+                : t('itinerary.dayBlocks.onlyOneStop'))
               : <>
                   {spread.mainArea
-                    ? `今日行程大多集中在 ${spread.mainArea}`
-                    : `今天跨了 ${spread.areas.length} 個區`}
-                  {spread.mainArea && spread.areas.length > 1 && `，另外跨到 ${spread.areas.length - 1} 區`}
-                  {spread.longestHopKm !== undefined && spread.longestHopKm >= 1 && `・最遠兩點約 ${spread.longestHopKm} 公里`}
+                    ? t('itinerary.dayBlocks.mostlyIn', { area: spread.mainArea })
+                    : t('itinerary.dayBlocks.spansAreas', { count: spread.areas.length })}
+                  {spread.mainArea && spread.areas.length > 1
+                    && t('itinerary.dayBlocks.alsoSpans', { count: spread.areas.length - 1 })}
+                  {spread.longestHopKm !== undefined && spread.longestHopKm >= 1
+                    && t('itinerary.dayBlocks.longestHop', { km: spread.longestHopKm })}
                 </>}
           </span>
         </p>
@@ -764,14 +775,16 @@ const DayBlockPlanner: React.FC<Props> = ({
           onClick={() => onShiftDay(tidied.items)}
           className="mt-2 w-full rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] font-bold text-amber-700"
         >
-          今天有 {tidied.movedCount} 個行程的時間疊在一起，要把它們排開嗎？
-          <span className="mt-0.5 block font-medium text-amber-600">航班、住宿與你固定的行程不會被動到</span>
+          {t('itinerary.dayBlocks.tidyPrompt', { count: tidied.movedCount })}
+          <span className="mt-0.5 block font-medium text-amber-600">
+            {t('itinerary.dayBlocks.tidyNote')}
+          </span>
         </button>
       )}
 
       {slots.length === 0 ? (
         <p className="mt-2 rounded-xl bg-slate-50 px-3 py-3 text-[11px] font-bold text-slate-500">
-          今天的航班佔掉了可以安排的時間。
+          {t('itinerary.dayBlocks.flightsTookDay')}
         </p>
       ) : (
         <div className="mt-2 space-y-1.5">
@@ -825,13 +838,15 @@ const DayBlockPlanner: React.FC<Props> = ({
                   <button
                     type="button"
                     data-testid={`swipe-delete-${slot.index}`}
-                    aria-label={`刪除 ${occupant.location || occupant.title}`}
+                    aria-label={t('itinerary.dayBlocks.deleteAria', {
+                      name: occupant.location || occupant.title,
+                    })}
                     onClick={() => { setSwipedId(null); onClearBlock(occupant.id); }}
                     className={`absolute inset-y-0 left-0 flex w-[88px] items-center justify-center rounded-l-xl bg-rose-500 text-xs font-black text-white ${
                       swipedId === occupant.id ? '' : 'pointer-events-none opacity-0'
                     }`}
                   >
-                    <Trash2 size={13} className="mr-1" />刪除
+                    <Trash2 size={13} className="mr-1" />{t('common.delete')}
                   </button>
                 )}
               <div
@@ -872,7 +887,9 @@ const DayBlockPlanner: React.FC<Props> = ({
                       <button
                         type="button"
                         data-testid={`move-up-${slot.index}`}
-                        aria-label={`${occupant.location || occupant.title} 往前移`}
+                        aria-label={t('itinerary.dayBlocks.moveUpAria', {
+                          name: occupant.location || occupant.title,
+                        })}
                         disabled={!swapUp(slot)}
                         onClick={() => { const other = swapUp(slot); if (other) moveToward(occupant, other, -1); }}
                         className="px-0.5 text-slate-300 disabled:opacity-30"
@@ -882,7 +899,9 @@ const DayBlockPlanner: React.FC<Props> = ({
                       <button
                         type="button"
                         data-testid={`move-down-${slot.index}`}
-                        aria-label={`${occupant.location || occupant.title} 往後移`}
+                        aria-label={t('itinerary.dayBlocks.moveDownAria', {
+                          name: occupant.location || occupant.title,
+                        })}
                         disabled={!swapDown(slot)}
                         onClick={() => { const other = swapDown(slot); if (other) moveToward(occupant, other, 1); }}
                         className="px-0.5 text-slate-300 disabled:opacity-30"
@@ -924,7 +943,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                     */}
                     {slot.pastDayEnd && (
                       <span data-testid={`past-day-end-${slot.id}`} className="mt-0.5 block text-[10px] font-bold text-amber-600">
-                        排在今天的時段之外
+                        {t('itinerary.dayBlocks.pastDayEnd')}
                       </span>
                     )}
                   </span>
@@ -961,7 +980,11 @@ const DayBlockPlanner: React.FC<Props> = ({
                       <button
                         type="button"
                         data-testid={`filled-block-${slot.index}`}
-                        aria-label={`${slot.startTime} ${slot.label}・${occupant.location || occupant.title}`}
+                        aria-label={t('itinerary.dayBlocks.filledAria', {
+                          time: slot.startTime,
+                          label: slot.label,
+                          name: occupant.location || occupant.title,
+                        })}
                         onClick={() => setPickingAt(slot.index)}
                         className="min-w-0 flex-1 truncate text-left text-xs font-bold text-[#11183d] underline decoration-violet-200 underline-offset-4"
                       >
@@ -976,7 +999,11 @@ const DayBlockPlanner: React.FC<Props> = ({
                 ) : (
                   <>
                   {/* 「欄位可以寫『無』」: an empty block is a stated answer, not a gap. */}
-                  {!occupant && <span className="shrink-0 text-[11px] font-bold text-slate-300">無</span>}
+                  {!occupant && (
+                    <span className="shrink-0 text-[11px] font-bold text-slate-300">
+                      {t('itinerary.dayBlocks.none')}
+                    </span>
+                  )}
                   {typingAt === slot.index ? (
                     /*
                       「下拉式選單要讓用戶也可以手動新增」.
@@ -998,10 +1025,10 @@ const DayBlockPlanner: React.FC<Props> = ({
                       <input
                         autoFocus
                         data-testid={`manual-block-input-${slot.index}`}
-                        aria-label={`${slot.startTime} 自己輸入地點`}
+                        aria-label={t('itinerary.dayBlocks.manualAria', { time: slot.startTime })}
                         value={typed}
                         maxLength={MAX_TITLE}
-                        placeholder="輸入地點名稱"
+                        placeholder={t('itinerary.dayBlocks.manualPlaceholder')}
                         onChange={event => setTyped(event.target.value)}
                         onKeyDown={event => {
                           if (event.key === 'Enter') commitTyped(slot);
@@ -1016,11 +1043,11 @@ const DayBlockPlanner: React.FC<Props> = ({
                         onClick={() => commitTyped(slot)}
                         className="shrink-0 rounded-lg bg-[#5b3df5] px-2.5 py-1.5 text-[11px] font-black text-white disabled:bg-slate-200 disabled:text-slate-400"
                       >
-                        加入
+                        {t('itinerary.dayBlocks.add')}
                       </button>
                       <button
                         type="button"
-                        aria-label="取消輸入"
+                        aria-label={t('itinerary.dayBlocks.cancelTypingAria')}
                         onClick={cancelTyping}
                         className="shrink-0 px-1 text-[11px] font-black text-slate-400"
                       >
@@ -1035,7 +1062,9 @@ const DayBlockPlanner: React.FC<Props> = ({
                     the pile of suggestions under a question already answered.
                   */
                   <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-400">沒有安排</span>
+                    <span className="text-xs font-bold text-slate-400">
+                      {t('itinerary.dayBlocks.noPlan')}
+                    </span>
                     {onToggleEmptied && (
                       <button
                         type="button"
@@ -1043,7 +1072,7 @@ const DayBlockPlanner: React.FC<Props> = ({
                         onClick={() => onToggleEmptied(slot.id)}
                         className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-black text-[#5b3df5]"
                       >
-                        還是排一個
+                        {t('itinerary.dayBlocks.planOneAfterAll')}
                       </button>
                     )}
                   </span>
@@ -1053,11 +1082,13 @@ const DayBlockPlanner: React.FC<Props> = ({
                     <button
                       type="button"
                       data-testid={`fill-block-${slot.index}`}
-                      aria-label={`${slot.startTime} ${slot.label}`}
+                      aria-label={t('itinerary.dayBlocks.fillAria', {
+                        time: slot.startTime, label: slot.label,
+                      })}
                       onClick={() => setPickingAt(slot.index)}
                       className="w-full rounded-lg border border-violet-200 bg-violet-50/40 px-2 py-1.5 text-left text-xs font-bold text-[#5b3df5]"
                     >
-                      ＋ 選一個地點
+                      {t('itinerary.dayBlocks.pickPlace')}
                     </button>
                     {/*
                       「要有『無』的選項」. Beside the pick rather than inside it:
@@ -1068,11 +1099,13 @@ const DayBlockPlanner: React.FC<Props> = ({
                       <button
                         type="button"
                         data-testid={`empty-block-${slot.index}`}
-                        aria-label={`${slot.startTime} ${slot.label} 不安排`}
+                        aria-label={t('itinerary.dayBlocks.emptyAria', {
+                          time: slot.startTime, label: slot.label,
+                        })}
                         onClick={() => onToggleEmptied(slot.id)}
                         className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-400"
                       >
-                        無
+                        {t('itinerary.dayBlocks.none')}
                       </button>
                     )}
                     </span>
@@ -1096,7 +1129,8 @@ const DayBlockPlanner: React.FC<Props> = ({
                             className="max-w-full truncate rounded-lg bg-[#f4f1ff] px-2 py-1 text-[10px] font-bold text-[#5b3df5]"
                           >
                             {suggestion.placeName}
-                            {suggestion.detourKm >= 0.1 && `・繞 ${suggestion.detourKm} 公里`}
+                            {suggestion.detourKm >= 0.1
+                              && t('itinerary.dayBlocks.detour', { km: suggestion.detourKm })}
                           </button>
                         ))}
                       </span>
@@ -1117,7 +1151,9 @@ const DayBlockPlanner: React.FC<Props> = ({
                 {occupant && onChangeDuration && !fixed && (
                   <select
                     data-testid={`block-duration-${slot.index}`}
-                    aria-label={`${occupant.location || occupant.title} 停留時間`}
+                    aria-label={t('itinerary.dayBlocks.durationAria', {
+                      name: occupant.location || occupant.title,
+                    })}
                     value={String(slot.durationMinutes)}
                     onChange={event => onChangeDuration(occupant.id, Number(event.target.value))}
                     className="shrink-0 rounded-lg border border-slate-200 px-1.5 py-1 text-[10px] font-bold text-slate-600"
@@ -1137,14 +1173,18 @@ const DayBlockPlanner: React.FC<Props> = ({
                   <button
                     type="button"
                     data-testid={`unpin-block-${slot.index}`}
-                    aria-label={`取消固定 ${occupant.location || occupant.title}`}
+                    aria-label={t('itinerary.dayBlocks.unpinAria', {
+                      name: occupant.location || occupant.title,
+                    })}
                     onClick={() => onUnpin(occupant.id)}
                     className="shrink-0 rounded-lg bg-[#f0edff] px-1.5 py-1 text-[10px] font-bold text-[#5b3df5]"
                   >
-                    已固定・取消
+                    {t('itinerary.dayBlocks.pinnedUnpin')}
                   </button>
                 ) : occupant && fixed ? (
-                  <span className="shrink-0 rounded-lg bg-slate-100 px-1.5 py-1 text-[10px] font-bold text-slate-500">固定</span>
+                  <span className="shrink-0 rounded-lg bg-slate-100 px-1.5 py-1 text-[10px] font-bold text-slate-500">
+                    {t('itinerary.dayBlocks.fixed')}
+                  </span>
                 ) : null}
               </div>
               </div>
@@ -1157,7 +1197,7 @@ const DayBlockPlanner: React.FC<Props> = ({
       {ranOutOfDay && (
         <p data-testid="day-ran-out" className="mt-2 flex items-start gap-1.5 text-[11px] font-bold leading-5 text-amber-700">
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-          延長之後，後面的時段排不進今天了。
+          {t('itinerary.dayBlocks.ranOutOfDay')}
         </p>
       )}
 
@@ -1170,8 +1210,12 @@ const DayBlockPlanner: React.FC<Props> = ({
           <AlertTriangle size={12} className="mt-0.5 shrink-0" />
           <span>
             {leaveForAirportAt
-              ? `${leaveForAirportAt.at} 就要出發去機場（約 ${leaveForAirportAt.journey} 分），${beAtAirportBy} 前要到，之後不要再排行程`
-              : `${beAtAirportBy} 前要到機場，之後不要再排行程`}
+              ? t('itinerary.dayBlocks.leaveForAirport', {
+                at: leaveForAirportAt.at,
+                minutes: leaveForAirportAt.journey,
+                beThere: beAtAirportBy,
+              })
+              : t('itinerary.dayBlocks.beAtAirport', { beThere: beAtAirportBy })}
           </span>
         </p>
       )}
@@ -1223,7 +1267,9 @@ const DayBlockPlanner: React.FC<Props> = ({
                 const result = replaceInSlot(slot, () => onFillBlock(slot, placeId));
                 if (result === true) setPickingAt(null); else setPickError(result);
               } catch (error) {
-                setPickError(`排入時出錯了：${(error as Error)?.message || String(error)}`);
+                setPickError(t('itinerary.dayBlocks.fillError', {
+                  message: (error as Error)?.message || String(error),
+                }));
               }
             }}
             error={pickError}
@@ -1239,7 +1285,7 @@ const DayBlockPlanner: React.FC<Props> = ({
       })()}
 
       <p className="mt-2 text-[10px] leading-4 text-slate-400">
-        每格預設 {minutesLabel(BLOCK_MINUTES)}，含移動時間。改了長度，後面的時段會自動順延或提前。
+        {t('itinerary.dayBlocks.blockDefault', { length: minutesLabel(BLOCK_MINUTES) })}
       </p>
     </section>
   );

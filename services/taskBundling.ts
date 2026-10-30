@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { ShoppingItem } from '../types';
 
 /**
@@ -27,19 +28,22 @@ export interface TaskBundleProposal {
 
 /** Words shared by tasks that have nothing else in common. */
 const STOPWORDS = new Set([
-  '預約', '查詢', '確認', '準備', '購買', '申請', '安排', '租借', '服務', '協助',
-  '旅行', '旅遊', '行程', '出發', '注意', '推薦', '體驗', '可以', '需要', '時間',
-  '資訊', '日期', '全套', '成人',
+  '預約', '查詢', '確認', '準備', '購買', '申請', '安排', '租借', '服務', '協助', // i18n-data: matched against task names
+  '旅行', '旅遊', '行程', '出發', '注意', '推薦', '體驗', '可以', '需要', '時間', // i18n-data: matched against task names
+  '資訊', '日期', '全套', '成人', // i18n-data: matched against task names
 ]);
 
 const tokens = (text: string): Set<string> => {
+  // i18n-data: CJK punctuation stripped from task names before tokenising
   const cleaned = (text || '').replace(/[\s,，。、()（）「」【】:：]/g, '');
   const found = new Set<string>();
+  // i18n-data: CJK codepoint range, a character class rather than words
   for (const match of cleaned.matchAll(/[一-鿿]{2,}|[A-Za-z]{3,}/g)) {
     const word = match[0].toLowerCase();
     if (STOPWORDS.has(word)) continue;
     found.add(word);
     // Every 2-character window, so 滑雪場 meets 滑雪裝備.
+    // i18n-data: CJK codepoint range, a character class rather than words
     if (/^[一-鿿]+$/.test(word)) {
       for (let i = 0; i + 2 <= word.length; i += 1) {
         const piece = word.slice(i, i + 2);
@@ -89,9 +93,11 @@ export const proposeTaskBundles = (
       const theme = commonWord(group.map(member => member.words));
       return {
         id: `bundle-${index + 1}`,
-        suggestedTitle: theme ? `${theme}協助` : '行前協助',
+        suggestedTitle: theme
+          ? i18n.t('plan.bundle.themedTitle', { theme })
+          : i18n.t('plan.bundle.genericTitle'),
         taskIds: group.map(member => member.task.id),
-        reason: theme ? `這 ${group.length} 項都跟「${theme}」有關，可以交給同一個人處理。` : undefined,
+        reason: theme ? i18n.t('plan.bundle.reason', { count: group.length, theme }) : undefined,
       };
     });
 };

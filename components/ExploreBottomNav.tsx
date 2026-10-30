@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Award, Book, Map as MapIcon } from 'lucide-react';
 
 /**
@@ -28,6 +29,7 @@ interface Props {
  * serving the old answer.
  */
 const ExploreBottomNav: React.FC<Props> = ({ active, onChange }) => {
+  const { t } = useTranslation();
   const tone = (section: ExploreSection) =>
     `flex flex-col items-center gap-1 ${active === section ? 'text-brand-600' : 'text-gray-400'}`;
 
@@ -35,7 +37,7 @@ const ExploreBottomNav: React.FC<Props> = ({ active, onChange }) => {
     <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full md:max-w-2xl bg-white/80 backdrop-blur-xl border-t border-gray-100 px-6 py-3 flex justify-around items-center z-50">
       <button onClick={() => onChange('bookshelf')} className={tone('bookshelf')}>
         <Book size={20} />
-        <span className="text-[10px] font-bold">書架</span>
+        <span className="text-[10px] font-bold">{t('nav.bookshelf')}</span>
       </button>
       {/*
         社群 and 服務 are deliberately absent, for the reasons recorded on
@@ -49,11 +51,11 @@ const ExploreBottomNav: React.FC<Props> = ({ active, onChange }) => {
       */}
       <button onClick={() => onChange('map')} className={tone('map')}>
         <MapIcon size={20} />
-        <span className="text-[10px] font-bold">地圖</span>
+        <span className="text-[10px] font-bold">{t('nav.map')}</span>
       </button>
       <button onClick={() => onChange('points')} className={tone('points')}>
         <Award size={20} />
-        <span className="text-[10px] font-bold">積分</span>
+        <span className="text-[10px] font-bold">{t('nav.points')}</span>
       </button>
     </div>
   );

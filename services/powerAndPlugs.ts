@@ -32,12 +32,15 @@ export interface PowerProfile {
   frequency: number;
   /** IEC plug letters, e.g. `['C', 'F']`. */
   plugs: string[];
-  /** Anything the two numbers above cannot say on their own. */
-  note?: string;
+  /**
+   * i18n key for anything the two numbers above cannot say on their own.
+   * Resolved by the caller: this module never holds display text.
+   */
+  noteKey?: string;
 }
 
 interface Entry extends PowerProfile {
-  /** Every spelling this country is stored under. */
+  /** Every spelling this country is stored under. i18n-data: matching keys. */
   names: string[];
 }
 
@@ -48,7 +51,7 @@ interface Entry extends PowerProfile {
 */
 const COUNTRIES: Entry[] = [
   { names: ['台灣', 'taiwan'], voltage: 110, frequency: 60, plugs: ['A', 'B'] },
-  { names: ['日本', 'japan'], voltage: 100, frequency: 50, plugs: ['A', 'B'], note: '東日本 50Hz、西日本 60Hz，一般家電不受影響。' },
+  { names: ['日本', 'japan'], voltage: 100, frequency: 50, plugs: ['A', 'B'], noteKey: 'plan.power.noteJp' },
   { names: ['韓國', 'korea', 'south korea'], voltage: 220, frequency: 60, plugs: ['C', 'F'] },
   { names: ['中國', 'china'], voltage: 220, frequency: 50, plugs: ['A', 'C', 'I'] },
   { names: ['香港', 'hong kong'], voltage: 220, frequency: 50, plugs: ['G'] },
@@ -73,7 +76,7 @@ const COUNTRIES: Entry[] = [
   { names: ['葡萄牙', 'portugal'], voltage: 230, frequency: 50, plugs: ['C', 'F'] },
   { names: ['荷蘭', 'netherlands'], voltage: 230, frequency: 50, plugs: ['C', 'F'] },
   { names: ['比利時', 'belgium'], voltage: 230, frequency: 50, plugs: ['C', 'E'] },
-  { names: ['瑞士', 'switzerland'], voltage: 230, frequency: 50, plugs: ['C', 'J'], note: '瑞士的 J 型孔位較窄，部分歐規轉接頭插不進去。' },
+  { names: ['瑞士', 'switzerland'], voltage: 230, frequency: 50, plugs: ['C', 'J'], noteKey: 'plan.power.noteCh' },
   { names: ['奧地利', 'austria'], voltage: 230, frequency: 50, plugs: ['C', 'F'] },
   { names: ['捷克', 'czechia', 'czech republic'], voltage: 230, frequency: 50, plugs: ['C', 'E'] },
   { names: ['匈牙利', 'hungary'], voltage: 230, frequency: 50, plugs: ['C', 'F'] },
@@ -91,7 +94,7 @@ const COUNTRIES: Entry[] = [
   { names: ['阿聯', '阿拉伯聯合大公國', 'uae', 'united arab emirates'], voltage: 230, frequency: 50, plugs: ['G'] },
   { names: ['埃及', 'egypt'], voltage: 220, frequency: 50, plugs: ['C', 'F'] },
   { names: ['南非', 'south africa'], voltage: 230, frequency: 50, plugs: ['D', 'M', 'N'] },
-  { names: ['巴西', 'brazil'], voltage: 127, frequency: 60, plugs: ['C', 'N'], note: '巴西 127V 與 220V 並存，插座旁通常會標電壓，入住後先看一眼。' },
+  { names: ['巴西', 'brazil'], voltage: 127, frequency: 60, plugs: ['C', 'N'], noteKey: 'plan.power.noteBr' },
   { names: ['阿根廷', 'argentina'], voltage: 220, frequency: 50, plugs: ['C', 'I'] },
   { names: ['智利', 'chile'], voltage: 220, frequency: 50, plugs: ['C', 'L'] },
   { names: ['秘魯', 'peru'], voltage: 220, frequency: 60, plugs: ['A', 'B', 'C'] },
@@ -123,12 +126,22 @@ export const powerHeadline = (profile: PowerProfile): string =>
  * almost everything with a charging brick is marked 100–240V and does not care
  * what the wall is; anything that makes heat does.
  */
-export const powerAdviceLines = (profile: PowerProfile): string[] => {
-  const lines = [
-    `插座是 ${profile.plugs.join('、')} 型，插頭對不上就要轉接頭。`,
-    `電壓 ${profile.voltage}V。手機、筆電、相機的充電器多半標示 100–240V，`
-    + `對得上插座就能直接用；吹風機、離子夾、快煮壺這類會發熱的，要先看機身有沒有支援 ${profile.voltage}V。`,
+export interface PowerAdviceLine {
+  /** i18n key. */
+  key: string;
+  /**
+   * Interpolation values. A `string[]` is a list the caller joins with the
+   * locale's own separator — 「C、F」 in Chinese is "C, F" in English, and the
+   * separator is copy, so this module must not pick one.
+   */
+  params?: Record<string, string | number | string[]>;
+}
+
+export const powerAdviceLines = (profile: PowerProfile): PowerAdviceLine[] => {
+  const lines: PowerAdviceLine[] = [
+    { key: 'plan.power.plugLine', params: { plugs: profile.plugs } },
+    { key: 'plan.power.voltageLine', params: { voltage: profile.voltage } },
   ];
-  if (profile.note) lines.push(profile.note);
+  if (profile.noteKey) lines.push({ key: profile.noteKey });
   return lines;
 };

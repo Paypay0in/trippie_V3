@@ -112,6 +112,7 @@ export const fixedAnchorSchedule = (existingItems: ItineraryItem[]): FixedSchedu
       date: item.date as string,
       time: item.time as string,
       durationMinutes: Number.isFinite(item.durationMinutes) ? Number(item.durationMinutes) : undefined,
+      // i18n-data: the stored ItineraryItem title, passed through; the fallback matches it
       label: item.title?.trim() || '航班',
       role: roleOf(item),
     }))
@@ -137,6 +138,7 @@ export const fixedAnchorScheduleFromSnapshot = (
       date: item.date as string,
       time: item.startTime as string,
       durationMinutes: typeof item.durationMinutes === 'number' && Number.isFinite(item.durationMinutes) ? item.durationMinutes : undefined,
+      // i18n-data: as above, from the AI adjustment snapshot's own placeName
       label: typeof item.placeName === 'string' && item.placeName.trim() ? item.placeName.trim() : '航班',
       role: item.accommodation === true && !(item.id as string).startsWith('flight-')
         ? ('checkin' as FixedScheduleRole)
@@ -267,12 +269,19 @@ export const latestFreeStartByDate = (
   cannot catch it: the anchor says 「入住 廣安里凱星頓特酒店」 and the model says
   「抵達飯店門口並辦理入住」. What they share is the subject.
 */
+// i18n-data: regex anchors matched against model-written activity names and notes
 const ANCHOR_SUBJECTS = [
+  // i18n-data: regex anchor matched against model-written activity names and notes
   /入境/, /出境/, /通關/, /海關/, /領取行李/, /提領行李/, /行李轉盤/,
+  // i18n-data: regex anchor matched against model-written activity names and notes
   /辦理登機/, /登機/, /報到/, /劃位/,
+  // i18n-data: regex anchor matched against model-written activity names and notes
   /機場.*(抵達|到達|出發|前往|搭乘處)/, /(抵達|到達|降落).*機場/, /前往.*機場/,
+  // i18n-data: regex anchor matched against model-written activity names and notes
   /計程車.*(搭乘|招呼|排班|站|處)/, /(搭乘|前往).*(機場巴士|利木津)/, /接送/,
+  // i18n-data: regex anchor matched against model-written activity names and notes
   /(抵達|前往|到達).*(飯店|酒店|旅館|民宿|住宿)/,
+  // i18n-data: regex anchor matched against model-written activity names and notes
   /辦理入住/, /check[\s-]?in/i, /check[\s-]?out/i, /辦理退房/,
 ];
 

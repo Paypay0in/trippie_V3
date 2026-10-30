@@ -257,9 +257,11 @@ const PRICE_MARKUP = [
 ];
 
 /** Words a shop puts beside the number it is charging. */
+// i18n-data: regex anchor matched against scraped shop-page text
 const PRICE_WORD = /(?:販売価格|本体価格|通常価格|参考価格|税込価格|価格|税込|お値段|售價|售价|定價|定价|售出價|價格|价格|建議售價|會員價|特價|特价|price)/i;
 
 /** And the ones that mean a condition rather than a price. */
+// i18n-data: regex anchor matched against scraped shop-page text
 const NOT_A_PRICE = /(?:まとめ買い|送料|ポイント|クーポン|以上|お一人様|分割|月々|滿|満|折|起|回饋|紅利|運費|freight|shipping|coupon|save)/i;
 
 /**
@@ -270,7 +272,9 @@ const NOT_A_PRICE = /(?:まとめ買い|送料|ポイント|クーポン|以上|
  * what printed 淘寶's ¥14 as NT$14.
  */
 const MONEY: Record<string, RegExp> = {
+  // i18n-data: regex anchor matched against scraped shop-page text
   JPY: /(?:¥|￥)\s*([\d][\d,]{1,9})|([\d][\d,]{1,9})\s*円/,
+  // i18n-data: regex anchor matched against scraped shop-page text
   TWD: /(?:NT\$|NT｜\$|TWD)\s*([\d][\d,]{1,9})|([\d][\d,]{1,9})\s*元/,
   KRW: /(?:₩|KRW)\s*([\d][\d,]{1,9})|([\d][\d,]{1,9})\s*원/,
   HKD: /(?:HK\$|HKD)\s*([\d][\d,]{1,9})/,
@@ -342,6 +346,7 @@ export const offersFromText = (html: string, currency: string): PageOffer[] => {
       in front of the label, not behind it — a window that starts at 価格
       reads it as an ordinary price.
     */
+    // i18n-data: regex anchor matched against scraped shop-page text
     const label = new RegExp(`[^。]{0,10}${PRICE_WORD.source}[^。]{0,24}`, 'gi');
     for (const near of text.match(label) ?? []) {
       if (NOT_A_PRICE.test(near)) continue;

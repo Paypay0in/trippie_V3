@@ -78,8 +78,17 @@ export interface SearchedQuote {
    * number beside a title, and the title was never compared with anything.
    */
   match?: 'exact' | 'probable';
-  /** Why, in words — shown beside a probable match. */
-  matchReason?: string;
+  /**
+   * Why, as an i18n key — shown beside a probable match.
+   *
+   * A key rather than a sentence because every one of these is produced in the
+   * server's process, which has no translation bundle and must not acquire one.
+   * See `Match.reasonKey` in `productMatch` and
+   * `tests/serverNeverImportsBrowserI18n.test.ts`.
+   */
+  matchReasonKey?: string;
+  /** Interpolation for `matchReasonKey`. */
+  matchReasonParams?: Record<string, string>;
   /** How many the listing sells at once, when it sells more than one. */
   packSize?: number;
   /** Read off the page rather than out of its structured data. */
@@ -108,7 +117,9 @@ export const priceQuery = (name: string, brand: string | undefined, country: Com
 export const relaxedName = (name: string): string => {
   const plain = (name || '')
     // Bracketed asides are packaging copy: 【限定】, （医薬部外品）.
+    // i18n-data: packaging punctuation stripped from a scraped product name.
     .replace(/[（(【\[][^）)】\]]*[）)】\]]/g, ' ')
+    // i18n-data: separators stripped from a scraped product name.
     .replace(/[・･／/,、|~〜+＋]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -228,6 +239,7 @@ const HAN = /[\u4e00-\u9fff]/;
   Both look exactly like a shop when all you have is a host and a snippet. A
   product page is the only page whose price is about the product.
 */
+// i18n-data: host names matched against a scraped result's domain.
 const AGGREGATOR = /biggo|findprice|feebee|ecshopping|pricearea|kakaku\.com|coneco|价格网|pricespy|idealo|shopping\.yahoo\.co\.jp\/search/i;
 
 /** Paths that list things rather than being one. */
@@ -317,16 +329,19 @@ export const readMoney = (text: string): Money | null => {
   on a real product page, so no bound and no host check can tell them apart:
   only the words around them can.
 */
+// i18n-data: phrases matched against a scraped shop snippet.
 const BEFORE_A_THRESHOLD = /滿|超過|以上|單筆|全館|現折|折抵|送|贈|券|起$|最低|up to|over/i;
 /*
   Only words that make the number a floor. Not 「送」: 「¥3,080 送料無料」 is a
   price followed by free shipping, which is the commonest shape there is on a
   Japanese product page.
 */
+// i18n-data: phrases matched against a scraped shop snippet.
 const AFTER_A_THRESHOLD = /^\s*(以上|起|免運)/;
 
 /** Every figure in the snippet that is money and is not a condition. */
 const allMoney = (text: string): Money[] => {
+  // i18n-data: currency units matched against a scraped snippet.
   const pattern = /([\d,]+)\s*円|NT\$\s*([\d,]+)|[¥￥]\s*([\d,]+)|\$\s*([\d,]+)|([\d,]+)\s*元/g;
   const found: Money[] = [];
 

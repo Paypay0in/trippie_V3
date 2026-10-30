@@ -49,7 +49,7 @@ import { assignFlightsToLegs, flightPrompt } from "./services/flightIntake";
 import { checkProposedChanges } from "./services/adjustmentChanges";
 import { normalizeItinerarySlices } from "./services/itineraryImageSlices";
 import { earliestFreeStartByDate, fixedAnchorScheduleFromSnapshot, latestFreeStartByDate } from "./services/itineraryDayFloor";
-import { enumerateTripDates } from "./services/itineraryPlanningService";
+import { enumerateTripDates } from "./services/tripDates";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2352,7 +2352,7 @@ ${sentence}
                   sourceUrl: chosen,
                   verified: true,
                   match: "exact" as const,
-                  matchReason: "你指定的商品頁",
+                  matchReasonKey: "shopping.match.pageYouChose",
                   ...(offer.fromText ? { priceFromText: true } : {}),
                   placement: "host" as const,
                 }]
@@ -2468,7 +2468,7 @@ ${sentence}
                   currency: offer.currency,
                   fromText: offer.fromText === true,
                 })),
-                verdicts: judged.map(({ match }) => `${match.confidence}: ${match.reason}`),
+                verdicts: judged.map(({ match }) => `${match.confidence}: ${match.reasonKey}`),
               });
             }
 
@@ -2493,7 +2493,8 @@ ${sentence}
                 sourceUrl: candidate.url,
                 verified: true,
                 match: best.match.confidence === "exact" ? "exact" as const : "probable" as const,
-                matchReason: best.match.reason,
+                matchReasonKey: best.match.reasonKey,
+                ...(best.match.reasonParams ? { matchReasonParams: best.match.reasonParams } : {}),
                 /*
                   A number beside the word 価格 is a weaker statement than
                   structured data and is carried as one, so the screen can
@@ -2621,7 +2622,8 @@ ${sentence}
                 sourceUrl: candidate.url,
                 verified: true,
                 match: "exact" as const,
-                matchReason: `條碼相符（${barcode}）`,
+                matchReasonKey: "shopping.match.barcodeMatches",
+                matchReasonParams: { barcode },
                 ...(same.fromText ? { priceFromText: true } : {}),
                 ...(() => {
                   const pack = packSizeIn([same.productName, same.name].filter(Boolean).join(" "));

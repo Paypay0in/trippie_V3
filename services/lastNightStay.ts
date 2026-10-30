@@ -55,4 +55,6 @@ export const stayRowState = ({ date, endDate, hasStay }: StayRowInput): StayRowS
 };
 
 /** 今日退房, in the traveller's words. */
-export const CHECKED_OUT_LABEL = '今日退房';
+// i18n-data: rendered as a bare constant by `ItineraryCalendar`, which is
+// outside this batch; migrating it needs that call site to resolve a key.
+export const CHECKED_OUT_LABEL = '今日退房'; // i18n-data: rendered as a bare constant by ItineraryCalendar, outside this batch

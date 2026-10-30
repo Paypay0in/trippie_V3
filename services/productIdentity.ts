@@ -28,7 +28,9 @@ export const brandOf = (note?: string): string => {
     想買 2 瓶」 is a note somebody typed, not a company — and the note this
     reads is built by `candidateDetail`, which never writes a comma.
   */
+  // i18n-data: regex anchor — the punctuation that marks a typed sentence.
   if (/[，。！？!?]/.test(written)) return '';
+  // i18n-data: regex anchor — the separators `candidateDetail` builds a note with.
   const first = written.split(/[·、|/]/)[0].trim();
   return first.length > 0 && first.length <= 40 ? first : '';
 };

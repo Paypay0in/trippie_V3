@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, ChevronRight, Search, UserPlus, X } from 'lucide-react';
 import { Person } from '../services/friendships';
 import { searchIntent } from '../services/friendSearch';
@@ -75,6 +76,7 @@ const FriendsPanel: React.FC<Props> = ({
   myEmail, friends, pending, suggestions = [], onLookup, onRequest, onAccept, onRemove,
   tripsWith, onOpenProfile,
 }) => {
+  const { t } = useTranslation();
   /**
    * Suggestions already asked for, this session.
    *
@@ -103,7 +105,7 @@ const FriendsPanel: React.FC<Props> = ({
 
   return (
     <section className="mt-5" data-testid="friends-panel">
-      <h2 className="text-section font-semibold tracking-tight">好友</h2>
+      <h2 className="text-section font-semibold tracking-tight">{t('friends.title')}</h2>
 
       {/*
         「是不是可以直接新增成朋友」 — above the email field, because for anybody
@@ -118,7 +120,7 @@ const FriendsPanel: React.FC<Props> = ({
       */}
       {suggestions.length > 0 && (
         <div className="mt-2" data-testid="companion-suggestions">
-          <p className="text-support font-semibold text-ink-soft">一起旅行過的人</p>
+          <p className="text-support font-semibold text-ink-soft">{t('friends.travelledTogether')}</p>
           <ul className="mt-1.5 space-y-1.5">
             {suggestions.map(suggestion => {
               const person = asPerson(suggestion);
@@ -144,18 +146,18 @@ const FriendsPanel: React.FC<Props> = ({
                     }}
                     className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-control bg-violet-600 px-3.5 text-support font-semibold text-white disabled:bg-slate-100 disabled:text-ink-soft"
                   >
-                    {asked ? '已邀請' : <><UserPlus size={15} />邀請</>}
+                    {asked ? t('friends.invited') : <><UserPlus size={15} />{t('friends.invite')}</>}
                   </button>
                 </li>
               );
             })}
           </ul>
-          <p className="mt-2 text-meta text-ink-soft">對方接受後才會成為好友。</p>
+          <p className="mt-2 text-meta text-ink-soft">{t('friends.needsAcceptance')}</p>
         </div>
       )}
 
       {/* The address is the fallback, for somebody you have not travelled with. */}
-      <p className="mt-4 text-support font-semibold text-ink-soft">用 Email 找人</p>
+      <p className="mt-4 text-support font-semibold text-ink-soft">{t('friends.findByEmail')}</p>
       <div className="mt-2 flex gap-2">
         <div className="relative min-w-0 flex-1">
           <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -165,8 +167,8 @@ const FriendsPanel: React.FC<Props> = ({
             autoComplete="off"
             value={typed}
             data-testid="friend-email"
-            aria-label="用 Email 找朋友"
-            placeholder="輸入對方的 Email"
+            aria-label={t('friends.findByEmailLabel')}
+            placeholder={t('friends.emailPlaceholder')}
             onChange={event => { setTyped(event.target.value); setOutcome({ kind: 'idle' }); }}
             onKeyDown={event => { if (event.key === 'Enter') void look(); }}
             className="h-[var(--control-h)] w-full min-w-0 rounded-field border border-hairline bg-white pl-9 pr-3 text-field font-medium text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
@@ -184,26 +186,26 @@ const FriendsPanel: React.FC<Props> = ({
           onClick={() => void look()}
           className="flex h-[var(--control-h)] shrink-0 items-center gap-1.5 rounded-control bg-violet-600 px-4 text-action font-semibold text-white disabled:opacity-40"
         >
-          <UserPlus size={16} />尋找
+          <UserPlus size={16} />{t('friends.search')}
         </button>
       </div>
 
       {intent === 'incomplete' && (
-        <p className="mt-1.5 text-meta text-ink-soft">輸入完整的 Email 才會查詢</p>
+        <p className="mt-1.5 text-meta text-ink-soft">{t('friends.needsWholeEmail')}</p>
       )}
 
       {outcome.kind === 'searching' && (
-        <p className="mt-2 text-support text-ink-soft">搜尋中…</p>
+        <p className="mt-2 text-support text-ink-soft">{t('friends.searching')}</p>
       )}
 
       {/* 「That's you」 rather than 「no such person」: the account plainly exists. */}
       {outcome.kind === 'self' && (
-        <p data-testid="friend-self" className="mt-2 text-support text-ink-soft">這是你自己的帳號。</p>
+        <p data-testid="friend-self" className="mt-2 text-support text-ink-soft">{t('friends.thatIsYou')}</p>
       )}
 
       {outcome.kind === 'none' && (
         <p data-testid="friend-none" className="mt-2 text-support text-ink-soft">
-          找不到這個 Email 的 Trippie 帳號。
+          {t('friends.noAccount')}
         </p>
       )}
 
@@ -213,13 +215,13 @@ const FriendsPanel: React.FC<Props> = ({
       */}
       {outcome.kind === 'setup' && (
         <p data-testid="friend-setup" className="mt-2 rounded-card bg-amber-50 px-3 py-2 text-support font-medium text-amber-800">
-          好友功能的資料表還沒建立，所以現在查不了。這不是你打錯。
+          {t('friends.tablesMissing')}
         </p>
       )}
 
       {outcome.kind === 'error' && (
         <p data-testid="friend-error" className="mt-2 text-support font-medium text-rose-600">
-          查詢失敗，請稍後再試。
+          {t('friends.lookupFailed')}
         </p>
       )}
 
@@ -233,14 +235,14 @@ const FriendsPanel: React.FC<Props> = ({
             onClick={() => { void onRequest(outcome.person); setOutcome({ kind: 'idle' }); setTyped(''); }}
             className="flex min-h-11 shrink-0 items-center gap-1.5 rounded-control bg-violet-600 px-3.5 text-support font-semibold text-white"
           >
-            <UserPlus size={15} />邀請
+            <UserPlus size={15} />{t('friends.invite')}
           </button>
         </div>
       )}
 
       {pending.length > 0 && (
         <div className="mt-4">
-          <p className="text-support font-semibold text-ink-soft">邀請中</p>
+          <p className="text-support font-semibold text-ink-soft">{t('friends.pending')}</p>
           <ul className="mt-1.5 space-y-1.5">
             {pending.map(({ person, direction }) => (
               <li
@@ -252,7 +254,7 @@ const FriendsPanel: React.FC<Props> = ({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-field font-semibold">{person.displayName}</span>
                   <span className="block text-meta text-ink-soft">
-                    {direction === 'incoming' ? '想加你為好友' : '等待對方回覆'}
+                    {direction === 'incoming' ? t('friends.wantsToAddYou') : t('friends.awaitingReply')}
                   </span>
                 </span>
                 {direction === 'incoming' ? (
@@ -261,7 +263,7 @@ const FriendsPanel: React.FC<Props> = ({
                     data-testid={`friend-accept-${person.id}`}
                     onClick={() => void onAccept(person)}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white"
-                    aria-label={`接受 ${person.displayName}`}
+                    aria-label={t('friends.acceptPerson', { name: person.displayName })}
                   >
                     <Check size={17} />
                   </button>
@@ -271,7 +273,9 @@ const FriendsPanel: React.FC<Props> = ({
                   data-testid={`friend-cancel-${person.id}`}
                   onClick={() => void onRemove(person)}
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400"
-                  aria-label={direction === 'incoming' ? `拒絕 ${person.displayName}` : `取消邀請 ${person.displayName}`}
+                  aria-label={direction === 'incoming'
+                    ? t('friends.declinePerson', { name: person.displayName })
+                    : t('friends.cancelInvitePerson', { name: person.displayName })}
                 >
                   <X size={17} />
                 </button>
@@ -282,10 +286,10 @@ const FriendsPanel: React.FC<Props> = ({
       )}
 
       <div className="mt-4">
-        <p className="text-support font-semibold text-ink-soft">我的好友（{friends.length}）</p>
+        <p className="text-support font-semibold text-ink-soft">{t('friends.myFriends', { count: friends.length })}</p>
         {friends.length === 0 ? (
           <p className="mt-1.5 rounded-card border border-dashed border-slate-200 px-3 py-5 text-center text-support text-ink-soft">
-            還沒有好友。用上面的 Email 找找看。
+            {t('friends.emptyState')}
           </p>
         ) : (
           <ul className="mt-1.5 space-y-1.5">
@@ -321,7 +325,7 @@ const FriendsPanel: React.FC<Props> = ({
                       */}
                       {shared.length > 0 && (
                         <span className="shrink-0 text-support font-semibold text-violet-600">
-                          共同旅程 {shared.length}
+                          {t('friends.sharedTrips', { count: shared.length })}
                         </span>
                       )}
                       <ChevronRight size={15} className="shrink-0 text-slate-400" />
@@ -334,7 +338,7 @@ const FriendsPanel: React.FC<Props> = ({
                     data-testid={`friend-remove-${person.id}`}
                     onClick={() => void onRemove(person)}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400"
-                    aria-label={`移除好友 ${person.displayName}`}
+                    aria-label={t('friends.removePerson', { name: person.displayName })}
                   >
                     <X size={17} />
                   </button>

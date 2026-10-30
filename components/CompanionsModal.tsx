@@ -1,6 +1,7 @@
 
 import { OVERLAY } from '../constants/layers';
 import React, { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Companion } from '../types';
 import { QRCodeSVG } from 'qrcode.react';
 import { Copy, Link2, Share2, Trash2, UserPlus, Users, X } from 'lucide-react';
@@ -63,6 +64,7 @@ const Avatar: React.FC<{ name: string; tone: 'owner' | 'member' | 'guest' }> = (
 };
 
 const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFriendToTrip, onRemove, onClose, ownerName, onInvite, invitingId, inviteLink, onDismissInviteLink }) => {
+  const { t } = useTranslation();
   const [newName, setNewName] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -74,24 +76,24 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
   };
 
   const availableFriends = friends.filter(f => !companions.some(c => c.id === f.id));
-  const ownerLabel = ownerName?.trim() || '我';
+  const ownerLabel = ownerName?.trim() || t('expense.me');
 
   return (
     <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.modal} animate-fade-in`}>
       <div className="flex max-h-[92vh] w-full max-w-sm flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_24px_60px_rgba(17,24,61,.22)]">
         {/* Header — same shell and close-button style as the other expense modals */}
         <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4">
-          <button onClick={onClose} aria-label="關閉" className="-ml-2 rounded-full p-2 text-slate-500 hover:bg-slate-100">
+          <button onClick={onClose} aria-label={t('common.close')} className="-ml-2 rounded-full p-2 text-slate-500 hover:bg-slate-100">
             <X size={20} />
           </button>
           <h2 className="flex items-center gap-2 text-xl font-black text-[#11183d]">
-            <Users size={20} className="text-violet-600" /> 管理旅伴
+            <Users size={20} className="text-violet-600" /> {t('companions.title')}
           </h2>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
           <p className="mb-5 rounded-2xl bg-[#f5f1ff] px-4 py-3 text-xs font-medium leading-relaxed text-slate-600 ring-1 ring-violet-100">
-            新增旅伴後，記帳時即可選擇「誰付錢」與「分攤給誰」，系統會自動計算債務。
+            {t('companions.blurb')}
           </p>
 
           <form onSubmit={handleSubmit} className="mb-6 flex gap-2.5">
@@ -99,13 +101,13 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="輸入旅伴名字（例：Alice）"
+              placeholder={t('companions.namePlaceholder')}
               className="h-12 flex-1 rounded-2xl border border-slate-200 px-4 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-200"
             />
             <button
               type="submit"
               disabled={!newName.trim()}
-              aria-label="新增旅伴"
+              aria-label={t('companions.addAria')}
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,.3)] transition-colors hover:bg-violet-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
             >
               <UserPlus size={20} />
@@ -116,7 +118,7 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
             <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3.5 ring-1 ring-slate-100">
               <Avatar name={ownerLabel} tone="owner" />
               <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#11183d]">{ownerLabel}</span>
-              <RoleChip tone="owner">擁有者</RoleChip>
+              <RoleChip tone="owner">{t('companions.owner')}</RoleChip>
             </div>
 
             {inviteLink && (
@@ -127,10 +129,10 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                  showing the link. Each button below is its own fresh tap. */
               <div className="rounded-2xl border border-violet-200 bg-[#f7f5ff] p-3.5">
                 <div className="text-xs font-black text-[#11183d]">
-                  {inviteLink.companionName} 的邀請連結
+                  {t('companions.inviteLinkFor', { name: inviteLink.companionName })}
                 </div>
                 <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                  用訊息傳給她。知道這個連結的人就能加入這趟旅程，所以別公開貼出來。
+                  {t('companions.inviteLinkHint')}
                 </p>
                 {/*
                   A QR of the link, scanned with the phone's own camera.
@@ -146,7 +148,7 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                   <QRCodeSVG value={inviteLink.url} size={148} level="M" includeMargin={false} />
 
                   <p className="text-center text-[11px] leading-5 text-slate-500">
-                    用她手機的<span className="font-bold text-slate-600">相機</span>直接掃這個碼
+                    <Trans i18nKey="companions.scanHint" components={{ b: <span className="font-bold text-slate-600" /> }} />
                   </p>
                 </div>
                 {/*
@@ -158,8 +160,10 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                   invite having failed when it did not.
                 */}
                 <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-900">
-                  掃描一定會在 <span className="font-bold">Safari</span> 打開，不會開已經加到桌面的 App。
-                  她在 Safari 加入之後，如果要用桌面上的圖示，<span className="font-bold">要用同一個帳號在那裡再登入一次</span>，行程和帳目就會出現。
+                  <Trans
+                    i18nKey="companions.safariNotice"
+                    components={{ b: <span className="font-bold" />, strong: <span className="font-bold" /> }}
+                  />
                 </p>
                 <div className="mt-2 break-all rounded-xl bg-white px-3 py-2 text-[11px] text-slate-600 ring-1 ring-slate-200">
                   {inviteLink.url}
@@ -169,11 +173,11 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                     <button
                       type="button"
                       onClick={() => {
-                        void navigator.share({ url: inviteLink.url, text: '一起用 Trippie 規劃這趟旅程' }).catch(() => undefined);
+                        void navigator.share({ url: inviteLink.url, text: t('companions.shareText') }).catch(() => undefined);
                       }}
                       className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-xs font-black text-white"
                     >
-                      <Share2 size={14} />分享
+                      <Share2 size={14} />{t('companions.share')}
                     </button>
                   )}
                   <button
@@ -183,14 +187,14 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                     }}
                     className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-white text-xs font-black text-[#5b3df5] ring-1 ring-violet-200"
                   >
-                    <Copy size={14} />複製
+                    <Copy size={14} />{t('companions.copy')}
                   </button>
                   <button
                     type="button"
                     onClick={onDismissInviteLink}
                     className="min-h-11 shrink-0 px-3 text-xs font-bold text-slate-500"
                   >
-                    收起
+                    {t('companions.collapse')}
                   </button>
                 </div>
               </div>
@@ -233,22 +237,22 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
                   <Avatar name={c.name} tone={isLinked ? 'member' : 'guest'} />
                   <span className="min-w-0 flex-1 truncate text-sm font-bold text-[#11183d]">{c.name}</span>
                   <RoleChip tone={isLinked ? 'member' : 'guest'}>
-                    {hasJoined ? '已加入' : isLinked ? '已連結好友' : '訪客'}
+                    {hasJoined ? t('companions.joined') : isLinked ? t('companions.friendLinked') : t('companions.guest')}
                   </RoleChip>
                   {/* Nobody needs inviting to a trip they are already in. */}
                   {onInvite && !hasJoined && (
                     <button
                       onClick={() => onInvite(c)}
                       disabled={invitingId === c.id}
-                      aria-label={`邀請${c.name}加入這趟旅程`}
+                      aria-label={t('companions.inviteAria', { name: c.name })}
                       className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl bg-[#f3f0ff] px-2.5 text-xs font-black text-[#5b3df5] disabled:opacity-50"
                     >
-                      <Link2 size={14} />{invitingId === c.id ? '產生中…' : '邀請'}
+                      <Link2 size={14} />{invitingId === c.id ? t('companions.generating') : t('companions.invite')}
                     </button>
                   )}
                   <button
                     onClick={() => onRemove(c.id)}
-                    aria-label={`移除${c.name}`}
+                    aria-label={t('companions.removeAria', { name: c.name })}
                     className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
                   >
                     <Trash2 size={18} />
@@ -261,7 +265,7 @@ const CompanionsModal: React.FC<Props> = ({ companions, friends, onAdd, onAddFri
               <div className="pt-4">
                 <div className="mb-2.5 flex items-center gap-2">
                   <span className="h-4 w-1 rounded-full bg-violet-500" />
-                  <span className="text-sm font-black tracking-tight text-[#11183d]">從好友名單加入</span>
+                  <span className="text-sm font-black tracking-tight text-[#11183d]">{t('companions.fromFriends')}</span>
                 </div>
                 <div className="space-y-2.5">
                   {availableFriends.map(f => (

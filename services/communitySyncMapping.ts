@@ -39,6 +39,7 @@ export interface PostCommentRow {
 export const toPostRow = (post: CommunityPost): CommunityPostRow => ({
   id: post.id,
   creator_id: post.creatorId,
+  // i18n-data: written to the Supabase community_posts.author_name column.
   author_name: post.authorName || '旅人',
   author_avatar: post.authorAvatar ?? null,
   title: post.title ?? '',
@@ -57,6 +58,7 @@ export const toPostRow = (post: CommunityPost): CommunityPostRow => ({
 export const fromPostRow = (row: CommunityPostRow): CommunityPost => ({
   id: row.id,
   creatorId: row.creator_id,
+  // i18n-data: the stored author_name column value, read back.
   authorName: row.author_name || '旅人',
   authorAvatar: row.author_avatar ?? undefined,
   title: row.title ?? '',
@@ -80,6 +82,7 @@ export const toCommentRow = (comment: PostComment): PostCommentRow => ({
   id: comment.id,
   post_id: comment.postId,
   author_id: comment.authorId,
+  // i18n-data: written to the Supabase post_comments.author_name column.
   author_name: comment.authorName || '旅人',
   author_avatar: comment.authorAvatar ?? null,
   content: comment.content,
@@ -90,6 +93,7 @@ export const fromCommentRow = (row: PostCommentRow): PostComment => ({
   id: row.id,
   postId: row.post_id,
   authorId: row.author_id,
+  // i18n-data: the stored author_name column value, read back.
   authorName: row.author_name || '旅人',
   authorAvatar: row.author_avatar ?? undefined,
   content: row.content ?? '',

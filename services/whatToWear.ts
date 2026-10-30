@@ -13,6 +13,8 @@
  * The rules are the ordinary ones a person uses, and deliberately plain. A
  * confident 「帶一件薄外套」 at 28° reads as expertise and is simply wrong.
  */
+import i18n from '../i18n/config';
+
 export interface TomorrowWeather {
   high: number;
   low: number;
@@ -34,24 +36,32 @@ export const whatToWear = (tomorrow: TomorrowWeather): string[] => {
     is unprepared for. A morning at 12° is the thing a jacket is for, even if
     the afternoon reaches 24°.
   */
-  if (low <= 5) lines.push('早晚很冷，厚外套、圍巾');
-  else if (low <= 12) lines.push('早晚偏冷，帶一件外套');
-  else if (low <= 18) lines.push('早晚有點涼，薄外套或長袖');
-  else if (high >= 30) lines.push('整天偏熱，穿透氣的');
-  else lines.push('整天舒服，一般穿著就可以');
+  if (low <= 5) lines.push(i18n.t('tripLive.wear.veryCold'));
+  else if (low <= 12) lines.push(i18n.t('tripLive.wear.cold'));
+  else if (low <= 18) lines.push(i18n.t('tripLive.wear.cool'));
+  else if (high >= 30) lines.push(i18n.t('tripLive.wear.hot'));
+  else lines.push(i18n.t('tripLive.wear.mild'));
 
   // The swing, when it is big enough to be the thing that catches somebody
   // out. Said as well as the temperature, not instead of it.
-  if (high - low >= SWING && low > 12) lines.push(`日夜溫差 ${Math.round(high - low)} 度，可以洋蔥式`);
+  if (high - low >= SWING && low > 12) lines.push(i18n.t('tripLive.wear.swing', { degrees: Math.round(high - low) }));
 
-  if (rain >= 70) lines.push('很可能下雨，雨具一定要帶');
-  else if (rain >= UMBRELLA) lines.push('可能會下雨，帶把傘');
+  if (rain >= 70) lines.push(i18n.t('tripLive.wear.rainLikely'));
+  else if (rain >= UMBRELLA) lines.push(i18n.t('tripLive.wear.rainPossible'));
 
   return lines;
 };
 
 /** 「明天 29° / 19°・多雲」 — the forecast the advice was built on. */
-export const tomorrowLabel = (tomorrow: TomorrowWeather): string =>
-  `明天 ${Math.round(tomorrow.high)}° / ${Math.round(tomorrow.low)}°${
-    tomorrow.condition ? `・${tomorrow.condition}` : ''
-  }`;
+export const tomorrowLabel = (tomorrow: TomorrowWeather): string => {
+  const high = Math.round(tomorrow.high);
+  const low = Math.round(tomorrow.low);
+  /*
+    `condition` arrives from the weather provider, in whatever language it
+    answered in. It is not ours to translate here — only the frame around it
+    is, which is why the condition is interpolated rather than rebuilt.
+  */
+  return tomorrow.condition
+    ? i18n.t('tripLive.wear.tomorrowForecastCondition', { high, low, condition: tomorrow.condition })
+    : i18n.t('tripLive.wear.tomorrowForecast', { high, low });
+};

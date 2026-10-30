@@ -38,7 +38,10 @@ describe('貼文內頁', () => {
   });
 
   it('返回是一個 44pt 的可點範圍，不是一行字', () => {
-    expect(source).toMatch(/min-h-11[^>]*>← 返回社群/);
+    // The label moved into the locale bundles, so this looks for the back
+    // control rather than for the Chinese word that used to be inline. What
+    // the test is about is the 44pt target, not which language it reads in.
+    expect(source).toMatch(/min-h-11[^>]*>← \{t\('community\.backToCommunity'\)\}/);
   });
 });
 
@@ -102,7 +105,10 @@ describe('登入相關的畫面', () => {
 
   it('返回是 44pt 的可點範圍', () => {
     const auth = readFileSync(resolve(process.cwd(), 'components/AuthScreen.tsx'), 'utf8');
-    expect(auth).toMatch(/min-h-11[^>]*>← 返回/);
+    // The label moved into the locale bundles, so this looks for the back
+    // control rather than for the Chinese word that used to be inline. What
+    // the test is about is the 44pt target, not which language it reads in.
+    expect(auth).toMatch(/min-h-11[^>]*>← \{t\('auth\.back'\)\}/);
     const landing = readFileSync(resolve(process.cwd(), 'components/AuthLandingScreen.tsx'), 'utf8');
     expect(landing).toContain('h-11 w-11');
   });

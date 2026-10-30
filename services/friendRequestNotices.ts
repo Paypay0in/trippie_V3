@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { DisputeNotice } from './disputeInbox';
 import { Friendship, Person } from './friendships';
 
@@ -45,7 +46,7 @@ export const friendRequestNotices = ({
         */
         id: `friend:${row.requesterId}:${myUserId}`,
         kind: 'friend_request' as const,
-        message: '想加你為好友',
+        message: i18n.t('friends.wantsToAddYou'),
         fromMemberId: row.requesterId,
         fromName: person?.displayName?.trim() || undefined,
         /*

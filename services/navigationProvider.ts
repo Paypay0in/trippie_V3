@@ -13,6 +13,8 @@
  * character by character.
  */
 
+import i18n from '../i18n/config';
+
 /**
  * Apple Maps is deliberately absent.
  *
@@ -49,6 +51,7 @@ export interface ProviderInput {
  * list like this starts being wrong.
  */
 const KOREA_NAMES = new Set([
+  // i18n-data: stored country spellings this app matches against.
   '韓國', '韩国', '南韓', '대한민국', '한국',
   'south korea', 'korea, republic of', 'republic of korea',
 ]);
@@ -88,6 +91,6 @@ export const providersFor = (input: ProviderInput = {}): NavigationProvider[] =>
   isKorea(input) ? ['naver', 'google'] : ['google'];
 
 export const PROVIDER_LABEL: Record<NavigationProvider, string> = {
-  naver: 'NAVER 地圖',
-  google: 'Google 地圖',
+  get naver() { return i18n.t('transport.provider.naver'); },
+  get google() { return i18n.t('transport.provider.google'); },
 };

@@ -13,6 +13,7 @@
  * that depends on which screen you are standing on is not a credit.
  */
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
 
 interface Props {
@@ -32,6 +33,7 @@ interface Props {
 }
 
 const TripCover: React.FC<Props> = ({ query, dateRange, children, minHeight = 'min-h-48' }) => {
+  const { t } = useTranslation();
   const [image, setImage] = useState<DestinationImage | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -60,7 +62,7 @@ const TripCover: React.FC<Props> = ({ query, dateRange, children, minHeight = 'm
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-[#101638]/90 via-[#101638]/20 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-        <div className="mb-1 truncate text-3xl font-black tracking-tight">{query || '我的旅程'}</div>
+        <div className="mb-1 truncate text-3xl font-black tracking-tight">{query || t('trips.coverFallbackName')}</div>
         {dateRange && <div className="text-sm font-semibold text-white/90">{dateRange}</div>}
         {children}
       </div>

@@ -1,8 +1,10 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OVERLAY } from '../constants/layers';
 import { Trash2 } from 'lucide-react';
 import { Category, Expense } from '../types';
-import { getCategoryIcon, PAYMENT_METHODS_CONFIG } from '../constants';
+import { getCategoryIcon } from '../constants';
+import { paymentMethodLabel } from '../services/categoryDisplay';
 
 interface Props {
   /** The expense awaiting confirmation. `null` keeps the modal closed. */
@@ -32,24 +34,32 @@ const DeleteExpenseConfirmModal: React.FC<Props> = ({
   onCancel,
   onConfirm,
 }) => {
+  const { t, i18n } = useTranslation();
   if (!expense) return null;
 
   const Icon = getCategoryIcon(expense.category);
-  const paymentLabel = PAYMENT_METHODS_CONFIG[expense.paymentMethod]?.label;
+  /*
+    The payment method is a lookup on the stored value, not a translation key:
+    `PaymentMethod.CREDIT_CARD` IS the 信用卡 written to localStorage and
+    Supabase. `categoryDisplay` stays the one home for naming it, so this only
+    tells it which language to answer in.
+  */
+  const displayLocale = i18n.language?.startsWith('en') ? 'en' : 'zh-Hant';
+  const paymentLabel = paymentMethodLabel(expense.paymentMethod, displayLocale);
   const isExchange = expense.category === Category.EXCHANGE;
-  const expenseTitle = expense.description || '這筆支出';
+  const expenseTitle = expense.description || t('expense.thisExpense');
 
   // The meta line only shows the parts we actually have, so a record missing a
   // payment method never renders a dangling separator.
   const metaParts = [formatDate(expense.date), paymentLabel].filter(Boolean);
 
   const title = adminCreatorName
-    ? `刪除 ${adminCreatorName} 建立的支出？`
-    : '刪除這筆支出？';
+    ? t('expense.delete.titleOfCreator', { name: adminCreatorName })
+    : t('expense.delete.title');
   const subtitle = adminCreatorName
-    ? `這筆帳目由 ${adminCreatorName} 建立。刪除後會影響所有旅伴看到的帳本與結算結果。`
-    : `「${expenseTitle}」將從這趟旅行的帳本中移除。`;
-  const confirmLabel = adminCreatorName ? '仍要刪除' : '刪除';
+    ? t('expense.delete.subtitleOfCreator', { name: adminCreatorName })
+    : t('expense.delete.subtitle', { title: expenseTitle });
+  const confirmLabel = adminCreatorName ? t('expense.delete.confirmAnyway') : t('common.delete');
 
   return (
     <div
@@ -117,7 +127,7 @@ const DeleteExpenseConfirmModal: React.FC<Props> = ({
             onClick={onCancel}
             className="flex-1 rounded-2xl border border-slate-200 py-3.5 text-sm font-black text-slate-500 transition-colors hover:bg-slate-50"
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="button"

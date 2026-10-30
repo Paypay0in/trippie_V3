@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Expense, Category, TaxRule, TripMember } from '../types';
 import { getCategoryIcon } from '../constants';
 import { Tag, ArrowDownLeft, AlertTriangle, Users, ChevronRight } from 'lucide-react';
@@ -48,6 +49,7 @@ const ExpenseList: React.FC<Props> = ({
   onOpenDisputes,
   members = [],
 }) => {
+  const { t } = useTranslation();
   const [othersShown, setOthersShown] = React.useState(false);
   /** A receipt opened full size, because a 40-pixel crop cannot be read. */
   const [viewingReceipt, setViewingReceipt] = React.useState<string | null>(null);
@@ -129,8 +131,8 @@ const ExpenseList: React.FC<Props> = ({
   if (expenses.length === 0) {
     return (
       <div className="text-center py-10 text-gray-400">
-        <p>此階段尚無支出紀錄</p>
-        <p className="text-xs mt-2">點擊下方按鈕新增一筆</p>
+        <p>{t('expenseList.emptyTitle')}</p>
+        <p className="text-xs mt-2">{t('expenseList.emptyHint')}</p>
       </div>
     );
   }
@@ -160,8 +162,15 @@ const ExpenseList: React.FC<Props> = ({
   */
   const getDayLabel = (dateStr: string) => {
     const date = fromLocalIsoDate(dateStr);
-    const days = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
-    return Number.isNaN(date.getTime()) ? '' : days[date.getDay()];
+    /*
+      The day name has one home, `dates.weekday.*`. This row wants the
+      prefixed Chinese form 週五 where the stay line wants the bare 五, and
+      週五 is only 週 plus that same name — so the prefix is a key and the
+      seven names are not written out a second time.
+    */
+    return Number.isNaN(date.getTime())
+      ? ''
+      : t('dates.weekdayPrefixed', { day: t(`dates.weekday.${date.getDay()}`) });
   };
 
   return (
@@ -169,12 +178,12 @@ const ExpenseList: React.FC<Props> = ({
       {viewingReceipt && (
         <div
           role="dialog"
-          aria-label="收據"
+          aria-label={t('expenseList.receipt')}
           data-testid="list-receipt-viewer"
           onClick={() => setViewingReceipt(null)}
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4"
         >
-          <img src={viewingReceipt} alt="收據" className="max-h-full max-w-full rounded-xl object-contain" />
+          <img src={viewingReceipt} alt={t('expenseList.receipt')} className="max-h-full max-w-full rounded-xl object-contain" />
         </div>
       )}
       {sortedDates.map((date) => {
@@ -194,7 +203,7 @@ const ExpenseList: React.FC<Props> = ({
                     {getDayLabel(date)}
                 </span>
                 <span className="ml-auto text-[11px] font-bold text-slate-400">
-                    {Math.round(dailyShare) === Math.round(dailyTotal) ? '小計' : '你的小計'}
+                    {Math.round(dailyShare) === Math.round(dailyTotal) ? t('expenseList.daySubtotal') : t('expenseList.yourSubtotal')}
                 </span>
                 <span className="text-sm font-black text-[#11183d]">
                     TWD {Math.round(dailyShare).toLocaleString()}
@@ -270,11 +279,11 @@ const ExpenseList: React.FC<Props> = ({
                             <button
                                 type="button"
                                 onClick={() => setViewingReceipt(item.receiptPhotos?.[0] ?? null)}
-                                aria-label={`放大 ${item.description || '這筆支出'} 的收據`}
+                                aria-label={t('expenseList.zoomReceiptAria', { description: item.description || t('expenseList.thisExpense') })}
                                 data-testid={`row-receipt-${item.id}`}
                                 className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl ring-1 ring-slate-200"
                             >
-                                <img src={item.receiptPhotos?.[0]} alt="收據" className="h-full w-full object-cover" />
+                                <img src={item.receiptPhotos?.[0]} alt={t('expenseList.receipt')} className="h-full w-full object-cover" />
                             </button>
                         ) : (
                             <div className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl ${
@@ -296,7 +305,7 @@ const ExpenseList: React.FC<Props> = ({
                                 <span className="min-w-0 truncate">{item.description}</span>
                                 {item.needsReview && (
                                     <span className="flex shrink-0 items-center gap-1 rounded border border-yellow-200 bg-yellow-100 px-1.5 py-0.5 text-[10px] text-yellow-700">
-                                        <AlertTriangle size={10} /> 待確認
+                                        <AlertTriangle size={10} /> {t('expenseList.needsReview')}
                                     </span>
                                 )}
                             </h4>
@@ -318,11 +327,12 @@ const ExpenseList: React.FC<Props> = ({
                                             : 'bg-rose-50 text-rose-600'
                                 }`}>
                                     <Icon size={11} />
-                                    {isIncome ? '退稅入帳' : isPersonal ? '個人支出' : item.category}
+                                    {/* item.category is the stored value, not copy. i18n-data: written to Supabase and matched on read. */}
+                                    {isIncome ? t('expenseList.refundIncome') : isPersonal ? t('expenseList.personalSpend') : item.category}
                                 </span>
                                 {isRefundable && (
                                     <span data-testid={`refund-eligible-${item.id}`} className="flex items-center gap-0.5 whitespace-nowrap rounded-md border border-amber-200 bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700">
-                                        <Tag size={10} /> 退稅資格
+                                        <Tag size={10} /> {t('expenseList.refundEligible')}
                                     </span>
                                 )}
                             </div>
@@ -338,16 +348,16 @@ const ExpenseList: React.FC<Props> = ({
                                                     isPersonal ? 'bg-emerald-100 text-emerald-700' : toneForMember(members, member.id)
                                                 }`}
                                             >
-                                                {isPersonal ? '我' : initialOf(member)}
+                                                {isPersonal ? t('expense.me') : initialOf(member)}
                                             </span>
                                         ))}
                                     </span>
                                 )}
                                 <span className={`min-w-0 truncate text-[11px] font-bold ${isPersonal ? 'text-emerald-700' : 'text-slate-400'}`}>
                                     {isPersonal
-                                        ? '我自己付・不分帳'
+                                        ? t('expenseList.paidMyselfNoSplit')
                                         : payer
-                                            ? `${payer.id === viewerMemberId ? '你' : payer.name} 先付`
+                                            ? t('expenseList.paidBy', { name: payer.id === viewerMemberId ? t('expenseList.you') : payer.name })
                                             : ''}
                                 </span>
                                 {mayDispute(item) && openDisputeCount(item) > 0 && (
@@ -415,7 +425,7 @@ const ExpenseList: React.FC<Props> = ({
                                 */}
                                 {isSplit && viewerShare !== undefined && (
                                     <div className="text-base font-black text-violet-600">
-                                        分帳・你 ${Math.round(viewerShare).toLocaleString()}
+                                        {t('expenseList.yourShare', { amount: Math.round(viewerShare).toLocaleString() })}
                                     </div>
                                 )}
                                 {refunded > 0 && (
@@ -432,13 +442,13 @@ const ExpenseList: React.FC<Props> = ({
                                 </div>
                                 {refunded > 0 && (
                                     <div data-testid={`refund-deducted-${item.id}`} className="text-[11px] font-bold text-emerald-600">
-                                        已退稅 −{Math.round(refunded).toLocaleString()}
+                                        {t('expenseList.refundedDeducted', { amount: Math.round(refunded).toLocaleString() })}
                                     </div>
                                 )}
 
-                                {isIncome && <div className="text-[10px] font-bold text-emerald-500">入帳完成</div>}
+                                {isIncome && <div className="text-[10px] font-bold text-emerald-500">{t('expenseList.incomeSettled')}</div>}
                                 {!isIncome && item.category === Category.EXCHANGE && item.handlingFee ? (
-                                    <div className="text-[10px] text-orange-500">含手續費 ${item.handlingFee}</div>
+                                    <div className="text-[10px] text-orange-500">{t('expenseList.handlingFee', { amount: item.handlingFee })}</div>
                                 ) : null}
                                 {item.currency !== 'TWD' && (
                                     <div className="text-[10px] text-slate-400">
@@ -451,7 +461,9 @@ const ExpenseList: React.FC<Props> = ({
                                 <button
                                     type="button"
                                     onClick={open}
-                                    aria-label={mayOpenForm(item) ? `編輯 ${item.description || '這筆支出'}` : `查看 ${item.description || '這筆支出'} 的疑問`}
+                                    aria-label={mayOpenForm(item)
+                                        ? t('expenseList.editAria', { description: item.description || t('expenseList.thisExpense') })
+                                        : t('expenseList.viewDisputesAria', { description: item.description || t('expenseList.thisExpense') })}
                                     data-testid={`expense-open-${item.id}`}
                                     className="-mr-1 flex h-9 w-7 items-center justify-center text-slate-300 transition hover:text-slate-500"
                                 >
@@ -476,8 +488,8 @@ const ExpenseList: React.FC<Props> = ({
         >
           <Users size={14} />
           {othersShown
-            ? `收起旅伴自己的帳（${others.length} 筆）`
-            : `旅伴自己的帳 ${others.length} 筆 · 不用你分攤`}
+            ? t('expenseList.hideOthers', { n: others.length })
+            : t('expenseList.showOthers', { n: others.length })}
         </button>
       )}
     </div>

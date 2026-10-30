@@ -19,6 +19,7 @@
  *   dies, the content stays, and what a recipient already saved is theirs.
  */
 
+import i18n from '../i18n/config';
 import { ShareVisibility } from '../types';
 
 /**
@@ -60,7 +61,7 @@ export const unsharedFields = (): Pick<
  */
 export const mintShareToken = (): string => {
   const source = globalThis.crypto;
-  if (!source?.randomUUID) throw new Error('沒有可用的亂數來源，無法建立分享連結');
+  if (!source?.randomUUID) throw new Error(i18n.t('common.shareTokenUnavailable'));
   return source.randomUUID().replace(/-/g, '');
 };
 

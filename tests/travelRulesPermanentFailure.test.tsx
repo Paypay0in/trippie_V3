@@ -22,9 +22,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
-  PERMANENT_MESSAGE,
-  QUOTA_MESSAGE,
-  TRANSIENT_MESSAGE,
+  permanentMessage,
+  quotaMessage,
+  transientMessage,
   travelRulesErrorMessage,
 } from '../services/travelRulesErrorMessage';
 import { TravelRulesRequestError } from '../services/travelRulesService';
@@ -36,19 +36,19 @@ const failWith = (status: number, message = 'Travel rules research failed.') =>
 describe('旅行規定查詢失敗的分類', () => {
   it('永久失敗不叫旅人再試一次', () => {
     for (const status of [400, 403, 404, 422]) {
-      expect(travelRulesErrorMessage(failWith(status))).toBe(PERMANENT_MESSAGE);
+      expect(travelRulesErrorMessage(failWith(status))).toBe(permanentMessage());
     }
   });
 
   it('額度用完有自己的說法，不混進永久也不混進暫時', () => {
-    expect(travelRulesErrorMessage(failWith(429))).toBe(QUOTA_MESSAGE);
-    expect(QUOTA_MESSAGE).not.toBe(PERMANENT_MESSAGE);
-    expect(QUOTA_MESSAGE).not.toBe(TRANSIENT_MESSAGE);
+    expect(travelRulesErrorMessage(failWith(429))).toBe(quotaMessage());
+    expect(quotaMessage()).not.toBe(permanentMessage());
+    expect(quotaMessage()).not.toBe(transientMessage());
   });
 
   it('真的是暫時的才說稍後可再試', () => {
     for (const status of [408, 500, 502, 503, 504]) {
-      expect(travelRulesErrorMessage(failWith(status))).toBe(TRANSIENT_MESSAGE);
+      expect(travelRulesErrorMessage(failWith(status))).toBe(transientMessage());
     }
   });
 
@@ -60,9 +60,9 @@ describe('旅行規定查詢失敗的分類', () => {
   });
 
   it('沒有話可說時退回暫時性的說法', () => {
-    expect(travelRulesErrorMessage(new Error('   '))).toBe(TRANSIENT_MESSAGE);
-    expect(travelRulesErrorMessage('not an error at all')).toBe(TRANSIENT_MESSAGE);
-    expect(travelRulesErrorMessage(undefined)).toBe(TRANSIENT_MESSAGE);
+    expect(travelRulesErrorMessage(new Error('   '))).toBe(transientMessage());
+    expect(travelRulesErrorMessage('not an error at all')).toBe(transientMessage());
+    expect(travelRulesErrorMessage(undefined)).toBe(transientMessage());
   });
 
   it('伺服器的原文不會出現在旅人眼前', () => {
@@ -92,8 +92,8 @@ describe('旅行身分彈窗真的把算出來的訊息顯示出來', () => {
   it('404 顯示永久失敗的說法，不是稍後可再試', async () => {
     renderModal(failWith(404));
     await userEvent.click(screen.getByText('儲存並更新旅行規定'));
-    await waitFor(() => expect(screen.getByText(PERMANENT_MESSAGE)).toBeTruthy());
-    expect(screen.queryByText(TRANSIENT_MESSAGE)).toBeNull();
+    await waitFor(() => expect(screen.getByText(permanentMessage())).toBeTruthy());
+    expect(screen.queryByText(transientMessage())).toBeNull();
   });
 
   it('前置條件的原話會被顯示出來', async () => {

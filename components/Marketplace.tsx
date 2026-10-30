@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OVERLAY } from '../constants/layers';
 import { MarketplaceService, InboxMessage, ServiceRequest } from '../types';
 import { HelpRequest, matchServices } from '../services/serviceMatching';
@@ -32,15 +33,17 @@ interface Props {
   tripStartDate?: string;
 }
 
-const NEED_LABELS: Record<string, string> = {
-  phone_call: '代打電話',
-  on_site: '現場陪同',
-  translation: '文件翻譯',
-  multi_contact: '多方聯絡',
-  other: '其他',
+/** The stored `AssistanceNeed` value, to the key that holds its label. */
+const NEED_LABEL_KEYS: Record<string, string> = {
+  phone_call: 'marketplace.need.phone_call',
+  on_site: 'marketplace.need.on_site',
+  translation: 'marketplace.need.translation',
+  multi_contact: 'marketplace.need.multi_contact',
+  other: 'marketplace.need.other',
 };
 
 const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, onAddService, onMarkMessageRead, helpRequest, onClearHelpRequest, serviceRequests = [], onDeleteServiceRequest, onPublishServiceRequest, destinationCountry, tripStartDate }) => {
+  const { t } = useTranslation();
   const matches = React.useMemo(
     () => (helpRequest?.topic?.trim() ? matchServices({ request: helpRequest, services }) : []),
     [helpRequest, services],
@@ -73,6 +76,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
     if (!newService.title || !newService.price) return;
 
     onAddService({
+      // i18n-data: stored on the service record and shown as its provider name; translating it would rewrite saved rows.
       providerName: '我',
       serviceType: newService.serviceType,
       title: newService.title,
@@ -101,7 +105,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
 
     // Simulate response
     setTimeout(() => {
-      const response = { text: "你好！很高興為您服務。請問有什麼我可以幫您的嗎？", isMe: false };
+      const response = { text: t('marketplace.chat.autoReply'), isMe: false };
       setChatHistory(prev => ({
         ...prev,
         [serviceId]: [...(prev[serviceId] || []), response]
@@ -117,14 +121,14 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
             onClick={() => setActiveTab('explore')}
             className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'explore' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            探索服務
+            {t('marketplace.tabExplore')}
           </button>
           <button 
             onClick={() => setActiveTab('inbox')}
             className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${activeTab === 'inbox' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
             <Inbox size={14} />
-            收件匣
+            {t('marketplace.tabInbox')}
             {inboxMessages.some(m => m.unread) && (
               <span className="w-2 h-2 rounded-full bg-red-500"></span>
             )}
@@ -138,14 +142,14 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
               onClick={() => setIsRaisingRequest(true)}
               className="text-xs font-bold text-white bg-blue-600 px-3 py-1.5 rounded-lg flex items-center gap-1"
             >
-              <Plus size={14} /> 發起協助需求
+              <Plus size={14} /> {t('marketplace.raiseRequest')}
             </button>
           )}
           <button 
             onClick={() => setIsAddingService(true)}
             className="text-xs font-bold text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-50 flex items-center gap-1"
           >
-            <Plus size={14} /> 我也要提供服務
+            <Plus size={14} /> {t('marketplace.offerService')}
           </button>
           </div>
         )}
@@ -171,7 +175,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
            it. Nobody else can see these yet, and the card says so rather than
            implying someone is working on it. */
         <div className="mb-4 space-y-3">
-          <div className="text-xs font-black text-gray-900">我的協助需求</div>
+          <div className="text-xs font-black text-gray-900">{t('marketplace.myRequests')}</div>
           {serviceRequests.map(request => (
             <div key={request.id} className="rounded-2xl border border-gray-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
@@ -190,7 +194,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
 
               {request.tasks.length > 0 && (
                 <div className="mt-3">
-                  <div className="text-[11px] font-bold text-gray-400">需要協助：</div>
+                  <div className="text-[11px] font-bold text-gray-400">{t('marketplace.helpNeeded')}</div>
                   <ul className="mt-1 space-y-1">
                     {request.tasks.map(task => (
                       <li key={task.sourceTaskId} className="flex items-start gap-2 text-xs text-gray-700">
@@ -213,12 +217,14 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                     <span key={language} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">{language}</span>
                   ))}
                   {request.assistanceNeeds.map(need => (
-                    <span key={need} className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">{NEED_LABELS[need] ?? need}</span>
+                    <span key={need} className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      {NEED_LABEL_KEYS[need] ? t(NEED_LABEL_KEYS[need]) : need}
+                    </span>
                   ))}
                 </div>
               )}
 
-              <p className="mt-3 text-[11px] text-gray-400">目前只有你看得到這份需求，尚未開放給服務提供者。</p>
+              <p className="mt-3 text-[11px] text-gray-400">{t('marketplace.privateNotice')}</p>
             </div>
           ))}
         </div>
@@ -228,7 +234,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
         <div className="mb-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[11px] font-bold text-brand-700">你正在尋找真人協助</div>
+              <div className="text-[11px] font-bold text-brand-700">{t('marketplace.lookingForHelp')}</div>
               <div className="mt-1 text-sm font-black text-brand-900">{helpRequest.topic}</div>
               {helpRequest.destination && (
                 <div className="mt-0.5 text-[11px] text-brand-600">{helpRequest.destination}</div>
@@ -244,7 +250,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
             /* No padding with plausible-looking providers: an empty result is
                the honest answer, and the traveller can post the need instead. */
             <p className="mt-3 text-xs text-brand-700">
-              目前還沒有人提供這類服務。你可以把需求貼上來，讓當地人看到。
+              {t('marketplace.noProvidersYet')}
             </p>
           )}
         </div>
@@ -280,7 +286,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                 
                 {matches.some(match => match.service.id === service.id) && (
                   <div className="mb-1 inline-block rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-bold text-brand-700">
-                    符合你的需求
+                    {t('marketplace.matchesYourRequest')}
                   </div>
                 )}
                 <h3 className="font-bold text-gray-900 text-sm mb-1">{service.title}</h3>
@@ -289,11 +295,11 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
                     <ShieldCheck size={10} />
-                    認證當地人
+                    {t('marketplace.verifiedLocal')}
                   </div>
                   <div className="flex items-center gap-1 text-[10px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-full">
                     <Zap size={10} />
-                    快速回覆
+                    {t('marketplace.fastReplies')}
                   </div>
                   <button 
                     onClick={(e) => {
@@ -303,7 +309,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                     className="flex items-center gap-1 text-[10px] text-gray-400 ml-auto hover:text-brand-600 transition-colors"
                   >
                     <MessageCircle size={10} />
-                    諮詢
+                    {t('marketplace.askProvider')}
                   </button>
                 </div>
               </div>
@@ -335,7 +341,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                     <h4 className="font-bold text-gray-900 text-sm truncate">{msg.sender}</h4>
                     <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap ml-2">{msg.time}</span>
                   </div>
-                  <p className="text-xs text-brand-600 font-bold mb-1 truncate">關於：{msg.serviceTitle}</p>
+                  <p className="text-xs text-brand-600 font-bold mb-1 truncate">{t('marketplace.inboxAbout', { service: msg.serviceTitle })}</p>
                   <p className={`text-xs truncate ${msg.unread ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
                     {msg.lastMessage}
                   </p>
@@ -347,7 +353,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Inbox size={24} className="text-gray-400" />
               </div>
-              <p className="text-gray-500 font-medium text-sm">目前沒有任何訊息</p>
+              <p className="text-gray-500 font-medium text-sm">{t('marketplace.inboxEmpty')}</p>
             </div>
           )}
         </div>
@@ -364,7 +370,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                 </div>
                 <div>
                   <div className="text-sm font-bold">{chattingWith.providerName}</div>
-                  <div className="text-[10px] opacity-80">正在線上</div>
+                  <div className="text-[10px] opacity-80">{t('marketplace.chat.online')}</div>
                 </div>
               </div>
               <button onClick={() => setChattingWith(null)} className="p-1 hover:bg-white/20 rounded-full">
@@ -374,7 +380,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
               <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl text-[10px] text-blue-700">
-                您正在諮詢：<span className="font-bold">{chattingWith.title}</span>
+                {t('marketplace.chat.askingAbout')}<span className="font-bold">{chattingWith.title}</span>
               </div>
               
               {(chatHistory[chattingWith.id] || []).map((msg, i) => (
@@ -391,7 +397,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
               
               {chatHistory[chattingWith.id]?.length === 0 && (
                 <div className="text-center py-10 text-gray-400 text-xs">
-                  發送訊息開始諮詢
+                  {t('marketplace.chat.emptyState')}
                 </div>
               )}
             </div>
@@ -401,7 +407,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                 type="text" 
                 value={chatMessage}
                 onChange={e => setChatMessage(e.target.value)}
-                placeholder="輸入訊息..."
+                placeholder={t('marketplace.chat.inputPlaceholder')}
                 className="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
               />
               <button 
@@ -421,7 +427,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
         <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 ${OVERLAY.alert} animate-fade-in`}>
           <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-800">提供您的服務</h3>
+              <h3 className="text-lg font-bold text-gray-800">{t('marketplace.addService.title')}</h3>
               <button onClick={() => setIsAddingService(false)} className="p-1 hover:bg-gray-100 rounded-full">
                 <X size={20} />
               </button>
@@ -429,7 +435,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">服務類型</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">{t('marketplace.addService.typeLabel')}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['BOOKING', 'GUIDE', 'OTHER'] as const).map(type => (
                     <button
@@ -442,37 +448,41 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                           : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
                       }`}
                     >
-                      {type === 'BOOKING' ? '代訂位' : type === 'GUIDE' ? '導覽' : '其他'}
+                      {type === 'BOOKING'
+                        ? t('marketplace.addService.typeBooking')
+                        : type === 'GUIDE'
+                          ? t('marketplace.addService.typeGuide')
+                          : t('marketplace.addService.typeOther')}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">服務名稱</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">{t('marketplace.addService.nameLabel')}</label>
                 <input 
                   required
                   type="text" 
                   value={newService.title}
                   onChange={e => setNewService(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="例如：代訂京都米其林餐廳"
+                  placeholder={t('marketplace.addService.namePlaceholder')}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">服務描述</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">{t('marketplace.addService.descriptionLabel')}</label>
                 <textarea 
                   rows={3}
                   value={newService.description}
                   onChange={e => setNewService(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="請描述您的服務內容..."
+                  placeholder={t('marketplace.addService.descriptionPlaceholder')}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">服務費用 (TWD)</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">{t('marketplace.addService.priceLabel')}</label>
                 <input 
                   required
                   type="number" 
@@ -486,7 +496,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
               <div className="bg-blue-50 p-3 rounded-xl flex items-start gap-2">
                 <Info size={14} className="text-blue-600 mt-0.5 shrink-0" />
                 <p className="text-[10px] text-blue-700 leading-relaxed">
-                  提供服務可以賺取 Trippie 積分。服務完成後，積分將自動發放至您的帳戶。
+                  {t('marketplace.addService.pointsNote')}
                 </p>
               </div>
 
@@ -494,7 +504,7 @@ const Marketplace: React.FC<Props> = ({ services, inboxMessages = [], onBook, on
                 type="submit"
                 className="w-full bg-brand-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-brand-500/20 hover:bg-brand-700 transition-colors"
               >
-                發佈服務
+                {t('marketplace.addService.publish')}
               </button>
             </form>
           </div>

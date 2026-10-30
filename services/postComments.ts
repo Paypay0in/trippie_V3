@@ -37,6 +37,9 @@ export const buildComment = ({
     id: `comment_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
     postId,
     authorId,
+    // Written to localStorage and to the `post_comments.author_name` column,
+    // then read back by everyone who sees the thread.
+    // i18n-data: stored on the comment; translating relabels saved comments
     authorName: authorName || '旅人',
     authorAvatar,
     content: text,

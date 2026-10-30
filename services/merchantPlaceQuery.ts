@@ -55,15 +55,20 @@ export const placeLanguageFor = (printed?: string, country?: string): string | u
     the same mistake this function exists to prevent.
   */
   const where = (country || '').trim();
+  // i18n-data: regex anchors matched against the country a receipt was read in.
   if (/韓國|韓国|南韓|korea/i.test(where)) return 'ko';
+  // i18n-data: regex anchors matched against the country a receipt was read in.
   if (/日本|japan/i.test(where)) return 'ja';
+  // i18n-data: regex anchors matched against the country a receipt was read in.
   if (/泰國|thailand/i.test(where)) return 'th';
+  // i18n-data: regex anchors matched against the country a receipt was read in.
   if (/台灣|臺灣|中國|香港|澳門|taiwan|china|hong ?kong/i.test(where)) return 'zh-TW';
 
   const text = printed || '';
   if (/[가-힯]/.test(text)) return 'ko';
   if (/[぀-ヿ]/.test(text)) return 'ja';
   if (/[฀-๿]/.test(text)) return 'th';
+  // i18n-data: script range matched against the text printed on the receipt.
   if (/[一-鿿]/.test(text)) return 'zh-TW';
   return undefined;
 };

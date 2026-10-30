@@ -19,9 +19,17 @@
  * 餐廳 at noon is lunch and at seven is dinner, and 午餐 is more use to a
  * traveller reading the day than 餐廳 is. Everything else takes its own name.
  */
-import { PlaceCategory, CATEGORY_LABELS } from './placeCategory';
+import i18n from '../i18n/config';
+import { PlaceCategory, categoryLabel } from './placeCategory';
 
-/** The clock-given names a meal block can have. See `dayTemplate`. */
+/*
+  The clock-given names a meal block can have. See `dayTemplate`.
+
+  They are the keys `dayTemplate` names its blocks with, not words on screen:
+  translating them would stop 午餐 being recognised as a meal window, and the
+  café at 18:30 would be renamed after all.
+*/
+// i18n-data: matched against the incoming label with includes; these are dayTemplate's block keys
 const MEAL_LABELS = ['早餐', '午餐', '晚餐'];
 
 export const slotLabelFor = (
@@ -37,8 +45,8 @@ export const slotLabelFor = (
     the day than 餐廳 does, and the two do not disagree.
   */
   if (category === 'food') {
-    return kind === 'meal' && MEAL_LABELS.includes(label) ? label : '用餐';
+    return kind === 'meal' && MEAL_LABELS.includes(label) ? label : i18n.t('planner.slotEating');
   }
 
-  return CATEGORY_LABELS[category as PlaceCategory] || label;
+  return categoryLabel(category as PlaceCategory) || label;
 };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { NotebookPen } from 'lucide-react';
 import { usePlacePhotos } from './usePlacePhotos';
 
@@ -51,6 +52,7 @@ const CardShell: React.FC<{ id: string; onPick?: () => void; children: React.Rea
 };
 
 const SuggestedPlaceCards: React.FC<Props> = ({ places, onPick }) => {
+  const { t } = useTranslation();
   /*
     One lookup per place that did not bring a picture, shared with the picker.
     See `usePlacePhotos`.
@@ -114,7 +116,7 @@ const SuggestedPlaceCards: React.FC<Props> = ({ places, onPick }) => {
                     nobody saved it yet, and that is a fact about the
                     collection rather than about the restaurant.
                   */
-                  <span className="mt-0.5 block text-[10px] text-slate-300">還不是你的收藏，沒有筆記</span>
+                  <span className="mt-0.5 block text-[10px] text-slate-300">{t('places.suggested.notSavedNoNotes')}</span>
                 )}
               </span>
             </CardShell>

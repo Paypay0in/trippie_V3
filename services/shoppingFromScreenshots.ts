@@ -12,8 +12,12 @@
  * the feature not existing.
  */
 import { ShoppingItem } from '../types';
+import i18n from '../i18n/config';
 
 /** The categories the model is allowed to choose from. See the endpoint. */
+// The values the model answers with and the value stored on
+// ShoppingItem.category, compared with includes() below. Not labels.
+// i18n-data: model answer values stored on ShoppingItem.category.
 const KNOWN_CATEGORIES = ['美妝保養', '服飾', '伴手禮', '食品', '電子', '其他'];
 
 export interface ShoppingCandidate {
@@ -68,6 +72,7 @@ export const candidatesFromReading = (
         ...(text(row.shop) ? { shop: text(row.shop) } : {}),
         // An unrecognised category is the model inventing one; 其他 is where
         // it belongs rather than a seventh chip nobody chose.
+        // i18n-data: the stored fallback category value, one of KNOWN_CATEGORIES.
         ...(category ? { category: KNOWN_CATEGORIES.includes(category) ? category : '其他' } : {}),
         ...(photo ? { photo } : {}),
       } as ShoppingCandidate;
@@ -97,12 +102,12 @@ export const readShoppingFromImage = async (input: {
       body: JSON.stringify({ base64Data: input.base64Data, mimeType: input.mimeType }),
     });
   } catch {
-    throw new Error('現在無法辨識截圖，請確認連線後再試。');
+    throw new Error(i18n.t('shopping.screenshot.offline'));
   }
 
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
-    throw new Error(typeof payload?.error === 'string' ? payload.error : '現在無法辨識截圖，請稍後再試。');
+    throw new Error(typeof payload?.error === 'string' ? payload.error : i18n.t('shopping.screenshot.unavailable'));
   }
   return candidatesFromReading(payload, input.seed, input.photo);
 };

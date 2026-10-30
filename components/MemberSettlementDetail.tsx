@@ -1,8 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Users, X } from 'lucide-react';
 import { Expense, TripMember } from '../types';
 import { getCategoryIcon } from '../constants';
-import { buildMemberPositions, describeExpense, settlementExpenses, settlementImbalances } from '../services/memberSettlementDetail';
+import { buildMemberPositions, describeExpense, settlementExpenses, settlementImbalances, unknownParticipants } from '../services/memberSettlementDetail';
 
 /**
  * 成員結算明細 — everybody's position on one screen.
@@ -51,8 +52,22 @@ const MemberSettlementDetail: React.FC<Props> = ({
   onAddExpense,
   onOpenExpense,
 }) => {
+  const { t } = useTranslation();
   const positions = React.useMemo(
     () => buildMemberPositions(expenses, members, ownerMemberId),
+    [expenses, members, ownerMemberId],
+  );
+  /*
+    Money on these bills belonging to somebody with no row in the table.
+
+    The rows below are keyed by member, so a participant the member list does
+    not hold has their share projected away — and 「everybody's net sums to
+    zero」 quietly stops holding with nothing on screen to explain it. The
+    imbalance notice cannot cover this: each bill's two sides add up exactly,
+    and the money is lost afterwards.
+  */
+  const orphaned = React.useMemo(
+    () => unknownParticipants(expenses, members, ownerMemberId),
     [expenses, members, ownerMemberId],
   );
   /*
@@ -85,13 +100,13 @@ const MemberSettlementDetail: React.FC<Props> = ({
     <section className="space-y-4 rounded-[28px] bg-[#f6f7fb] p-4 text-[#11183d]">
       <header className="flex items-center gap-2">
         {onBack && (
-          <button type="button" onClick={onBack} aria-label="返回" className="rounded-full p-2 hover:bg-white">
+          <button type="button" onClick={onBack} aria-label={t('common.back')} className="rounded-full p-2 hover:bg-white">
             <ArrowLeft size={20} />
           </button>
         )}
-        <h1 className="flex-1 text-xl font-black tracking-tight">成員結算明細</h1>
+        <h1 className="flex-1 text-xl font-black tracking-tight">{t('settle.memberDetailTitle')}</h1>
         {onClose && (
-          <button type="button" onClick={onClose} aria-label="關閉" className="rounded-full p-2 text-slate-400 hover:bg-white">
+          <button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-full p-2 text-slate-400 hover:bg-white">
             <X size={20} />
           </button>
         )}
@@ -108,12 +123,31 @@ const MemberSettlementDetail: React.FC<Props> = ({
         </div>
       </div>
 
+      {orphaned.length > 0 && (
+        <div
+          data-testid="settlement-orphaned-share"
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-4"
+        >
+          <p className="text-sm font-black text-amber-700">{t('settle.orphanedTitle')}</p>
+          <ul className="mt-2 space-y-1">
+            {orphaned.map(({ memberId, net }) => (
+              <li key={memberId} className="text-[12px] text-amber-700">
+                {t(net > 0 ? 'settle.orphanedReceivable' : 'settle.orphanedPayable', {
+                  amount: money(net, currency),
+                })}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] leading-5 text-amber-600">{t('settle.orphanedHint')}</p>
+        </div>
+      )}
+
       {imbalances.length > 0 && (
         <div
           data-testid="settlement-imbalance"
           className="rounded-2xl border border-amber-200 bg-amber-50 p-4"
         >
-          <p className="text-sm font-black text-amber-700">這些金額對不起來，結算可能不準</p>
+          <p className="text-sm font-black text-amber-700">{t('settle.imbalanceTitle')}</p>
           <ul className="mt-2 space-y-2">
             {imbalances.map(({ expense, paid, owed, difference }) => (
               <li key={expense.id}>
@@ -123,25 +157,28 @@ const MemberSettlementDetail: React.FC<Props> = ({
                   onClick={() => onOpenExpense?.(expense)}
                   className="w-full text-left text-[12px] text-amber-700"
                 >
-                  <span className="font-bold underline">{expense.description || '未命名支出'}</span>
+                  <span className="font-bold underline">{expense.description || t('settle.unnamedExpense')}</span>
                   <span className="ml-1 text-amber-600">
-                    有人付了 {money(paid, currency)}，但分攤加起來是 {money(owed, currency)}
-                    （差 {money(Math.abs(difference), currency)}）
+                    {t('settle.imbalanceDetail', {
+                      paid: money(paid, currency),
+                      owed: money(owed, currency),
+                      difference: money(Math.abs(difference), currency),
+                    })}
                   </span>
                 </button>
               </li>
             ))}
           </ul>
           {/* Never repaired automatically: whose number is wrong is his to say. */}
-          <p className="mt-2 text-[11px] text-amber-600">點一下可以打開那筆支出確認。</p>
+          <p className="mt-2 text-[11px] text-amber-600">{t('settle.imbalanceHint')}</p>
         </div>
       )}
 
       <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
         <div className="flex items-center justify-between">
-          <h2 className="font-black">成員收付款結算</h2>
+          <h2 className="font-black">{t('settle.memberTotals')}</h2>
           <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500">
-            幣別：{currency} <ChevronDown size={13} />
+            {t('settle.currencyLabel', { currency })} <ChevronDown size={13} />
           </span>
         </div>
 
@@ -156,20 +193,34 @@ const MemberSettlementDetail: React.FC<Props> = ({
                 </span>
                 <p className="mt-1.5 truncate text-sm font-black">{member.name}</p>
                 <p className={`mt-0.5 text-[11px] font-bold ${owed ? 'text-emerald-600' : owing ? 'text-rose-500' : 'text-slate-400'}`}>
-                  {owed ? '應收' : owing ? '應付' : '已結清'}
+                  {owed ? t('settle.receivable') : owing ? t('settle.payable') : t('settle.settledUp')}
                 </p>
                 <p className={`text-sm font-black ${owed ? 'text-emerald-600' : owing ? 'text-rose-500' : 'text-slate-400'}`}>
                   {money(net, currency)}
                 </p>
                 <div className={`mt-2 space-y-1 rounded-xl p-2 text-[11px] font-bold ${owed ? 'bg-emerald-50' : owing ? 'bg-rose-50' : 'bg-slate-50'}`}>
                   {transfers.length === 0 && <p className="text-slate-400">—</p>}
-                  {transfers.map(transfer => (
-                    <p key={transfer.member.id} className="truncate text-slate-600">
-                      {owed
-                        ? <>{transfer.member.name} <span className="text-slate-400">→</span> <span className="text-emerald-600">{money(transfer.amount, currency)}</span></>
-                        : <>付給 {transfer.member.name} <span className="text-slate-400">→</span> <span className="text-rose-500">{money(transfer.amount, currency)}</span></>}
-                    </p>
-                  ))}
+                  {/*
+                    A counterparty with no row in the member list is named as
+                    absent, never dropped: the obligation belongs to the member
+                    standing here, and deleting the row is how this panel came
+                    to contradict the orphan notice above it.
+                  */}
+                  {transfers.map(transfer => {
+                    const who = transfer.member?.name || t('settle.absentTraveller');
+                    return (
+                      <p
+                        key={transfer.memberId}
+                        data-testid={`transfer-${member.id}-${transfer.memberId}`}
+                        data-absent={transfer.member ? undefined : 'true'}
+                        className="truncate text-slate-600"
+                      >
+                        {owed
+                          ? <>{who} <span className="text-slate-400">→</span> <span className="text-emerald-600">{money(transfer.amount, currency)}</span></>
+                          : <>{t('settle.payTo', { name: who })} <span className="text-slate-400">→</span> <span className="text-rose-500">{money(transfer.amount, currency)}</span></>}
+                      </p>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -179,20 +230,20 @@ const MemberSettlementDetail: React.FC<Props> = ({
 
       <div className="rounded-2xl bg-white p-4 shadow-[0_6px_18px_rgba(17,24,61,.05)]">
         <div className="flex items-center justify-between">
-          <h2 className="font-black">相關支出</h2>
+          <h2 className="font-black">{t('settle.relatedExpenses')}</h2>
           {onAddExpense && (
             <button
               type="button"
               onClick={onAddExpense}
               className="flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-black text-[#11183d]"
             >
-              <Plus size={13} /> 新增支出
+              <Plus size={13} /> {t('settle.addExpense')}
             </button>
           )}
         </div>
 
         {shared.length === 0 ? (
-          <p className="py-6 text-center text-xs text-slate-400">這趟還沒有需要分攤的支出</p>
+          <p className="py-6 text-center text-xs text-slate-400">{t('settle.noSharedExpenses')}</p>
         ) : (
           <div className="mt-3 space-y-2.5">
             {shared.map(expense => {
@@ -208,7 +259,7 @@ const MemberSettlementDetail: React.FC<Props> = ({
                 >
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${toneOf(payer?.id || '')}`}>
                     {expense.receiptPhotos?.length
-                      ? <img src={expense.receiptPhotos[0]} alt="收據" className="h-full w-full rounded-full object-cover" />
+                      ? <img src={expense.receiptPhotos[0]} alt={t('settle.receiptAlt')} className="h-full w-full rounded-full object-cover" />
                       : <Icon size={18} />}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -220,15 +271,15 @@ const MemberSettlementDetail: React.FC<Props> = ({
                     {payer && (
                       <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] font-bold text-slate-600">
                         <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${toneOf(payer.id)}`}>{payer.name.charAt(0)}</span>
-                        {payer.name} 先付
+                        {t('settle.paidFirst', { name: payer.name })}
                       </span>
                     )}
                   </div>
                   <div className="shrink-0 whitespace-nowrap text-right">
                     <p className="text-sm font-black">{money(expense.twdAmount, currency)}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">{owedBy.map(member => member.name).join('、')} 應付</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">{t('settle.owedByNames', { names: owedBy.map(member => member.name).join(t('settle.listSeparator')) })}</p>
                     {perHead !== undefined && (
-                      <p className="text-[11px] font-bold text-rose-500">各 {money(perHead, currency)}</p>
+                      <p className="text-[11px] font-bold text-rose-500">{t('settle.perHeadAmount', { amount: money(perHead, currency) })}</p>
                     )}
                   </div>
                   <ChevronRight size={16} className="shrink-0 text-slate-300" />
@@ -241,7 +292,7 @@ const MemberSettlementDetail: React.FC<Props> = ({
 
       {members.length === 0 && (
         <p className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
-          <Users size={14} /> 這趟還沒有其他旅伴
+          <Users size={14} /> {t('settle.noCompanions')}
         </p>
       )}
     </section>

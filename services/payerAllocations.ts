@@ -16,6 +16,7 @@
  * one amount to divide. Splitting it into two records to record who paid would
  * invent a purchase that never happened.
  */
+import i18n from '../i18n/config';
 
 /** A member's typed amount, which may be blank, partial, or nonsense. */
 export type PayerDraft = Record<string, string>;
@@ -70,19 +71,19 @@ export const payerAllocationError = (
   total: number,
 ): string | undefined => {
   const ids = selectedPayerIds(draft, memberIds);
-  if (ids.length === 0) return '請選擇實際付款的人。';
+  if (ids.length === 0) return i18n.t('expense.payers.noneSelected');
   if (ids.length === 1) return undefined;
   if (!Number.isFinite(total) || total <= 0) return undefined;
 
   const blank = ids.filter(id => parseAmount(draft[id]) <= 0);
-  if (blank.length > 0) return '多人付款時，每位付款者都要填金額。';
+  if (blank.length > 0) return i18n.t('expense.payers.amountMissing');
 
   const sum = payersTotal(draft, memberIds);
   const gap = Math.round(sum - total);
   if (gap === 0) return undefined;
   return gap > 0
-    ? `付款金額比總額多 NT$ ${gap.toLocaleString()}，請調整。`
-    : `付款金額比總額少 NT$ ${Math.abs(gap).toLocaleString()}，請調整。`;
+    ? i18n.t('expense.payers.overTotal', { amount: gap.toLocaleString() })
+    : i18n.t('expense.payers.underTotal', { amount: Math.abs(gap).toLocaleString() });
 };
 
 /**

@@ -42,7 +42,11 @@ const eligible = [flight, noodles, beef];
 describe('expense selection modes', () => {
   it('exposes the three tabs in order, with date first', () => {
     expect(EXPENSE_SELECTION_MODES.map(m => m.mode)).toEqual(['date', 'category', 'manual']);
-    expect(EXPENSE_SELECTION_MODES.map(m => m.label)).toEqual(['依日期', '依分類', '手動選擇']);
+    expect(EXPENSE_SELECTION_MODES.map(m => m.labelKey)).toEqual([
+      'settle.selectionMode.date',
+      'settle.selectionMode.category',
+      'settle.selectionMode.manual',
+    ]);
   });
 
   it('TEST B: manual mode shows every eligible expense, unfiltered', () => {

@@ -44,6 +44,7 @@
 import { calculateExpenseLedger, isSplitRelevant } from './splitCalculator';
 import { Expense, ReceiptItem, SavedTravelInspiration } from '../types';
 import { distanceInKm } from './tripInspirationSelection';
+import i18n from '../i18n/config';
 
 /** Closer than this and it is the same door. */
 const SAME_DOOR_KM = 0.06;
@@ -61,7 +62,8 @@ const SHORTEST_NAME = 4;
 const nameKey = (value?: string): string =>
   (value || '')
     .toLocaleLowerCase()
-    .replace(/[\s\u3000・·.,'"’“”\-–—_()（）【】\[\]]/g, '');
+    // i18n-data: punctuation stripped to compare two spellings of one shop name.
+    .replace(/[\s・·.,'"’“”\-–—_()（）【】\[\]]/g, '');
 
 /** Full-width digits are the same numbers. */
 const digits = (value: string): string =>
@@ -257,7 +259,9 @@ export const spendSummary = (spend: SpendAtPlace[]): string => {
   if (spend.length === 0) return '';
   const total = spend.reduce((sum, entry) => sum + (Number.isFinite(entry.twdAmount) ? entry.twdAmount : 0), 0);
   const money = `NT$ ${Math.round(total).toLocaleString()}`;
-  return spend.length > 1 ? `${money}・${spend.length} 筆` : money;
+  return spend.length > 1
+    ? i18n.t('saved.spend.summaryWithCount', { money, count: spend.length })
+    : money;
 };
 
 /**
@@ -294,7 +298,7 @@ export const spendSentence = (
   const paidAny = viewerMemberId
     ? spend.some(entry => !entry.payerId || entry.payerId === viewerMemberId)
     : true;
-  if (!viewerMemberId || paidAny) return { lead: '你在這裡花過', total };
+  if (!viewerMemberId || paidAny) return { lead: i18n.t('saved.spend.leadYouPaid'), total };
 
   const owed = spend.reduce(
     (sum, entry) => sum + (Number.isFinite(entry.yourShare) ? (entry.yourShare as number) : 0),
@@ -306,12 +310,12 @@ export const spendSentence = (
   const who = payers.length === 1 ? nameOf?.(payers[0]) : undefined;
 
   return {
-    lead: '這裡消費',
+    lead: i18n.t('saved.spend.leadSpentHere'),
     total,
     detail: [
-      who ? `${who} 先付` : '別人先付',
+      who ? i18n.t('saved.spend.paidByNamed', { who }) : i18n.t('saved.spend.paidBySomeoneElse'),
       /* Said only where the split named them; 0 is a claim, absence is not. */
-      owed > 0 ? `你分攤 NT$ ${owed.toLocaleString()}` : undefined,
-    ].filter(Boolean).join('・'),
+      owed > 0 ? i18n.t('saved.spend.yourShare', { amount: owed.toLocaleString() }) : undefined,
+    ].filter(Boolean).join(i18n.t('saved.spend.detailSeparator')),
   };
 };

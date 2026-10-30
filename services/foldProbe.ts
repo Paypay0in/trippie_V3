@@ -58,9 +58,9 @@ const describe = (element: Element): string => {
   const testId = element.getAttribute('data-testid');
   if (testId) return `[${testId}]`;
   const heading = element.querySelector('h1,h2,h3')?.textContent?.trim();
-  if (heading) return `${element.tagName.toLowerCase()} 「${heading.slice(0, 20)}」`;
+  if (heading) return `${element.tagName.toLowerCase()} "${heading.slice(0, 20)}"`;
   const text = element.textContent?.trim().replace(/\s+/g, ' ').slice(0, 24);
-  return text ? `${element.tagName.toLowerCase()} 「${text}」` : element.tagName.toLowerCase();
+  return text ? `${element.tagName.toLowerCase()} "${text}"` : element.tagName.toLowerCase();
 };
 
 /**
@@ -133,11 +133,11 @@ export const startFoldProbe = (): (() => void) => {
 
     line.style.top = `${fold}px`;
     const overflow = Math.round(document.documentElement.scrollHeight - viewportHeight);
-    const where = displayContext() === 'standalone' ? '主畫面 app' : '瀏覽器（含網址列）';
+    const where = displayContext() === 'standalone' ? 'home-screen app' : 'browser (with address bar)';
     panel.textContent = [
-      `${where} · viewport ${Math.round(viewportHeight)} · fold ${Math.round(fold)} · page ${Math.round(document.documentElement.scrollHeight)} · 需捲動 ${Math.max(0, overflow)}px`,
+      `${where} · viewport ${Math.round(viewportHeight)} · fold ${Math.round(fold)} · page ${Math.round(document.documentElement.scrollHeight)} · scroll ${Math.max(0, overflow)}px`,
       ...findings.map(f => `  ↓${f.overhang}px  ${f.description}`),
-      findings.length === 0 ? '  ✓ 這一頁的區塊都在摺線以上' : '',
+      findings.length === 0 ? '  ✓ every block on this page sits above the fold' : '',
     ].filter(Boolean).join('\n');
     panel.style.whiteSpace = 'pre';
   };

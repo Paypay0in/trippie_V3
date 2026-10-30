@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CommunityPost, SavedTravelInspiration } from '../types';
 import { resolveSavedPlaceImage, SavedPlaceImageResult } from '../services/savedPlaceImageService';
 
@@ -25,6 +26,7 @@ export const PlaceThumbnail: React.FC<{
   size?: number;
   className?: string;
 }> = ({ saved, sourcePost, size = 112, className = 'rounded-[14px]' }) => {
+  const { t } = useTranslation();
   const [imageResult, setImageResult] = useState<SavedPlaceImageResult | null>(
     sourcePost?.coverImage
       ? { imageUrl: sourcePost.coverImage, source: 'source_post', query: saved.placeName }
@@ -54,7 +56,7 @@ export const PlaceThumbnail: React.FC<{
       */}
       <span className="relative block" style={{ height: size, width: size }}>
         {loading
-          ? <span className={`block h-full w-full animate-pulse bg-slate-100 ${className}`} aria-label="圖片載入中" />
+          ? <span className={`block h-full w-full animate-pulse bg-slate-100 ${className}`} aria-label={t('places.imageLoading')} />
           : <img src={imageUrl} alt={saved.placeName} loading="lazy" className={`h-full w-full object-cover ${className}`} />}
       </span>
     </span>

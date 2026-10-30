@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, ShoppingItem, TripMember } from '../types';
 import type { SharedTaxRule } from '../services/sharedTaxRule';
 import {
@@ -145,10 +146,13 @@ const clockNow = (): string => new Date().toLocaleTimeString('zh-TW', { hour12: 
  * nobody could see: the copy the device was actually reading.
  */
 const ledgerOwnership = (expenses: Expense[], viewerMemberId?: string): string => {
+  // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
   if (!expenses.length) return '帳本 空';
   const seat = (id?: string) => {
     if (!id) return '—';
+    // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
     if (id === viewerMemberId) return '我';
+    // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
     return id.endsWith(':owner') ? '擁有者' : id.slice(0, 6);
   };
   return expenses
@@ -164,7 +168,9 @@ const ledgerOwnership = (expenses: Expense[], viewerMemberId?: string): string =
       // The rule's own answer, beside its inputs. Everything upstream had been
       // proven and the screen still disagreed; this is what tells a wrong
       // verdict apart from a verdict nothing is listening to.
+      // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
       const verdict = expenseConcernsMember(expense, viewerMemberId) ? '◉我的' : '○別人';
+      // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
       return `${(expense.description || '?').slice(0, 4)} ${verdict} 付${seat(expense.payerId)} 分${who} 記${seat(expense.createdByMemberId)} 份${shares} 墊${paid}`;
     })
     .join('\n');
@@ -190,6 +196,9 @@ export const useTripSync = ({
   onRemoteSnapshot,
   onRemoteIdentity,
 }: Options): TripSyncState => {
+  // Named `translate` because `t` is already the tax rule's local alias in the
+  // push effect below, and shadowing it there would send the wrong thing up.
+  const { t: translate } = useTranslation();
   const [state, setState] = useState<TripSyncState>('off');
   // The failure text, kept so the badge can show it. A red badge that will not
   // say why costs another round trip with someone who cannot open a console.
@@ -265,19 +274,26 @@ export const useTripSync = ({
 
   // The last read and the last write, kept as text because that is all the
   // panel does with them.
+  // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
   const lastReadRef = useRef('尚未讀取');
+  // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
   const lastWriteRef = useRef('尚未寫入');
 
   const countsOf = (snapshot: TripSyncSnapshot): string =>
+    // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
     `成員${snapshot.members.length}・帳${snapshot.expenses.length}・行程${snapshot.itinerary.length}・航班${snapshot.flightAnchors.length}`;
 
   const refreshDetail = () => {
     setDetail(
       [
+        // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
         `旅程 ${shortId(tripId)}｜帳號 ${shortId(authUserId)}`,
+        // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
         `身分 ${viewerMemberId || '（未判定）'}`,
         ledgerOwnership(expenses, viewerMemberId),
+        // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
         `讀取 ${lastReadRef.current}`,
+        // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
         `寫入 ${lastWriteRef.current}`,
       ].join('\n'),
     );
@@ -367,7 +383,8 @@ export const useTripSync = ({
       if (ensured.status !== 'ok') {
         const message = ensured.status === 'error' ? ensured.message : 'Supabase unavailable';
         if (import.meta.env.DEV) console.warn('[tripSync] trip bootstrap failed', message);
-        setFailure(`讀取：${message}`);
+        setFailure(translate('app.sync.readFailed', { message }));
+        // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
         lastReadRef.current = `${clockNow()} 失敗 — ${message}`;
         refreshDetail();
         setState('error');
@@ -383,7 +400,8 @@ export const useTripSync = ({
         // nothing looks wrong while nothing is being shared.
         const message = remote.status === 'error' ? remote.message : 'Supabase unavailable';
         if (import.meta.env.DEV) console.warn('[tripSync] read failed', message);
-        setFailure(`讀取：${message}`);
+        setFailure(translate('app.sync.readFailed', { message }));
+        // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
         lastReadRef.current = `${clockNow()} 失敗 — ${message}`;
         refreshDetail();
         setState('error');
@@ -449,6 +467,7 @@ export const useTripSync = ({
         onRemoteIdentityRef.current?.(plan.identity);
       }
       rememberRemote(remote.data);
+      // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
       lastReadRef.current = `${clockNow()} 開啟時 ${countsOf(remote.data)}`;
       refreshDetail();
 
@@ -527,7 +546,7 @@ export const useTripSync = ({
       void updateTripIdentity(tripId, plan.identity).then(result => {
         if (readyTripIdRef.current !== tripId) return;
         if (result.status === 'error') {
-          setFailure(`旅程名稱：${result.message}`);
+          setFailure(translate('app.sync.tripNameFailed', { message: result.message }));
           return;
         }
         // The server now says this, so a later edit is measured against it.
@@ -580,7 +599,8 @@ export const useTripSync = ({
         }
         if (result.status === 'error') {
           if (import.meta.env.DEV) console.warn('[tripSync] write failed', result.message);
-          setFailure(`寫入：${result.message}`);
+          setFailure(translate('app.sync.writeFailed', { message: result.message }));
+          // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
           lastWriteRef.current = `${clockNow()} 失敗 — ${result.message}`;
         } else {
           lastWriteRef.current = `${clockNow()} ${countsOf(payloadRef.current)}`;
@@ -660,9 +680,11 @@ export const useTripSync = ({
           // still-unpushed local record as known would let the next push
           // delete it.
           rememberRemote(remote.data);
+          // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
           lastReadRef.current = `${clockNow()} 重讀 ${countsOf(remote.data)}`;
           refreshDetail();
         } else if (remote.status === 'error') {
+          // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
           lastReadRef.current = `${clockNow()} 重讀失敗 — ${remote.message}`;
           refreshDetail();
         }
@@ -712,6 +734,7 @@ const useSyncBadge = (
   state: TripSyncState,
   { tripId, signedIn, failure, note, detail }: { tripId: string | null; signedIn: boolean; failure: string; note?: string; detail?: string },
 ) => {
+  const { t } = useTranslation();
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -738,17 +761,20 @@ const useSyncBadge = (
       'font:800 15px ui-monospace,monospace;pointer-events:none;white-space:pre-wrap';
 
     const look: Partial<Record<TripSyncState, [string, string, string]>> = {
-      error: ['#ffe4e6', '#be123c', `失敗 — ${failure || '原因不明'}`],
-      off: ['#e2e8f0', '#475569', `關閉（${!signedIn ? '未登入' : !tripId ? '沒有旅程' : '未設定'}）`],
-      synced: ['#dcfce7', '#166534', '正常'],
-      loading: ['#e0e7ff', '#3730a3', '讀取中'],
+      error: ['#ffe4e6', '#be123c', t('app.sync.badgeFailed', { reason: failure || t('app.sync.reasonUnknown') })],
+      off: ['#e2e8f0', '#475569', t('app.sync.badgeOff', {
+        reason: !signedIn ? t('app.sync.offSignedOut') : !tripId ? t('app.sync.offNoTrip') : t('app.sync.offNotConfigured'),
+      })],
+      synced: ['#dcfce7', '#166534', t('app.sync.badgeHealthy')],
+      loading: ['#e0e7ff', '#3730a3', t('app.sync.badgeLoading')],
     };
     const [background, color, label] = look[state] ?? ['#e2e8f0', '#475569', state];
     node.style.background = background;
     node.style.color = color;
     // The build goes first under `?sync=1`. Every other number on this panel is
     // worthless until both devices are known to be running the same code.
-    node.textContent = `雲端同步：${label}${note ? ` ｜ ${note}` : ''}${forced ? `\n版本 ${BUILD_ID}` : ''}${forced && detail ? `\n${detail}` : ''}`;
+    // i18n-data: `?sync=1` diagnostic panel, read off a screenshot, not traveller copy
+    node.textContent = `${t('app.sync.badgePrefix')}${label}${note ? ` ｜ ${note}` : ''}${forced ? `\n版本 ${BUILD_ID}` : ''}${forced && detail ? `\n${detail}` : ''}`;
 
     if (!node.isConnected) document.body.appendChild(node);
     return () => node.remove();

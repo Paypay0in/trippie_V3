@@ -10,36 +10,58 @@
  * is unambiguous are listed. An item with no certain official home gets no
  * link — a wrong link here is worse than no link, because the surrounding
  * checklist lends it authority.
+ *
+ * The label is the one part of an entry that is copy. It is resolved at call
+ * time rather than at module load, because this table is built once per page
+ * load and the reader can change language after that.
  */
+import i18n from '../i18n/config';
 
 export interface OfficialLink {
   label: string;
   url: string;
 }
 
-interface LinkRule extends OfficialLink {
+interface LinkRule {
   country: string;
   /** Any of these appearing in the task name selects this link. */
   keywords: string[];
+  /**
+   * i18n key for the label. Absent when the label is the service's own brand
+   * name, which is the same word in every language.
+   */
+  labelKey?: string;
+  /** Brand name, used as-is when there is no `labelKey`. */
+  label?: string;
+  url: string;
 }
 
+/** The label a rule shows, in the reader's language. */
+const labelOf = (rule: LinkRule): string =>
+  rule.labelKey ? i18n.t(rule.labelKey) : rule.label ?? '';
+
+/*
+  `country` and `keywords` are matching anchors, not copy: the country comes
+  from the trip's stored destination and the keywords are matched against the
+  generated task name. i18n-data: matching keys.
+*/
 const RULES: LinkRule[] = [
   {
     country: '韓國',
     keywords: ['k-eta', 'keta', '電子旅行許可'],
-    label: 'K-ETA 官方申請網站',
+    labelKey: 'plan.official.keta',
     url: 'https://www.k-eta.go.kr',
   },
   {
     country: '韓國',
     keywords: ['q-code', 'qcode', '檢疫'],
-    label: 'Q-CODE 檢疫資訊預先輸入系統',
+    labelKey: 'plan.official.qCode',
     url: 'https://cov19ent.kdca.go.kr',
   },
   {
     country: '韓國',
     keywords: ['入境卡', '入境登記', 'arrival card', '입국신고'],
-    label: '韓國電子入境申報 (e-Arrival Card)',
+    labelKey: 'plan.official.koreaArrivalCard',
     url: 'https://www.e-arrivalcard.go.kr',
   },
   {
@@ -57,31 +79,31 @@ const RULES: LinkRule[] = [
   {
     country: '美國',
     keywords: ['esta', '旅行授權'],
-    label: 'ESTA 官方申請網站',
+    labelKey: 'plan.official.esta',
     url: 'https://esta.cbp.dhs.gov',
   },
   {
     country: '加拿大',
     keywords: ['eta', '電子旅行證'],
-    label: '加拿大 eTA 官方申請',
+    labelKey: 'plan.official.canadaEta',
     url: 'https://www.canada.ca/en/immigration-refugees-citizenship/services/visit-canada/eta.html',
   },
   {
     country: '英國',
     keywords: ['eta', '電子旅行許可'],
-    label: 'UK ETA 官方申請',
+    labelKey: 'plan.official.ukEta',
     url: 'https://www.gov.uk/eta',
   },
   {
     country: '澳洲',
     keywords: ['eta', '電子簽證', '簽證'],
-    label: '澳洲簽證與 ETA',
+    labelKey: 'plan.official.australiaVisa',
     url: 'https://immi.homeaffairs.gov.au',
   },
   {
     country: '越南',
     keywords: ['evisa', 'e-visa', '電子簽證', '簽證'],
-    label: '越南電子簽證官方網站',
+    labelKey: 'plan.official.vietnamEvisa',
     url: 'https://evisa.gov.vn',
   },
 ];
@@ -97,11 +119,12 @@ const RULES: LinkRule[] = [
 /** The traveller's own passport paperwork, wherever they are going. */
 const PASSPORT_RULE: LinkRule = {
   country: '*',
-  keywords: ['護照'],
-  label: '外交部領事事務局（護照）',
+  keywords: ['護照'], // i18n-data: matched against the generated task name.
+  labelKey: 'plan.official.passportBureau',
   url: 'https://www.boca.gov.tw',
 };
 
+// i18n-data: stored destination spellings folded onto the canonical one.
 const COUNTRY_ALIASES: Record<string, string> = {
   南韓: '韓國',
   韩国: '韓國',
@@ -125,10 +148,10 @@ export const findOfficialLink = (
   const match = RULES.find(
     rule => rule.country === key && rule.keywords.some(keyword => name.includes(keyword)),
   );
-  if (match) return { label: match.label, url: match.url };
+  if (match) return { label: labelOf(match), url: match.url };
 
   if (PASSPORT_RULE.keywords.some(keyword => name.includes(keyword))) {
-    return { label: PASSPORT_RULE.label, url: PASSPORT_RULE.url };
+    return { label: labelOf(PASSPORT_RULE), url: PASSPORT_RULE.url };
   }
   return null;
 };

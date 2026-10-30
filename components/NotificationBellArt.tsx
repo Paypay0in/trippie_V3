@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * The picture an empty notification list stands on.
@@ -8,14 +9,16 @@ import React from 'react';
  * here is upright and the colour of the app, with a message on its way to it:
  * the state is 「waiting」, not 「disabled」.
  */
-const NotificationBellArt: React.FC = () => (
+const NotificationBellArt: React.FC = () => {
+  const { t } = useTranslation();
+  return (
   <svg
     width="168"
     height="120"
     viewBox="0 0 168 120"
     fill="none"
     role="img"
-    aria-label="還沒有通知"
+    aria-label={t('notifications.emptyArtAlt')}
     data-testid="notifications-empty-art"
   >
     {/* The halo the bell sits in. */}
@@ -67,6 +70,7 @@ const NotificationBellArt: React.FC = () => (
       strokeDasharray="1 7"
     />
   </svg>
-);
+  );
+};
 
 export default NotificationBellArt;

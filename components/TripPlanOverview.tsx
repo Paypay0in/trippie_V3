@@ -22,6 +22,7 @@ import { CommunityPost, Expense, ItineraryItem, SavedTravelInspiration, Shopping
 import { fetchSuggestedPlaces } from '../services/preparationSuggestionService';
 import { DestinationTip, getDestinationTips } from '../services/destinationTips';
 import { powerAdviceLines, powerHeadline, powerProfileFor } from '../services/powerAndPlugs';
+import { interpolationFor } from '../services/localeList';
 import PlugTypeIcon from './PlugTypeIcon';
 import { findOfficialLink } from '../services/officialTravelLinks';
 
@@ -235,8 +236,11 @@ const RULE_SUMMARIES: Record<string, string> = {
   other: 'plan.action.other',
 };
 
+/* i18n keys, not display text. They are resolved at the render site below;
+   the earlier version rendered this map directly and put the literal string
+   "plan.tip.payment" on screen for four of the five kinds. */
 const TIP_LABELS: Record<DestinationTip['kind'], string> = {
-  app: 'APP',
+  app: 'plan.tip.app',
   payment: 'plan.tip.payment',
   transport: 'plan.tip.transport',
   connectivity: 'plan.tip.connectivity',
@@ -783,7 +787,7 @@ const TripPlanOverview: React.FC<Props> = ({
                               rel="noopener noreferrer"
                               className="rounded-lg border border-violet-200 bg-white px-1.5 py-0.5 text-[10px] font-black text-[#5b3df5]"
                             >
-                              {option.label}
+                              {option.labelKey ? t(option.labelKey) : option.label}
                               {option.urlType === 'search' && <span className="font-bold text-slate-400">{t('plan.searchSuffix')}</span>}
                             </a>
                           ))}
@@ -1166,7 +1170,9 @@ const TripPlanOverview: React.FC<Props> = ({
             </span>
             <ul data-testid="power-advice" className="mt-2 space-y-2">
               {powerAdviceLines(power).map(line => (
-                <li key={line} className="text-xs leading-5 text-slate-600">{line}</li>
+                <li key={line.key} className="text-xs leading-5 text-slate-600">
+                  {t(line.key, interpolationFor(line.params, t))}
+                </li>
               ))}
             </ul>
           </div>
@@ -1185,13 +1191,13 @@ const TripPlanOverview: React.FC<Props> = ({
               every card. */}
           <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-100">
             {localTips.map(tip => (
-              <div key={tip.title} className="flex gap-3 bg-white px-3 py-3">
+              <div key={tip.titleKey} className="flex gap-3 bg-white px-3 py-3">
                 <div className="w-14 shrink-0 pt-0.5">
-                  <span className="text-[10px] font-black text-slate-400">{TIP_LABELS[tip.kind]}</span>
+                  <span className="text-[10px] font-black text-slate-400">{t(TIP_LABELS[tip.kind])}</span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold text-slate-800">{tip.title}</span>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">{tip.detail}</p>
+                  <span className="block text-sm font-bold text-slate-800">{t(tip.titleKey)}</span>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{t(tip.detailKey)}</p>
                   {tip.link && (
                     <a
                       href={tip.link.url}
@@ -1207,7 +1213,7 @@ const TripPlanOverview: React.FC<Props> = ({
                       }}
                       className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-xs font-black text-violet-700"
                     >
-                      {tip.link.label}
+                      {t(tip.link.labelKey)}
                       {tip.link.appUrl ? <ArrowUpRight size={14} /> : <ExternalLink size={14} />}
                     </a>
                   )}

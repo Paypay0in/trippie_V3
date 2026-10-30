@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { OVERLAY } from '../constants/layers';
 import { AlertTriangle, Coins, Copy, LucideIcon, Trash2 } from 'lucide-react';
 
@@ -75,6 +76,7 @@ const ConfirmDialog: React.FC<Props> = ({
   inputTestId,
   titleId,
 }) => {
+  const { t } = useTranslation();
   const [typed, setTyped] = useState('');
 
   // A previous confirmation must never pre-arm the next dialog: closing or
@@ -135,7 +137,7 @@ const ConfirmDialog: React.FC<Props> = ({
         {requireTypedText && (
           <>
             <label className="mt-6 block text-[15px] font-bold text-slate-500">
-              請輸入「{requireTypedText}」以確認
+              {t('common.typeToConfirm', { text: requireTypedText })}
             </label>
             <input
               type="text"
@@ -143,7 +145,7 @@ const ConfirmDialog: React.FC<Props> = ({
               value={typed}
               onChange={event => setTyped(event.target.value)}
               placeholder={requireTypedText}
-              aria-label={`請輸入${requireTypedText}以確認`}
+              aria-label={t('common.typeToConfirmAria', { text: requireTypedText })}
               className="mt-2 h-[52px] w-full rounded-2xl border border-slate-200 px-4 text-center text-[19px] font-black tracking-[.2em] outline-none placeholder:text-[17px] placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-300 focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </>
@@ -156,7 +158,7 @@ const ConfirmDialog: React.FC<Props> = ({
             onClick={onCancel}
             className="min-h-[56px] flex-1 rounded-2xl border border-slate-200 px-4 text-[17px] font-black text-slate-500 transition-colors hover:bg-slate-50"
           >
-            {request.cancelLabel || '取消'}
+            {request.cancelLabel || t('common.cancel')}
           </button>
           <button
             type="button"

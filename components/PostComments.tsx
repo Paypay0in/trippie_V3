@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { formatLocaleDate } from '../services/localeFormat';
 import { Send, Trash2 } from 'lucide-react';
 import { PostComment } from '../types';
 import { canDeleteComment } from '../services/postComments';
@@ -11,10 +13,7 @@ interface Props {
   onDelete: (comment: PostComment) => void;
 }
 
-const formatWhen = (iso: string) => {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('zh-TW');
-};
+const formatWhen = (iso: string) => formatLocaleDate(iso);
 
 /**
  * The conversation under a post.
@@ -25,6 +24,7 @@ const formatWhen = (iso: string) => {
  * without waiting for anyone.
  */
 const PostComments: React.FC<Props> = ({ comments, viewerId, postCreatorId, onSubmit, onDelete }) => {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState('');
 
   const send = () => {
@@ -35,11 +35,11 @@ const PostComments: React.FC<Props> = ({ comments, viewerId, postCreatorId, onSu
 
   return (
     <section className="mt-8">
-      <h2 className="text-xl font-black">留言 {comments.length > 0 && <span className="text-base text-slate-400">{comments.length}</span>}</h2>
+      <h2 className="text-xl font-black">{t('comments.title')} {comments.length > 0 && <span className="text-base text-slate-400">{comments.length}</span>}</h2>
 
       <div className="mt-3 space-y-3">
         {comments.length === 0 ? (
-          <p className="rounded-2xl bg-white p-5 text-center text-sm text-slate-400 shadow-sm">還沒有留言，成為第一個</p>
+          <p className="rounded-2xl bg-white p-5 text-center text-sm text-slate-400 shadow-sm">{t('comments.empty')}</p>
         ) : (
           comments.map(comment => (
             <div key={comment.id} className="rounded-2xl bg-white p-4 shadow-sm">
@@ -56,7 +56,7 @@ const PostComments: React.FC<Props> = ({ comments, viewerId, postCreatorId, onSu
                 {canDeleteComment(comment, viewerId, postCreatorId) && (
                   <button
                     type="button"
-                    aria-label={`刪除留言：${comment.content.slice(0, 12)}`}
+                    aria-label={t('comments.deleteAria', { excerpt: comment.content.slice(0, 12) })}
                     onClick={() => onDelete(comment)}
                     className="shrink-0 rounded-lg p-2 text-slate-300 hover:text-rose-500"
                   >
@@ -76,15 +76,15 @@ const PostComments: React.FC<Props> = ({ comments, viewerId, postCreatorId, onSu
           onChange={event => setDraft(event.target.value)}
           onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); send(); } }}
           maxLength={500}
-          placeholder="寫下你的想法或問題…"
-          aria-label="留言內容"
+          placeholder={t('comments.placeholder')}
+          aria-label={t('comments.inputAria')}
           className="min-h-11 flex-1 rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-violet-300"
         />
         <button
           type="button"
           onClick={send}
           disabled={!draft.trim()}
-          aria-label="送出留言"
+          aria-label={t('comments.sendAria')}
           className="flex min-h-11 w-12 items-center justify-center rounded-2xl bg-violet-600 text-white disabled:opacity-40"
         >
           <Send size={16} />

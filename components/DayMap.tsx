@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Home, MapPinned } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { dayMapSrc, mappableStops, stopsOnTheGround } from '../services/dayMapImage';
@@ -31,6 +32,7 @@ interface Props {
 }
 
 const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
+  const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   /*
     「最後一天會跨國！」 — a day ending with 航班抵達 abroad drew one line across
@@ -109,7 +111,7 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
       <div data-testid="day-map-empty" className="rounded-[22px] border border-dashed border-[#e6e3f3] bg-white px-4 py-8 text-center">
         <MapPinned size={18} className="mx-auto text-slate-300" />
         <p className="mt-2 text-xs font-bold text-slate-400">
-          {items.length === 0 ? '這一天還沒有行程' : '這一天的行程都還沒連結地圖'}
+          {items.length === 0 ? t('itinerary.dayMap.emptyNoItems') : t('itinerary.dayMap.emptyUnlinked')}
         </p>
       </div>
     );
@@ -119,7 +121,7 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
     <div data-testid="day-map" className="overflow-hidden rounded-[22px] border border-[#eceaf5] bg-white">
       {failed ? (
         <div data-testid="day-map-failed" className="px-4 py-8 text-center text-xs font-bold text-slate-400">
-          現在畫不出地圖，請稍後再試。
+          {t('itinerary.dayMap.failed')}
         </div>
       ) : (
         <img
@@ -132,7 +134,7 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
             height: 400,
             origin: typeof window === 'undefined' ? undefined : window.location.origin,
           })}
-          alt={`這一天 ${stops.length} 個地點的地圖`}
+          alt={t('itinerary.dayMap.alt', { count: stops.length })}
           className="block h-auto w-full"
           loading="lazy"
           onError={() => setFailed(true)}
@@ -191,13 +193,13 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
       {(unmapped > 0 || airportCount > 0 || lodgingCount > 0) && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-3 py-2">
           <p data-testid="day-map-unmapped" className="text-[10px] font-bold leading-4 text-slate-400">
-            {unmapped > 0 && `還有 ${unmapped} 個行程沒連結地圖，沒有畫在上面。`}
+            {unmapped > 0 && t('itinerary.dayMap.unmapped', { count: unmapped })}
             {/*
               Says what is hidden rather than hiding it quietly: a map showing
               four pins for a six-stop day is a day the traveller counts twice.
             */}
-            {airportCount > 0 && !withAirport && `機場（${airportCount} 個）沒有畫在上面，這樣才看得出市區的距離。`}
-            {lodgingCount > 0 && !withLodging && '住宿沒有畫在上面。'}
+            {airportCount > 0 && !withAirport && t('itinerary.dayMap.airportHidden', { count: airportCount })}
+            {lodgingCount > 0 && !withLodging && t('itinerary.dayMap.lodgingHidden')}
           </p>
           {/*
             「然後朋友家是可以排除掉的」 — a stay an hour out of the city zooms the
@@ -212,7 +214,7 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
               onClick={() => setWithLodging(value => !value)}
               className="shrink-0 rounded-lg border border-[#f5d9a6] px-2 py-1 text-[10px] font-black text-[#b36e06]"
             >
-              {withLodging ? '不含住宿' : '含住宿'}
+              {withLodging ? t('itinerary.dayMap.hideLodging') : t('itinerary.dayMap.showLodging')}
             </button>
           )}
           {airportCount > 0 && (
@@ -223,7 +225,7 @@ const DayMap: React.FC<Props> = ({ items, encodedPaths, lodging }) => {
               onClick={() => setWithAirport(value => !value)}
               className="shrink-0 rounded-lg border border-[#e6e3f3] px-2 py-1 text-[10px] font-black text-[#5b3df5]"
             >
-              {withAirport ? '不含機場' : '含機場'}
+              {withAirport ? t('itinerary.dayMap.hideAirport') : t('itinerary.dayMap.showAirport')}
             </button>
           )}
         </div>

@@ -26,6 +26,18 @@
 import { FlightAnchor, ItineraryItem } from '../types';
 import { locateAirports } from './flightIntake';
 
+/*
+  Why the words below are not translated.
+
+  Every one of them is a field on an `ItineraryItem`: written to localStorage
+  and pushed to Supabase, then read by a companion's phone, which never
+  receives the anchor that produced it. Generating them in the writer's
+  language would give one trip two languages depending on whose app derived
+  the item last — and `fixedAnchorSchedule` already reads an item's role from
+  its id prefix rather than its title, which is where a translated screen
+  should read it too.
+*/
+
 /** Minutes before departure the traveller wants to be at the airport. */
 const DEFAULT_AIRPORT_BUFFER_MINUTES = 120;
 
@@ -82,9 +94,11 @@ export const itemsFromFlightAnchor = (rawAnchor: FlightAnchor): ItineraryItem[] 
     {
       id: arrivalId,
       time: shiftClock(anchor.departureTime, anchor.airportArrivalBufferMinutes || DEFAULT_AIRPORT_BUFFER_MINUTES),
+      // i18n-data: ItineraryItem field, written to storage and synced; see note above
       title: '抵達機場',
       location: anchor.departureAirport,
       ...placeOf(anchor.departureAirportPlaceId, anchor.departureAirportLatitude, anchor.departureAirportLongitude),
+      // i18n-data: ItineraryItem field, stored and synced; see note above
       notes: '依航班起飛時間與機場緩衝自動推算，於「航班資訊」修改',
       type: 'TRANSPORT',
       date: anchor.departureDate,
@@ -94,9 +108,11 @@ export const itemsFromFlightAnchor = (rawAnchor: FlightAnchor): ItineraryItem[] 
     {
       id: departureId,
       time: anchor.departureTime,
+      // i18n-data: ItineraryItem field, written to storage and synced; see note above
       title: '航班起飛',
       location: anchor.departureAirport,
       ...placeOf(anchor.departureAirportPlaceId, anchor.departureAirportLatitude, anchor.departureAirportLongitude),
+      // i18n-data: ItineraryItem field, stored and synced; see note above
       notes: '由已保存航班錨點產生，於「航班資訊」修改',
       type: 'FLIGHT',
       date: anchor.departureDate,
@@ -114,9 +130,12 @@ export const itemsFromFlightAnchor = (rawAnchor: FlightAnchor): ItineraryItem[] 
     ...(anchor.arrivalTime ? [{
       id: landingId,
       time: anchor.arrivalTime,
+      // i18n-data: ItineraryItem field, written to storage and synced; see note above
       title: '航班抵達',
+      // i18n-data: ItineraryItem field, stored and synced; see note above
       location: anchor.arrivalAirport || anchor.arrivalAirportIata || '目的地機場',
       ...placeOf(anchor.arrivalAirportPlaceId, anchor.arrivalAirportLatitude, anchor.arrivalAirportLongitude),
+      // i18n-data: ItineraryItem field, stored and synced; see note above
       notes: '由已保存航班錨點產生，於「航班資訊」修改',
       type: 'FLIGHT' as const,
       date: anchor.arrivalDate || anchor.departureDate,

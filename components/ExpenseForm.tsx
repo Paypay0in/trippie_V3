@@ -8,6 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
 import { CustomCategories, categoriesForPhase } from '../services/customCategories';
+import { categoryLabel, paymentMethodLabel } from '../services/categoryDisplay';
 import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
 import {
@@ -111,7 +112,16 @@ const ExpenseForm: React.FC<Props> = ({
   travelRules
   ,ownerMemberId, ownerName, viewerMemberId, viewerIdentified, proposalMode, onRequestDelete, onManageMembers
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  /*
+    Which language a stored value is *shown* in. Not a translation key:
+    `Category.FLIGHT` IS the 機票 written to localStorage and pushed to
+    Supabase for every expense ever recorded, so the value never changes and
+    `categoryDisplay` stays the one place that turns it into words. A category
+    the traveller typed themselves falls through that table and is shown as
+    they wrote it.
+  */
+  const displayLocale = i18n.language?.startsWith('en') ? 'en' : 'zh-Hant';
   const effectiveOwnerMemberId = ownerMemberId || LEGACY_OWNER_ID;
   // Compatibility boundary: every historical owner encoding ('me', an owner id
   // from another trip id) collapses onto the active owner TripMember id, so
@@ -1552,7 +1562,7 @@ const ExpenseForm: React.FC<Props> = ({
                             : 'bg-white text-gray-600 border-slate-200 hover:bg-slate-50'
                         }`}
                        >
-                         {cat}
+                         {categoryLabel(cat, displayLocale)}
                        </button>
                      ))}
                    </div>
@@ -2079,7 +2089,7 @@ const ExpenseForm: React.FC<Props> = ({
                               : 'bg-white border border-slate-200 text-gray-500 hover:bg-gray-50'
                           }`}
                         >
-                          <Icon size={14} /> {config.label}
+                          <Icon size={14} /> {paymentMethodLabel(method, displayLocale)}
                         </button>
                        );
                      })}
@@ -2180,6 +2190,19 @@ const ExpenseForm: React.FC<Props> = ({
             )}
           </div>
 
+          {/*
+            Left exactly as found, and reported rather than fixed.
+
+            This compares `statusMessage` with `===`, so the literal is an
+            anchor and not copy. The anchor is stale: `setStatusMessage` now
+            writes `t('expense.statusAnalysing')`, so this can only match
+            while the app is in Chinese — the sister test of the same
+            condition 950 lines above already reads
+            `statusMessage === t('expense.statusAnalysing')`. Making the two
+            agree changes when this footer renders, which is product
+            behaviour and not a translator's call.
+          */}
+          {/* i18n-data: compared with === against statusMessage; see batch-AB report, the anchor is stale */}
           {(!isAiLoading || statusMessage === '分析中...') && (
             <div className="p-5 bg-white border-t border-slate-100 flex-shrink-0">
                 {expenseSaveDebug.submitClicked && expenseSaveDebug.validationError && (

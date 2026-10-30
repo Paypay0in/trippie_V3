@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BedDouble, Camera, Loader2, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { ParsedStay, normalizeParsedStay, stayToItineraryItems } from '../services/stayIntake';
@@ -41,6 +42,7 @@ const makeId = () => `stay-${Date.now().toString(36)}-${Math.random().toString(3
  * — a companion can see the room booking, which is the point of entering it.
  */
 const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], destinationCountry, onAddItems, onRemoveItem }) => {
+  const { t } = useTranslation();
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -157,13 +159,13 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
         // The server phrases these for the traveller, so show what it said
         // rather than a generic failure that hides whether to retry.
         const body = await response.json().catch(() => ({}));
-        setError(body?.error || '辨識失敗，請手動新增住宿。');
+        setError(body?.error || t('stay.upload.readFailed'));
         return;
       }
 
       await addStay(await response.json() as ParsedStay);
     } catch {
-      setError('辨識失敗，請手動新增住宿。');
+      setError(t('stay.upload.readFailed'));
     } finally {
       setBusy(false);
       // Clearing lets the same file be picked again after a failure.
@@ -180,7 +182,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
           </span>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#8b3dff]">STAYS</p>
-            <h2 className="mt-1 font-black text-[#111A4A]">住宿資訊</h2>
+            <h2 className="mt-1 font-black text-[#111A4A]">{t('stay.upload.title')}</h2>
           </div>
         </div>
         {/*
@@ -195,7 +197,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
               onClick={() => { setForm(EMPTY_FORM); setEditingIds(null); setManual(true); setError(''); }}
               className="inline-flex min-h-11 items-center rounded-xl border border-[#e4e2f2] bg-white px-3 py-2 text-xs font-black text-slate-500"
             >
-              手動
+              {t('stay.upload.manual')}
             </button>
             <button
               type="button"
@@ -204,7 +206,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
               className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-black text-[#5b3df5] disabled:opacity-50"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-              {busy ? '辨識中' : '上傳截圖'}
+              {busy ? t('itinerary.flights.scanning') : t('itinerary.flights.upload')}
             </button>
           </div>
         )}
@@ -232,11 +234,17 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
         <div data-testid="stay-conflict-prompt" className="mt-3 rounded-[22px] border border-amber-200 bg-amber-50 p-4">
           <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            同一天有多筆住宿，哪一個才對？
+            {t('stay.conflict.heading')}
           </p>
           <p className="mt-1 pl-5 text-[11px] font-medium leading-relaxed text-amber-700">
-            {openConflicts.map(conflict => `${conflict.date.slice(5).replace('-', '/')} ${conflict.role === 'check_in' ? '入住' : '退房'}`).join('、')}
-            {' '}各有不只一筆。選一個保留，其他會被刪掉。
+            {t('stay.conflict.blurb', {
+              days: openConflicts
+                .map(conflict => t('stay.conflict.dayRole', {
+                  date: conflict.date.slice(5).replace('-', '/'),
+                  role: conflict.role === 'check_in' ? t('itinerary.checkIn') : t('itinerary.checkOut'),
+                }))
+                .join(t('stay.conflict.daySeparator')),
+            })}
           </p>
           <div className="mt-3 space-y-2">
             {conflictChoices.map(name => (
@@ -247,7 +255,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
                 className="flex w-full items-center justify-between gap-2 rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-left"
               >
                 <span className="min-w-0 truncate text-xs font-black text-[#111A4A]">{name}</span>
-                <span className="shrink-0 text-[10px] font-black text-[#5b3df5]">保留這個</span>
+                <span className="shrink-0 text-[10px] font-black text-[#5b3df5]">{t('stay.conflict.keepThis')}</span>
               </button>
             ))}
           </div>
@@ -256,7 +264,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
             onClick={() => setDismissedConflictIds(conflicts.map(conflict => conflict.id))}
             className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-black text-amber-700"
           >
-            兩間都要住，全部保留
+            {t('stay.conflict.keepAll')}
           </button>
         </div>
       )}
@@ -271,7 +279,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
             event.preventDefault();
             const stay = normalizeParsedStay(form);
             if (!stay) {
-              setError('請至少填入住宿名稱。');
+              setError(t('stay.upload.nameRequired'));
               return;
             }
             setError('');
@@ -283,23 +291,23 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
           }}
         >
           <label className="block">
-            <span className="text-[11px] font-black text-slate-500">住宿名稱</span>
+            <span className="text-[11px] font-black text-slate-500">{t('stay.upload.nameLabel')}</span>
             <input
               value={form.hotelName}
               onChange={event => setForm(current => ({ ...current, hotelName: event.target.value }))}
-              placeholder="例如：海雲台格蘭飯店"
+              placeholder={t('stay.upload.namePlaceholder')}
               className="mt-1 w-full rounded-xl border border-[#e4e2f2] bg-white px-3 py-2.5 text-sm font-bold text-[#111A4A] outline-none focus:border-[#b9adff]"
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
             {([
-              ['checkInDate', '入住日期', 'date'],
-              ['checkOutDate', '退房日期', 'date'],
-              ['checkInTime', '入住時間', 'time'],
-              ['checkOutTime', '退房時間', 'time'],
+              ['checkInDate', 'stay.upload.checkInDate', 'date'],
+              ['checkOutDate', 'stay.upload.checkOutDate', 'date'],
+              ['checkInTime', 'stay.upload.checkInTime', 'time'],
+              ['checkOutTime', 'stay.upload.checkOutTime', 'time'],
             ] as const).map(([field, label, type]) => (
               <label key={field} className="block">
-                <span className="text-[11px] font-black text-slate-500">{label}</span>
+                <span className="text-[11px] font-black text-slate-500">{t(label)}</span>
                 <input
                   type={type}
                   value={form[field]}
@@ -309,9 +317,9 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
               </label>
             ))}
           </div>
-          {([['address', '地址'], ['confirmationNumber', '訂房編號']] as const).map(([field, label]) => (
+          {([['address', 'stay.upload.address'], ['confirmationNumber', 'stay.upload.confirmationNumber']] as const).map(([field, label]) => (
             <label key={field} className="block">
-              <span className="text-[11px] font-black text-slate-500">{label}</span>
+              <span className="text-[11px] font-black text-slate-500">{t(label)}</span>
               <input
                 value={form[field]}
                 onChange={event => setForm(current => ({ ...current, [field]: event.target.value }))}
@@ -324,22 +332,22 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
               type="submit"
               className="min-h-11 flex-1 rounded-xl bg-[#5b3df5] px-4 text-xs font-black text-white"
             >
-              {editingIds ? '儲存修改' : '加入住宿'}
+              {editingIds ? t('stay.upload.saveEdit') : t('stay.upload.addStay')}
             </button>
             <button
               type="button"
               onClick={closeForm}
               className="min-h-11 rounded-xl border border-[#e4e2f2] bg-white px-4 text-xs font-black text-slate-500"
             >
-              取消
+              {t('common.cancel')}
             </button>
           </div>
         </form>
       ) : stays.length === 0 ? (
         <div className="mt-4 rounded-[22px] border border-dashed border-[#d9d5f5] bg-[#fbfaff] px-4 py-7 text-center">
           <Camera size={20} className="mx-auto text-[#a99df0]" />
-          <p className="mt-2 text-xs font-black text-[#5b3df5]">還沒有住宿資訊</p>
-          <p className="mt-1 text-[11px] text-slate-400">自動讀出飯店名稱、入住與退房日期</p>
+          <p className="mt-2 text-xs font-black text-[#5b3df5]">{t('stay.upload.empty')}</p>
+          <p className="mt-1 text-[11px] text-slate-400">{t('stay.upload.emptyHint')}</p>
           <div className="mt-4 flex justify-center gap-2">
             <button
               type="button"
@@ -348,14 +356,14 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
               className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#5b3df5] px-4 text-xs font-black text-white disabled:opacity-50"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
-              {busy ? '辨識中' : '上傳截圖'}
+              {busy ? t('itinerary.flights.scanning') : t('itinerary.flights.upload')}
             </button>
             <button
               type="button"
               onClick={() => { setForm(EMPTY_FORM); setEditingIds(null); setManual(true); }}
               className="min-h-11 rounded-xl border border-[#e4e2f2] bg-white px-4 text-xs font-black text-[#5b3df5]"
             >
-              手動輸入
+              {t('stay.upload.manualEntry')}
             </button>
           </div>
         </div>
@@ -369,7 +377,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
               <div className="min-w-0">
                 <p className="truncate text-sm font-black text-[#111A4A]">{item.title}</p>
                 <p className="mt-0.5 text-[11px] font-bold text-slate-400">
-                  {item.date ? `${item.date.slice(5).replace('-', '/')} ${item.time}` : '尚未指定日期'}
+                  {item.date ? `${item.date.slice(5).replace('-', '/')} ${item.time}` : t('stay.upload.noDate')}
                 </p>
                 {item.notes && (
                   <p className="mt-1 whitespace-pre-line text-[11px] leading-relaxed text-slate-500">{item.notes}</p>
@@ -386,7 +394,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
                 <button
                   type="button"
                   onClick={() => openEdit(bookings.get(stayPropertyName(item)) || [item])}
-                  aria-label={`編輯 ${item.title}`}
+                  aria-label={t('stay.upload.editAria', { title: item.title })}
                   data-testid={`edit-stay-${item.id}`}
                   className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 transition hover:bg-[#f3f0ff] hover:text-[#5b3df5]"
                 >
@@ -395,7 +403,7 @@ const StayUploadCard: React.FC<Props> = ({ itinerary, flightArrivals = [], desti
                 <button
                   type="button"
                   onClick={() => onRemoveItem(item.id)}
-                  aria-label={`刪除 ${item.title}`}
+                  aria-label={t('stay.upload.removeAria', { title: item.title })}
                   className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
                 >
                   <Trash2 size={15} />

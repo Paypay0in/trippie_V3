@@ -15,6 +15,7 @@
  */
 import { ItineraryItem, SavedTravelInspiration } from '../types';
 import { placeIdentities } from './visitedPlaces';
+import i18n from '../i18n/config';
 
 export interface MyVisitRecord {
   itemId: string;
@@ -96,7 +97,7 @@ export const myRecordSummary = (records: MyVisitRecord[]): string => {
 
   return [
     typeof best === 'number' ? '★'.repeat(Math.min(5, Math.round(best))) : '',
-    photos > 0 ? `${photos} 張照片` : '',
-    wrote ? '有日記' : '',
+    photos > 0 ? i18n.t('saved.record.photoCount', { count: photos }) : '',
+    wrote ? i18n.t('saved.record.hasDiary') : '',
   ].filter(Boolean).join(' · ');
 };

@@ -138,6 +138,7 @@ export interface TripPlanningInput {
 export const DESTINATION_RADIUS_KM = 100;
 
 const normalizeText = (value?: string): string =>
+  // i18n-data: punctuation class stripped before comparison, not readable text
   (value || '').trim().toLocaleLowerCase().replace(/[\s,，、.。'()（）·・-]/g, '');
 
 /**
@@ -146,20 +147,35 @@ const normalizeText = (value?: string): string =>
  * from Google Places (usually English). Matching therefore needs aliases.
  */
 const COUNTRY_ALIASES: string[][] = [
+  // i18n-data: matching alias for a stored country name; never displayed
   ['japan', '日本', '日本國', 'jp'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['southkorea', 'korea', 'republicofkorea', '韓國', '韩国', '南韓', '大韓民國', '한국', '대한민국', 'kr'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['taiwan', '台灣', '臺灣', '中華民國', 'tw'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['thailand', '泰國', '泰国', 'th'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['unitedstates', 'unitedstatesofamerica', 'usa', 'us', 'america', '美國', '美国'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['france', '法國', '法国', 'fr'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['unitedkingdom', 'uk', 'england', 'britain', 'greatbritain', '英國', '英国', 'gb'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['italy', 'italia', '義大利', '意大利', 'it'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['germany', 'deutschland', '德國', '德国', 'de'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['australia', '澳洲', '澳大利亞', 'au'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['singapore', '新加坡', 'sg'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['vietnam', 'vietname', '越南', 'vn'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['china', 'peoplesrepublicofchina', '中國', '中国', 'cn'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['hongkong', '香港', 'hk'],
+  // i18n-data: matching alias for a stored country name; never displayed
   ['macau', 'macao', '澳門', '澳门', 'mo'],
 ];
 

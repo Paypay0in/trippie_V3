@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ImagePlus, Loader2 } from 'lucide-react';
 import { ParsedRental } from '../services/rentalIntake';
 import { ItinerarySlice } from '../services/itineraryImageSlices';
@@ -128,6 +129,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
   tripStartDate,
   tripEndDate,
 }) => {
+  const { t } = useTranslation();
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<'' | 'classifying' | 'reading'>('');
   const [error, setError] = useState('');
@@ -178,7 +180,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
 
       if ('rental' in result) {
         onAddRental(result.rental);
-        setDone(`讀到租車訂單：${result.rental.company}，已加到租車資訊。`);
+        setDone(t('plan.screenshotIntake.rentalRead', { company: result.rental.company }));
         return;
       }
 
@@ -218,7 +220,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         }
 
         await fileStay(stay);
-        setDone(`讀到住宿：${stay.hotelName}，已加到行程。`);
+        setDone(t('plan.screenshotIntake.stayRead', { hotel: stay.hotelName }));
         return;
       }
 
@@ -234,7 +236,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         });
         const anchors = flightAnchorsFromParsed(read, makeId);
         if (anchors.length === 0) {
-          setError('這張機票讀不出完整的日期與時間，請用航班資訊手動確認。');
+          setError(t('plan.screenshotIntake.flightUnreadable'));
           return;
         }
         /*
@@ -258,17 +260,17 @@ const PlanScreenshotIntake: React.FC<Props> = ({
         }
 
         onAddFlightAnchors(anchors);
-        setDone(`讀到 ${anchors.length} 段航班，已加到航班資訊。`);
+        setDone(t('plan.screenshotIntake.flightsRead', { count: anchors.length }));
         return;
       }
 
       if (!('slices' in result)) return;
       const saved = await onSavePlaces(result.slices);
-      setDone(`讀到 ${result.slices.length} 個地點，已存 ${saved} 個到收藏。`);
+      setDone(t('plan.screenshotIntake.placesRead', { count: result.slices.length, saved }));
     } catch (caught) {
       // The server words these; whether retrying helps is the whole of what
       // the traveller needs from them.
-      setError(caught instanceof Error ? caught.message : '現在無法辨識截圖，請稍後再試。');
+      setError(caught instanceof Error ? caught.message : t('plan.screenshotIntake.unreadable'));
     } finally {
       setBusy('');
       assumedKind.current = undefined;
@@ -301,9 +303,10 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       */}
       {offerKindShortcuts.length > 0 && (
         <div data-testid="plan-screenshot-kinds" className="mb-2 flex gap-2">
-          {([['flight', '機票'], ['stay', '訂房']] as const)
-            .filter(([kind]) => offerKindShortcuts.includes(kind))
-            .map(([kind, label]) => (
+          {/* The kind is the parser's own name for the picture, not copy. */}
+          {(['flight', 'stay'] as const) // i18n-data: ScreenshotKind values
+            .filter(kind => offerKindShortcuts.includes(kind))
+            .map(kind => (
             <button
               key={kind}
               type="button"
@@ -315,7 +318,9 @@ const PlanScreenshotIntake: React.FC<Props> = ({
               }}
               className="min-h-11 flex-1 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-xs font-black text-white disabled:opacity-50"
             >
-              上傳{label}
+              {kind === 'flight'
+                ? t('plan.screenshotIntake.uploadFlight')
+                : t('plan.screenshotIntake.uploadStay')}
             </button>
           ))}
         </div>
@@ -336,12 +341,12 @@ const PlanScreenshotIntake: React.FC<Props> = ({
           label for all of it is indistinguishable from a screen that has
           stopped — which is how 「讀取很久」 gets reported as a bug.
         */}
-        {busy === 'classifying' ? '看看這是什麼…'
-          : busy === 'reading' ? '讀取資料中，約需一分鐘…'
-            : '上傳截圖'}
+        {busy === 'classifying' ? t('plan.screenshotIntake.classifying')
+          : busy === 'reading' ? t('plan.screenshotIntake.reading')
+            : t('plan.screenshotIntake.upload')}
       </button>
       <p className="mt-1.5 text-center text-[11px] leading-4 text-slate-400">
-機票、訂房、租車訂單、旅行靈感截圖都可以，我讀出來放到對的地方
+        {t('plan.screenshotIntake.blurb')}
       </p>
 
       {/*
@@ -355,15 +360,15 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       {heldStay && (
         <div data-testid="plan-stay-dates" className="mt-2 rounded-xl bg-violet-50 px-3 py-2.5 text-left">
           <p className="text-xs font-black text-violet-900">
-            讀到住宿：{heldStay.stay.hotelName}
+            {t('plan.screenshotIntake.stayHeld', { hotel: heldStay.stay.hotelName })}
           </p>
           <p className="mt-1 text-[11px] leading-4 text-violet-800">
-            這張沒有寫入住與退房日期，請填一下。
+            {t('plan.screenshotIntake.stayNeedsDates')}
           </p>
 
           <div className="mt-2 flex items-center gap-2">
             <label className="flex-1">
-              <span className="block text-[10px] font-bold text-violet-700">入住</span>
+              <span className="block text-[10px] font-bold text-violet-700">{t('plan.screenshotIntake.checkIn')}</span>
               <input
                 type="date"
                 data-testid="plan-stay-check-in"
@@ -374,7 +379,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
               />
             </label>
             <label className="flex-1">
-              <span className="block text-[10px] font-bold text-violet-700">退房</span>
+              <span className="block text-[10px] font-bold text-violet-700">{t('plan.screenshotIntake.checkOut')}</span>
               <input
                 type="date"
                 data-testid="plan-stay-check-out"
@@ -401,11 +406,11 @@ const PlanScreenshotIntake: React.FC<Props> = ({
                 };
                 setHeldStay(null);
                 await fileStay(filed);
-                setDone(`已加入住宿：${filed.hotelName}。`);
+                setDone(t('plan.screenshotIntake.stayFiled', { hotel: filed.hotelName }));
               }}
               className="min-h-10 flex-1 rounded-xl bg-violet-600 px-3 text-xs font-black text-white disabled:opacity-40"
             >
-              加入行程
+              {t('plan.screenshotIntake.addToItinerary')}
             </button>
             <button
               type="button"
@@ -413,7 +418,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
               onClick={() => setHeldStay(null)}
               className="min-h-10 flex-1 rounded-xl border border-violet-200 bg-white px-3 text-xs font-black text-violet-700"
             >
-              取消
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -429,7 +434,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
       {held && (
         <div data-testid="plan-flight-confirm" className="mt-2 rounded-xl bg-amber-50 px-3 py-2.5 text-left">
           <p data-testid="plan-flight-confirm-headline" className="text-xs font-black leading-5 text-amber-900">
-            {held.headline || '這張機票跟這趟旅程對不起來'}
+            {held.headline || t('plan.screenshotIntake.flightMismatch')}
           </p>
           <ul className="mt-1.5 space-y-1">
             {held.contradictions.map(item => (
@@ -464,7 +469,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
                 }}
                 className="min-h-11 w-full rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-xs font-black text-white"
               >
-                用這張機票建立新旅程
+                {t('plan.screenshotIntake.startNewTrip')}
               </button>
             )}
 
@@ -475,7 +480,7 @@ const PlanScreenshotIntake: React.FC<Props> = ({
                 onClick={() => setHeld(null)}
                 className="min-h-10 flex-1 rounded-xl border border-amber-300 bg-white px-3 text-xs font-black text-amber-800"
               >
-                捨棄這筆紀錄
+                {t('plan.screenshotIntake.discard')}
               </button>
               {/*
                 Kept, quietly. A traveller connecting through 成田 to 那霸 is
@@ -487,12 +492,12 @@ const PlanScreenshotIntake: React.FC<Props> = ({
                 data-testid="plan-flight-confirm-add"
                 onClick={() => {
                   onAddFlightAnchors(held.anchors);
-                  setDone(`讀到 ${held.anchors.length} 段航班，已加到航班資訊。`);
+                  setDone(t('plan.screenshotIntake.flightsRead', { count: held.anchors.length }));
                   setHeld(null);
                 }}
                 className="min-h-10 flex-1 rounded-xl px-3 text-xs font-bold text-amber-700 underline underline-offset-4"
               >
-                還是加進這趟
+                {t('plan.screenshotIntake.addAnyway')}
               </button>
             </div>
           </div>

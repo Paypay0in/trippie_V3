@@ -72,6 +72,7 @@ export const reconcileTransfers = (
       id: transferIdFor(pair.arrival.date),
       date: pair.arrival.date,
       departTime,
+      // i18n-data: written into the stored itinerary item's location field.
       airportName: pair.arrival.airport || '機場',
       hotelName: pair.stay.name,
       travelSeconds: estimate.travelSeconds,

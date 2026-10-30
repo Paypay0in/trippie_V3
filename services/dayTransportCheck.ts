@@ -1,3 +1,5 @@
+import i18n from '../i18n/config';
+
 /**
  * Whether a day's travel actually works, in one answer.
  *
@@ -64,10 +66,18 @@ export const HEAVY_DAY_MINUTES = 150;
 /** Less slack than this and an ordinary delay misses the next booking. */
 export const TIGHT_BUFFER_MINUTES = 10;
 
-const minutesLabel = (minutes: number): string =>
-  (minutes >= 60 && minutes % 60 === 0 ? `${minutes / 60} 小時`
-    : minutes >= 60 ? `${Math.floor(minutes / 60)} 小時 ${minutes % 60} 分`
-      : `${minutes} 分`);
+/**
+ * Minutes as the traveller reads them. Exported because `DayTransportCheck.tsx`
+ * renders the same total and used to carry a second copy that rounded
+ * differently — and stripped 「 0 分」 out of its own output, which no longer
+ * exists once the string is a translation.
+ */
+export const minutesLabel = (minutes: number): string =>
+  (minutes >= 60 && minutes % 60 === 0
+    ? i18n.t('transport.dayCheck.hours', { hours: minutes / 60 })
+    : minutes >= 60
+      ? i18n.t('transport.dayCheck.hoursMinutes', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
+      : i18n.t('transport.dayCheck.minutes', { minutes }));
 
 /**
  * Leaving an area and coming back to it later.
@@ -116,14 +126,24 @@ export const checkDayTransport = (legs: CheckedLeg[]): DayTransportVerdict => {
         kind: 'too_tight',
         blocking: true,
         itemIds: [leg.fromId, leg.toId],
-        message: `${leg.fromTitle} → ${leg.toTitle} 要 ${minutesLabel(journey)}，但你只留了 ${minutesLabel(Math.max(leg.gapMinutes, 0))}，差 ${minutesLabel(Math.abs(slack))}。`,
+        message: i18n.t('transport.dayCheck.tooTightBlocking', {
+          from: leg.fromTitle,
+          to: leg.toTitle,
+          journey: minutesLabel(journey),
+          gap: minutesLabel(Math.max(leg.gapMinutes, 0)),
+          short: minutesLabel(Math.abs(slack)),
+        }),
       });
     } else if (slack < TIGHT_BUFFER_MINUTES) {
       findings.push({
         kind: 'too_tight',
         blocking: false,
         itemIds: [leg.fromId, leg.toId],
-        message: `${leg.fromTitle} → ${leg.toTitle} 只剩 ${minutesLabel(slack)} 緩衝，誤點一班車就會遲到。`,
+        message: i18n.t('transport.dayCheck.tooTight', {
+          from: leg.fromTitle,
+          to: leg.toTitle,
+          slack: minutesLabel(slack),
+        }),
       });
     }
   }
@@ -134,7 +154,11 @@ export const checkDayTransport = (legs: CheckedLeg[]): DayTransportVerdict => {
         kind: 'long_haul',
         blocking: false,
         itemIds: [leg.fromId, leg.toId],
-        message: `${leg.fromTitle} 到 ${leg.toTitle} 要 ${minutesLabel(leg.journeyMinutes as number)}，是今天最花時間的移動之一。`,
+        message: i18n.t('transport.dayCheck.longHaul', {
+          from: leg.fromTitle,
+          to: leg.toTitle,
+          journey: minutesLabel(leg.journeyMinutes as number),
+        }),
       });
     }
   }
@@ -144,7 +168,11 @@ export const checkDayTransport = (legs: CheckedLeg[]): DayTransportVerdict => {
       kind: 'backtrack',
       blocking: false,
       itemIds: [leg.fromId, leg.toId],
-      message: `${leg.toAreaLabel || '這一區'} 今天跑了兩趟：${leg.fromTitle} 之後又回到 ${leg.toTitle}。把同一區的行程排在一起可以省掉一趟。`,
+      message: i18n.t('transport.dayCheck.backtrack', {
+        area: leg.toAreaLabel || i18n.t('transport.dayCheck.thisArea'),
+        from: leg.fromTitle,
+        to: leg.toTitle,
+      }),
     });
   }
 
@@ -153,7 +181,7 @@ export const checkDayTransport = (legs: CheckedLeg[]): DayTransportVerdict => {
       kind: 'heavy_day',
       blocking: false,
       itemIds: [],
-      message: `今天光移動就要 ${minutesLabel(travelMinutes)}，佔掉不少白天的時間。`,
+      message: i18n.t('transport.dayCheck.heavyDay', { total: minutesLabel(travelMinutes) }),
     });
   }
 
@@ -162,7 +190,7 @@ export const checkDayTransport = (legs: CheckedLeg[]): DayTransportVerdict => {
       kind: 'unknown_leg',
       blocking: false,
       itemIds: [],
-      message: `有 ${unknownLegs} 段查不到路線，以下的總時間沒有算進它們。`,
+      message: i18n.t('transport.dayCheck.unknownLegs', { legs: unknownLegs }),
     });
   }
 

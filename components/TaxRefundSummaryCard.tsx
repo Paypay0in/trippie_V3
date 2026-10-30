@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronUp, Tag } from 'lucide-react';
 import { DuringRefundState, RefundCandidate } from '../services/duringRefundState';
 
@@ -32,6 +33,7 @@ interface Props {
 }
 
 const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, returnContext = false, onToggleRefundedAtPurchase, onRecordActualRefund, onToggleRefundIneligible }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   /** The row whose actual amount is being typed, and what has been typed. */
   const [editingActualFor, setEditingActualFor] = useState<string | null>(null);
@@ -66,10 +68,10 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
   /** Purchases marked 「不可退稅」, listed so the mark can be taken back. */
   const ineligible = 'ineligibleItems' in refundState ? refundState.ineligibleItems : [];
   const estimate = refundState.status === 'estimate_available';
-  const title = refundState.status === 'no_rule' ? '退稅資格待確認' : refundState.status === 'below_threshold' ? '尚未達退稅門檻' : refundState.status === 'threshold_met' ? '已達退稅門檻' : source === 'model_knowledge' ? 'AI 預估退稅' : '預估退稅總額';
+  const title = refundState.status === 'no_rule' ? t('refund.titleNoRule') : refundState.status === 'below_threshold' ? t('refund.titleBelowThreshold') : refundState.status === 'threshold_met' ? t('refund.titleThresholdMet') : source === 'model_knowledge' ? t('refund.titleAiEstimate') : t('refund.titleEstimate');
   return <section className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-sm">
     <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-2 text-amber-800"><Tag size={18} /><h3 className="text-sm font-bold tracking-wide">{title}</h3></div>{estimate && <div className="text-right text-2xl font-black text-amber-700">{Math.floor(refundState.estimatedRefund).toLocaleString()} {refundState.currency}</div>}</div>
-    {refundState.status === 'no_rule' && <p className="mt-3 text-xs text-amber-800">目前無法安全估算退稅金額。</p>}
+    {refundState.status === 'no_rule' && <p className="mt-3 text-xs text-amber-800">{t('refund.cannotEstimate')}</p>}
     {/*
       The rule itself, before anyone has bought anything.
 
@@ -80,12 +82,12 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
     */}
     {'threshold' in refundState && (
       <p data-testid="refund-rule" className="mt-3 rounded-xl bg-white/60 px-3 py-2 text-xs font-bold text-amber-900">
-        單筆滿 {refundState.threshold.toLocaleString()} {refundState.currency} 可退稅
-        {refundState.refundRate !== undefined && `・概估可退約 ${Math.round(refundState.refundRate * 100)}%`}
+        {t('refund.rule', { threshold: refundState.threshold.toLocaleString(), currency: refundState.currency })}
+        {refundState.refundRate !== undefined && t('refund.ruleRate', { percent: Math.round(refundState.refundRate * 100) })}
       </p>
     )}
-    {refundState.status === 'below_threshold' && <p className="mt-2 text-xs text-amber-800">目前購物金額：{refundState.shoppingSpend.toLocaleString()} {refundState.currency}</p>}
-    {(estimate || refundState.status === 'threshold_met') && <p className="mt-2 text-xs font-bold text-amber-800">符合 {eligible.length} 筆目前估算條件</p>}
+    {refundState.status === 'below_threshold' && <p className="mt-2 text-xs text-amber-800">{t('refund.currentSpend', { amount: refundState.shoppingSpend.toLocaleString(), currency: refundState.currency })}</p>}
+    {(estimate || refundState.status === 'threshold_met') && <p className="mt-2 text-xs font-bold text-amber-800">{t('refund.matchingCount', { n: eligible.length })}</p>}
     {/*
       How much of that headline is a receipt and how much is arithmetic.
 
@@ -94,7 +96,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
     */}
     {estimate && refundState.confirmedRefund > 0 && (
       <p data-testid="refund-confirmed-split" className="mt-2 text-xs font-bold text-amber-800">
-        其中 {Math.round(refundState.confirmedRefund).toLocaleString()} {refundState.currency} 是你已確認收到的金額
+        {t('refund.confirmedSplit', { amount: Math.round(refundState.confirmedRefund).toLocaleString(), currency: refundState.currency })}
       </p>
     )}
     {/*
@@ -105,11 +107,11 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
     */}
     {estimate && refundState.ruleLooksWrong && (
       <p data-testid="refund-rule-disagrees" className="mt-2 rounded-xl bg-white/60 px-3 py-2 text-[11px] font-bold leading-5 text-amber-900">
-        你實際收到的退稅和查到的比例不太一樣，下面的估算已改用你自己的 {refundState.observationCount} 筆紀錄推算。
+        {t('refund.ruleDisagrees', { n: refundState.observationCount })}
       </p>
     )}
-    {estimate && <p className="mt-3 text-[11px] leading-5 text-amber-800/70">{source === 'model_knowledge' ? '此為 AI 依目前旅行規則資訊估算，實際退稅資格與金額依商家及最新官方規定為準。' : '依目前查得規則估算，實際退稅資格與金額依商家、商品類別及現場規定為準。'}</p>}
-    {rows.length > 0 && <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white/60"><button onClick={() => setExpanded(v => !v)} className="flex w-full items-center justify-between px-3 py-2 text-xs font-bold text-amber-800">{rowsQualify ? '查看退稅清單與明細' : '查看購物明細'} {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>{expanded && <div className="divide-y divide-amber-100 px-3">
+    {estimate && <p className="mt-3 text-[11px] leading-5 text-amber-800/70">{source === 'model_knowledge' ? t('refund.disclaimerAi') : t('refund.disclaimerRule')}</p>}
+    {rows.length > 0 && <div className="mt-3 overflow-hidden rounded-xl border border-amber-100 bg-white/60"><button onClick={() => setExpanded(v => !v)} className="flex w-full items-center justify-between px-3 py-2 text-xs font-bold text-amber-800">{rowsQualify ? t('refund.viewRefundList') : t('refund.viewPurchases')} {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>{expanded && <div className="divide-y divide-amber-100 px-3">
       {/*
         「退稅的金額要寫在該項目旁邊 加總的在上面」.
 
@@ -133,7 +135,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                   onClick={() => onToggleRefundedAtPurchase(item.expense.id, true)}
                   className="rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
                 >
-                  結帳時已退稅
+                  {t('refund.refundedAtTill')}
                 </button>
               )}
               {/*
@@ -149,7 +151,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                   onClick={() => onToggleRefundIneligible(item.expense.id, true)}
                   className="rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
                 >
-                  不可退稅
+                  {t('refund.notRefundable')}
                 </button>
               )}
               {/*
@@ -165,7 +167,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                   onClick={() => openActualEntry(item.expense.id, item.actualRefund)}
                   className="rounded-md border border-amber-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
                 >
-                  {item.actualRefund === undefined ? '填入實際退稅' : '修改實際金額'}
+                  {item.actualRefund === undefined ? t('refund.enterActual') : t('refund.editActual')}
                 </button>
               )}
               {onRecordActualRefund && editingActualFor === item.expense.id && (
@@ -173,7 +175,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                   <input
                     autoFocus
                     inputMode="numeric"
-                    aria-label={`${item.expense.description} 實際退稅金額`}
+                    aria-label={t('refund.actualAria', { description: item.expense.description })}
                     data-testid={`actual-input-${item.expense.id}`}
                     value={actualDraft}
                     onChange={event => setActualDraft(event.target.value)}
@@ -187,7 +189,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                     onClick={() => commitActual(item.expense.id)}
                     className="rounded-md bg-amber-500 px-1.5 py-0.5 text-[10px] font-black text-white"
                   >
-                    存
+                    {t('refund.save')}
                   </button>
                 </span>
               )}
@@ -206,12 +208,12 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
           */}
           <b className="shrink-0 whitespace-nowrap text-right text-amber-700">
             {!rowsQualify
-              ? <span className="text-amber-700/60">還差 {Math.max(0, Math.ceil(threshold - item.amount)).toLocaleString()}</span>
+              ? <span className="text-amber-700/60">{t('refund.short', { amount: Math.max(0, Math.ceil(threshold - item.amount)).toLocaleString() })}</span>
               : item.actualRefund !== undefined
                 ? (
                   <span className="block">
                     +{Math.round(item.actualRefund).toLocaleString()} {refundCurrency}
-                    <span className="mt-0.5 block text-[9px] font-bold text-emerald-600">實際</span>
+                    <span className="mt-0.5 block text-[9px] font-bold text-emerald-600">{t('refund.actual')}</span>
                   </span>
                 )
                 : item.refund === undefined
@@ -232,7 +234,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
     */}
     {settled.length > 0 && (
       <div data-testid="settled-at-purchase" className="mt-3 rounded-xl bg-white/60 px-3 py-2">
-        <p className="text-[11px] font-black text-amber-800">結帳時已退稅 · {settled.length} 筆（不列入上方估算）</p>
+        <p className="text-[11px] font-black text-amber-800">{t('refund.settledHeading', { n: settled.length })}</p>
         <div className="mt-1 divide-y divide-amber-100">
           {settled.map(item => (
             <div key={item.expense.id} data-testid={`settled-row-${item.expense.id}`} className="flex items-center justify-between gap-3 py-1.5 text-xs">
@@ -245,7 +247,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                   onClick={() => onToggleRefundedAtPurchase(item.expense.id, false)}
                   className="shrink-0 text-[10px] font-bold text-amber-700 underline underline-offset-2"
                 >
-                  取消
+                  {t('refund.undo')}
                 </button>
               )}
             </div>
@@ -261,7 +263,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
     */}
     {ineligible.length > 0 && (
       <div data-testid="refund-ineligible" className="mt-3 rounded-xl bg-white/60 px-3 py-2">
-        <p className="text-[11px] font-black text-amber-800">不可退稅 · {ineligible.length} 筆（不列入上方估算）</p>
+        <p className="text-[11px] font-black text-amber-800">{t('refund.ineligibleHeading', { n: ineligible.length })}</p>
         <div className="mt-1 divide-y divide-amber-100">
           {ineligible.map(item => (
             <div key={item.expense.id} data-testid={`ineligible-row-${item.expense.id}`} className="flex items-center justify-between gap-3 py-1.5 text-xs">
@@ -274,7 +276,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
                   onClick={() => onToggleRefundIneligible(item.expense.id, false)}
                   className="shrink-0 text-[10px] font-bold text-amber-700 underline underline-offset-2"
                 >
-                  取消
+                  {t('refund.undo')}
                 </button>
               )}
             </div>
@@ -282,7 +284,7 @@ const TaxRefundSummaryCard: React.FC<Props> = ({ refundState, onSettleRefund, re
         </div>
       </div>
     )}
-    {estimate && <button onClick={onSettleRefund} className="mt-3 w-full rounded-lg bg-amber-500 py-2 text-sm font-bold text-white">辦理退稅入帳{returnContext ? '（抵銷旅費）' : ''}</button>}
+    {estimate && <button onClick={onSettleRefund} className="mt-3 w-full rounded-lg bg-amber-500 py-2 text-sm font-bold text-white">{returnContext ? t('refund.settleRefundOffset') : t('refund.settleRefund')}</button>}
   </section>;
 };
 export default TaxRefundSummaryCard;

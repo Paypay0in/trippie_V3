@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { Friendship, Person } from './friendships';
 
 /**
@@ -97,7 +98,9 @@ export const companionSuggestions = (
     if (!existing) {
       byPerson.set(seat.userId, {
         userId: seat.userId,
-        name: seat.name || '旅人',
+        // Display-only: `asPerson` feeds the panel, and `requestFriend` writes
+        // the two ids and no name, so this never reaches storage.
+        name: seat.name || i18n.t('app.label.traveller'),
         tripNames: seat.tripName ? [seat.tripName] : [],
         tripCount: 1,
       });
@@ -121,11 +124,13 @@ export const companionSuggestions = (
 /** 「一起去過 日本東京」, or a count when the trips have no names. */
 export const metOnLabel = (suggestion: CompanionSuggestion): string => {
   if (suggestion.tripNames.length === 0) {
-    return `一起去過 ${suggestion.tripCount} 趟旅行`;
+    return i18n.t('friends.metOnTripCount', { count: suggestion.tripCount });
   }
   const [first] = suggestion.tripNames;
   const rest = suggestion.tripCount - 1;
-  return rest > 0 ? `一起去過 ${first} 等 ${suggestion.tripCount} 趟旅行` : `一起去過 ${first}`;
+  return rest > 0
+    ? i18n.t('friends.metOnTripAndMore', { trip: first, count: suggestion.tripCount })
+    : i18n.t('friends.metOnTrip', { trip: first });
 };
 
 /** A suggestion is a person, for the panel that already knows how to draw one. */

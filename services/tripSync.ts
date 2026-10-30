@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, ShoppingItem, TripMember } from '../types';
 import { idsToPrune } from './syncPrune';
 import { changedRows, RowFingerprints, withFingerprints } from './rowFingerprints';
@@ -143,8 +144,8 @@ const describeError = (error: unknown): string => {
       .filter((part): part is string => typeof part === 'string' && part.trim().length > 0);
     const code = typeof fields.code === 'string' && fields.code.trim() ? `（${fields.code}）` : '';
     if (parts.length > 0) return `${parts.join(' · ')}${code}`;
-    if (code) return `資料庫錯誤${code}`;
-    try { return JSON.stringify(error); } catch { return '未知錯誤'; }
+    if (code) return i18n.t('app.sync.dbError', { code });
+    try { return JSON.stringify(error); } catch { return i18n.t('app.sync.unknownError'); }
   }
   return String(error);
 };
@@ -308,7 +309,7 @@ export const fetchMyTrips = async (): Promise<SyncResult<RemoteTripSummary[]>> =
       status: 'ok',
       data: (data ?? []).map(row => ({
         id: row.id as string,
-        name: (row.name as string) || '未命名旅程',
+        name: (row.name as string) || i18n.t('home.untitledTrip'),
         destination: (row.destination as string) ?? undefined,
         startDate: (row.start_date as string) ?? '',
         endDate: (row.end_date as string) ?? '',

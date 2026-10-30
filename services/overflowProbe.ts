@@ -62,7 +62,7 @@ const describe = (element: Element): string => {
     .slice(0, 6)
     .join(' ');
 
-  return [tag, classes && `.${classes}`, text && `「${text}」`].filter(Boolean).join(' ');
+  return [tag, classes && `.${classes}`, text && `"${text}"`].filter(Boolean).join(' ');
 };
 
 /**
@@ -134,8 +134,8 @@ export const startOverflowProbe = (): (() => void) => {
     const findings = findOverflowing(document.body, viewportWidth).slice(0, 12);
 
     panel.innerHTML = findings.length === 0
-      ? `<b>沒有元素超出畫面</b>（畫面寬 ${viewportWidth}px）`
-      : `<b>${findings.length} 個元素超出畫面</b>（畫面寬 ${viewportWidth}px）<br>` +
+      ? `<b>Nothing overflows the screen</b> (viewport ${viewportWidth}px)`
+      : `<b>${findings.length} element(s) overflow the screen</b> (viewport ${viewportWidth}px)<br>` +
         findings
           .map(f => `+${f.overhang}px · ${f.width}px · ${f.description.replace(/</g, '&lt;')}`)
           .join('<br>');

@@ -285,7 +285,9 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
     .sort((a, b) => (b.value as number) - (a.value as number));
 
   const phaseData = PHASES.map(p => ({
-    name: p.label,
+    // Resolved here rather than in `constants`: a module-level `t()` would
+    // freeze the chart's language at import.
+    name: t(p.labelKey),
     value: stats.byPhase[p.id],
     color: p.id === 'pre' ? '#6366f1' : p.id === 'during' ? '#10b981' : '#f59e0b'
   }));
@@ -649,9 +651,13 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
               </div>
               {settlementRows.length > 0 ? (
                   <div className="space-y-3">
-                      {settlementRows.map(({ member, amount }) => {
-                          const id = member.id;
-                          const name = member.name || companions.find(c => c.id === id)?.name || t("ledger.unknownMember");
+                      {settlementRows.map(({ memberId, member, amount }) => {
+                          // `member` is absent exactly when a balance names a
+                          // companion who has left the trip: the money is still
+                          // owed, only the seat is gone. The row always carries
+                          // the id, so read that and let the name fall back.
+                          const id = memberId;
+                          const name = member?.name || companions.find(c => c.id === id)?.name || t("ledger.unknownMember");
                           return (
                               // The name sits inside the phrase, not beside it:
                               // "陳陳 · 應收" reads as if 陳陳 is the one collecting.

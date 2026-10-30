@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Cloud, CloudOff, RefreshCw, Check, AlertTriangle } from 'lucide-react';
 import { fetchMyTrips, isSyncAvailable } from '../services/tripSync';
 
@@ -29,6 +30,7 @@ type Probe =
  * only seeing both tells you whether they met.
  */
 const CloudSyncStatus: React.FC<Props> = ({ signedIn, email, localTripCount }) => {
+  const { t } = useTranslation();
   const [probe, setProbe] = useState<Probe>({ state: 'idle' });
 
   const configured = isSyncAvailable();
@@ -41,7 +43,7 @@ const CloudSyncStatus: React.FC<Props> = ({ signedIn, email, localTripCount }) =
     } else {
       setProbe({
         state: 'failed',
-        message: result.status === 'error' ? result.message : '雲端同步未設定',
+        message: result.status === 'error' ? result.message : t('cloudSync.notConfiguredMessage'),
       });
     }
   };
@@ -53,13 +55,13 @@ const CloudSyncStatus: React.FC<Props> = ({ signedIn, email, localTripCount }) =
           {signedIn && configured ? <Cloud size={19} /> : <CloudOff size={19} />}
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="font-black text-[#111A4A]">雲端同步</h3>
+          <h3 className="font-black text-[#111A4A]">{t('cloudSync.title')}</h3>
           <p className="mt-1 text-xs leading-relaxed text-slate-500">
             {!configured
-              ? '這個版本沒有連上雲端，資料只留在這台裝置。'
+              ? t('cloudSync.notConfigured')
               : !signedIn
-                ? '未登入。旅程只留在這台裝置，也不會和同行者共用。'
-                : <>已登入 <span className="font-bold text-slate-600">{email || '（沒有 email）'}</span>，本機有 {localTripCount} 趟旅程。</>}
+                ? t('cloudSync.signedOut')
+                : <>{t('cloudSync.signedInPrefix')} <span className="font-bold text-slate-600">{email || t('cloudSync.noEmail')}</span>{t('cloudSync.signedInSuffix', { count: localTripCount })}</>}
           </p>
         </div>
       </div>
@@ -73,16 +75,16 @@ const CloudSyncStatus: React.FC<Props> = ({ signedIn, email, localTripCount }) =
             className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-black text-[#5b3df5] disabled:opacity-50"
           >
             <RefreshCw size={14} className={probe.state === 'checking' ? 'animate-spin' : ''} />
-            {probe.state === 'checking' ? '檢查中' : '檢查雲端連線'}
+            {probe.state === 'checking' ? t('cloudSync.checking') : t('cloudSync.checkConnection')}
           </button>
 
           {probe.state === 'ok' && (
             <div className="mt-3 rounded-2xl bg-[#fbfaff] px-4 py-3 text-xs">
               <p className="flex items-center gap-1.5 font-black text-emerald-600">
-                <Check size={14} /> 連線正常
+                <Check size={14} /> {t('cloudSync.connectionOk')}
               </p>
               <p className="mt-1 font-bold text-slate-600">
-                雲端 {probe.cloudTripCount} 趟 · 本機 {localTripCount} 趟
+                {t('cloudSync.counts', { cloud: probe.cloudTripCount, local: localTripCount })}
               </p>
               {/*
                 The two numbers disagreeing is the whole reason to look. Saying
@@ -91,12 +93,12 @@ const CloudSyncStatus: React.FC<Props> = ({ signedIn, email, localTripCount }) =
               */}
               {probe.cloudTripCount > localTripCount && (
                 <p className="mt-1 leading-relaxed text-slate-500">
-                  雲端比本機多，重新整理頁面就會把缺的補進來。
+                  {t('cloudSync.cloudAhead')}
                 </p>
               )}
               {probe.cloudTripCount < localTripCount && (
                 <p className="mt-1 leading-relaxed text-slate-500">
-                  本機比雲端多。多出來的是登入前建立的，打開那趟旅程就會上傳。
+                  {t('cloudSync.deviceAhead')}
                 </p>
               )}
             </div>
@@ -105,7 +107,7 @@ const CloudSyncStatus: React.FC<Props> = ({ signedIn, email, localTripCount }) =
           {probe.state === 'failed' && (
             <div className="mt-3 rounded-2xl bg-rose-50 px-4 py-3 text-xs">
               <p className="flex items-center gap-1.5 font-black text-rose-600">
-                <AlertTriangle size={14} /> 連線失敗
+                <AlertTriangle size={14} /> {t('cloudSync.connectionFailed')}
               </p>
               {/* The provider's own words: a paraphrase loses the one detail
                   that identifies which of a dozen causes this is. */}

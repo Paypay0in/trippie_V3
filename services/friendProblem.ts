@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { FriendResult } from './friendships';
 
 /**
@@ -15,7 +16,8 @@ import { FriendResult } from './friendships';
  */
 export const friendProblem = (result: FriendResult<unknown>): string => {
   if (result.status === 'ok') return '';
-  if (result.status === 'unavailable') return '還沒有登入，或是雲端沒有設定。';
-  if (result.status === 'setup_required') return '好友功能的資料表還沒建立。';
-  return result.message || '沒有成功，請再試一次。';
+  if (result.status === 'unavailable') return i18n.t('friends.notSignedIn');
+  if (result.status === 'setup_required') return i18n.t('friends.setupRequired');
+  // `message` is the server's own sentence, in whatever language it said it.
+  return result.message || i18n.t('friends.actionFailed');
 };

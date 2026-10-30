@@ -17,6 +17,8 @@
  * only seeing both tells you they disagree.
  */
 
+import i18n from '../i18n/config';
+
 /**
  * Whether the cloud's list is known yet.
  *
@@ -52,7 +54,7 @@ export const cloudPresenceSummary = (
 ): CloudPresenceSummary => {
   if (!signedIn) {
     return localIds.length > 0
-      ? { text: '未登入，這些旅程只存在這台裝置', behind: true }
+      ? { text: i18n.t('cloudSync.signedOutLocalOnly'), behind: true }
       : { text: '', behind: false };
   }
   if (!cloudTripIds) return { text: '', behind: false };
@@ -65,7 +67,11 @@ export const cloudPresenceSummary = (
     traveller can compare against another device.
   */
   return {
-    text: `本機 ${localIds.length} 趟・雲端 ${cloudTripIds.size} 趟・${missing} 趟還沒上傳`,
+    text: i18n.t('cloudSync.localVsCloud', {
+      local: localIds.length,
+      cloud: cloudTripIds.size,
+      missing,
+    }),
     behind: true,
   };
 };

@@ -855,6 +855,15 @@ export type BookingUrlType = 'direct' | 'search';
 export interface PlaceBookingOption {
   provider: 'official' | 'klook' | 'kkday' | string;
   label: string;
+  /**
+   * i18n key for the label, when the label is our own word rather than a brand.
+   *
+   * These options are built server-side, where the browser's i18n cannot be
+   * reached, so the key travels with the link and the card resolves it. A link
+   * labelled Klook or KKday carries no key: a brand name is the same word in
+   * every language.
+   */
+  labelKey?: string;
   url: string;
   urlType: BookingUrlType;
   /**

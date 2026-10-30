@@ -27,6 +27,9 @@ import { describe, expect, it } from 'vitest';
 
 const SERVER = readFileSync(resolve(__dirname, '../server.ts'), 'utf8');
 const CARDS = readFileSync(resolve(__dirname, '../components/ActivityPlanCards.tsx'), 'utf8');
+// The two wordings moved into the locale bundles with the rest of this screen.
+// Read from the fallback language, which is the one the banner was written in.
+const ZH_HANT = JSON.parse(readFileSync(resolve(__dirname, '../i18n/locales/zh-Hant.json'), 'utf8'));
 
 describe('a grounded call that is out of quota', () => {
   it('stops instead of asking three more models the same question', () => {
@@ -60,11 +63,11 @@ describe('a grounded call that is out of quota', () => {
 describe('the banner says why', () => {
   it('separates a spent allowance from a failure', () => {
     expect(CARDS).toContain("ungroundedReason === 'quota'");
-    expect(CARDS).toContain('今天的搜尋額度已經用完');
+    expect(ZH_HANT.activityPlan.ungroundedQuota).toContain('今天的搜尋額度已經用完');
     // The original wording stays for every other cause: a failure is worth
     // retrying now, and telling somebody their allowance ran out when it did
     // not would send them away for a day.
-    expect(CARDS).toContain('這次沒有連上搜尋');
+    expect(ZH_HANT.activityPlan.ungroundedError).toContain('這次沒有連上搜尋');
   });
 
   it('is carried from the server rather than guessed on the client', () => {

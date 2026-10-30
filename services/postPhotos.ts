@@ -7,6 +7,8 @@
  * whole post lost to a photo. Resizing to a width a phone screen can actually
  * show costs nothing visible and keeps a post in the tens of kilobytes.
  */
+import i18n from '../i18n/config';
+
 
 export const MAX_POST_PHOTOS = 10;
 const DEFAULT_MAX_EDGE = 1280;
@@ -185,7 +187,7 @@ export const uploadBytes = (base64: string): number => Math.floor((base64.length
 
 export class PictureTooLarge extends Error {
   constructor() {
-    super('這張圖太大，傳不過去。請改傳螢幕截圖，或用相簿裡壓縮過的版本。');
+    super(i18n.t('app.error.pictureTooLarge'));
     this.name = 'PictureTooLarge';
   }
 }

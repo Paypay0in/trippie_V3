@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * What the socket on the wall looks like.
@@ -109,6 +110,7 @@ const FACES: Record<string, React.ReactNode> = {
 };
 
 const PlugTypeIcon: React.FC<Props> = ({ type, size = 44, className = '' }) => {
+  const { t } = useTranslation();
   const face = FACES[type.toUpperCase()];
   // An unknown letter draws nothing rather than a blank plate that reads as a
   // socket with no holes.
@@ -118,7 +120,7 @@ const PlugTypeIcon: React.FC<Props> = ({ type, size = 44, className = '' }) => {
     <svg
       data-testid={`plug-type-${type.toUpperCase()}`}
       role="img"
-      aria-label={`${type.toUpperCase()} 型插座`}
+      aria-label={t('plan.power.socketAria', { type: type.toUpperCase() })}
       width={size}
       height={size}
       viewBox="0 0 48 48"

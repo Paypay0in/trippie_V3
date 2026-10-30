@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { OVERLAY } from '../constants/layers';
 
 export type GlobalActionContext = 'community' | 'travel' | 'wallet';
@@ -47,8 +48,16 @@ interface Props {
 }
 
 const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCreatePost, onCreateTrip, onOpenBookshelf, onAiImport, onAddExpense, onAddItineraryItem, onBatchImport, onImportScreenshots }) => {
+  const { t } = useTranslation();
+  /*
+    Each entry carries its translation key, not its label.
+
+    The label was also the React key, which stops being stable the moment the
+    sheet can render in a second language; the key is the identity of the
+    action and the label is resolved from it at render.
+  */
   const actions = context === 'community'
-    ? [['發布旅行貼文', onCreatePost], ['分享一趟旅程', onClose], ['匯入旅行筆記截圖', onImportScreenshots], ['儲存為草稿', onCreatePost]]
+    ? [['community.create.title', onCreatePost], ['quickActions.shareTrip', onClose], ['app.import.notesScreenshotHeading', onImportScreenshots], ['community.create.saveDraft', onCreatePost]]
     : context === 'travel'
       /*
         What someone can actually do from here.
@@ -66,24 +75,24 @@ const GlobalActionSheet: React.FC<Props> = ({ context, onClose, onJoinTrip, onCr
         else's.
       */
       ? [
-          ...(onAddItineraryItem ? [['新增行程', onAddItineraryItem] as [string, () => void]] : []),
-          ['加入旅程', onJoinTrip],
-          ['新增旅程', onCreateTrip],
-          ['旅行書架', onOpenBookshelf],
-          ['AI 匯入', onAiImport],
-          ['匯入旅行筆記截圖', onImportScreenshots],
+          ...(onAddItineraryItem ? [['itinerary.addItem', onAddItineraryItem] as [string, () => void]] : []),
+          ['quickActions.joinTrip', onJoinTrip],
+          ['trips.addTrip', onCreateTrip],
+          ['quickActions.bookshelf', onOpenBookshelf],
+          ['trips.aiImport', onAiImport],
+          ['app.import.notesScreenshotHeading', onImportScreenshots],
         ]
       : [
-          ['新增支出', onAddExpense] as [string, () => void],
+          ['settle.addExpense', onAddExpense] as [string, () => void],
           ...(onBatchImport
-            ? [['批次匯入收據', onBatchImport] as [string, () => void]]
+            ? [['quickActions.batchImportReceipts', onBatchImport] as [string, () => void]]
             : []),
         ];
   return <div className={`fixed inset-0 ${OVERLAY.modal} flex items-end justify-center bg-slate-950/35 p-4`} onClick={onClose}>
     <div className="w-full max-w-2xl rounded-[28px] bg-white p-5 shadow-2xl" onClick={event => event.stopPropagation()}>
       <div className="mx-auto mb-5 h-1.5 w-12 rounded-full bg-slate-200" />
-      <h2 className="mb-4 text-lg font-black text-[#11183d]">快速操作</h2>
-      <div className="grid gap-3 sm:grid-cols-2">{actions.map(([label, handler]) => <button key={label as string} type="button" onClick={handler as () => void} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-left text-sm font-black text-[#11183d] hover:bg-violet-50">{label as string}</button>)}</div>
+      <h2 className="mb-4 text-lg font-black text-[#11183d]">{t('quickActions.title')}</h2>
+      <div className="grid gap-3 sm:grid-cols-2">{actions.map(([labelKey, handler]) => <button key={labelKey as string} type="button" onClick={handler as () => void} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 text-left text-sm font-black text-[#11183d] hover:bg-violet-50">{t(labelKey as string)}</button>)}</div>
     </div>
   </div>;
 };

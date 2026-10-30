@@ -1,6 +1,8 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CarFront, Loader2, Trash2, Upload } from 'lucide-react';
-import { ParsedRental, formatRentalSpan, rentalDays } from '../services/rentalIntake';
+import { ParsedRental, rentalDays } from '../services/rentalIntake';
+import { formatRentalSpan } from '../services/rentalSpanWording';
 
 /**
  * 租車資訊 — car hire, read off its confirmation.
@@ -24,6 +26,7 @@ interface Props {
 }
 
 const RentalUploadCard: React.FC<Props> = ({ rentals, onAdd, onRemove }) => {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -49,13 +52,13 @@ const RentalUploadCard: React.FC<Props> = ({ rentals, onAdd, onRemove }) => {
         // The server words these for the traveller, and whether to retry is
         // the whole of what they need.
         const body = await response.json().catch(() => ({}));
-        setError(body?.error || '辨識失敗，請手動輸入。');
+        setError(body?.error || t('rental.readFailed'));
         return;
       }
 
       onAdd(await response.json() as ParsedRental);
     } catch {
-      setError('辨識失敗，請手動輸入。');
+      setError(t('rental.readFailed'));
     } finally {
       setBusy(false);
       // Clearing lets the same file be picked again after a failure.
@@ -76,7 +79,7 @@ const RentalUploadCard: React.FC<Props> = ({ rentals, onAdd, onRemove }) => {
           </span>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#8b3dff]">CAR RENTAL</p>
-            <h2 className="mt-1 font-black text-[#111A4A]">租車資訊</h2>
+            <h2 className="mt-1 font-black text-[#111A4A]">{t('rental.title')}</h2>
           </div>
         </div>
         {rentals.length > 0 && (
@@ -87,7 +90,7 @@ const RentalUploadCard: React.FC<Props> = ({ rentals, onAdd, onRemove }) => {
             onClick={() => fileInput.current?.click()}
             className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#5b3df5] px-3 py-2 text-xs font-black text-white disabled:opacity-50"
           >
-            {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}上傳
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}{t('rental.upload')}
           </button>
         )}
       </div>
@@ -121,8 +124,8 @@ const RentalUploadCard: React.FC<Props> = ({ rentals, onAdd, onRemove }) => {
           {busy
             ? <Loader2 size={20} className="animate-spin text-[#5b3df5]" />
             : <Upload size={20} className="text-[#5b3df5]" />}
-          <span className="text-sm font-black text-[#5b3df5]">上傳租車訂單</span>
-          <span className="text-[11px] text-slate-400">自動讀出租車公司、取車與還車時間</span>
+          <span className="text-sm font-black text-[#5b3df5]">{t('rental.uploadCta')}</span>
+          <span className="text-[11px] text-slate-400">{t('rental.uploadHint')}</span>
         </button>
       ) : (
         <ul className="mt-4 space-y-2.5">
@@ -142,8 +145,8 @@ const RentalUploadCard: React.FC<Props> = ({ rentals, onAdd, onRemove }) => {
                     </p>
                     {rental.pickUpLocation && (
                       <p className="mt-1 truncate text-[11px] text-slate-500">
-                        取車：{rental.pickUpLocation}
-                        {rental.dropOffLocation ? `・還車：${rental.dropOffLocation}` : ''}
+                        {t('rental.pickUpAt', { location: rental.pickUpLocation })}
+                        {rental.dropOffLocation ? t('rental.dropOffAt', { location: rental.dropOffLocation }) : ''}
                       </p>
                     )}
                     {rental.carDescription && (
@@ -154,7 +157,7 @@ const RentalUploadCard: React.FC<Props> = ({ rentals, onAdd, onRemove }) => {
                     type="button"
                     data-testid={`rental-remove-${index}`}
                     onClick={() => onRemove(index)}
-                    aria-label={`移除 ${rental.company}`}
+                    aria-label={t('rental.removeAria', { company: rental.company })}
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-300"
                   >
                     <Trash2 size={16} />
@@ -171,12 +174,12 @@ const RentalUploadCard: React.FC<Props> = ({ rentals, onAdd, onRemove }) => {
                 */}
                 {days.length > 0 && (
                   <p data-testid={`rental-days-${index}`} className="mt-2 rounded-lg bg-[#f6f5ff] px-2.5 py-1.5 text-[11px] font-bold text-[#5b3df5]">
-                    這 {days.length} 天有車
+                    {t('rental.daysCovered', { count: days.length })}
                   </p>
                 )}
                 {rental.isUncertain && (
                   <p className="mt-2 text-[11px] font-bold text-amber-600">
-                    這張訂單有些欄位讀不清楚，請確認日期。
+                    {t('rental.verifyDates')}
                   </p>
                 )}
               </li>

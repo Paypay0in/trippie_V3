@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { FlightAnchor, ItineraryItem, SavedExperienceNote, SavedInspiration } from '../types';
 import { PlaceCoordinates, TripPlanningInput, TripPlanningInspirationSelection } from './tripInspirationSelection';
 import { scheduleProposalDay } from './itineraryScheduling';
@@ -8,7 +9,7 @@ export type ItineraryProposal = { days: Array<{ date: string; items: ItineraryIt
 export async function generateItineraryProposal(input: { destination?: string; startDate: string; endDate: string; existingItinerary: ItineraryItem[]; savedInspirations: SavedInspiration[]; flightAnchors: FlightAnchor[]; constraints?: string }): Promise<ItineraryProposal> {
   const response = await fetch('/api/itinerary-proposals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   const data = await response.json().catch(() => null) as ItineraryProposal | { error?: string } | null;
-  if (!response.ok) throw new Error(data && 'error' in data && typeof data.error === 'string' ? data.error : '行程建議服務暫時無法使用');
+  if (!response.ok) throw new Error(data && 'error' in data && typeof data.error === 'string' ? data.error : i18n.t('planner.proposal.error.serviceUnavailable'));
   return data as ItineraryProposal;
 }
 
@@ -77,6 +78,7 @@ export class ItineraryProposalRequestError extends Error {
 export const normalizeKey = (value?: string): string => (value || '').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
 
 /** Places whose saved notes hint at an evening visit, e.g. 「傍晚去比較漂亮」. */
+// i18n-data: regex anchors matched against the traveller's own saved note text
 const EVENING_HINT = /傍晚|黃昏|黄昏|夕陽|夕阳|日落|夜景|晚上|夜間|夜间|sunset|evening|night/i;
 
 /**
@@ -105,15 +107,18 @@ export const toValidTime = (value: unknown): string | undefined => {
   return hour <= 23 ? `${String(hour).padStart(2, '0')}:${match[2]}` : undefined;
 };
 
-export const enumerateTripDates = (startDate?: string, endDate?: string): string[] => {
-  if (!isValidProposalDate(startDate) || !isValidProposalDate(endDate)) return [];
-  const start = Date.parse(`${startDate}T00:00:00Z`);
-  const end = Date.parse(`${endDate}T00:00:00Z`);
-  if (end < start) return [];
-  const dates: string[] = [];
-  for (let cursor = start; cursor <= end; cursor += 86_400_000) dates.push(new Date(cursor).toISOString().slice(0, 10));
-  return dates;
-};
+/*
+  `enumerateTripDates` now lives in `services/tripDates.ts`, re-exported here so
+  every existing caller keeps working.
+
+  It moved because `server.ts` imported it from this module and nothing else,
+  which barred this file from importing `i18n/config` — and eleven sentences a
+  traveller reads are built below. One wordless function was holding the whole
+  file hostage.
+*/
+import { enumerateTripDates } from './tripDates';
+
+export { enumerateTripDates };
 
 /**
  * The trip days a plan may still be made for.
@@ -352,14 +357,18 @@ export const normalizeTripInspirationProposal = (
 
   days.sort((left, right) => left.date.localeCompare(right.date));
 
-  if (droppedOutOfRange > 0) warnings.push(`AI 提案有 ${droppedOutOfRange} 天不在旅程日期範圍內，已略過。`);
-  if (droppedRestatedAnchors > 0) warnings.push(`AI 把航班與入住又寫成了 ${droppedRestatedAnchors} 個行程項目，已略過，這些時段照你的航班資料走。`);
-  if (droppedAfterDeparture > 0) warnings.push(`AI 把 ${droppedAfterDeparture} 個行程排在你出發去機場之後，已略過。回程那天只到你離開飯店為止。`);
-  if (droppedDuplicates > 0) warnings.push(`AI 提案重複安排了 ${droppedDuplicates} 個地點，已只保留第一次。`);
-  if (repairedDays > 0) warnings.push(`AI 提案有 ${repairedDays} 天的時間重複或前後衝突，已依停留時間與移動時間重新排出可行的時段。`);
+  if (droppedOutOfRange > 0) warnings.push(i18n.t('planner.proposal.warning.outOfRangeDays', { count: droppedOutOfRange }));
+  if (droppedRestatedAnchors > 0) warnings.push(i18n.t('planner.proposal.warning.restatedAnchors', { count: droppedRestatedAnchors }));
+  if (droppedAfterDeparture > 0) warnings.push(i18n.t('planner.proposal.warning.afterDeparture', { count: droppedAfterDeparture }));
+  if (droppedDuplicates > 0) warnings.push(i18n.t('planner.proposal.warning.duplicatePlaces', { count: droppedDuplicates }));
+  if (repairedDays > 0) warnings.push(i18n.t('planner.proposal.warning.repairedDays', { count: repairedDays }));
 
   const missing = selections.filter(selection => !selection.inspirationIds.some(id => placedInspirationIds.has(id)));
-  if (missing.length > 0) warnings.push(`這些收藏靈感沒有被排進行程：${missing.map(selection => selection.placeName).join('、')}。`);
+  if (missing.length > 0) {
+    warnings.push(i18n.t('planner.proposal.warning.notPlaced', {
+      names: missing.map(selection => selection.placeName).join(i18n.t('planner.listSeparator')),
+    }));
+  }
 
   // Surface, without silently rewriting, a note hint the schedule ignored.
   days.forEach(day => day.items.forEach(item => {
@@ -367,7 +376,10 @@ export const normalizeTripInspirationProposal = (
     const selection = selections.find(entry => entry.inspirationIds.some(id => item.sourceInspirationIds.includes(id)));
     const hasEveningHint = selection?.experienceNotes.some(entry => EVENING_HINT.test(entry.text));
     if (hasEveningHint && item.suggestedStartTime < '15:00') {
-      warnings.push(`「${item.placeName}」的收藏筆記提到傍晚或夜間比較適合，但 AI 排在 ${item.suggestedStartTime}。`);
+      warnings.push(i18n.t('planner.proposal.warning.eveningHintIgnored', {
+        name: item.placeName,
+        time: item.suggestedStartTime,
+      }));
     }
   }));
 
@@ -399,12 +411,17 @@ export async function generateTripInspirationProposal(input: TripPlanningInput):
       body: JSON.stringify(input),
     });
   } catch (error) {
-    throw new ItineraryProposalRequestError(error instanceof Error && error.name === 'AbortError' ? 'AI 行程提案逾時。' : 'AI 行程提案服務無法連線。', 0);
+    throw new ItineraryProposalRequestError(
+      error instanceof Error && error.name === 'AbortError'
+        ? i18n.t('planner.proposal.error.timedOut')
+        : i18n.t('planner.proposal.error.offline'),
+      0,
+    );
   }
 
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
-    const message = typeof payload?.error === 'string' ? payload.error : 'AI 行程提案服務暫時無法使用。';
+    const message = typeof payload?.error === 'string' ? payload.error : i18n.t('planner.proposal.error.unavailable');
     throw new ItineraryProposalRequestError(message, response.status, {
       provider: typeof payload?.provider === 'string' ? payload.provider : undefined,
       model: typeof payload?.model === 'string' ? payload.model : undefined,

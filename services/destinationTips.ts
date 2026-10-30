@@ -17,36 +17,37 @@ export type DestinationTipKind = 'app' | 'payment' | 'transport' | 'connectivity
 
 export interface DestinationTip {
   kind: DestinationTipKind;
-  title: string;
-  detail: string;
+  /** i18n key for the one-line heading. Resolved by the caller, not here. */
+  titleKey: string;
+  /** i18n key for the body. */
+  detailKey: string;
   /**
    * An official page for this tip, when one exists.
    *
    * `appUrl` is tried first on a phone. There is no public link that opens a
    * particular screen inside Wallet, so it opens the app and the traveller
-   * taps 加入 ＞ 交通卡 themselves; `url` is where they land when the scheme
-   * goes nowhere, which is what happens on a desktop and on any device
+   * taps Add > Transit Card themselves; `url` is where they land when the
+   * scheme goes nowhere, which is what happens on a desktop and on any device
    * without that app.
    */
-  link?: { label: string; url: string; appUrl?: string };
+  link?: { labelKey: string; url: string; appUrl?: string };
 }
 
 const TIPS: Record<string, DestinationTip[]> = {
+  // i18n-data: these keys are matched against the stored country value.
   韓國: [
     {
       kind: 'app',
-      title: '下載 Naver Map 或 KakaoMap',
-      detail: 'Google 地圖在韓國受法規限制，步行與部分路線導航不完整。當地人用的是這兩款。',
-      link: { label: 'App Store：Naver Map', url: 'https://apps.apple.com/app/id311867728' },
+      titleKey: 'plan.tips.kr.appNaverMap.title',
+      detailKey: 'plan.tips.kr.appNaverMap.detail',
+      link: { labelKey: 'plan.tips.kr.appNaverMap.linkLabel', url: 'https://apps.apple.com/app/id311867728' },
     },
     {
       kind: 'transport',
-      title: '準備一張 T-money 卡',
-      detail:
-        '地鐵、公車、計程車都能刷，超商就能買和加值。iPhone 也可以先試 Wallet ＞ 加入 ＞ 交通卡：' +
-        'Apple 的支援地區清單包含南韓，卡片能不能加會依機型與地區顯示。不行就在超商買實體卡。',
+      titleKey: 'plan.tips.kr.tmoney.title',
+      detailKey: 'plan.tips.kr.tmoney.detail',
       link: {
-        label: '打開 Wallet 加入交通卡',
+        labelKey: 'plan.tips.kr.tmoney.linkLabel',
         url: 'https://support.apple.com/en-us/105079',
         // Wallet's own scheme. Undocumented, so the support page above is the
         // fallback rather than an afterthought.
@@ -55,22 +56,23 @@ const TIPS: Record<string, DestinationTip[]> = {
     },
     {
       kind: 'app',
-      title: 'KakaoTalk 是主要通訊軟體',
-      detail: '訂位、店家聯絡多半透過它；KakaoT 則是叫車用的。',
+      titleKey: 'plan.tips.kr.kakaotalk.title',
+      detailKey: 'plan.tips.kr.kakaotalk.detail',
     },
     {
       kind: 'payment',
-      title: '刷卡非常普及',
-      detail: '小店也多半能刷，現金主要留給傳統市場和路邊攤。',
+      titleKey: 'plan.tips.kr.cards.title',
+      detailKey: 'plan.tips.kr.cards.detail',
     },
   ],
+  // i18n-data: matched against the stored country value.
   日本: [
     {
       kind: 'transport',
-      title: 'Suica／PASMO 交通卡',
-      detail: '可加入手機錢包，搭車和便利商店都能用。',
+      titleKey: 'plan.tips.jp.suica.title',
+      detailKey: 'plan.tips.jp.suica.detail',
       link: {
-        label: '打開 Wallet 加入交通卡',
+        labelKey: 'plan.tips.jp.suica.linkLabel',
         url: 'https://support.apple.com/en-us/105079',
         // Wallet's own scheme. Undocumented, so the support page above is the
         // fallback rather than an afterthought.
@@ -79,69 +81,75 @@ const TIPS: Record<string, DestinationTip[]> = {
     },
     {
       kind: 'app',
-      title: '轉乘查詢用 Yahoo!乘換案内 或 Google 地圖',
-      detail: '日本鐵路轉乘複雜，班次與月台資訊以轉乘 App 最準。',
-      link: { label: 'Yahoo! 乗換案内（網頁版）', url: 'https://transit.yahoo.co.jp' },
+      titleKey: 'plan.tips.jp.transfer.title',
+      detailKey: 'plan.tips.jp.transfer.detail',
+      link: { labelKey: 'plan.tips.jp.transfer.linkLabel', url: 'https://transit.yahoo.co.jp' },
     },
     {
       kind: 'payment',
-      title: '仍要帶現金',
-      detail: '小型餐館、神社周邊、部分商店只收現金。',
+      titleKey: 'plan.tips.jp.cash.title',
+      detailKey: 'plan.tips.jp.cash.detail',
     },
   ],
+  // i18n-data: matched against the stored country value.
   泰國: [
     {
       kind: 'app',
-      title: '叫車用 Grab',
-      detail: '價格先講定，比路邊攔車少掉很多議價與繞路問題。',
-      link: { label: 'Grab 官方網站', url: 'https://www.grab.com' },
+      titleKey: 'plan.tips.th.grab.title',
+      detailKey: 'plan.tips.th.grab.detail',
+      link: { labelKey: 'plan.tips.th.grab.linkLabel', url: 'https://www.grab.com' },
     },
     {
       kind: 'payment',
-      title: '以現金為主',
-      detail: '市場、路邊攤幾乎只收現金，建議隨身備小鈔。',
+      titleKey: 'plan.tips.th.cash.title',
+      detailKey: 'plan.tips.th.cash.detail',
     },
   ],
+  // i18n-data: matched against the stored country value.
   越南: [
     {
       kind: 'app',
-      title: '叫車用 Grab',
-      detail: '機車與汽車都能叫，價格透明。',
-      link: { label: 'Grab 官方網站', url: 'https://www.grab.com' },
+      titleKey: 'plan.tips.vn.grab.title',
+      detailKey: 'plan.tips.vn.grab.detail',
+      link: { labelKey: 'plan.tips.vn.grab.linkLabel', url: 'https://www.grab.com' },
     },
     {
       kind: 'payment',
-      title: '現金為主，注意鈔票面額',
-      detail: '越南盾零很多，付款前確認一下位數。',
+      titleKey: 'plan.tips.vn.cash.title',
+      detailKey: 'plan.tips.vn.cash.detail',
     },
   ],
+  // i18n-data: matched against the stored country value.
   新加坡: [
     {
       kind: 'payment',
-      title: '感應式信用卡可直接刷地鐵',
-      detail: '不必另外買交通卡，閘門直接感應。',
+      titleKey: 'plan.tips.sg.contactless.title',
+      detailKey: 'plan.tips.sg.contactless.detail',
     },
   ],
+  // i18n-data: matched against the stored country value.
   香港: [
     {
       kind: 'transport',
-      title: '八達通',
-      detail: '交通與便利商店通用，機場與地鐵站都能買。',
-      link: { label: '八達通官方網站', url: 'https://www.octopus.com.hk' },
+      titleKey: 'plan.tips.hk.octopus.title',
+      detailKey: 'plan.tips.hk.octopus.detail',
+      link: { labelKey: 'plan.tips.hk.octopus.linkLabel', url: 'https://www.octopus.com.hk' },
     },
   ],
+  // i18n-data: matched against the stored country value.
   中國: [
     {
       kind: 'payment',
-      title: '行動支付為主',
-      detail: '支付寶／微信支付可綁定境外卡，現金與外國信用卡接受度低。',
+      titleKey: 'plan.tips.cn.mobilePay.title',
+      detailKey: 'plan.tips.cn.mobilePay.detail',
     },
   ],
+  // i18n-data: matched against the stored country value.
   美國: [
     {
       kind: 'custom',
-      title: '小費是預設的',
-      detail: '餐廳內用一般 15–20%，帳單上可能已經含服務費，付前看一下。',
+      titleKey: 'plan.tips.us.tipping.title',
+      detailKey: 'plan.tips.us.tipping.detail',
     },
   ],
 };
@@ -152,12 +160,19 @@ export const getDestinationTips = (country?: string): DestinationTip[] => {
   if (!key) return [];
   // Match on the country's own name and the common alternatives people type.
   const aliases: Record<string, string> = {
+    // i18n-data: matching key, never displayed.
     南韓: '韓國',
+    // i18n-data: matching key, never displayed.
     韩国: '韓國',
+    // i18n-data: matching key, never displayed.
     大韓民國: '韓國',
+    // i18n-data: matching key, never displayed.
     日本國: '日本',
+    // i18n-data: matching key, never displayed.
     泰國王國: '泰國',
+    // i18n-data: matching key, never displayed.
     美國: '美國',
+    // i18n-data: matching key, never displayed.
     中國大陸: '中國',
   };
   return TIPS[aliases[key] ?? key] ?? [];

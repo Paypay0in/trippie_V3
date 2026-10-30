@@ -1,5 +1,6 @@
 import { FlightAnchor } from '../types';
-import { StaySpan, formatStayDates } from './stayIntake';
+import { StaySpan } from './stayIntake';
+import { formatStayDates } from './stayDateWording';
 
 /**
  * The two fixed points a trip is actually planned around.
@@ -41,9 +42,17 @@ export const missingAnchors = ({ flightAnchors = [], stays = [] }: PlanningAncho
   return missing;
 };
 
+/**
+ * What each missing anchor is called on the card that asks for it.
+ *
+ * Keys rather than words, resolved by the caller: this is a module-scope
+ * `const` and cannot call `t()` itself. `services/itineraryAdjustment.ts`
+ * holds its mode labels the same way, and `TripPlanOverview` already reads
+ * these through `t(...)`.
+ */
 export const ANCHOR_LABEL: Record<MissingAnchor, string> = {
-  flights: '航班資訊',
-  stays: '住宿資訊',
+  flights: 'plan.anchor.flights',
+  stays: 'plan.anchor.stays',
 };
 
 /**

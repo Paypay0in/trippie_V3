@@ -14,6 +14,7 @@
 
 /** Latest year mentioned in the text, or null when it mentions none. */
 export const latestYearMentioned = (text: string): number | null => {
+  // i18n-data: regex anchor read against the entry guidance text, not shown
   const years = [...(text || '').matchAll(/(20\d{2})\s*年?/g)]
     .map(match => Number(match[1]))
     .filter(year => year >= 2000 && year <= 2100);

@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { VisaInfo } from '../types';
 import { FileText, Globe, ExternalLink, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 const TravelAdvisoryWidget: React.FC<Props> = ({ visaInfo }) => {
+  const { t } = useTranslation();
   const isVisaFree = visaInfo.requirement === 'VISA_FREE';
   const hasEntryForm = visaInfo.entryFormLink && visaInfo.entryFormLink.length > 0;
   
@@ -26,7 +28,7 @@ const TravelAdvisoryWidget: React.FC<Props> = ({ visaInfo }) => {
         <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 flex items-center gap-2 text-white">
             <Globe size={18} className="animate-pulse-slow" />
             <h3 className="font-bold text-sm tracking-wide">
-                {visaInfo.destination} 旅遊提示 ({visaInfo.origin} 出發)
+                {t('visa.advisory.heading', { destination: visaInfo.destination, origin: visaInfo.origin })}
             </h3>
         </div>
         
@@ -37,7 +39,10 @@ const TravelAdvisoryWidget: React.FC<Props> = ({ visaInfo }) => {
                 <StatusIcon size={20} className="shrink-0 mt-0.5" />
                 <div className="flex-1">
                     <div className="font-bold text-sm mb-1">
-                        簽證需求: {visaInfo.visaName || (isVisaFree ? '免簽證' : '需申請簽證')}
+                        {t('visa.advisory.requirement', {
+                          requirement: visaInfo.visaName
+                            || (isVisaFree ? t('visa.advisory.visaFree') : t('visa.advisory.visaNeeded')),
+                        })}
                     </div>
                     {!isVisaFree && visaInfo.visaLink && (
                         <a 
@@ -46,7 +51,7 @@ const TravelAdvisoryWidget: React.FC<Props> = ({ visaInfo }) => {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-xs font-bold underline decoration-dotted hover:decoration-solid mt-1"
                         >
-                            <ExternalLink size={12} /> 前往申請頁面
+                            <ExternalLink size={12} /> {t('visa.advisory.goToApplication')}
                         </a>
                     )}
                     <div className="text-xs opacity-80 mt-1 leading-relaxed">
@@ -63,8 +68,8 @@ const TravelAdvisoryWidget: React.FC<Props> = ({ visaInfo }) => {
                             <FileText size={16} />
                         </div>
                         <div>
-                            <div className="text-xs text-gray-500 font-bold uppercase">入境必填</div>
-                            <div className="text-sm font-bold text-gray-800">{visaInfo.entryFormName || '線上入境卡'}</div>
+                            <div className="text-xs text-gray-500 font-bold uppercase">{t('visa.advisory.entryFormHeading')}</div>
+                            <div className="text-sm font-bold text-gray-800">{visaInfo.entryFormName || t('visa.advisory.entryFormFallback')}</div>
                         </div>
                     </div>
                     <a 
@@ -73,13 +78,13 @@ const TravelAdvisoryWidget: React.FC<Props> = ({ visaInfo }) => {
                         rel="noopener noreferrer"
                         className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors flex items-center gap-1"
                     >
-                        填寫表格 <ExternalLink size={12} />
+                        {t('visa.advisory.fillForm')} <ExternalLink size={12} />
                     </a>
                 </div>
             ) : (
                 <div className="flex items-center gap-2 text-xs text-gray-400 px-2">
                     <Info size={14} /> 
-                    <span>目前無強制線上入境表格資訊</span>
+                    <span>{t('visa.advisory.noEntryForm')}</span>
                 </div>
             )}
 

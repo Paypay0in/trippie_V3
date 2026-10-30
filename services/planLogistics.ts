@@ -9,12 +9,16 @@
  * someone on a four-hour bus they did not plan for.
  */
 
+import i18n from '../i18n/config';
+
 export type TravelBurden = 'low' | 'medium' | 'high';
 
+// i18n-data: read by index in `ActivityPlanCards`, which is outside this batch,
+// so the table cannot become keys without changing that call site.
 export const BURDEN_LABELS: Record<TravelBurden, string> = {
-  low: '交通負擔低',
-  medium: '交通負擔中等',
-  high: '交通負擔高',
+  low: '交通負擔低', // i18n-data: read by index in ActivityPlanCards, outside this batch
+  medium: '交通負擔中等', // i18n-data: read by index in ActivityPlanCards, outside this batch
+  high: '交通負擔高', // i18n-data: read by index in ActivityPlanCards, outside this batch
 };
 
 /**
@@ -32,8 +36,10 @@ export const travelTimeLabel = (minutes: number | undefined): string => {
   if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes <= 0) return '';
   const hours = Math.floor(minutes / 60);
   const rest = Math.round(minutes % 60);
-  if (hours === 0) return `單程約 ${rest} 分鐘`;
-  return rest === 0 ? `單程約 ${hours} 小時` : `單程約 ${hours} 小時 ${rest} 分`;
+  if (hours === 0) return i18n.t('activityPlan.travelTime.minutes', { minutes: rest });
+  return rest === 0
+    ? i18n.t('activityPlan.travelTime.hours', { hours })
+    : i18n.t('activityPlan.travelTime.hoursMinutes', { hours, minutes: rest });
 };
 
 /**

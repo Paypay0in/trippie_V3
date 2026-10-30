@@ -14,6 +14,8 @@
  * prose.
  */
 
+import i18n from '../i18n/config';
+
 export type TravelPace = 2 | 3 | 4;
 export type BriefTransport = 'walk' | 'drive' | 'transit';
 
@@ -51,15 +53,34 @@ export const DEFAULT_BRIEF: TripPlanBrief = {
   pace: 3,
 };
 
+/**
+ * The three paces, in the reader's language.
+ *
+ * Getters, because this record is built once at import: a `t()` evaluated here
+ * would freeze the three choices to whichever language loaded first, which is
+ * the trap `NotificationCenter` documents on its own shelf names. Reading a
+ * property resolves it at render and leaves the call site unchanged.
+ */
 export const PACE_LABEL: Record<TravelPace, { title: string; hint: string }> = {
-  2: { title: '2 個行程', hint: '輕旅行・悠閒' },
-  3: { title: '3 個行程', hint: '中度旅行・剛好' },
-  4: { title: '4 個行程', hint: '緊湊・充實' },
+  get 2() { return { title: i18n.t('plan.pace.stopCount', { count: 2 }), hint: i18n.t('plan.pace.hint.2') }; },
+  get 3() { return { title: i18n.t('plan.pace.stopCount', { count: 3 }), hint: i18n.t('plan.pace.hint.3') }; },
+  get 4() { return { title: i18n.t('plan.pace.stopCount', { count: 4 }), hint: i18n.t('plan.pace.hint.4') }; },
 };
 
+/**
+ * The modes as the model is told about them.
+ *
+ * Read by `travellerBriefText`, which joins them into the request sent to the
+ * planner — so these stay Chinese while prompt language is undecided. Anything
+ * showing a mode to a traveller resolves `transport.modes.*` instead, which is
+ * what `briefChips` does.
+ */
 export const TRANSPORT_LABEL: Record<BriefTransport, string> = {
+  // i18n-data: model prompt — joined into the planner request by `travellerBriefText`.
   walk: '步行',
+  // i18n-data: model prompt — joined into the planner request by `travellerBriefText`.
   drive: '開車',
+  // i18n-data: model prompt — joined into the planner request by `travellerBriefText`.
   transit: '大眾運輸',
 };
 
@@ -89,14 +110,14 @@ export const briefDayCount = (brief: TripPlanBrief): number | null =>
  */
 export const briefProblems = (brief: TripPlanBrief): string[] => {
   const problems: string[] = [];
-  if (!brief.destination.trim()) problems.push('還沒填要去哪裡');
+  if (!brief.destination.trim()) problems.push(i18n.t('plan.brief.problems.noDestination'));
 
   const days = briefDayCount(brief);
-  if (days === null) problems.push('還沒填日期或天數');
-  else if (days < 1) problems.push('天數至少要 1 天');
-  else if (days > 60) problems.push('一次最多規劃 60 天');
+  if (days === null) problems.push(i18n.t('plan.brief.problems.noDates'));
+  else if (days < 1) problems.push(i18n.t('plan.brief.problems.tooShort'));
+  else if (days > 60) problems.push(i18n.t('plan.brief.problems.tooLong'));
 
-  if (brief.travellers < 1) problems.push('人數至少 1 人');
+  if (brief.travellers < 1) problems.push(i18n.t('plan.brief.problems.tooFewTravellers'));
   return problems;
 };
 

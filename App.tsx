@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { isCheckInItem } from "./services/stayItemTitles";
 import { OVERLAY } from './constants/layers';
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -623,6 +625,7 @@ const ruleText = (action: EntryActionableItem): string | undefined => {
   if (points.length === 0) return action.description;
   // A point already ending in punctuation keeps it; the rest get a 。 so the
   // display can find the seams again.
+  // i18n-data: the seam the display splits on, not a sentence anyone reads
   return points.map(point => (/[。！？.]$/.test(point) ? point : `${point}。`)).join('');
 };
 
@@ -780,6 +783,7 @@ const migrateShoppingList = (data: any[]): ShoppingItem[] => {
 };
 
 const App: React.FC = () => {
+  const { t } = useTranslation();
   // Navigation State
   const [viewMode, setViewMode] = useState<
     | "bookshelf"
@@ -1190,7 +1194,7 @@ const App: React.FC = () => {
     }
     return {
       id: "me",
-      name: "旅人",
+      name: t('app.label.traveller'),
       points: 1200,
       trippieCoins: 50,
       level: 3,
@@ -1211,8 +1215,8 @@ const App: React.FC = () => {
       id: "s1",
       providerName: "Yuki",
       serviceType: "BOOKING",
-      title: "代訂日本米其林餐廳",
-      description: "協助預訂東京、大阪熱門餐廳，保證成功率 90% 以上。",
+      title: t('app.seed.service1Title'),
+      description: t('app.seed.service1Blurb'),
       price: 500,
       currency: "TWD",
       rating: 4.9,
@@ -1221,8 +1225,8 @@ const App: React.FC = () => {
       id: "s2",
       providerName: "Marco",
       serviceType: "GUIDE",
-      title: "羅馬私房景點導覽",
-      description: "帶你走進觀光客不知道的小巷弄，體驗最道地的義大利生活。",
+      title: t('app.seed.service2Title'),
+      description: t('app.seed.service2Blurb'),
       price: 1200,
       currency: "TWD",
       rating: 4.8,
@@ -1232,18 +1236,18 @@ const App: React.FC = () => {
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([
     {
       id: "msg1",
-      serviceTitle: "代訂京都米其林餐廳",
+      serviceTitle: t('app.seed.inbox1Service'),
       sender: "Alice",
-      lastMessage: "請問下週三晚上還有空位嗎？",
+      lastMessage: t('app.seed.inbox1Message'),
       time: "10:30 AM",
       unread: true,
     },
     {
       id: "msg2",
-      serviceTitle: "東京地鐵一日導覽",
+      serviceTitle: t('app.seed.inbox2Service'),
       sender: "Bob",
-      lastMessage: "好的，那我們明天早上 9 點在新宿站見！",
-      time: "昨天",
+      lastMessage: t('app.seed.inbox2Message'),
+      time: t('app.seed.inbox2Time'),
       unread: false,
     },
   ]);
@@ -1411,6 +1415,7 @@ const App: React.FC = () => {
   >([]);
 
   const [originCountry, setOriginCountry] = useState<string>(() => {
+    // i18n-data: the stored origin, compared against countryIdentity's keys
     return localStorage.getItem("trippie_origin_country") || "台灣";
   });
 
@@ -1696,7 +1701,7 @@ const App: React.FC = () => {
       });
       if (cancelled || repaired === 0) return;
       setExpenses(next);
-      setToast({ msg: `已用消費當日匯率重算 ${repaired} 筆帳`, type: 'success' });
+      setToast({ msg: t('app.toast.ratesRepaired', { count: repaired }), type: 'success' });
     })();
 
     return () => { cancelled = true; };
@@ -1892,7 +1897,7 @@ const App: React.FC = () => {
       const sharedDraft: TripDraft = {
         id: newId,
         ownerId: userId,
-        name: draftName || "新共享旅程",
+        name: draftName || t('app.label.newSharedTrip'),
         destination: tripDestination || undefined,
         startDate: tripStartDate,
         endDate: tripEndDate,
@@ -1970,7 +1975,7 @@ const App: React.FC = () => {
                 displayName:
                   typeof session.user.user_metadata?.display_name === "string"
                     ? session.user.user_metadata.display_name
-                    : "Trippie 旅人",
+                    : t('app.label.trippieTraveller'),
               },
             );
           } catch {
@@ -1979,7 +1984,7 @@ const App: React.FC = () => {
               displayName:
                 typeof session.user.user_metadata?.display_name === "string"
                   ? session.user.user_metadata.display_name
-                  : "Trippie 旅人",
+                  : t('app.label.trippieTraveller'),
             });
           }
         } else setAuthStatus("anonymous");
@@ -2000,7 +2005,7 @@ const App: React.FC = () => {
               displayName:
                 typeof session.user.user_metadata?.display_name === "string"
                   ? session.user.user_metadata.display_name
-                  : "Trippie 旅人",
+                  : t('app.label.trippieTraveller'),
             },
           );
         } catch {
@@ -2009,7 +2014,7 @@ const App: React.FC = () => {
             displayName:
               typeof session.user.user_metadata?.display_name === "string"
                 ? session.user.user_metadata.display_name
-                : "Trippie 旅人",
+                : t('app.label.trippieTraveller'),
           });
         }
       } else {
@@ -2193,7 +2198,7 @@ const App: React.FC = () => {
       : draft)));
     if (activeDraftId === choice.tripId) setItinerary((current) => [...current, item]);
     setAddingStop(null);
-    showToast(`已把 ${stop.title} 加入行程`);
+    showToast(t('app.toast.stopAdded', { name: stop.title }));
   };
 
   /*
@@ -2216,7 +2221,7 @@ const App: React.FC = () => {
       : draft)));
     void saveTripShareState(next).then((result) => {
       showToast(result.status === "ok" ? succeeded : `${failed}：${
-        result.status === "error" ? result.message : "目前連不上伺服器"
+        result.status === "error" ? result.message : t('app.error.serverUnreachable')
       }`);
     });
   };
@@ -2231,10 +2236,10 @@ const App: React.FC = () => {
   const activeTripForSharing = drafts.find((draft) => draft.id === activeDraftId);
 
   const handlePublishTrip = (next: TripShareFields) =>
-    applyTripShareState(next, "行程已公開，連結可以分享了", "公開失敗");
+    applyTripShareState(next, t('app.toast.tripPublished'), t('app.error.publishFailed'));
 
   const handleUnpublishTrip = (next: TripShareFields) =>
-    applyTripShareState(next, "已取消公開，連結不再有效", "取消公開失敗");
+    applyTripShareState(next, t('app.toast.tripUnpublished'), t('app.error.unpublishFailed'));
 
   /*
     Creating, publishing, and taking back a 收藏集.
@@ -2383,8 +2388,8 @@ const App: React.FC = () => {
       if (result.status !== "ok") {
         setCloudTripNote(
           result.status === "error"
-            ? `雲端旅程讀取失敗：${result.message}`
-            : "雲端旅程：未啟用",
+            ? t('app.status.cloudTripsLoadFailed', { message: result.message })
+            : t('app.status.cloudTripsDisabled'),
         );
         return;
       }
@@ -2431,7 +2436,7 @@ const App: React.FC = () => {
       // "The cloud has two trips" and "this device gained one" are different
       // facts, and only the second one means the merge worked.
       setCloudTripNote(
-        `雲端旅程 ${result.data.length} 趟（本機新增 ${missing.length}，共 ${draftsRef.current.length + missing.length}）`,
+        t('app.status.cloudTripsCount', { cloud: result.data.length, local: missing.length, total: draftsRef.current.length + missing.length }),
       );
       if (missing.length) setDrafts((current) => [...current, ...missing]);
 
@@ -2502,7 +2507,7 @@ const App: React.FC = () => {
         if (!target) return;
         hydrateDraft(target);
         setViewMode("trip");
-        showToast(`已開啟共用旅程：${target.name || "共用旅程"}`);
+        showToast(t('app.toast.sharedTripOpened', { name: target.name || t('app.label.sharedTrip') }));
         return;
       }
       const joined = [...draftsRef.current, ...missing].find(
@@ -2526,7 +2531,7 @@ const App: React.FC = () => {
         // A toast, not the sync note: the note only reaches the `?sync=1`
         // panel, which is exactly nobody in the situation this describes.
         showToast(
-          "已加入，但這個帳號還讀不到那趟旅程。請對方在「管理旅伴」確認你顯示為已加入。",
+          t('app.toast.joinedButTripNotVisible'),
           "error",
         );
         return;
@@ -2534,7 +2539,7 @@ const App: React.FC = () => {
       clearJoinedTripId(window.localStorage);
       hydrateDraft(joined as TripDraft);
       setViewMode("trip");
-      showToast(`已加入：${joined.name || "共用旅程"}`);
+      showToast(t('app.toast.joinedTrip', { name: joined.name || t('app.label.sharedTrip') }));
     });
     return () => {
       cancelled = true;
@@ -2600,15 +2605,15 @@ const App: React.FC = () => {
     */
     if (result.saved === true && result.lightened) {
       setToast({
-        msg: `這台裝置空間不足，已清掉 ${result.lightened} 張本機收據照片（雲端仍保留，之後會自動讀回）。`,
+        msg: t('app.toast.localReceiptsEvicted', { count: result.lightened }),
         type: 'success',
       });
     }
     if (result.saved === false) {
       setToast({
         msg: result.reason === 'quota'
-          ? '這台裝置的儲存空間滿了，剛剛的變更沒存進來。刪掉幾張收據照片再試一次。'
-          : '剛剛的變更沒有存進這台裝置，請再試一次。',
+          ? t('app.error.storageFullDropPhotos')
+          : t('app.error.saveToDeviceFailed'),
         type: 'error',
       });
     }
@@ -2771,14 +2776,14 @@ const App: React.FC = () => {
   // Load public trips (Mock for now, but ready for real API)
   useEffect(() => {
     const mockPublic: PublicTrip[] = tripHistory
-      .filter((t) => t.expenses.length > 5)
-      .map((t) => ({
-        ...t,
-        authorName: "匿名旅人",
+      .filter((trip) => trip.expenses.length > 5)
+      .map((trip) => ({
+        ...trip,
+        authorName: t('app.label.anonymousTraveller'),
         likes: Math.floor(Math.random() * 100),
         clones: Math.floor(Math.random() * 50),
         isPublic: true,
-        tags: ["自助旅行", "美食之旅"],
+        tags: [t('app.seed.tagIndependent'), t('app.seed.tagFood')],
         photos: [],
       }));
     setPublicTrips(mockPublic);
@@ -2964,7 +2969,7 @@ const App: React.FC = () => {
         prev.map((t) => (t.id === id ? { ...t, name: newName } : t)),
       );
     }
-    showToast("已更新旅程名稱");
+    showToast(t('app.toast.tripNameUpdated'));
   };
 
   const handleSaveCountry = async (country: string) => {
@@ -2984,16 +2989,16 @@ const App: React.FC = () => {
       if (rule) {
         setTaxRule(rule);
         showToast(
-          `已更新：${rule.country} 退稅門檻 ${rule.minSpend} ${rule.currency}`,
+          t('app.toast.taxRuleUpdated', { country: rule.country, amount: rule.minSpend, currency: rule.currency }),
         );
         setIsCountryModalOpen(false);
         // Trigger Visa Check
         setTimeout(() => setIsVisaModalOpen(true), 500);
       } else {
-        showToast("查無此國家的退稅資訊，請確認名稱是否正確", "error");
+        showToast(t('app.error.taxRuleNotFound'), "error");
       }
     } catch (e) {
-      showToast("連線錯誤，請稍後再試", "error");
+      showToast(t('app.error.connectionRetry'), "error");
     } finally {
       setIsFetchingTaxRule(false);
     }
@@ -3020,47 +3025,9 @@ const App: React.FC = () => {
       defaultPassportId: safeDefaultId,
     }));
     setSelectedPassportId(safeSelectedId);
-    showToast("已儲存旅行身分設定");
+    showToast(t('app.toast.travelIdentitySaved'));
   };
 
-  /* legacy tax guidance handler removed: Globe now uses researchTravelRules */
-  const handleRequestTaxRefundGuidance = async (selectedId?: string) => {
-    const passport = profilePassports.find((item) => item.id === selectedId);
-    if (!tripDestination.trim()) throw new Error("尚未設定本次旅程目的地。");
-    if (!passport?.countryCode) throw new Error("請先選擇具有國家代碼的護照。");
-    const context = [
-      `旅程目的地：${tripDestination.trim()}`,
-      `使用護照國籍：${passport.country}（countryCode: ${passport.countryCode}）`,
-      "明確需求：整理旅客購物退稅／VAT refund 的注意事項。",
-      "居住地：未知；請勿假設護照國籍等於居住地。若資格需要居住地，請明確說明缺少此資訊。",
-      "請提供實用的可能門檻、文件、流程與限制，並標示需要向官方機關或商店再次確認；不要宣稱最終退稅資格。",
-    ].join("\n");
-    try {
-      const { suggestions } = await fetchPreparationSuggestions(context);
-      const guidance = suggestions
-        .map((item) => `${item.item}${item.reason ? `：${item.reason}` : ""}`)
-        .join("\n");
-      setTravelRules({
-        ...(travelRules || {}),
-        taxRefund: { guidance },
-        destination: tripDestination.trim(),
-        passportCountryCode: passport.countryCode,
-        residenceStatus: "unknown",
-        generatedAt: new Date().toISOString(),
-        source: "AI_PREPARATION",
-        disclaimer:
-          "此為 AI 行前提醒，不代表最終退稅資格；資格仍取決於居住地與官方/當地規定。",
-      });
-      return suggestions;
-    } catch (error) {
-      if (
-        error instanceof PreparationSuggestionRequestError &&
-        error.status === 400
-      )
-        throw new Error("提供的旅行資訊太多，請稍後再試。");
-      throw new Error("AI 旅程準備目前暫時無法使用，你仍可以手動建立待辦。");
-    }
-  };
 
   /**
    * The passport the entry-rules lookup should use.
@@ -3082,7 +3049,7 @@ const App: React.FC = () => {
   );
   const resolvedPassportId = resolvedPassport?.id;
   const resolvedPassportLabel = resolvedPassport
-    ? `${resolvedPassport.country}護照`
+    ? t('app.label.passportOf', { country: resolvedPassport.country })
     : undefined;
 
   /**
@@ -3132,8 +3099,8 @@ const App: React.FC = () => {
 
   const handleResearchTravelRules = async (selectedId?: string) => {
     const passport = profilePassports.find((item) => item.id === selectedId);
-    if (!tripDestination.trim()) throw new Error("尚未設定本次旅程目的地。");
-    if (!passport?.countryCode) throw new Error("請先選擇具有國家代碼的護照。");
+    if (!tripDestination.trim()) throw new Error(t('app.error.noTripDestination'));
+    if (!passport?.countryCode) throw new Error(t('app.error.passportCountryCodeRequired'));
     const result = await researchTravelRules({
       tripId: activeDraftId || currentLoadedTripId || undefined,
       destination: tripDestination.trim(),
@@ -3176,7 +3143,7 @@ const App: React.FC = () => {
     // Instead of adding an expense directly, we add it to the Shopping List (Pre-trip To-Do)
     const newItem: ShoppingItem = {
       id: generateId(),
-      name: `${info.visaName || "簽證"}申請`,
+      name: t('app.label.visaApplication', { visa: info.visaName || t('app.label.visa') }),
       isPurchased: false,
       phase: "pre",
       estimatedAmount: info.feeAmount, // Save Estimated Cost
@@ -3184,18 +3151,18 @@ const App: React.FC = () => {
     };
 
     setShoppingList((prev) => [...prev, newItem]);
-    showToast("已將簽證列入行前待辦清單");
+    showToast(t('app.toast.visaAddedToTodos'));
   };
 
   const handleAddCompanion = (name: string) => {
     const newCompanion = { id: generateId(), name };
     setCompanions((prev) => [...prev, newCompanion]);
-    showToast(`已新增旅伴：${name}`);
+    showToast(t('app.toast.companionAdded', { name }));
   };
 
   const handleAddFriendToTrip = (friend: Companion) => {
     setCompanions((prev) => [...prev, friend]);
-    showToast(`已將好友 ${friend.name} 加入此旅程`);
+    showToast(t('app.toast.friendAddedToTrip', { name: friend.name }));
   };
 
   /**
@@ -3218,7 +3185,7 @@ const App: React.FC = () => {
     if (isSyncAvailable() && authUser?.id && tripId) {
       const result = await removeTripMember(tripId, id);
       if (result.status === "error") {
-        showToast(`沒能移除旅伴：${result.message}`, "error");
+        showToast(t('app.error.companionRemoveFailed', { message: result.message }), "error");
         return;
       }
       /*
@@ -3231,13 +3198,13 @@ const App: React.FC = () => {
         when sync is off entirely.
       */
       if (result.status === "ok" && result.data.removed === 0) {
-        showToast("只有旅程的擁有者可以移除旅伴。", "error");
+        showToast(t('app.error.onlyOwnerRemovesCompanions'), "error");
         return;
       }
     }
 
     setCompanions((prev) => prev.filter((c) => c.id !== id));
-    showToast("已移除旅伴", "error");
+    showToast(t('app.toast.companionRemoved'), "error");
   };
 
   const handleAddShoppingItem = (name: string) => {
@@ -3251,7 +3218,7 @@ const App: React.FC = () => {
         phase: effectivePhase,
       },
     ]);
-    showToast("已新增購物清單項目");
+    showToast(t('app.toast.shoppingItemAdded'));
   };
 
   const handleAddReturnShoppingItem = (name: string) => {
@@ -3264,7 +3231,7 @@ const App: React.FC = () => {
         phase: "post",
       },
     ]);
-    showToast("已新增返程待買項目");
+    showToast(t('app.toast.returnBuyItemAdded'));
   };
 
   const handleBatchAddShoppingItems = (
@@ -3326,7 +3293,7 @@ const App: React.FC = () => {
         }
         return merged;
       });
-      showToast(`已加入 ${uniqueItems.length} 個待辦`);
+      showToast(t('app.toast.todosAdded', { count: uniqueItems.length }));
       return;
     }
     const newItems: ShoppingItem[] = uniqueItems
@@ -3380,13 +3347,13 @@ const App: React.FC = () => {
       if (detectedCountry) {
         setTripDestination(detectedCountry);
         setTravelCountry(detectedCountry);
-        showToast(`已自動設定國家：${detectedCountry}`);
+        showToast(t('app.toast.countrySet', { country: detectedCountry }));
 
         // Fetch Tax Rule automatically
         fetchTaxRefundRules(detectedCountry).then((rule) => {
           if (rule) {
             setTaxRule(rule);
-            showToast(`已自動套用 ${detectedCountry} 退稅規則`);
+            showToast(t('app.toast.taxRuleApplied', { country: detectedCountry }));
           }
         });
         // Trigger Visa Check
@@ -3403,7 +3370,7 @@ const App: React.FC = () => {
       }
 
       setViewMode("trip");
-      showToast(`已建立新旅程並加入 ${newItems.length} 個待買項目`);
+      showToast(t('app.toast.tripCreatedWithItems', { count: newItems.length }));
     } else if (drafts.some((draft) => draft.id === targetTripId)) {
       setDrafts((prev) =>
         prev.map((draft) =>
@@ -3419,7 +3386,7 @@ const App: React.FC = () => {
       if (activeDraftId === targetTripId) {
         setShoppingList((prev) => [...prev, ...newItems]);
       }
-      showToast(`已加入 ${newItems.length} 個項目至指定草稿`);
+      showToast(t('app.toast.itemsAddedToDraft', { count: newItems.length }));
     } else {
       // Add to historical trip
       setTripHistory((prev) =>
@@ -3433,7 +3400,7 @@ const App: React.FC = () => {
           return t;
         }),
       );
-      showToast(`已加入 ${newItems.length} 個項目至指定旅程`);
+      showToast(t('app.toast.itemsAddedToTrip', { count: newItems.length }));
     }
   };
 
@@ -3469,8 +3436,8 @@ const App: React.FC = () => {
       return outcome.items;
     });
     showToast(result.merged > 0
-      ? `已加入 ${result.added} 項，${result.merged} 項和清單上已有的合併`
-      : `已加入 ${result.added} 項`);
+      ? t('app.toast.itemsAddedAndMerged', { added: result.added, merged: result.merged })
+      : t('app.toast.itemsAdded', { count: result.added }));
   };
 
   const handleTogglePreparationItem = (id: string) => {
@@ -3580,7 +3547,7 @@ const App: React.FC = () => {
       current.map((inspiration) =>
         wanted.has(inspiration.id) ? applyResolvedPlace(inspiration, resolved) : inspiration));
     // A backfill of twenty places would otherwise raise twenty toasts.
-    if (!options?.silent) showToast(`已連結到「${resolved.placeName}」`);
+    if (!options?.silent) showToast(t('app.toast.linkedToPlace', { name: resolved.placeName }));
     return true;
   };
 
@@ -3630,7 +3597,7 @@ const App: React.FC = () => {
               placeResolvedAt: undefined,
             }
           : inspiration));
-    showToast(`已把 ${wanted.size} 個地點退回未對應，筆記都還在`);
+    showToast(t('app.toast.placesUnlinked', { count: wanted.size }));
   };
 
   /**
@@ -3749,7 +3716,7 @@ const App: React.FC = () => {
         failure as before wearing a politer sentence. The reason travels with
         the refusal now, so the sheet can say it where the tap happened.
       */
-      const reason = "這個地點現在找不到，請重新整理再試一次。";
+      const reason = t('app.error.placeMissingRefresh');
       showToast(reason, "error");
       return reason;
     }
@@ -3782,12 +3749,12 @@ const App: React.FC = () => {
         device is full」 from 「this screen is not editing a trip」.
       */
       const reason = activeDraftId
-        ? "行程儲存失敗，這個地點沒有排進去。這台裝置的儲存空間可能滿了。"
-        : "目前沒有開啟中的旅程，請回到旅程列表重新進入再試一次。";
+        ? t('app.error.itinerarySaveFailedStorage')
+        : t('app.error.noOpenTrip');
       showToast(reason, "error");
       return reason;
     }
-    showToast(`已排入 ${time}・${group.placeName}`);
+    showToast(t('app.toast.scheduledAt', { time, name: group.placeName }));
     return true;
   };
 
@@ -3806,10 +3773,10 @@ const App: React.FC = () => {
     const sorted = sortDayByTime(itinerary, date);
     if (!sorted.changed) return;
     if (!commitItinerary(sorted.items)) {
-      showToast("排序沒有存起來，請再試一次。", "error");
+      showToast(t('app.error.reorderNotSaved'), "error");
       return;
     }
-    showToast("已照時間重新排列這一天");
+    showToast(t('app.toast.dayReorderedByTime'));
   };
 
   const handleFillDayBlockManually = ({ date, time, durationMinutes, title }: {
@@ -3829,11 +3796,11 @@ const App: React.FC = () => {
     }], typedId));
     if (!committed) {
       showToast(activeDraftId
-        ? "行程儲存失敗，這個地點沒有排進去。"
-        : "目前沒有開啟中的旅程，請回到旅程列表重新進入再試一次。", "error");
+        ? t('app.error.itinerarySaveFailed')
+        : t('app.error.noOpenTrip'), "error");
       return;
     }
-    showToast(`已排入 ${time}・${title}`);
+    showToast(t('app.toast.scheduledAt', { time, name: title }));
   };
 
   /**
@@ -3945,8 +3912,8 @@ const App: React.FC = () => {
     setSavedTravelInspirations((current) =>
       mergeScreenshotInspirations(current, [saved]));
     showToast(held
-      ? `${resolved.placeName} 已經在收藏裡了`
-      : `已加入收藏：${resolved.placeName}`);
+      ? t('app.toast.alreadySaved', { name: resolved.placeName })
+      : t('app.toast.savedPlace', { name: resolved.placeName }));
   };
 
   const handleRemoveInspirations = (inspirationIds: string[]) => {
@@ -4093,7 +4060,7 @@ const App: React.FC = () => {
       );
       return next;
     });
-    showToast("已套用行程建議");
+    showToast(t('app.toast.itinerarySuggestionApplied'));
   };
 
   /**
@@ -4196,7 +4163,7 @@ const App: React.FC = () => {
       // run caught.
       let movedAny = false;
       const withCheckIns = withTransfers.map(item => {
-        if (!item.title.startsWith("入住 ")) return item;
+        if (!isCheckInItem(item)) return item;
         const pair = transferPairList.find(candidate => candidate.stay.checkInDate === item.date);
         if (!pair) return item;
         const moved = checkInTimeFromArrival(
@@ -4250,7 +4217,7 @@ const App: React.FC = () => {
       );
       return next;
     });
-    showToast("已加入住宿資訊");
+    showToast(t('app.toast.stayAdded'));
   };
 
   /**
@@ -4261,9 +4228,9 @@ const App: React.FC = () => {
     proposal: import("./services/itineraryPlanningService").TripInspirationProposal,
     mode: import("./services/itineraryAcceptance").ItineraryAcceptanceMode,
   ): Promise<ProposalAcceptanceResult> => {
-    if (mode !== "append") return { ok: false, error: "目前只支援寫入空白正式行程。" };
-    if (itinerary.length > 0) return { ok: false, error: "目前已有正式行程；為避免覆蓋既有內容，這份提案暫不寫入。" };
-    if (!activeDraftId) return { ok: false, error: "找不到目前的旅程草稿，無法安全寫入。" };
+    if (mode !== "append") return { ok: false, error: t('app.error.onlyEmptyItineraryWritable') };
+    if (itinerary.length > 0) return { ok: false, error: t('app.error.itineraryNotEmpty') };
+    if (!activeDraftId) return { ok: false, error: t('app.error.draftMissing') };
 
     // Best effort, and deliberately before the write so one storage call still
     // persists everything. A lookup that fails or is rejected simply leaves that
@@ -4282,13 +4249,13 @@ const App: React.FC = () => {
       ? { ...draft, itinerary: nextItinerary, updatedAt: new Date().toISOString() }
       : draft);
     if (!nextDrafts.some((draft) => draft.id === activeDraftId)) {
-      return { ok: false, error: "找不到目前的旅程草稿，無法安全寫入。" };
+      return { ok: false, error: t('app.error.draftMissing') };
     }
 
     // Persist before changing the visible state so a storage failure leaves the
     // proposal available for retry and never reports a false success.
     if (writeDraftStore(nextDrafts, activeDraftId).saved === false) {
-      return { ok: false, error: "行程儲存失敗，提案仍保留，請再試一次。" };
+      return { ok: false, error: t('app.error.proposalSaveFailed') };
     }
 
     setItinerary(nextItinerary);
@@ -4307,8 +4274,8 @@ const App: React.FC = () => {
   const handleApplyItineraryAdjustment = async (
     proposal: ItineraryAdjustmentProposal,
   ): Promise<AdjustmentApplyResult> => {
-    if (!activeDraftId) return { ok: false, error: "找不到目前的旅程草稿，無法安全寫入。" };
-    if (proposal.changes.length === 0) return { ok: false, error: "這份調整沒有可套用的內容。" };
+    if (!activeDraftId) return { ok: false, error: t('app.error.draftMissing') };
+    if (proposal.changes.length === 0) return { ok: false, error: t('app.error.proposalEmpty') };
 
     // Newly suggested places go through the same best-effort Places resolution as
     // an accepted proposal. Existing items are never re-resolved: they already own
@@ -4385,11 +4352,11 @@ const App: React.FC = () => {
       ? { ...draft, itinerary: nextItinerary, updatedAt: new Date().toISOString() }
       : draft);
     if (!nextDrafts.some((draft) => draft.id === activeDraftId)) {
-      return { ok: false, error: "找不到目前的旅程草稿，無法安全寫入。" };
+      return { ok: false, error: t('app.error.draftMissing') };
     }
 
     if (writeDraftStore(nextDrafts, activeDraftId).saved === false) {
-      return { ok: false, error: "行程儲存失敗，你的行程沒有被更動，請再試一次。" };
+      return { ok: false, error: t('app.error.itineraryUnchangedRetry') };
     }
 
     setItinerary(nextItinerary);
@@ -4471,7 +4438,7 @@ const App: React.FC = () => {
       warnings: [],
     });
     if (!result.ok) {
-      return result.error || "加入行程失敗，你的行程沒有被更動，請再試一次。";
+      return result.error || t('app.error.addToItineraryFailed');
     }
     setPendingSuggestions((current) => current.filter((entry) => entry.id !== suggestionId));
     return null;
@@ -4489,7 +4456,7 @@ const App: React.FC = () => {
         id,
         date: change.toDate,
         time: change.toTime || change.proposedItem?.suggestedStartTime,
-        placeName: name || "AI 建議行程",
+        placeName: name || t('app.label.aiSuggestedPlan'),
         durationMinutes: change.proposedItem?.durationMinutes,
         note: change.proposedItem?.note,
         reason: change.reason,
@@ -4529,8 +4496,8 @@ const App: React.FC = () => {
       A pin that announces itself is one the next tap can undo.
     */
     const pinned = itinerary.find((item) => item.id === itemId);
-    const name = pinned?.location?.trim() || pinned?.title?.trim() || '這個行程';
-    showToast(nextPinned ? `已固定「${name}」，AI 重排不會動它` : `已取消固定「${name}」`);
+    const name = pinned?.location?.trim() || pinned?.title?.trim() || t('app.label.thisStop');
+    showToast(nextPinned ? t('app.toast.stopPinned', { name }) : t('app.toast.stopUnpinned', { name }));
   };
 
   /**
@@ -4664,6 +4631,7 @@ const App: React.FC = () => {
       fallback for rows created by hand or before that field existed, and is
       matched in both languages.
     */
+    // i18n-data: a fallback matcher for rows written before travelRuleActionType
     if (item.travelRuleActionType === "visa_or_eta" || /簽證|\bvisa\b/i.test(item.name)) {
       defaultCat = Category.VISA;
     }
@@ -4698,7 +4666,7 @@ const App: React.FC = () => {
           splitAllocations: data.splitAllocations,
         });
         if (!Object.keys(proposal.changes).length) {
-          showToast("沒有可提議的變更，未送出建議。", "error");
+          showToast(t('app.error.noProposalChanges'), "error");
           return;
         }
         /*
@@ -4711,7 +4679,7 @@ const App: React.FC = () => {
         */
         handleRaiseDispute(
           editingExpense,
-          data.note?.trim() || "我想提出以下修正建議。",
+          data.note?.trim() || t('app.label.proposalDefaultNote'),
           proposal,
         );
         return;
@@ -4724,7 +4692,7 @@ const App: React.FC = () => {
           tripOwnerMemberId: activeOwnerMemberId,
         })
       ) {
-        showToast("這筆支出由其他旅伴建立，無法修改。", "error");
+        showToast(t('app.error.expenseNotYoursEdit'), "error");
         return;
       }
       /*
@@ -4778,10 +4746,10 @@ const App: React.FC = () => {
 
       // Custom toast for auto-creation
       if (data.needsReview) {
-        showToast("已建立支出，但部分內容可能需要確認", "error");
+        showToast(t('app.toast.expenseAddedNeedsReview'), "error");
       } else if (!editingExpense) {
         // Standard create
-        showToast("已新增支出");
+        showToast(t('app.toast.expenseAdded'));
       }
     }
   };
@@ -4818,8 +4786,8 @@ const App: React.FC = () => {
    */
   const viewerIsTripOwner = !settlementOwnerUserId || settlementOwnerUserId === userId;
   const ownerDisplayName = viewerIsTripOwner
-    ? (authProfile?.displayName || userProfile.name || "我")
-    : (remoteOwnerName || "旅程建立者");
+    ? (authProfile?.displayName || userProfile.name || t('app.label.me'))
+    : (remoteOwnerName || t('app.label.tripOwner'));
   const settlementMembers = buildTripMembers(
     settlementTripId,
     settlementOwnerUserId,
@@ -4976,10 +4944,28 @@ const App: React.FC = () => {
     () => settlementExpensesFor(expenses, viewerMemberId),
     [expenses, viewerMemberId],
   );
-  const outstandingExpenses = filterOutstandingExpenses(
-    expenses,
-    settlementMembers,
-    settlementBatches,
+  /*
+    Still owed, out of the bills this reader can see — one list, not two.
+
+    This was filtered from the whole ledger while 成員結算明細 was handed
+    `settlementVisibleExpenses`, so the settlement screen asked 「who owes
+    whom」 twice, about two different sets of bills, and showed both answers
+    at once. 「結算摘要顯示應付 NT$968，成員明細卻顯示 Ann 應付 NT$880、
+    Sherry 應收 NT$904」. A settled bill had left the summary and was still
+    counted in the member table, which can put the two surfaces in opposite
+    directions, not merely a few dollars apart.
+
+    Derived from the visible set rather than beside it, so outstanding is a
+    strict subset of what the reader is shown and the scoping rule
+    （「不應該可以看到他的帳」）cannot be lost on this path.
+  */
+  const outstandingExpenses = useMemo(
+    () => filterOutstandingExpenses(
+      settlementVisibleExpenses,
+      settlementMembers,
+      settlementBatches,
+    ),
+    [settlementVisibleExpenses, settlementMembers, settlementBatches],
   );
   // Shared storage for the open trip. Off entirely when Supabase is not
   // configured or nobody is signed in, so the offline local ledger is unchanged.
@@ -5256,7 +5242,7 @@ const App: React.FC = () => {
       ...current.filter((item) => item.id !== batch.id),
       batch,
     ]);
-    showToast("已建立結算");
+    showToast(t('app.toast.settlementCreated'));
   };
   const handleUpdateSettlementBatch = (
     batchId: string,
@@ -5277,13 +5263,13 @@ const App: React.FC = () => {
           : batch,
       ),
     );
-    showToast("已標記為已結算");
+    showToast(t('app.toast.markedSettled'));
   };
   const handleDeleteSettlementBatch = (batchId: string) => {
     setSettlementBatches((current) =>
       current.filter((batch) => batch.id !== batchId),
     );
-    showToast("已刪除結算");
+    showToast(t('app.toast.settlementDeleted'));
   };
 
   const handleConfirmRefundSettlement = (
@@ -5307,7 +5293,7 @@ const App: React.FC = () => {
       // Said where it can be acted on, and the dialogue stays open: closing it
       // with only a toast behind it is what read as the button doing nothing.
       showToast(
-        `退稅已入帳過一筆（${existing.date}，${Math.abs(existing.amount).toLocaleString()} ${existing.currency}）。要改金額請直接編輯那一筆。`,
+        t('app.error.refundAlreadyRecorded', { date: existing.date, amount: Math.abs(existing.amount).toLocaleString(), currency: existing.currency }),
         "error",
       );
       return;
@@ -5365,7 +5351,7 @@ const App: React.FC = () => {
     if (request.status === "not-found") return;
 
     if (request.status === "denied") {
-      showToast("這筆支出由其他旅伴建立，只有建立者可以刪除。", "error");
+      showToast(t('app.error.expenseNotYoursDelete'), "error");
       return;
     }
 
@@ -5397,7 +5383,7 @@ const App: React.FC = () => {
     }
 
     setExpenses((prev) => prev.filter((e) => e.id !== id));
-    showToast("已刪除該筆支出", "error");
+    showToast(t('app.toast.expenseDeleted'), "error");
   };
 
   /**
@@ -5424,7 +5410,7 @@ const App: React.FC = () => {
         tripOwnerMemberId: activeOwnerMemberId,
       })
     ) {
-      showToast("這筆支出不是你記錄的，無法標記。", "error");
+      showToast(t('app.error.expenseNotYoursFlag'), "error");
       return;
     }
     setExpenses((prev) =>
@@ -5434,7 +5420,7 @@ const App: React.FC = () => {
           : entry,
       ),
     );
-    showToast(refunded ? "已標記為結帳時退稅，不列入估算" : "已取消標記，重新列入估算");
+    showToast(refunded ? t('app.toast.refundedAtTill') : t('app.toast.refundFlagCleared'));
   };
 
   /**
@@ -5461,7 +5447,7 @@ const App: React.FC = () => {
         tripOwnerMemberId: activeOwnerMemberId,
       })
     ) {
-      showToast("這筆支出不是你記錄的，無法標記。", "error");
+      showToast(t('app.error.expenseNotYoursFlag'), "error");
       return;
     }
     setExpenses((prev) =>
@@ -5471,7 +5457,7 @@ const App: React.FC = () => {
           : entry,
       ),
     );
-    showToast(ineligible ? "已標記為不可退稅，不列入估算" : "已取消標記，重新列入估算");
+    showToast(ineligible ? t('app.toast.markedIneligible') : t('app.toast.refundFlagCleared'));
   };
 
   /**
@@ -5495,7 +5481,7 @@ const App: React.FC = () => {
         tripOwnerMemberId: activeOwnerMemberId,
       })
     ) {
-      showToast("這筆支出不是你記錄的，無法填寫。", "error");
+      showToast(t('app.error.expenseNotYoursFill'), "error");
       return;
     }
     setExpenses((prev) =>
@@ -5511,7 +5497,7 @@ const App: React.FC = () => {
           : entry,
       ),
     );
-    showToast(actual === undefined ? "已清除實際退稅金額" : "已記錄實際退稅金額");
+    showToast(actual === undefined ? t('app.toast.actualRefundCleared') : t('app.toast.actualRefundRecorded'));
   };
 
   // Disputes never change money. Each handler runs the pure rule first and only
@@ -5522,7 +5508,7 @@ const App: React.FC = () => {
     successToast: string,
   ) => {
     if (outcome.status !== "ok") {
-      showToast("無法完成這個動作，請重新整理後再試。", "error");
+      showToast(t('app.error.actionFailedRefresh'), "error");
       return;
     }
     const updated = outcome.expense;
@@ -5549,7 +5535,7 @@ const App: React.FC = () => {
         id: generateId(),
         proposal,
       }),
-      proposal ? "已送出修正建議" : "已提出疑問",
+      proposal ? t('app.toast.proposalSent') : t('app.toast.disputeRaised'),
     );
   };
 
@@ -5562,7 +5548,7 @@ const App: React.FC = () => {
   ) => {
     applyDisputeOutcome(
       approveDisputeProposal(disputeContextFor(expense), { disputeId, response }),
-      "已核准並更新金額",
+      t('app.toast.proposalApproved'),
     );
   };
 
@@ -5573,21 +5559,21 @@ const App: React.FC = () => {
   ) => {
     applyDisputeOutcome(
       resolveDispute(disputeContextFor(expense), { disputeId, response }),
-      "已標記為已回覆",
+      t('app.toast.markedAnswered'),
     );
   };
 
   const handleRevertDisputeProposal = (expense: Expense, disputeId: string) => {
     applyDisputeOutcome(
       revertDisputeProposal(disputeContextFor(expense), { disputeId }),
-      "已撤銷這次修正",
+      t('app.toast.proposalWithdrawn'),
     );
   };
 
   const handleWithdrawDispute = (expense: Expense, disputeId: string) => {
     applyDisputeOutcome(
       withdrawDispute(disputeContextFor(expense), { disputeId }),
-      "已收回疑問",
+      t('app.toast.disputeWithdrawn'),
     );
   };
 
@@ -5616,7 +5602,7 @@ const App: React.FC = () => {
         tripOwnerMemberId: activeOwnerMemberId,
       }).allowed;
       if (!mayPropose) {
-        showToast("這筆支出由其他旅伴建立，目前僅能檢視。", "error");
+        showToast(t('app.error.expenseViewOnly'), "error");
         return;
       }
       setIsProposalMode(true);
@@ -5702,11 +5688,11 @@ const App: React.FC = () => {
       setVisaInfo(null);
       setTravelRules(undefined);
 
-      showToast("旅程已成功封存！");
+      showToast(t('app.toast.tripArchived'));
       setViewMode("bookshelf"); // Go back to shelf
     } catch (e) {
       console.error(e);
-      showToast("封存失敗，請稍後再試", "error");
+      showToast(t('app.error.archiveFailed'), "error");
     }
   };
 
@@ -5752,7 +5738,7 @@ const App: React.FC = () => {
 
     setCurrentPhase("summary");
     setViewMode("trip");
-    showToast(`已打開旅程回顧：${trip.name}`);
+    showToast(t('app.toast.recapOpened', { name: trip.name }));
   };
 
   const handleOpenDraft = (draftId: string) => {
@@ -5760,7 +5746,7 @@ const App: React.FC = () => {
     if (!draft) return;
     hydrateDraft(draft);
     setViewMode("trip");
-    showToast(`已打開：${draft.name || "未命名旅程"}`);
+    showToast(t('app.toast.tripOpened', { name: draft.name || t('app.label.untitledTrip') }));
   };
 
   /**
@@ -5806,7 +5792,7 @@ const App: React.FC = () => {
           ],
     );
     setRecoverableTripList((current) => current.filter((entry) => entry.id !== trip.id));
-    showToast(`已取回：${trip.name || '未命名的旅程'}`);
+    showToast(t('app.toast.tripRestored', { name: trip.name || t('app.label.untitledTrip') }));
   };
 
   const handleRestoreTripIdentity = (drift: IdentityDrift) => {
@@ -5830,7 +5816,7 @@ const App: React.FC = () => {
       if (drift.cloudEndDate) setTripEndDate(drift.cloudEndDate);
     }
     setIdentityDrifts((current) => current.filter((entry) => entry.id !== drift.id));
-    showToast(`已還原名稱：${drift.cloudName}`);
+    showToast(t('app.toast.nameReverted', { name: drift.cloudName }));
   };
 
   const handleCreateNewTrip = () => {
@@ -5872,7 +5858,7 @@ const App: React.FC = () => {
   };
   const openSourceCommunityPost = (postId?: string) => {
     if (!postId || !communityPosts.some((post) => post.id === postId)) {
-      showToast("找不到原始貼文", "error");
+      showToast(t('app.error.originalPostMissing'), "error");
       return;
     }
     setSelectedCommunityPostId(postId);
@@ -5904,7 +5890,7 @@ const App: React.FC = () => {
     ]);
     syncPostUp(post);
     setCommunityView("home");
-    showToast("草稿已儲存");
+    showToast(t('app.toast.draftSaved'));
   };
   const publishCommunityPost = (post: CommunityPost) => {
     setCommunityPosts((current) => [
@@ -5913,7 +5899,7 @@ const App: React.FC = () => {
     ]);
     syncPostUp(post);
     setCommunityView("home");
-    showToast("旅行貼文已發布");
+    showToast(t('app.toast.postPublished'));
   };
   const saveCommunitySlices = async (slices: PostSlice[]) => {
     setSavePipelineDebug((current) => ({
@@ -6056,7 +6042,7 @@ const App: React.FC = () => {
       }));
       return next;
     });
-    showToast(`已收藏 ${slices.length} 個旅行靈感`);
+    showToast(t('app.toast.inspirationsSaved', { count: slices.length }));
     return {
       selectedPostId: selectedCommunityPostId,
       canonicalPostFound: true,
@@ -6088,13 +6074,13 @@ const App: React.FC = () => {
           !(item.savedByUserId === userId && item.sourcePostId === postId),
       ),
     );
-    showToast("已重置這篇的個人收藏（DEV）");
+    showToast(t('app.toast.postSavesResetDev'));
   };
   const removeSavedTravelInspiration = (itemId: string) => {
     setSavedTravelInspirations((current) =>
       current.filter((item) => item.id !== itemId),
     );
-    showToast("已移除這個旅行靈感");
+    showToast(t('app.toast.inspirationRemoved'));
   };
   const resolveSavedTravelInspiration = async (
     item: SavedTravelInspiration,
@@ -6240,7 +6226,7 @@ const App: React.FC = () => {
       // saved inspirations even when the place lookup returned nothing.
       if (pendingTripDestination?.country) setTravelCountry(pendingTripDestination.country);
       setPendingTripDestination(null);
-      showToast("新旅程已建立，開始準備吧！");
+      showToast(t('app.toast.tripCreated'));
     } else if (activeDraftId) {
       setDrafts((prev) =>
         prev.map((draft) =>
@@ -6268,7 +6254,7 @@ const App: React.FC = () => {
             : draft,
         ),
       );
-      showToast("已更新旅程資訊");
+      showToast(t('app.toast.tripInfoUpdated'));
     } else if (currentLoadedTripId) {
       setTripHistory((prev) =>
         prev.map((trip) =>
@@ -6285,9 +6271,9 @@ const App: React.FC = () => {
             : trip,
         ),
       );
-      showToast("已更新旅程資訊");
+      showToast(t('app.toast.tripInfoUpdated'));
     } else {
-      showToast("已更新旅程資訊");
+      showToast(t('app.toast.tripInfoUpdated'));
     }
 
     setTripDestination(destination);
@@ -6302,14 +6288,14 @@ const App: React.FC = () => {
   const handleDeleteHistory = (id: string) => {
     const target = tripHistory.find((trip) => trip.id === id);
     setConfirmRequest({
-      title: "刪除這本旅程紀錄？",
-      description: `「${target?.name || "這趟旅程"}」的所有紀錄將被移除，此動作無法復原。`,
-      confirmLabel: "刪除",
+      title: t('app.confirm.deleteTripRecordTitle'),
+      description: t('app.confirm.deleteTripRecordBody', { name: target?.name || t('app.label.thisTrip') }),
+      confirmLabel: t('common.delete'),
       tone: "danger",
       icon: "trash",
       onConfirm: () => {
         setTripHistory((prev) => prev.filter((t) => t.id !== id));
-        showToast("已刪除旅程紀錄", "error");
+        showToast(t('app.toast.tripRecordDeleted'), "error");
       },
     });
   };
@@ -6342,7 +6328,7 @@ const App: React.FC = () => {
     if (writeDraftStore(plan.remainingDrafts, plan.nextActiveDraftId).saved === false) {
       // The restore may fail too; state below is untouched either way.
       writeDraftStore(previousDrafts, previousActiveDraftId);
-      showToast("旅程刪除失敗，這趟旅程沒有被移除，請再試一次。", "error");
+      showToast(t('app.error.tripDeleteFailed'), "error");
       return false;
     }
 
@@ -6398,15 +6384,15 @@ const App: React.FC = () => {
     }
 
     setViewMode("bookshelf");
-    showToast("已刪除旅程", "error");
+    showToast(t('app.toast.tripDeleted'), "error");
     return true;
   };
 
   const handleCloneTrip = (publicTrip: PublicTrip) => {
     setConfirmRequest({
-      title: "複製這份行程規劃？",
-      description: `會依照「${publicTrip.name}」建立一份新的草稿，原本的行程不受影響。`,
-      confirmLabel: "複製",
+      title: t('app.confirm.cloneTripTitle'),
+      description: t('app.confirm.cloneTripBody', { name: publicTrip.name }),
+      confirmLabel: t('common.copy'),
       tone: "neutral",
       icon: "copy",
       onConfirm: () => performCloneTrip(publicTrip),
@@ -6427,7 +6413,7 @@ const App: React.FC = () => {
     const clonedDraft: TripDraft = {
       id: generateId(),
       ownerId: userId,
-      name: `複製自: ${publicTrip.name}`,
+      name: t('app.label.copiedFrom', { name: publicTrip.name }),
       destination: publicTrip.destination,
       startDate: "",
       endDate: "",
@@ -6443,16 +6429,16 @@ const App: React.FC = () => {
     setDrafts((prev) => [...prev, clonedDraft]);
     hydrateDraft(clonedDraft);
     setViewMode("trip");
-    showToast("行程已複製！請檢查支出日期與匯率。");
+    showToast(t('app.toast.tripCloned'));
   };
 
   const handleGenerateTravelBook = async () => {
     if (expenses.length < 3) {
-      showToast("支出太少，無法產生回憶錄", "error");
+      showToast(t('app.error.tooFewExpensesForMemoir'), "error");
       return;
     }
 
-    showToast("AI 正在編寫您的旅程回憶錄...");
+    showToast(t('app.toast.memoirGenerating'));
     const currentTrip: Trip = {
       id: activeDraftId || currentLoadedTripId || "draft",
       ownerId: userId,
@@ -6483,7 +6469,7 @@ const App: React.FC = () => {
       // Reward points for using AI
       setUserProfile((prev) => ({ ...prev, points: prev.points + 100 }));
     } else {
-      showToast("產生失敗，請稍後再試", "error");
+      showToast(t('app.error.generationFailed'), "error");
     }
   };
 
@@ -6548,11 +6534,11 @@ const App: React.FC = () => {
   const handleInviteCompanion = async (companion: Companion) => {
     const tripId = activeDraftId || currentLoadedTripId;
     if (!tripId) {
-      showToast("先儲存這趟旅程，才能邀請同行者", "error");
+      showToast(t('app.error.saveTripBeforeInvite'), "error");
       return;
     }
     if (!authUser?.id) {
-      showToast("請先登入才能邀請同行者", "error");
+      showToast(t('app.error.signInToInvite'), "error");
       return;
     }
 
@@ -6566,7 +6552,7 @@ const App: React.FC = () => {
         // that it did not work.
         showToast(
           result.status === "unavailable"
-            ? "雲端尚未設定，無法邀請"
+            ? t('app.error.cloudNotConfiguredInvite')
             : inviteFailureMessage(result.message),
           "error",
         );
@@ -6609,7 +6595,7 @@ const App: React.FC = () => {
     draft: Omit<ServiceRequest, "id" | "tripId" | "requestedByUserId" | "createdAt" | "status">,
   ) => {
     if (!authUser?.id) {
-      showToast("請先登入才能發佈協助需求", "error");
+      showToast(t('app.error.signInToPublishRequest'), "error");
       return;
     }
     const request: ServiceRequest = {
@@ -6627,7 +6613,7 @@ const App: React.FC = () => {
     setViewMode("marketplace");
     publishServiceRequest(request).then((result) => {
       if (result.status === "error") {
-        showToast("需求已建立，但尚未同步到雲端", "error");
+        showToast(t('app.toast.requestCreatedNotSynced'), "error");
       }
     });
   };
@@ -6644,14 +6630,14 @@ const App: React.FC = () => {
 
   const handleBookService = (service: MarketplaceService) => {
     if (userProfile.trippieCoins < service.price) {
-      showToast("Trippie Coins 不足，請先賺取積分", "error");
+      showToast(t('app.error.notEnoughCoins'), "error");
       return;
     }
 
     setConfirmRequest({
-      title: "確認預約這項服務？",
-      description: `預約「${service.title}」將扣除 ${service.price} Trippie Coins，扣除後不會自動退還。`,
-      confirmLabel: `花費 ${service.price} 點`,
+      title: t('app.confirm.bookServiceTitle'),
+      description: t('app.confirm.bookServiceBody', { name: service.title, price: service.price }),
+      confirmLabel: t('app.confirm.spendCoins', { price: service.price }),
       tone: "neutral",
       icon: "coins",
       onConfirm: () => {
@@ -6659,7 +6645,7 @@ const App: React.FC = () => {
           ...prev,
           trippieCoins: prev.trippieCoins - service.price,
         }));
-        showToast("預約成功！當地人將在 24 小時內與您聯繫。");
+        showToast(t('app.toast.serviceBooked'));
       },
     });
   };
@@ -6673,7 +6659,7 @@ const App: React.FC = () => {
       rating: 5.0,
     };
     setMarketplaceServices((prev) => [newService, ...prev]);
-    showToast("服務已成功發佈！");
+    showToast(t('app.toast.servicePublished'));
   };
 
   // Helper to get exchange rate synchronously
@@ -6741,7 +6727,7 @@ const App: React.FC = () => {
     setTripHistory((prev) =>
       prev.map((trip) => ({ ...trip, expenses: settle(trip.expenses) })),
     );
-    showToast(`已合併 ${dropped.size} 筆重複的收據`);
+    showToast(t('app.toast.duplicateReceiptsMerged', { count: dropped.size }));
   };
 
   // Smart Scan Handler Logic - REFACTORED FOR BATCH PROCESSING
@@ -6872,7 +6858,7 @@ const App: React.FC = () => {
 
             const newExpense: Expense = {
               id: newExpenseId,
-              description: result.description || "智慧匯入項目",
+              description: result.description || t('app.label.smartImportItem'),
               amount: parsedAmount,
               currency: parsedCurrency,
               exchangeRate: rate,
@@ -6915,7 +6901,7 @@ const App: React.FC = () => {
 
             const newExpense: Expense = {
               id: newExpenseId,
-              description: result.description || "智慧匯入項目",
+              description: result.description || t('app.label.smartImportItem'),
               amount: parsedAmount,
               currency: parsedCurrency,
               exchangeRate: rate,
@@ -7066,7 +7052,7 @@ const App: React.FC = () => {
         const importedDraft: TripDraft = {
           id: generateId(),
           ownerId: userId,
-          name: `${new Date().toISOString().split("T")[0]} ${detectedCountry} 新旅程`.trim(),
+          name: t('app.label.newTripNamed', { date: new Date().toISOString().split("T")[0], country: detectedCountry }).trim(),
           destination: detectedCountry || undefined,
           startDate: "",
           endDate: "",
@@ -7085,12 +7071,12 @@ const App: React.FC = () => {
       if (detectedCountry && !travelCountry) {
         if (!tripDestination) setTripDestination(detectedCountry);
         setTravelCountry(detectedCountry);
-        showToast(`已自動偵測國家：${detectedCountry}`);
+        showToast(t('app.toast.countryDetected', { country: detectedCountry }));
 
         fetchTaxRefundRules(detectedCountry).then((rule) => {
           if (rule) {
             setTaxRule(rule);
-            showToast(`已自動套用 ${detectedCountry} 退稅規則`);
+            showToast(t('app.toast.taxRuleApplied', { country: detectedCountry }));
           }
         });
 
@@ -7102,7 +7088,7 @@ const App: React.FC = () => {
       if (expenses.length === 0 && !draftName) {
         const nameCountry = detectedCountry || "";
         setDraftName(
-          `${new Date().toISOString().split("T")[0]} ${nameCountry} 新旅程`.trim(),
+          t('app.label.newTripNamed', { date: new Date().toISOString().split("T")[0], country: nameCountry }).trim(),
         );
       }
 
@@ -7120,7 +7106,7 @@ const App: React.FC = () => {
       // Why, where the server said why. 「請重試」 on a 12mb payload or an
       // exhausted quota is advice that cannot work.
       const reason = lastExpenseIntakeFailure();
-      showToast(reason ? `無法辨識：${reason}` : "所有圖片皆無法識別，請重試", "error");
+      showToast(reason ? t('app.error.notRecognizedReason', { reason }) : t('app.error.noImageRecognized'), "error");
       return;
     }
 
@@ -7163,7 +7149,7 @@ const App: React.FC = () => {
         if (targetTrip.visaInfo) setVisaInfo(targetTrip.visaInfo);
 
         setViewMode("trip");
-        showToast(`成功匯入 ${successCount} 筆至「${targetTrip.name}」`);
+        showToast(t('app.toast.importedIntoTrip', { count: successCount, name: targetTrip.name }));
         return;
       }
     }
@@ -7172,16 +7158,16 @@ const App: React.FC = () => {
     if (newDraftExpenses.length > 0 && uniqueHistoryIds.length === 0) {
       // Just open the draft
       setViewMode("trip");
-      showToast(`成功匯入 ${successCount} 筆至當前草稿`);
+      showToast(t('app.toast.importedIntoDraft', { count: successCount }));
       return;
     }
 
     // Scenario C: Mixed (Some to history, some to draft) OR Multiple Histories
     // Stay on bookshelf and show summary
-    let msg = `已處理 ${successCount} 張單據：`;
+    let msg = t('app.toast.receiptsProcessed', { count: successCount });
     if (newDraftExpenses.length > 0)
-      msg += `${newDraftExpenses.length}筆入草稿 `;
-    if (historyUpdates.length > 0) msg += `${historyUpdates.length}筆歸檔歷史 `;
+      msg += t('app.toast.receiptsIntoDraft', { count: newDraftExpenses.length });
+    if (historyUpdates.length > 0) msg += t('app.toast.receiptsIntoHistory', { count: historyUpdates.length });
 
     showToast(msg);
     // Do not change viewMode, stay on bookshelf to let user choose
@@ -7189,32 +7175,32 @@ const App: React.FC = () => {
 
   const handleExport = () => {
     const headers = [
-      "日期",
-      "階段",
-      "分類",
-      "付款方式",
-      "項目",
-      "原幣金額",
-      "幣別",
-      "匯率",
-      "手續費(TWD)",
-      "總台幣金額",
-      "付款人",
-      "分攤人/分帳詳情",
+      t('app.csv.date'),
+      t('app.csv.phase'),
+      t('app.csv.category'),
+      t('app.csv.paymentMethod'),
+      t('app.csv.item'),
+      t('app.csv.originalAmount'),
+      t('app.csv.currency'),
+      t('app.csv.rate'),
+      t('app.csv.feeTwd'),
+      t('app.csv.totalTwd'),
+      t('app.csv.payer'),
+      t('app.csv.beneficiaries'),
     ];
     const csvContent = [
       headers.join(","),
       ...expenses.map((e) => {
         const payerName = isOwnerIdentity(e.payerId)
-          ? "我"
-          : companions.find((c) => c.id === e.payerId)?.name || "未知";
+          ? t('app.label.me')
+          : companions.find((c) => c.id === e.payerId)?.name || t('app.label.unknownPerson');
         let beneficiaryInfo = "";
 
         if (e.splitMethod === "EQUAL") {
           beneficiaryInfo = e.beneficiaries
             .map((id) =>
               isOwnerIdentity(id)
-                ? "我"
+                ? t('app.label.me')
                 : companions.find((c) => c.id === id)?.name || "",
             )
             .join(";");
@@ -7222,8 +7208,8 @@ const App: React.FC = () => {
           beneficiaryInfo = Object.entries(e.splitAllocations)
             .map(([id, amount]) => {
               const name = isOwnerIdentity(id)
-                ? "我"
-                : companions.find((c) => c.id === id)?.name || "未知";
+                ? t('app.label.me')
+                : companions.find((c) => c.id === id)?.name || t('app.label.unknownPerson');
               return `${name}:$${Math.round(amount as number)}`;
             })
             .join(";");
@@ -7232,10 +7218,10 @@ const App: React.FC = () => {
         return [
           e.date,
           e.phase === "pre"
-            ? "旅行前"
+            ? t('app.csv.phasePre')
             : e.phase === "during"
-              ? "旅行中"
-              : "回國機場消費",
+              ? t('app.csv.phaseDuring')
+              : t('app.csv.phasePost'),
           e.category,
           e.paymentMethod,
           `"${e.description}"`,
@@ -7289,7 +7275,7 @@ const App: React.FC = () => {
         return next;
       }),
     );
-    showToast(nowPublic ? "已公開這篇貼文" : "已改為不公開");
+    showToast(nowPublic ? t('app.toast.postMadePublic') : t('app.toast.postMadePrivate'));
   };
 
   /**
@@ -7301,7 +7287,7 @@ const App: React.FC = () => {
     const comment = buildComment({
       postId,
       authorId: currentUserId,
-      authorName: authProfile?.displayName || userProfile.name || "旅人",
+      authorName: authProfile?.displayName || userProfile.name || t('app.label.traveller'),
       authorAvatar: authProfile?.avatarUrl || userProfile.avatar,
       content,
     });
@@ -7316,9 +7302,9 @@ const App: React.FC = () => {
 
   const handleDeleteComment = (comment: PostComment) => {
     setConfirmRequest({
-      title: "刪除這則留言？",
-      description: "刪除後無法復原。",
-      confirmLabel: "刪除",
+      title: t('app.confirm.deleteCommentTitle'),
+      description: t('app.confirm.irreversible'),
+      confirmLabel: t('common.delete'),
       tone: "danger",
       icon: "trash",
       onConfirm: () => {
@@ -7334,15 +7320,15 @@ const App: React.FC = () => {
 
   const handleDeleteCommunityPost = (post: CommunityPost) => {
     setConfirmRequest({
-      title: "刪除這篇貼文？",
-      description: `「${post.title || "未命名貼文"}」將從你的貼文與社群中移除，此動作無法復原。`,
-      confirmLabel: "刪除",
+      title: t('app.confirm.deletePostTitle'),
+      description: t('app.confirm.deletePostBody', { name: post.title || t('app.label.untitledPost') }),
+      confirmLabel: t('common.delete'),
       tone: "danger",
       icon: "trash",
       onConfirm: () => {
         setCommunityPosts((current) => current.filter((item) => item.id !== post.id));
         if (isSyncAvailable() && isPushablePost(post, authUser?.id)) void deleteRemotePost(post.id);
-        showToast("已刪除貼文", "error");
+        showToast(t('app.toast.postDeleted'), "error");
       },
     });
   };
@@ -7389,7 +7375,7 @@ const App: React.FC = () => {
     setCustomCategories((current) => {
       const next = addCustomCategory(current, phase, name);
       if (next === current) {
-        showToast("這個分類已經有了", "error");
+        showToast(t('app.error.categoryExists'), "error");
         return current;
       }
       saveCustomCategories(next);
@@ -7459,9 +7445,9 @@ const App: React.FC = () => {
   const filteredExpenses = ratedExpenses.filter((e) => e.phase === currentPhase);
 
   // Dynamic Title for Shopping Panel
-  let shoppingPanelTitle = "🛒 待買清單";
-  if (currentPhase === "pre") shoppingPanelTitle = "🛍️ 行前購物清單";
-  if (currentPhase === "post") shoppingPanelTitle = "🎁 免稅/機場待買清單";
+  let shoppingPanelTitle = t('app.shopping.titleDefault');
+  if (currentPhase === "pre") shoppingPanelTitle = t('app.shopping.titlePre');
+  if (currentPhase === "post") shoppingPanelTitle = t('app.shopping.titlePost');
 
   // --- RENDER ---
 
@@ -7557,7 +7543,7 @@ const App: React.FC = () => {
                 : {}),
             }
             : expense)));
-          showToast(`已連結到「${place.placeName}」`);
+          showToast(t('app.toast.linkedToPlace', { name: place.placeName }));
         }}
         /*
           「這在釜山 我無法改」 — a record bound to the wrong place is missing
@@ -7646,7 +7632,7 @@ const App: React.FC = () => {
         {addingStop && (
           <AddStopToTripSheet
             stop={addingStop}
-            sourceLabel={visitingTrip ? `來自 ${visitingTrip.name}` : undefined}
+            sourceLabel={visitingTrip ? t('app.label.fromTrip', { name: visitingTrip.name }) : undefined}
             trips={drafts}
             onAdd={(choice) => handleAddStopToTrip(addingStop, choice)}
             onClose={() => setAddingStop(null)}
@@ -7767,7 +7753,7 @@ const App: React.FC = () => {
                 );
               }}
               onEmail={() => setAccountView("auth")}
-              onUnavailableProvider={() => showToast("此登入方式尚未開放")}
+              onUnavailableProvider={() => showToast(t('app.error.providerUnavailable'))}
             />
           </div>
         );
@@ -7993,7 +7979,7 @@ const App: React.FC = () => {
               setAppSection(authReturnSection);
             }}
             onEmail={() => setAccountView("auth")}
-            onUnavailableProvider={() => showToast("此登入方式尚未開放")}
+            onUnavailableProvider={() => showToast(t('app.error.providerUnavailable'))}
           />
         </div>
       );
@@ -8193,7 +8179,7 @@ const App: React.FC = () => {
 
   const addRentalFromScreenshot = (rental: ParsedRental) => {
     setCarRentals(current => [...current, rental]);
-    showToast(`已加入 ${rental.company}`);
+    showToast(t('app.toast.rentalAdded', { company: rental.company }));
   };
 
   const rentalCard = (
@@ -8489,7 +8475,7 @@ const App: React.FC = () => {
           isOpen={isShareModalOpen}
           onClose={() => setIsShareModalOpen(false)}
           currentTripName={
-            draftName || (currentLoadedTripId ? "歷史旅程" : undefined)
+            draftName || (currentLoadedTripId ? t('app.label.pastTrip') : undefined)
           }
           onScanToken={handleScanInviteToken}
           onManageTravelers={() => setIsCompanionsOpen(true)}
@@ -8521,14 +8507,14 @@ const App: React.FC = () => {
             >
               <ArrowLeft size={24} />
             </button>
-            <h1 className="text-xl font-black text-brand-900">旅人社群</h1>
+            <h1 className="text-xl font-black text-brand-900">{t('app.screen.community')}</h1>
           </div>
         </header>
         <main className="flex-1 p-4 overflow-y-auto">
           <CommunityFeed
             trips={publicTrips}
             onClone={handleCloneTrip}
-            onView={(t) => showToast(`查看 ${t.name}`)}
+            onView={(trip) => showToast(t('app.toast.viewing', { name: trip.name }))}
           />
         </main>
         <ExploreBottomNav active="community" onChange={setViewMode} />
@@ -8548,7 +8534,7 @@ const App: React.FC = () => {
             >
               <ArrowLeft size={24} />
             </button>
-            <h1 className="text-xl font-black text-brand-900">當地人服務</h1>
+            <h1 className="text-xl font-black text-brand-900">{t('app.screen.localServices')}</h1>
           </div>
         </header>
         <main className="flex-1 p-4 overflow-y-auto">
@@ -8588,7 +8574,7 @@ const App: React.FC = () => {
             >
               <ArrowLeft size={24} />
             </button>
-            <h1 className="text-xl font-black text-brand-900">我的積分</h1>
+            <h1 className="text-xl font-black text-brand-900">{t('app.screen.myPoints')}</h1>
           </div>
         </header>
         <main className="flex-1 p-4 overflow-y-auto">
@@ -8611,13 +8597,13 @@ const App: React.FC = () => {
             >
               <ArrowLeft size={24} />
             </button>
-            <h1 className="text-xl font-black text-brand-900">地圖探索</h1>
+            <h1 className="text-xl font-black text-brand-900">{t('app.screen.mapExplore')}</h1>
           </div>
         </header>
         <main className="flex-1 overflow-hidden">
           <MapExplorer
             trips={publicTrips}
-            onSelectTrip={(t) => showToast(`查看 ${t.name}`)}
+            onSelectTrip={(trip) => showToast(t('app.toast.viewing', { name: trip.name }))}
           />
         </main>
         <ExploreBottomNav active="map" onChange={setViewMode} />
@@ -8659,10 +8645,10 @@ const App: React.FC = () => {
       <div className="space-y-4 pb-4">
         <div className="px-1">
           <h2 className="text-xl font-black text-[#11183d]">
-            {currentPhase === "pre" ? "旅程規劃" : "今日行程與筆記"}
+            {currentPhase === "pre" ? t('app.plan.heading.pre') : t('app.plan.heading.during')}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            詳細內容留在這裡，讓總覽保持輕量。
+            {t('app.plan.headingBlurb')}
           </p>
         </div>
         <ItineraryCalendar
@@ -9117,7 +9103,7 @@ const App: React.FC = () => {
           */}
           {identityNotice && (
             <div data-testid="viewer-identity-notice" className="mx-4 mt-3 rounded-2xl bg-amber-50 px-4 py-3">
-              <p className="text-xs font-black text-amber-900">這台裝置還不確定你是誰</p>
+              <p className="text-xs font-black text-amber-900">{t('app.auth.deviceIdentityUnknown')}</p>
               <p className="mt-1 text-[11px] leading-5 text-amber-800">{identityNotice.message}</p>
               <button
                 type="button"
@@ -9466,7 +9452,7 @@ const App: React.FC = () => {
             isOpen={isShareModalOpen}
             onClose={() => setIsShareModalOpen(false)}
             currentTripName={
-              currentTripName || (currentLoadedTripId ? "歷史旅程" : undefined)
+              currentTripName || (currentLoadedTripId ? t('app.label.pastTrip') : undefined)
             }
             onScanToken={handleScanInviteToken}
             onManageTravelers={() => setIsCompanionsOpen(true)}
@@ -9582,10 +9568,10 @@ const App: React.FC = () => {
                   checking for duplicates looked identical to one that had hung.
                 */}
                 {batchProgress.total === 0
-                  ? "辨識收據中…"
+                  ? t('app.receipt.reading')
                   : batchProgress.done >= batchProgress.total
-                    ? "整理中…"
-                    : `辨識收據中… 第 ${batchProgress.done + 1}/${batchProgress.total} 張`}
+                    ? t('app.receipt.organizing')
+                    : t('app.receipt.readingProgress', { done: batchProgress.done + 1, total: batchProgress.total })}
               </p>
               {/* A bar as well as a number: at a glance, is it moving. */}
               {batchProgress.total > 0 && (
@@ -9596,7 +9582,7 @@ const App: React.FC = () => {
                   />
                 </div>
               )}
-              <p className="text-xs text-white/70">張數多時需要一點時間，請不要關閉</p>
+              <p className="text-xs text-white/70">{t('app.receipt.batchPatience')}</p>
 
             </div>
           )}
@@ -9644,7 +9630,7 @@ const App: React.FC = () => {
           <div className={`fixed inset-0 ${OVERLAY.sheet} overflow-y-auto bg-[#f6f7fc]`} data-testid="recap-screen">
             <TripRecapScreen
               trip={{
-                name: currentTripName || "這趟旅程",
+                name: currentTripName || t('app.label.thisTrip'),
                 itinerary,
                 travelCountry: tripDestinationDraft?.destinationCountry || travelCountry || "",
               }}
@@ -9667,7 +9653,7 @@ const App: React.FC = () => {
                 const tripId = activeDraftId || currentLoadedTripId;
                 if (!tripId || !authUser?.id) return;
                 void saveJournal({ tripId, itemId, authorId: authUser.id, text }).then((result) => {
-                  if (result.status === "error") showToast(`日記沒有存成功：${result.message}`);
+                  if (result.status === "error") showToast(t('app.error.journalSaveFailed', { message: result.message }));
                 });
               }}
               /*
@@ -9710,16 +9696,16 @@ const App: React.FC = () => {
           >
             <div
               role="dialog"
-              aria-label="購物清單"
+              aria-label={t('app.shopping.ariaOpen')}
               data-testid="shopping-sheet"
               onClick={(event) => event.stopPropagation()}
               className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-4 shadow-[0_24px_70px_rgba(17,26,74,0.18)]"
             >
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-lg font-black text-[#11183d]">購物清單</h2>
+                <h2 className="text-lg font-black text-[#11183d]">{t('app.shopping.heading')}</h2>
                 <button
                   type="button"
-                  aria-label="關閉"
+                  aria-label={t('common.close')}
                   onClick={() => setShoppingSheetOpen(false)}
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-400"
                 >
@@ -9854,7 +9840,7 @@ const App: React.FC = () => {
             <button
               onClick={() => setViewMode("bookshelf")}
               className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors flex-shrink-0"
-              title="回到書架"
+              title={t('app.nav.backToShelf')}
             >
               <ArrowLeft size={24} />
             </button>
@@ -9865,7 +9851,7 @@ const App: React.FC = () => {
                 type="text"
                 value={currentTripName}
                 onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="點擊命名旅程..."
+                placeholder={t('app.trip.namePlaceholder')}
                 className="text-xl font-black text-brand-900 tracking-tight bg-transparent border-b border-transparent hover:border-gray-300 focus:border-brand-500 outline-none w-full transition-all placeholder:text-gray-300"
               />
               {(expenses.length > 0 || tripStartDate) && (
@@ -9880,22 +9866,22 @@ const App: React.FC = () => {
               <button
                 onClick={handleEditTrip}
                 className="p-2.5 rounded-full bg-white text-gray-400 hover:bg-brand-50 hover:text-brand-600 transition-colors flex items-center justify-center"
-                title="編輯旅程"
-                aria-label="編輯旅程"
+                title={t('app.trip.edit')}
+                aria-label={t('app.trip.edit')}
               >
                 <Pencil size={19} />
               </button>
               <button
                 onClick={() => setIsTravelIdentityOpen(true)}
                 className={`p-2.5 rounded-full transition-colors flex items-center justify-center border-2 ${travelCountry ? "bg-brand-50 border-brand-200 text-brand-600" : "bg-gray-50 border-transparent text-gray-400 hover:bg-gray-100"}`}
-                title="旅行身分設定"
+                title={t('app.trip.travelIdentity')}
               >
                 <Globe size={20} />
               </button>
               <button
                 onClick={() => setIsCompanionsOpen(true)}
                 className={`p-2.5 rounded-full transition-colors relative flex items-center justify-center ${companions.length > 0 ? "bg-brand-50 text-brand-600" : "text-gray-400 hover:bg-gray-100"}`}
-                title="旅伴管理"
+                title={t('app.trip.manageCompanions')}
               >
                 <Users size={20} />
                 {companions.length > 0 && (
@@ -9905,7 +9891,7 @@ const App: React.FC = () => {
               <button
                 onClick={handleOpenShareModal}
                 className="p-2.5 rounded-full bg-brand-50 text-brand-600 border border-brand-100 transition-colors flex items-center justify-center"
-                title="共享帳本"
+                title={t('app.trip.sharedLedger')}
               >
                 <Share2 size={20} />
               </button>
@@ -9951,7 +9937,7 @@ const App: React.FC = () => {
                   onClick={handleGenerateTravelBook}
                   className="w-full bg-gradient-to-r from-brand-600 to-indigo-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 hover:scale-[1.02] transition-transform"
                 >
-                  <Sparkles size={20} /> 產生 AI 旅程回憶錄
+                  <Sparkles size={20} /> {t('app.action.generateMemoir')}
                 </button>
               </div>
             ) : (
@@ -10083,15 +10069,15 @@ const App: React.FC = () => {
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h3 className="text-lg font-black text-gray-900">
-                          {currentPhase === "pre" && "行前準備"}
-                          {currentPhase === "during" && "旅途記帳"}
-                          {currentPhase === "post" && "回國結算"}
+                          {currentPhase === "pre" && t('app.phase.pre.title')}
+                          {currentPhase === "during" && t('app.phase.during.title')}
+                          {currentPhase === "post" && t('app.phase.post.title')}
                         </h3>
                         <p className="text-xs text-gray-400 font-bold">
-                          {currentPhase === "pre" && "規劃預算、準備必備物品"}
+                          {currentPhase === "pre" && t('app.phase.pre.blurb')}
                           {currentPhase === "during" &&
-                            "即時記錄每一筆旅途消費"}
-                          {currentPhase === "post" && "辦理退稅、查看最終報表"}
+                            t('app.phase.during.blurb')}
+                          {currentPhase === "post" && t('app.phase.post.blurb')}
                         </p>
                       </div>
                       <div className="bg-brand-50 text-brand-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
@@ -10145,9 +10131,9 @@ const App: React.FC = () => {
                   <div className="flex items-center justify-between px-2">
                     <h3 className="font-bold text-gray-700 flex items-center gap-2">
                       <Receipt size={18} className="text-gray-400" />
-                      {currentPhase === "pre" && "準備清單"}
-                      {currentPhase === "during" && "消費紀錄"}
-                      {currentPhase === "post" && "機場消費"}
+                      {currentPhase === "pre" && t('app.phase.pre.tab')}
+                      {currentPhase === "during" && t('app.phase.during.tab')}
+                      {currentPhase === "post" && t('app.phase.post.tab')}
                     </h3>
                     <span className="text-[10px] font-black text-gray-400 bg-gray-100 px-2 py-1 rounded-full uppercase tracking-tighter">
                       {filteredExpenses.length} ITEMS
@@ -10240,14 +10226,14 @@ const App: React.FC = () => {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-black text-[#11183d]">匯入旅行筆記截圖</h2>
+              <h2 className="text-lg font-black text-[#11183d]">{t('app.import.notesScreenshotHeading')}</h2>
               <button
                 type="button"
                 data-testid="close-screenshot-intake"
                 onClick={() => setIsScreenshotIntakeOpen(false)}
                 className="min-h-9 rounded-xl px-3 text-xs font-black text-slate-500"
               >
-                關閉
+                {t('common.close')}
               </button>
             </div>
             <ScreenshotItineraryIntake
@@ -10353,7 +10339,7 @@ const App: React.FC = () => {
             </button>
             <TravelBookView
               book={travelBook}
-              onShare={() => showToast("分享功能即將推出！")}
+              onShare={() => showToast(t('app.toast.sharingComingSoon'))}
             />
           </div>
         </div>
@@ -10363,7 +10349,7 @@ const App: React.FC = () => {
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         currentTripName={
-          currentTripName || (currentLoadedTripId ? "歷史旅程" : undefined)
+          currentTripName || (currentLoadedTripId ? t('app.label.pastTrip') : undefined)
         }
         onScanToken={handleScanInviteToken}
         onManageTravelers={() => setIsCompanionsOpen(true)}

@@ -111,8 +111,8 @@ interface Props {
   from them. Translating the key instead would have renamed a category nobody
   asked to rename, which moves rows.
 */
-const ALL = '全部';
-const UNCATEGORISED = '未分類';
+const ALL = '全部'; // i18n-data: filter sentinel compared against `item.category`; the screen looks its label up
+const UNCATEGORISED = '未分類'; // i18n-data: grouping key `renameCategory` matches on; translating it moves rows
 
 /**
  * What a category heading says on screen.
@@ -1173,7 +1173,9 @@ const ShoppingListPanel: React.FC<Props> = ({
                                         )}
                                         {quote.match === 'probable' && (
                                           <span
-                                            title={quote.matchReason}
+                                            title={quote.matchReasonKey
+                                              ? t(quote.matchReasonKey, quote.matchReasonParams)
+                                              : undefined}
                                             data-testid={`shopping-probable-${item.id}`}
                                             className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-black text-amber-600"
                                           >

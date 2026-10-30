@@ -15,6 +15,8 @@
  * rendering or a list from loading.
  */
 
+import i18n from '../i18n/config';
+
 export interface PlaceBasics {
   /** 「咖啡廳」, 「韓式料理」 — Google's own category for the place. */
   kind?: string;
@@ -112,13 +114,11 @@ export const fetchPlaceBasics = async (placeId?: string): Promise<PlaceBasics | 
   return result;
 };
 
-const PRICE_LABELS: Record<string, string> = {
-  PRICE_LEVEL_FREE: '免費',
-  PRICE_LEVEL_INEXPENSIVE: '平價',
-  PRICE_LEVEL_MODERATE: '中價位',
-  PRICE_LEVEL_EXPENSIVE: '高價位',
-  PRICE_LEVEL_VERY_EXPENSIVE: '高級',
-};
+/**
+ * Google's price band, in words. Keyed on the value Google returns, so the
+ * lookup is display-only and the API's own vocabulary stays the index.
+ */
+const priceLabel = (level: string): string => i18n.t(`places.priceLevel.${level}`, { defaultValue: '' });
 
 /**
  * The one line a list row can carry.
@@ -129,12 +129,12 @@ const PRICE_LABELS: Record<string, string> = {
  */
 export const summarizePlaceBasics = (basics: PlaceBasics | null): string => {
   if (!basics) return '';
-  if (basics.businessStatus === 'CLOSED_PERMANENTLY') return '已永久歇業';
+  if (basics.businessStatus === 'CLOSED_PERMANENTLY') return i18n.t('places.permanentlyClosed');
 
   const parts = [
     basics.kind,
     basics.rating && basics.ratingCount ? `★ ${basics.rating.toFixed(1)}（${basics.ratingCount.toLocaleString()}）` : '',
-    basics.priceLevel ? PRICE_LABELS[basics.priceLevel] || '' : '',
+    basics.priceLevel ? priceLabel(basics.priceLevel) : '',
   ].filter(Boolean);
 
   return parts.join(' · ');
@@ -183,6 +183,7 @@ export const hoursForDate = (basics: PlaceBasics | null, isoDate?: string): stri
  * cancel the stop rather than check.
  */
 export const readsAsClosed = (line?: string): boolean =>
+  // i18n-data: matched against the opening-hours text Google returns.
   Boolean(line && /closed|休息|公休|定休|休館|休業|휴무/i.test(line));
 
 /**

@@ -19,7 +19,9 @@ export interface SharedLabelSplit {
 }
 
 const MIN_SHARED_LENGTH = 4;
+// i18n-data: punctuation anchors trimmed off stored formality names
 const LEADING_NOISE = /^[\s:：（(【「·\-—]+/;
+// i18n-data: punctuation anchors trimmed off stored formality names
 const TRAILING_NOISE = /[\s（(【「·\-—：:）)】」]+$/;
 
 const commonPrefix = (first: string, second: string): string => {

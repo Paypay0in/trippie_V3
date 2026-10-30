@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatRentalSpan, hasCarOn, normalizeParsedRental, rentalDays,
+  hasCarOn, normalizeParsedRental, rentalDays,
 } from './rentalIntake';
+import { formatRentalSpan } from './rentalSpanWording';
 
 /**
  * 「可以在安排行程那加上租車訂單等」, and the question it answers:

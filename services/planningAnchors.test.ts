@@ -62,9 +62,13 @@ describe('what a trip needs before anything can be planned around it', () => {
       .toEqual(['flights']);
   });
 
+  /**
+   * Keys, not words: a module-scope `const` cannot call `t()`, so the card
+   * resolves these. The copy itself lives in `plan.anchor.*`.
+   */
   it('labels both the way the cards are named', () => {
-    expect(ANCHOR_LABEL.flights).toBe('航班資訊');
-    expect(ANCHOR_LABEL.stays).toBe('住宿資訊');
+    expect(ANCHOR_LABEL.flights).toBe('plan.anchor.flights');
+    expect(ANCHOR_LABEL.stays).toBe('plan.anchor.stays');
   });
 });
 

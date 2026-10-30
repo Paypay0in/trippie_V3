@@ -24,6 +24,7 @@
  * - **Everything it did read is shown back.** The traveller can only correct
  *   what they can see.
  */
+import i18n from '../i18n/config';
 import { BriefTransport, DEFAULT_BRIEF, TravelPace, TripPlanBrief } from './tripPlanBrief';
 
 /** What the model is asked to pull out. Every field optional, on purpose. */
@@ -77,20 +78,25 @@ const notesFrom = (parse: SentenceParse, existing?: string): string => {
   const mustDo = cleanList(parse.mustDo);
   const lodging = clean(parse.lodging);
 
+  // i18n-data: notes are stored on the trip and sent to the planner as planningPreferences
   if (interests.length) parts.push(`喜歡${interests.join('、')}`);
+  // i18n-data: stored planner instruction, not a label
   if (lodging) parts.push(`住宿在${lodging}`);
+  // i18n-data: stored planner instruction, not a label
   if (mustDo.length) parts.push(`一定要去${mustDo.join('、')}`);
   /*
     The month, when that is all that was said. It never becomes a date — see
     the note at the top — but a trip in November is not the same trip in July,
     and the planner is the only thing that can act on that.
   */
+  // i18n-data: stored planner instruction, not a label
   if (!parse.startDate && parse.month) parts.push(`預計 ${parse.month} 月出發`);
 
+  // i18n-data: sentence punctuation of a stored planner instruction
   const written = parts.join('。');
   const kept = clean(existing);
   if (!written) return kept;
-  // Whatever the traveller had already typed survives, after the parse.
+  // i18n-data: sentence punctuation of a stored planner instruction
   return kept ? `${written}。${kept}` : `${written}。`;
 };
 
@@ -111,12 +117,12 @@ export const briefFromSentence = (
   const destination = clean(parse.destination);
   if (destination) {
     brief.destination = destination;
-    read.push(`目的地：${destination}`);
+    read.push(i18n.t('plan.brief.read.destination', { destination }));
   }
 
   if (typeof parse.travellers === 'number' && parse.travellers >= 1) {
     brief.travellers = Math.min(Math.round(parse.travellers), 20);
-    read.push(`${brief.travellers} 個人`);
+    read.push(i18n.t('plan.brief.read.travellers', { travellers: brief.travellers }));
   }
 
   /*
@@ -128,17 +134,21 @@ export const briefFromSentence = (
     brief.startDate = clean(parse.startDate);
     brief.approximateDays = undefined;
     if (ISO_DATE.test(clean(parse.endDate))) brief.endDate = clean(parse.endDate);
-    read.push(`日期：${brief.startDate}${brief.endDate ? ` – ${brief.endDate}` : ''}`);
+    read.push(brief.endDate
+      ? i18n.t('plan.brief.read.dateRange', { start: brief.startDate, end: brief.endDate })
+      : i18n.t('plan.brief.read.startDate', { start: brief.startDate }));
   } else if (typeof parse.days === 'number' && parse.days >= 1) {
     brief.approximateDays = Math.min(Math.round(parse.days), 60);
     brief.startDate = undefined;
     brief.endDate = undefined;
-    read.push(`${brief.approximateDays} 天（日期還沒定）`);
+    read.push(i18n.t('plan.brief.read.approxDays', { days: brief.approximateDays }));
   }
 
   if (parse.pace === 2 || parse.pace === 3 || parse.pace === 4) {
     brief.pace = parse.pace;
-    read.push(parse.pace === 2 ? '步調：悠閒' : parse.pace === 4 ? '步調：緊湊' : '步調：剛好');
+    read.push(parse.pace === 2
+      ? i18n.t('plan.brief.read.paceRelaxed')
+      : parse.pace === 4 ? i18n.t('plan.brief.read.paceBusy') : i18n.t('plan.brief.read.paceBalanced'));
   }
 
   const transport = (parse.transport || []).filter(
@@ -146,12 +156,25 @@ export const briefFromSentence = (
   );
   if (transport.length) {
     brief.transport = Array.from(new Set(transport));
-    read.push(`交通：${brief.transport.join('、')}`);
+    /*
+      The chip said 「交通：walk、transit」 — the stored ids, printed raw. It was
+      wrong in Chinese too; English only made it look deliberate.
+
+      The words for these three already exist at `transport.modes.*`, keyed on
+      the uppercase `TravelMode` the routing code uses. The brief stores them
+      lowercase, so this maps one spelling onto the other rather than adding a
+      second set of labels for the same three modes.
+    */
+    read.push(i18n.t('plan.brief.read.transport', {
+      modes: brief.transport
+        .map(mode => i18n.t(`transport.modes.${mode.toUpperCase()}`))
+        .join(i18n.t('common.listSeparator')),
+    }));
   }
 
   if (CLOCK.test(clean(parse.dayStartTime))) {
     brief.dayStartTime = clean(parse.dayStartTime);
-    read.push(`${brief.dayStartTime} 出門`);
+    read.push(i18n.t('plan.brief.read.dayStart', { time: brief.dayStartTime }));
   }
 
   const notes = notesFrom(parse, base.notes);
@@ -160,10 +183,11 @@ export const briefFromSentence = (
   const interests = cleanList(parse.interests);
   const mustDo = cleanList(parse.mustDo);
   const lodging = clean(parse.lodging);
-  if (interests.length) read.push(`喜歡：${interests.join('、')}`);
-  if (lodging) read.push(`住宿：${lodging}`);
-  if (mustDo.length) read.push(`必去：${mustDo.join('、')}`);
-  if (!clean(parse.startDate) && parse.month) read.push(`${parse.month} 月出發`);
+  const separator = i18n.t('common.listSeparator');
+  if (interests.length) read.push(i18n.t('plan.brief.read.interests', { items: interests.join(separator) }));
+  if (lodging) read.push(i18n.t('plan.brief.read.lodging', { lodging }));
+  if (mustDo.length) read.push(i18n.t('plan.brief.read.mustDo', { items: mustDo.join(separator) }));
+  if (!clean(parse.startDate) && parse.month) read.push(i18n.t('plan.brief.read.month', { month: parse.month }));
 
   return { brief, read };
 };
@@ -177,10 +201,10 @@ export const briefFromSentence = (
  */
 export const unreadFields = (parse: SentenceParse): string[] => {
   const missing: string[] = [];
-  if (!clean(parse.destination)) missing.push('要去哪裡');
-  if (!ISO_DATE.test(clean(parse.startDate)) && !parse.days) missing.push('幾天');
-  if (typeof parse.travellers !== 'number') missing.push('幾個人');
-  if (parse.pace !== 2 && parse.pace !== 3 && parse.pace !== 4) missing.push('步調');
+  if (!clean(parse.destination)) missing.push(i18n.t('plan.brief.unread.destination'));
+  if (!ISO_DATE.test(clean(parse.startDate)) && !parse.days) missing.push(i18n.t('plan.brief.unread.days'));
+  if (typeof parse.travellers !== 'number') missing.push(i18n.t('plan.brief.unread.travellers'));
+  if (parse.pace !== 2 && parse.pace !== 3 && parse.pace !== 4) missing.push(i18n.t('plan.brief.unread.pace'));
   return missing;
 };
 
@@ -200,7 +224,7 @@ export const parseSentence = async (sentence: string): Promise<SentenceParse> =>
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(typeof payload?.error === 'string' ? payload.error : '這句話現在讀不出來。');
+    throw new Error(typeof payload?.error === 'string' ? payload.error : i18n.t('plan.brief.readFailed'));
   }
   return (payload || {}) as SentenceParse;
 };

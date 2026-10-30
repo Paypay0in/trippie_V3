@@ -899,7 +899,7 @@ describe('比對狀態', () => {
   });
 
   it('marks a page that might be selling it', async () => {
-    answerWith([quote({ match: 'probable', matchReason: '名稱部分相符' })]);
+    answerWith([quote({ match: 'probable', matchReasonKey: 'shopping.match.namePartly' })]);
     show([item()]);
 
     await waitFor(() => expect(screen.getByTestId('shopping-probable-sk2').textContent)

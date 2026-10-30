@@ -30,6 +30,7 @@ export interface AddressComponent {
  * Everywhere else `locality` already is the city — 札幌 and 大阪 both come back
  * there, with the ward one level below in `sublocality_level_1`.
  */
+// i18n-data: regex anchor matched against Google's address components.
 const TOKYO = /^(tokyo|東京都?)$/i;
 
 const componentOf = (components: AddressComponent[] | undefined, type: string): string | undefined =>

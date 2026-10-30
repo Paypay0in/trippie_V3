@@ -17,4 +17,6 @@ import { Person } from './friendships';
  * what every action here is addressed by.
  */
 export const personOrStranger = (person: Person | undefined, id: string): Person =>
+  // `TripSelectionScreen` compares a name against this placeholder with `!==`
+  // i18n-data: stored placeholder compared with `!==` to decide whether there is a real name to greet
   person || { id, displayName: '旅人' };

@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { Expense, ExpenseDispute, TripMember } from '../types';
 import { getDisputes } from './expenseDisputes';
 import { getExpenseCreatorMemberId } from './expensePermissions';
@@ -84,15 +85,22 @@ const shareLine = (expense: Expense, me: string): string => {
   const exact = expense.splitAllocations?.[me];
   const currency = expense.currency || '';
   if (typeof exact === 'number' && exact !== 0) {
-    return `你分到 ${Math.round(exact).toLocaleString()} ${currency}`.trim();
+    return i18n.t('notifications.share.exact', {
+      amount: Math.round(exact).toLocaleString(),
+      currency,
+    }).trim();
   }
   const people = expense.beneficiaries?.length || 0;
   if (people > 1 && typeof expense.amount === 'number') {
-    return `${people} 人均分 ${Math.round(expense.amount).toLocaleString()} ${currency}`.trim();
+    return i18n.t('notifications.share.evenly', {
+      people,
+      amount: Math.round(expense.amount).toLocaleString(),
+      currency,
+    }).trim();
   }
   return typeof expense.amount === 'number'
     ? `${Math.round(expense.amount).toLocaleString()} ${currency}`.trim()
-    : '這筆有分到你';
+    : i18n.t('notifications.share.unknown');
 };
 
 const nameOf = (members: TripMember[], memberId?: string): string | undefined =>
@@ -128,7 +136,7 @@ export const disputeNoticesFor = ({
       const raiser = normalizeOwnerMemberId(dispute.raisedByMemberId || '', tripOwnerMemberId);
       const base = {
         expenseId: expense.id,
-        expenseDescription: expense.description || '這筆支出',
+        expenseDescription: expense.description || i18n.t('expense.dispute.thisExpense'),
         disputeId: dispute.id,
       };
 
@@ -164,7 +172,9 @@ export const disputeNoticesFor = ({
           ...base,
           id: `${expense.id}:${dispute.id}:my_question_answered`,
           kind: 'my_question_answered',
-          message: dispute.response?.trim() || (dispute.appliedAt ? '已照你的提議修正了' : '這筆疑問已結案'),
+          message: dispute.response?.trim() || (dispute.appliedAt
+          ? i18n.t('notifications.correctionApplied')
+          : i18n.t('notifications.questionClosed')),
           fromMemberId: dispute.respondedByMemberId,
           fromName: nameOf(members, dispute.respondedByMemberId),
           at: dispute.resolvedAt || dispute.createdAt,
@@ -190,7 +200,7 @@ export const disputeNoticesFor = ({
     if (!mine && isSplitTo(expense, me, tripOwnerMemberId)) {
       notices.push({
         expenseId: expense.id,
-        expenseDescription: expense.description || '這筆支出',
+        expenseDescription: expense.description || i18n.t('expense.dispute.thisExpense'),
         id: `${expense.id}:split_to_me`,
         kind: 'split_to_me',
         message: shareLine(expense, me),
@@ -235,17 +245,18 @@ export const saveSeenNotices = (ids: string[]): void => {
 
 /** What a dispute looks like to the person who must answer it. */
 export const describeNotice = (notice: DisputeNotice): string => {
-  const who = notice.fromName || '旅伴';
+  const who = notice.fromName || i18n.t('settle.aCompanion');
+  const expense = notice.expenseDescription;
   if (notice.kind === 'awaiting_my_answer') {
-    return `${who} 對「${notice.expenseDescription}」提出疑問`;
+    return i18n.t('notifications.describe.awaitingMyAnswer', { who, expense });
   }
   if (notice.kind === 'split_to_me') {
-    return `${who} 新增「${notice.expenseDescription}」並分帳給你`;
+    return i18n.t('notifications.describe.splitToMe', { who, expense });
   }
   if (notice.kind === 'friend_request') {
-    return `${who} 想加你為好友`;
+    return i18n.t('notifications.describe.friendRequest', { who });
   }
-  return `${who} 回覆了你對「${notice.expenseDescription}」的疑問`;
+  return i18n.t('notifications.describe.questionAnswered', { who, expense });
 };
 
 /** Only the ones the viewer has to act on. */

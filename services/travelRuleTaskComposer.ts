@@ -18,11 +18,12 @@ export const travelRuleTaskKey = (action: EntryActionableItem): string =>
 
 export const classifyLegacyTravelRuleAction = (name: string): EntryActionType | undefined => {
   const normalized = name.trim().toLowerCase();
+  // i18n-data: regex anchors over researched rule titles in either language.
   if (/k[- ]?eta|esta|\beta\b|簽證|免簽|豁免|visa waiver|visa exemption/.test(normalized)) return 'visa_or_eta';
-  if (/q[- ]?code|qcode|檢疫|健康申報|health declaration|quarantine declaration/.test(normalized)) return 'health_declaration';
-  if (/護照效期|護照有效|passport validity|passport expiry/.test(normalized)) return 'passport_validity';
-  if (/海關申報|customs declaration|customs form/.test(normalized)) return 'customs_declaration';
-  if (/入境卡|入境申報|arrival form|arrival card/.test(normalized)) return 'arrival_form';
+  if (/q[- ]?code|qcode|檢疫|健康申報|health declaration|quarantine declaration/.test(normalized)) return 'health_declaration'; // i18n-data: regex anchor over researched rule titles in either language
+  if (/護照效期|護照有效|passport validity|passport expiry/.test(normalized)) return 'passport_validity'; // i18n-data: regex anchor over researched rule titles in either language
+  if (/海關申報|customs declaration|customs form/.test(normalized)) return 'customs_declaration'; // i18n-data: regex anchor over researched rule titles in either language
+  if (/入境卡|入境申報|arrival form|arrival card/.test(normalized)) return 'arrival_form'; // i18n-data: regex anchor over researched rule titles in either language
   return undefined;
 };
 

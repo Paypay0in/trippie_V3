@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import {
   expandMapsShortLink,
@@ -50,8 +51,12 @@ interface Props {
 }
 
 const AddPlaceByName: React.FC<Props> = ({
-  context, onAdd, label = '手動新增地點', defaultQuery = '', searchOnOpen = false,
+  context, onAdd, label, defaultQuery = '', searchOnOpen = false,
 }) => {
+  const { t } = useTranslation();
+  // A default argument is evaluated before `t` exists, and a module-scope
+  // constant would freeze the language at import; resolved here instead.
+  const buttonLabel = label ?? t('placePicker.addManually');
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(defaultQuery);
   const [results, setResults] = useState<PlaceCandidate[]>([]);
@@ -85,7 +90,7 @@ const AddPlaceByName: React.FC<Props> = ({
       if (input.kind === 'shortLink') {
         // Expanded into another short link, i.e. it did not expand at all.
         setResults([]);
-        setError('這個連結展不開，請改貼完整網址或直接打店名。');
+        setError(t('placePicker.linkWouldNotExpand'));
         return;
       }
 
@@ -93,7 +98,7 @@ const AddPlaceByName: React.FC<Props> = ({
         // A pin with no name. Nothing to search for, and a guessed name would
         // be worse than saying so.
         setResults([]);
-        setError('這個連結只有座標沒有店名，請加上店名再搜尋。');
+        setError(t('placePicker.linkHasNoName'));
         return;
       }
 
@@ -110,11 +115,11 @@ const AddPlaceByName: React.FC<Props> = ({
       setResults(found);
       if (found.length === 0) {
         setError(input.kind === 'link'
-          ? '這個連結讀得到店名，但查不到對應的地點，換個說法試試。'
-          : '找不到這個地點，換個說法試試。');
+          ? t('placePicker.linkNameNotFound')
+          : t('saved.rebindNoResults'));
       }
     } catch {
-      setError('現在查不到，請稍後再試。');
+      setError(t('saved.rebindFailed'));
     } finally {
       setBusy(false);
     }
@@ -124,13 +129,13 @@ const AddPlaceByName: React.FC<Props> = ({
     setBusy(true);
     try {
       const resolved = await resolveCandidate(candidate);
-      if (!resolved) { setError('這個地點的資料讀不到，換一個試試。'); return; }
+      if (!resolved) { setError(t('saved.candidateUnreadable')); return; }
       onAdd(resolved);
       setOpen(false);
       setQuery('');
       setResults([]);
     } catch {
-      setError('這個地點的資料讀不到，換一個試試。');
+      setError(t('saved.candidateUnreadable'));
     } finally {
       setBusy(false);
     }
@@ -148,7 +153,7 @@ const AddPlaceByName: React.FC<Props> = ({
         }}
         className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50/50 px-3 text-xs font-black text-[#5b3df5]"
       >
-        <Plus size={14} />{label}
+        <Plus size={14} />{buttonLabel}
       </button>
     );
   }
@@ -161,8 +166,8 @@ const AddPlaceByName: React.FC<Props> = ({
           value={query}
           onChange={event => setQuery(event.target.value)}
           onKeyDown={event => { if (event.key === 'Enter') void runSearch(); }}
-          placeholder="店名、地址，或貼上 Google 地圖連結"
-          aria-label={label}
+          placeholder={t('placePicker.manualInputPlaceholder')}
+          aria-label={buttonLabel}
           data-testid="add-place-input"
           className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-2.5 py-1.5 text-xs font-bold text-[#11183d] outline-none"
         />
@@ -173,7 +178,7 @@ const AddPlaceByName: React.FC<Props> = ({
           disabled={busy}
           className="shrink-0 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
         >
-          {busy ? '搜尋中' : '搜尋'}
+          {busy ? t('saved.searching') : t('saved.search')}
         </button>
       </div>
       {error && <p className="mt-1.5 text-[11px] font-bold text-amber-600">{error}</p>}
@@ -198,7 +203,7 @@ const AddPlaceByName: React.FC<Props> = ({
         onClick={() => { setOpen(false); setResults([]); setError(''); }}
         className="mt-2 text-[11px] font-black text-slate-500"
       >
-        取消
+        {t('common.cancel')}
       </button>
     </div>
   );

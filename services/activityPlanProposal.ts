@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { ItineraryItem } from '../types';
 import { TravelBurden } from './planLogistics';
 import { addLocalDays } from './localDate';
@@ -26,13 +27,22 @@ export type PlanCharacteristic =
   | 'premium'
   | 'overnight';
 
+/**
+ * The chips a plan is compared on, in the reader's language.
+ *
+ * Getters rather than plain values, and deliberately so: this record is built
+ * once at import, so a `t()` evaluated here would freeze the chips to whichever
+ * language loaded first — the same trap `NotificationCenter` documents on its
+ * own shelf names. Reading a property resolves it at render instead, which
+ * keeps the one-subscript call site (`ActivityPlanCards`) unchanged.
+ */
 export const CHARACTERISTIC_LABELS: Record<PlanCharacteristic, string> = {
-  easiest: '最省事',
-  best_fit: '最適合這趟',
-  fuller: '完整體驗',
-  lower_budget: '較省錢',
-  premium: '舒適便利',
-  overnight: '過夜',
+  get easiest() { return i18n.t('activityPlan.characteristic.easiest'); },
+  get best_fit() { return i18n.t('activityPlan.characteristic.best_fit'); },
+  get fuller() { return i18n.t('activityPlan.characteristic.fuller'); },
+  get lower_budget() { return i18n.t('activityPlan.characteristic.lower_budget'); },
+  get premium() { return i18n.t('activityPlan.characteristic.premium'); },
+  get overnight() { return i18n.t('activityPlan.characteristic.overnight'); },
 };
 
 export interface PlanBudget {
@@ -165,7 +175,7 @@ export const fetchActivityPlans = async (request: {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new ActivityPlansUnavailable(payload?.error || '現在查不到資料，稍後再試一次。');
+    throw new ActivityPlansUnavailable(payload?.error || i18n.t('activityPlan.unavailable'));
   }
   const data = await response.json();
   return {

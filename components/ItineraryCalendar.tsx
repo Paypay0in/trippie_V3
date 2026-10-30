@@ -4,6 +4,22 @@ import { OVERLAY } from '../constants/layers';
 import { CHECKED_OUT_LABEL, stayRowState } from '../services/lastNightStay';
 import { ItineraryItem, PlaceCategory, PlaceCommerceInfo, TripMember } from '../types';
 import { optimiseTripRoute, RoutePlan } from '../services/optimiseTripRoute';
+import { MealKey } from '../services/dayTemplate';
+
+/**
+ * The meal windows, as keys resolved at render.
+ *
+ * `MEAL_WINDOWS` carries a Chinese `label` because `slotLabel` recognises a
+ * meal window by matching it — a translated label would stop a café at 18:30
+ * being renamed. The window's `key` is the part a sentence can be looked up
+ * by, and it is resolved here rather than in the service so the language is
+ * whichever one the reader is in now.
+ */
+const MEAL_NAME_KEYS: Record<MealKey, string> = {
+  breakfast: 'planner.meal.breakfast',
+  lunch: 'planner.meal.lunch',
+  dinner: 'planner.meal.dinner',
+};
 import { betterOnAnotherDay, DayMoveSuggestion } from '../services/betterOnAnotherDay';
 import { betweenNeighbours, nearerRestaurants } from '../services/nearerRestaurants';
 import { fetchNearbyRestaurants, NearbyRestaurant } from '../services/nearbyRestaurantsService';
@@ -42,6 +58,7 @@ import {
 import { estimateRoute } from '../services/routesService';
 import { defaultItineraryDate, enumerateLocalDates, localToday, weekdayOf } from '../services/localDate';
 import { StaySpan, stayForNight, staysFromItinerary } from '../services/stayIntake';
+import { formatLocaleCurrency } from '../services/localeFormat';
 import { stayDepartedFrom, stayIsLocated } from '../services/dayOrigin';
 import { isStayItem, stayRoleOf } from '../services/stayConflicts';
 import { AREA_COLORS } from '../constants/areaColors';
@@ -216,13 +233,8 @@ export interface PendingItinerarySuggestion {
  * Renders a price in its own currency. Falls back to "<code> <amount>" for a
  * currency Intl does not know, rather than dropping the number.
  */
-const formatPrice = (amount: number, currency: string): string => {
-  try {
-    return new Intl.NumberFormat('zh-TW', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
-  } catch {
-    return `${currency} ${amount.toLocaleString('zh-TW')}`;
-  }
-};
+const formatPrice = (amount: number, currency: string): string =>
+  formatLocaleCurrency(amount, currency);
 
 /** Saved notes shown before 查看全部 is offered. */
 const VISIBLE_NOTE_COUNT = 3;
@@ -1215,7 +1227,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
                                 rel="noreferrer noopener"
                                 className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[#eceaf5] bg-[#fafaff] px-2.5 text-[11px] font-black text-[#5b3df5]"
                               >
-                                {option.label}
+                                {option.labelKey ? t(option.labelKey) : option.label}
                                 {/*
                                   The label states exactly what is on the other
                                   side: a product page can show a price, a search
@@ -2154,7 +2166,7 @@ const ItineraryCalendar: React.FC<Props> = ({ items, startDate, endDate, onUpdat
               <p data-testid="meals-missing" className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-5 text-amber-700">
                 {t('itinerary.mealsWithoutRestaurant')}
                 {routePlan.mealsMissing
-                  .map(entry => `${entry.date.slice(5).replace('-', '/')} ${entry.label}`)
+                  .map(entry => `${entry.date.slice(5).replace('-', '/')} ${t(MEAL_NAME_KEYS[entry.key])}`)
                   .join(t('settle.listSeparator'))}
                 <span className="mt-0.5 block font-medium text-amber-600">
                   {t('itinerary.mealsHint')}

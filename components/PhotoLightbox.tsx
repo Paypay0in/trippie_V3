@@ -16,6 +16,7 @@
  * at one of them.
  */
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { OVERLAY } from '../constants/layers';
 
@@ -28,6 +29,7 @@ interface Props {
 }
 
 const PhotoLightbox: React.FC<Props> = ({ photos, index, onIndex, onClose }) => {
+  const { t } = useTranslation();
   const at = Math.min(Math.max(index, 0), Math.max(0, photos.length - 1));
 
   /*
@@ -51,7 +53,7 @@ const PhotoLightbox: React.FC<Props> = ({ photos, index, onIndex, onClose }) => 
     <div
       data-testid="photo-lightbox"
       role="dialog"
-      aria-label="照片"
+      aria-label={t('common.photo')}
       className={`fixed inset-0 ${OVERLAY.alert} flex items-center justify-center bg-black/95`}
       onClick={onClose}
     >
@@ -65,7 +67,7 @@ const PhotoLightbox: React.FC<Props> = ({ photos, index, onIndex, onClose }) => 
 
       <button
         type="button"
-        aria-label="關閉"
+        aria-label={t('common.close')}
         data-testid="photo-lightbox-close"
         /* Stopped, or the backdrop behind it closes a second time. */
         onClick={event => { event.stopPropagation(); onClose(); }}
@@ -87,7 +89,7 @@ const PhotoLightbox: React.FC<Props> = ({ photos, index, onIndex, onClose }) => 
           {at > 0 && (
             <button
               type="button"
-              aria-label="上一張"
+              aria-label={t('common.previousPhoto')}
               data-testid="photo-lightbox-prev"
               onClick={event => { event.stopPropagation(); onIndex(at - 1); }}
               className="absolute left-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white"
@@ -98,7 +100,7 @@ const PhotoLightbox: React.FC<Props> = ({ photos, index, onIndex, onClose }) => 
           {at < photos.length - 1 && (
             <button
               type="button"
-              aria-label="下一張"
+              aria-label={t('common.nextPhoto')}
               data-testid="photo-lightbox-next"
               onClick={event => { event.stopPropagation(); onIndex(at + 1); }}
               className="absolute right-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-white"

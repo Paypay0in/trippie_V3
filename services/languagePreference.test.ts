@@ -83,6 +83,23 @@ describe('resolveStartingLanguage', () => {
     expect(resolveStartingLanguage({ device: 'en-US' })).toBe('zh-Hant');
   });
 
+  /*
+    Choosing English has to survive startup, and only a non-default choice can
+    prove it. Every other assertion here stores 'zh-Hant', which is also the
+    fallback — so they would all still pass if the stored preference were read
+    and then thrown away. 「你要讓我可以在手機裡面按英文」 is exactly this case:
+    somebody taps English on a Chinese phone, closes the app, and opens it
+    again. Device deliberately absent, because the device is held behind
+    FOLLOW_DEVICE_LANGUAGE while the migration finishes and the choice must
+    win without its help.
+  */
+  it('opens in English after someone chose English, with no device to help', () => {
+    saveLanguagePreference('en');
+
+    expect(resolveStartingLanguage({})).toBe('en');
+    expect(resolveStartingLanguage({ device: 'zh-TW' })).toBe('en');
+  });
+
   it('lets a preview URL win over both', () => {
     // `?lang=` is for reviewing translation work, so it must beat a stored
     // preference as well as the device — otherwise the one person checking the

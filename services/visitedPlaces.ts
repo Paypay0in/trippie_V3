@@ -14,6 +14,7 @@
  * 「去的時間」 is a date the traveller can recognise, and a completion checkbox
  * is only ever ticked by the people who tick checkboxes.
  */
+import i18n from '../i18n/config';
 import { Expense, ItineraryItem, SavedTravelInspiration, Trip } from '../types';
 
 export interface PlaceVisit {
@@ -181,5 +182,7 @@ export const visitOf = (
 export const visitLabel = (visit?: PlaceVisit): string => {
   if (!visit) return '';
   // No year on a visit nobody dated. See `PlaceVisit.stated`.
-  return visit.stated ? '已訪' : `已訪 · ${visit.date.slice(0, 4)}`;
+  return visit.stated
+    ? i18n.t('places.visited.label')
+    : i18n.t('places.visited.withYear', { year: visit.date.slice(0, 4) });
 };

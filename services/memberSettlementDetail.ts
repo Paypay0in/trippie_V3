@@ -1,6 +1,12 @@
 import { Expense, TripMember } from '../types';
 import { SPLIT_TOLERANCE, calculateExpenseLedger, isSplitRelevant } from './splitCalculator';
 import { buildMinimumSettlementTransfers } from './minimumSettlement';
+import {
+  OrphanedParticipant,
+  SettlementCounterparty,
+  partitionParticipants,
+  resolveCounterparty,
+} from './settlementParticipants';
 
 /**
  * Everybody's position on the trip, and the payments that close it.
@@ -15,8 +21,15 @@ export interface MemberPosition {
   member: TripMember;
   /** Positive is owed to them; negative is owed by them. */
   net: number;
-  /** Who pays them, or whom they pay, and how much. */
-  transfers: Array<{ member: TripMember; amount: number }>;
+  /**
+   * Who pays them, or whom they pay, and how much.
+   *
+   * The counterparty may have no row in the member list; the row is kept
+   * regardless, because deleting it removes this member's own obligation from
+   * their screen while the orphan warning above still reports it. See
+   * `SettlementCounterparty`.
+   */
+  transfers: Array<SettlementCounterparty & { amount: number }>;
 }
 
 export interface ExpenseBreakdown {
@@ -30,12 +43,54 @@ export interface ExpenseBreakdown {
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
+/**
+ * Money on these bills that belongs to somebody not in the member list.
+ *
+ * The positions below are keyed by member, and a bill can name an id the list
+ * does not hold — a companion removed from the trip after the bill was
+ * recorded, or a seat this device never learned the name of. That id still
+ * paid, or still owes, so its money is real; it simply has no row to sit in.
+ *
+ * Dropping it is how 「everybody's net sums to zero」 stops being true without
+ * anything saying so. `settlementImbalances` cannot catch this: every bill's
+ * two sides add up perfectly, and the loss happens afterwards, when the
+ * totals are projected onto the members that remain. That is the shape this
+ * codebase keeps producing — the failure is made to render instead of being
+ * reported — so it is reported.
+ *
+ * Reporting only. Who the missing traveller is, and what should happen to
+ * their share, is the traveller's to say and not a number to invent.
+ *
+ * The rule itself lives in `settlementParticipants`, which every settlement
+ * surface shares. It used to be hand-written here, in `viewerBalances` and in
+ * `SettlementFlow` with three different tolerances.
+ */
+export type UnknownParticipant = OrphanedParticipant;
+
 /** What each member has put in, minus what they have consumed. */
 export const buildMemberPositions = (
   expenses: Expense[],
   members: TripMember[],
   ownerMemberId?: string,
-): MemberPosition[] => {
+): MemberPosition[] => buildPositions(expenses, members, ownerMemberId).positions;
+
+/**
+ * Participants on these bills who have no row in the member table.
+ *
+ * Same computation as the positions, so the two cannot disagree about who is
+ * missing — see `UnknownParticipant`.
+ */
+export const unknownParticipants = (
+  expenses: Expense[],
+  members: TripMember[],
+  ownerMemberId?: string,
+): UnknownParticipant[] => buildPositions(expenses, members, ownerMemberId).unknown;
+
+const buildPositions = (
+  expenses: Expense[],
+  members: TripMember[],
+  ownerMemberId?: string,
+): { positions: MemberPosition[]; unknown: UnknownParticipant[] } => {
   const net: Record<string, number> = {};
   members.forEach(member => { net[member.id] = 0; });
 
@@ -59,20 +114,32 @@ export const buildMemberPositions = (
   });
 
   const transfers = buildMinimumSettlementTransfers(net);
-  const find = (id: string) => members.find(member => member.id === id);
+  /*
+    One partition for both halves of the screen, and one rounding
+    reconciliation — so the members' nets sum to zero when the raw figures do,
+    and the orphan warning names exactly the ids the transfer rows mark absent.
+  */
+  const { known, orphaned: unknown } = partitionParticipants(net, members);
 
-  return members.map(member => ({
+  const positions = members.map(member => ({
     member,
-    net: round(net[member.id] || 0),
+    net: known[member.id] || 0,
+    /*
+      Every transfer touching this member, counterparty resolved but never
+      required. A transfer naming somebody with no row is still money this
+      member owes or is owed; dropping it was how the amber notice above and
+      the row below came to describe different settlements.
+    */
     transfers: transfers
       .filter(transfer => transfer.fromMemberId === member.id || transfer.toMemberId === member.id)
       .map(transfer => {
         const payingOut = transfer.fromMemberId === member.id;
-        const other = find(payingOut ? transfer.toMemberId : transfer.fromMemberId);
-        return other ? { member: other, amount: round(transfer.amount) } : undefined;
-      })
-      .filter((row): row is { member: TripMember; amount: number } => Boolean(row)),
+        const other = payingOut ? transfer.toMemberId : transfer.fromMemberId;
+        return { ...resolveCounterparty(other, members), amount: round(transfer.amount) };
+      }),
   }));
+
+  return { positions, unknown };
 };
 
 /**

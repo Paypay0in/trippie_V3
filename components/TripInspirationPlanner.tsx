@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
+import i18n from '../i18n/config';
 import SavedPlaceCard from './SavedPlaceCard';
 import PlaceThumbnail from './PlaceThumbnail';
 import { Compass, MapPin, Sparkles, Check, AlertTriangle, ArrowRight, Clock3, RotateCcw, CalendarDays, CheckCircle2, Wand2, MoveRight, Trash2, Plus, PencilLine } from 'lucide-react';
@@ -45,7 +47,7 @@ import { cityDisplayName } from '../services/cityNames';
 import { clusterSavedPlaces } from '../services/placeClusters';
 import { findMisplacedPlaces } from '../services/misplacedPlaces';
 import { strandedSaves } from '../services/strandedSaves';
-import { CATEGORY_LABELS, placeCategory } from '../services/placeCategory';
+import { categoryLabel, placeCategory } from '../services/placeCategory';
 import type { PlaceCategory } from '../types';
 import { AREA_COLORS } from '../constants/areaColors';
 import { TripAreas } from '../services/tripAreas';
@@ -197,24 +199,31 @@ interface Props {
   onShowItinerary?: () => void;
 }
 
-const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; label: string; subtitle: string }> = [
-  { mode: 'add', label: '補充行程', subtitle: '保留目前安排，幫我找適合的空檔加入新景點' },
-  { mode: 'fill', label: '把空白的日子排滿', subtitle: '航班、住宿與我固定的項目都不動，其他日子幫我排成完整的一天' },
-  { mode: 'reorder', label: '重新安排路線', subtitle: '保留目前想去的景點，調整日期、時間與順序，讓動線更順' },
-  { mode: 'replan', label: '重新規劃', subtitle: '參考目前行程、收藏靈感與我的偏好，提出一份新的完整版本' },
+/*
+  Keys, not text. A module-scope constant is built when the file is imported,
+  which happens before `initI18n` has resolved a language — so a translated
+  string baked in here would be whatever the fallback was at import time and
+  would never change again when the traveller switches language.
+*/
+const ADJUSTMENT_MODES: Array<{ mode: ItineraryAdjustmentMode; labelKey: string; subtitleKey: string }> = [
+  { mode: 'add', labelKey: 'planner.mode.add.label', subtitleKey: 'planner.mode.add.subtitle' },
+  { mode: 'fill', labelKey: 'planner.mode.fill.label', subtitleKey: 'planner.mode.fill.subtitle' },
+  { mode: 'reorder', labelKey: 'planner.mode.reorder.label', subtitleKey: 'planner.mode.reorder.subtitle' },
+  { mode: 'replan', labelKey: 'planner.mode.replan.label', subtitleKey: 'planner.mode.replan.subtitle' },
 ];
 
-const NOTE_TYPE_LABELS: Partial<Record<ExperienceNoteType, string>> = {
-  recommendation: '推薦',
-  warning: '注意',
-  timing: '時間',
-  queue: '排隊',
-  packing: '攜帶',
-  facility: '設施',
-  price: '價格',
-  order: '點餐',
-  transport: '交通',
-  practical: '實用',
+/* Keyed by the stored note type, so the label is display-only — see above. */
+const NOTE_TYPE_KEYS: Partial<Record<ExperienceNoteType, string>> = {
+  recommendation: 'planner.noteType.recommendation',
+  warning: 'planner.noteType.warning',
+  timing: 'planner.noteType.timing',
+  queue: 'planner.noteType.queue',
+  packing: 'planner.noteType.packing',
+  facility: 'planner.noteType.facility',
+  price: 'planner.noteType.price',
+  order: 'planner.noteType.order',
+  transport: 'planner.noteType.transport',
+  practical: 'planner.noteType.practical',
 };
 
 const formatDayLabel = (date: string, index: number): string => {
@@ -224,12 +233,13 @@ const formatDayLabel = (date: string, index: number): string => {
 };
 
 const formatDayHeading = (date?: string): string => {
-  if (!date) return '未指定日期';
+  if (!date) return i18n.t('planner.unspecifiedDate');
   const parsed = new Date(`${date}T00:00:00Z`);
   return Number.isFinite(parsed.getTime()) ? `${parsed.getUTCMonth() + 1}/${String(parsed.getUTCDate()).padStart(2, '0')}` : date;
 };
 
 const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts, trip, selectedGroupIds, onSelectionChange, onExploreCommunity, existingItinerary, onAcceptProposal, onApplyAdjustment, onProposalAccepted, onProposeToItinerary, onAddItineraryItems, onSaveScreenshotPlaces, onRemoveInspirations, onResolveInspirationPlace, areas, onAddSavedPlace, onPickCountry, knownCountries, onUnbindInspirationPlaces, onShowItinerary }) => {
+  const { t } = useTranslation();
   const [proposal, setProposal] = useState<TripInspirationProposal | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -382,8 +392,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     */
     const missed = placeGaps.filter(gap => !resolvedNames.has(gap.placeName)).map(gap => gap.placeName);
     setBackfillDone(missed.length === 0
-      ? `${filled} 個都補上了。`
-      : `補上 ${filled} 個。查不到：${missed.join('、')} —— 在下面那筆的「在地圖上尋找這個地點」自己搜。`);
+      ? t('planner.backfill.allFilled', { count: filled })
+      : t('planner.backfill.partiallyFilled', { count: filled, names: missed.join(t('planner.listSeparator')) }));
   };
 
   /** The place currently being searched for, and what came back. */
@@ -420,10 +430,10 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       });
       setLookupResults(found);
       if (found.length === 0) {
-        setLookupError('找不到這個名稱。截圖上的字可能被讀錯了，改一下店名再試試。');
+        setLookupError(t('planner.lookup.notFound'));
       }
     } catch {
-      setLookupError('現在查不到，請稍後再試。');
+      setLookupError(t('planner.lookup.unavailable'));
     } finally {
       setLookupBusy(false);
     }
@@ -442,27 +452,27 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       the one state the traveller cannot act on or report.
     */
     if (!onResolveInspirationPlace) {
-      setLookupError('這個畫面現在不能儲存地點，請重新整理再試一次。');
+      setLookupError(t('planner.lookup.cannotSaveHere'));
       return;
     }
     setLookupBusy(true);
     setLookupError('');
     try {
       const resolved = await resolveCandidate(candidate);
-      if (!resolved) { setLookupError('這個地點的資料讀不到，換一個試試。'); return; }
+      if (!resolved) { setLookupError(t('planner.lookup.placeUnreadable')); return; }
       /*
         The handler says whether it took. Without a `placeId` there is nothing
         to bind to, and it used to return silently — so the panel closed and
         the record was unchanged, which reads exactly like success.
       */
       if (onResolveInspirationPlace(group.inspirationIds, resolved) === false) {
-        setLookupError('這個地點少了地圖編號，存不起來，換一個試試。');
+        setLookupError(t('planner.lookup.missingPlaceId'));
         return;
       }
       setLookupGroupId(null);
       setLookupResults([]);
     } catch (error) {
-      setLookupError(`存不起來：${(error as Error)?.message || '這個地點的資料讀不到，換一個試試。'}`);
+      setLookupError(t('planner.lookup.saveFailed', { message: (error as Error)?.message || t('planner.lookup.placeUnreadable') }));
     } finally {
       setLookupBusy(false);
     }
@@ -799,7 +809,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       if (requestRef.current !== requestId) return;
       if (generated.days.length === 0) {
         setProposal(null);
-        setError('AI 這次沒有排出可用的行程，請再試一次。你的選擇已保留。');
+        setError(t('planner.error.noUsablePlan'));
         return;
       }
       setProposal(generated);
@@ -810,7 +820,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         const detail = [caught.provider, caught.model, caught.status ? `HTTP ${caught.status}` : ''].filter(Boolean).join(' · ');
         setError(detail ? `${caught.message}（${detail}）` : caught.message);
       } else {
-        setError('AI 行程提案服務暫時無法使用，你的選擇已保留。');
+        setError(t('planner.error.proposalUnavailable'));
       }
     } finally {
       if (requestRef.current === requestId) setIsGenerating(false);
@@ -831,7 +841,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       // proposal is captured here rather than re-read afterwards.
       const result = await onAcceptProposal(proposal, mode);
       if (!result.ok) {
-        setAcceptError(result.error || '寫入行程失敗，請再試一次。你的提案與偏好都還在。');
+        setAcceptError(result.error || t('planner.error.writeFailed'));
         return;
       }
       setAcceptError(null);
@@ -841,7 +851,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       setProposal(null);
       onProposalAccepted();
     } catch {
-      setAcceptError('寫入行程失敗，請再試一次。你的提案與偏好都還在。');
+      setAcceptError(t('planner.error.writeFailed'));
     } finally {
       setIsAccepting(false);
     }
@@ -850,7 +860,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
   const handleAccept = () => {
     if (!proposal) return;
     if (hasExistingItinerary) {
-      setAcceptError('目前已有正式行程，請改用上方的「AI 行程調整」來調整既有安排。');
+      setAcceptError(t('planner.error.itineraryExistsUseAdjust'));
       return;
     }
     void writeProposal('append');
@@ -891,8 +901,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
           .filter(group => selected.includes(group.id) && !plannedGroupIds.has(group.id))
           .map(group => group.placeName);
         setAdjustmentError(generated.warnings[0] || (unplannedNames.length > 0
-          ? `AI 這次沒有把你勾的 ${unplannedNames.length} 個地點排進去（${unplannedNames.slice(0, 3).join('、')}${unplannedNames.length > 3 ? '…' : ''}），你的行程沒有被更動。再試一次，或在上面的說明欄寫清楚想排在哪一天。`
-          : 'AI 這次沒有提出可套用的調整，你的行程沒有被更動。請調整說明後再試一次。'));
+          ? t('planner.error.someNotPlanned', { count: unplannedNames.length, names: unplannedNames.slice(0, 3).join(t('planner.listSeparator')) + (unplannedNames.length > 3 ? '…' : '') })
+          : t('planner.error.noApplicableAdjustment')));
         return;
       }
       // Founder decision: an `add` suggestion belongs in the itinerary itself,
@@ -942,7 +952,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         const detail = [caught.provider, caught.model, caught.status ? `HTTP ${caught.status}` : ''].filter(Boolean).join(' · ');
         setAdjustmentError(detail ? `${caught.message}（${detail}）` : caught.message);
       } else {
-        setAdjustmentError('AI 行程調整服務暫時無法使用，你目前的行程沒有被更動。');
+        setAdjustmentError(t('planner.error.adjustUnavailable'));
       }
     } finally {
       if (requestRef.current === requestId) setIsAdjusting(false);
@@ -956,7 +966,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       const result = await onApplyAdjustment(adjustment);
       if (!result.ok) {
         // A failed apply must not look even partly successful: the diff stays up.
-        setAdjustmentError(result.error || '套用調整失敗，你的行程沒有被更動，請再試一次。');
+        setAdjustmentError(result.error || t('planner.error.applyFailed'));
         return;
       }
       setAdjustmentError(null);
@@ -964,7 +974,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       setAdjustment(null);
       onProposalAccepted();
     } catch {
-      setAdjustmentError('套用調整失敗，你的行程沒有被更動，請再試一次。');
+      setAdjustmentError(t('planner.error.applyFailed'));
     } finally {
       setIsApplying(false);
     }
@@ -974,11 +984,11 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-2 font-black text-[#11183d]"><Compass size={18} className="text-violet-600" />你儲存的旅行靈感</h2>
-          <p className="mt-1 text-xs leading-5 text-slate-500">從之前收藏的景點與旅行筆記加入這趟旅程</p>
+          <h2 className="flex items-center gap-2 font-black text-[#11183d]"><Compass size={18} className="text-violet-600" />{t('planner.saved.heading')}</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{t('planner.saved.blurb')}</p>
         </div>
         {/* Already-planned places cannot be selected, so they are out of the tally too. */}
-        {selectableCount > 0 && <span className="shrink-0 rounded-xl bg-violet-50 px-2.5 py-1 text-[11px] font-black text-violet-600">已選 {selected.length} / {selectableCount}</span>}
+        {selectableCount > 0 && <span className="shrink-0 rounded-xl bg-violet-50 px-2.5 py-1 text-[11px] font-black text-violet-600">{t('planner.saved.selectedCount', { selected: selected.length, total: selectableCount })}</span>}
       </div>
 
       {/*
@@ -1025,10 +1035,10 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         <div data-testid="country-missing" className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
           <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-            這趟旅程還沒設定國家
+            {t('planner.country.missingTitle')}
           </p>
           <p className="mt-1 text-[10px] leading-4 text-amber-700/80">
-            沒有國家就分不出地區，收藏也沒辦法照城市分組。設定一次就好。
+            {t('planner.country.missingBlurb')}
           </p>
           <button
             type="button"
@@ -1036,7 +1046,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             onClick={onPickCountry}
             className="mt-2 min-h-9 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
           >
-            選擇國家
+            {t('planner.country.pick')}
           </button>
         </div>
       )}
@@ -1055,10 +1065,10 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         <div data-testid="place-backfill" className="mt-3 rounded-2xl border border-[#d9d5f5] bg-[#faf9ff] p-3">
           <p className="flex items-start gap-1.5 text-xs font-black text-[#11183d]">
             <MapPin size={13} className="mt-0.5 shrink-0 text-[#5b3df5]" />
-            有 {placeGaps.length} 個收藏的地點資料要更新
+            {t('planner.backfill.title', { count: placeGaps.length })}
           </p>
           <p className="mt-1 text-[10px] leading-4 text-slate-500">
-            有的沒有地址，有的城市欄位放的其實是「區」。按一下回頭查一次就會補正。
+            {t('planner.backfill.blurb')}
           </p>
           <button
             type="button"
@@ -1068,8 +1078,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             className="mt-2 min-h-9 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
           >
             {backfilling === null
-              ? `補齊這 ${placeGaps.length} 個地點`
-              : `補齊中… ${backfilling.done}/${backfilling.total}`}
+              ? t('planner.backfill.action', { count: placeGaps.length })
+              : t('planner.backfill.running', { done: backfilling.done, total: backfilling.total })}
           </button>
           {backfillDone && (
             <p data-testid="place-backfill-done" className="mt-1.5 text-[10px] font-bold leading-4 text-slate-500">
@@ -1089,17 +1099,17 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         <div data-testid="stranded-saves" className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
           <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-            有 {stranded.length} 個收藏在你沒有行程的國家
+            {t('planner.stranded.title', { count: stranded.length })}
           </p>
           <p className="mt-1 text-[10px] leading-4 text-amber-700">
-            對錯地點時會這樣。到收藏裡用「重新對應地圖地點」搜正確的店名改回來。
+            {t('planner.stranded.blurb')}
           </p>
           <ul className="mt-1.5 space-y-0.5">
             {stranded.map(save => (
               <li key={save.id} className="text-[10px] font-bold leading-4 text-amber-800">
                 {save.placeName}
                 <span className="font-semibold text-amber-600">
-                  {' '}— 目前在 {[save.country, save.city].filter(Boolean).join('・')}
+                  {' '}{t('planner.stranded.currentlyIn', { where: [save.country, save.city].filter(Boolean).join(t('planner.placeSeparator')) })}
                 </span>
               </li>
             ))}
@@ -1117,10 +1127,10 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                 onClick={() => onUnbindInspirationPlaces(stranded.map(save => save.id))}
                 className="mt-2 min-h-9 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
               >
-                把這 {stranded.length} 個退回未對應
+                {t('planner.stranded.unbind', { count: stranded.length })}
               </button>
               <p className="mt-1 text-[10px] leading-4 text-amber-700">
-                只清掉地圖對應，店名和你寫的筆記都留著。之後再按「補齊」重新查一次。
+                {t('planner.stranded.unbindBlurb')}
               </p>
             </>
           )}
@@ -1131,20 +1141,20 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
         <div data-testid="misplaced-notice" className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
           <p className="flex items-start gap-1.5 text-xs font-black text-amber-800">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-            有 {misplaced.length} 個地點對到了很遠的地方，可能是搜尋時挑錯了
+            {t('planner.misplaced.title', { count: misplaced.length })}
           </p>
           <ul className="mt-1.5 space-y-0.5">
             {misplaced.map(entry => (
               <li key={entry.place.id} className="text-[11px] font-bold text-amber-700">
                 {entry.place.placeName}
                 <span className="ml-1.5 font-medium text-amber-700/70">
-                  離其他地點約 {entry.distanceFromTripKm.toLocaleString()} 公里
+                  {t('planner.misplaced.distance', { km: entry.distanceFromTripKm.toLocaleString() })}
                 </span>
               </li>
             ))}
           </ul>
           <p className="mt-1.5 text-[10px] leading-4 text-amber-700/70">
-            點進去可以重新搜尋，改綁正確的店；整筆不要了就按下面移除。
+            {t('planner.misplaced.blurb')}
           </p>
           <button
             type="button"
@@ -1154,7 +1164,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             )}
             className="mt-2 min-h-9 rounded-xl bg-amber-600 px-3 text-xs font-black text-white"
           >
-            移除這 {misplaced.length} 筆
+            {t('planner.misplaced.remove', { count: misplaced.length })}
           </button>
         </div>
       )}
@@ -1166,15 +1176,17 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       */}
       {hiddenHere > 0 && (
         <p data-testid="hidden-same-country" className="mt-3 rounded-2xl bg-amber-50 px-3 py-2.5 text-[11px] leading-5 text-amber-800">
-          同一個國家還有 <b className="font-black">{hiddenHere} 個收藏</b>沒有出現在下面，
-          因為它們還沒有地圖位置，App 分不出是這個城市還是別的城市。
-          按上面的「補齊這 {placeGaps.length} 個地點」查一次就會回來。
+          <Trans
+            i18nKey="planner.hiddenSameCountry"
+            values={{ hidden: hiddenHere, gaps: placeGaps.length }}
+            components={{ strong: <b className="font-black" /> }}
+          />
         </p>
       )}
 
       {groups.length === 0 ? (
         <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-5 text-center">
-          <p className="text-sm font-bold text-slate-500">目前沒有這個目的地的收藏靈感</p>
+          <p className="text-sm font-bold text-slate-500">{t('planner.saved.emptyForDestination')}</p>
           {/*
             Where they are, when there are some. Saying 「你沒有」 to somebody
             holding twenty-one of them is how a screen loses an argument it
@@ -1182,12 +1194,14 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
           */}
           {elsewhere.length > 0 && (
             <p data-testid="saved-elsewhere" className="mt-1.5 text-xs leading-5 text-slate-400">
-              你的 {elsewhere.reduce((total, entry) => total + entry.count, 0)} 個收藏都在別的目的地
-              （{elsewhereLabel(elsewhere)}），沒有不見。
+              {t('planner.saved.allElsewhere', {
+                count: elsewhere.reduce((total, entry) => total + entry.count, 0),
+                where: elsewhereLabel(elsewhere),
+              })}
             </p>
           )}
           <button type="button" onClick={onExploreCommunity} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-violet-200 bg-white px-4 text-sm font-black text-violet-600">
-            前往社群找靈感<ArrowRight size={15} />
+            {t('planner.saved.exploreCommunity')}<ArrowRight size={15} />
           </button>
         </div>
       ) : (
@@ -1211,8 +1225,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
               {startsArea && (
                 <div data-testid={`area-heading-${area?.label || 'unplaced'}`} className={`flex items-center gap-2 pt-2 ${orderedIndex === 0 ? '' : 'mt-1'}`}>
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${AREA_COLORS[(area?.colorIndex ?? 0) % AREA_COLORS.length].dot}`} />
-                  <span className="text-xs font-black text-[#11183d]">{area?.label || '還沒定位的地點'}</span>
-                  {areaSize > 0 && <span className="text-[11px] font-bold text-slate-400">{areaSize} 個</span>}
+                  <span className="text-xs font-black text-[#11183d]">{area?.label || t('planner.area.unlocated')}</span>
+                  {areaSize > 0 && <span className="text-[11px] font-bold text-slate-400">{t('planner.area.count', { count: areaSize })}</span>}
                 </div>
               )}
               <div data-testid={`inspiration-card-${group.id}`} className={`relative overflow-hidden rounded-2xl border transition ${isPlanned ? 'border-slate-100 bg-slate-50' : isSelected ? 'border-violet-300 bg-violet-50/50' : 'border-slate-100 bg-white'}`}>
@@ -1294,17 +1308,17 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                             data-testid={`category-${group.id}`}
                             className="shrink-0 rounded-lg bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700"
                           >
-                            {CATEGORY_LABELS[tag]}
+                            {categoryLabel(tag)}
                           </span>
                         ) : null;
                       })()}
                       {isPlanned && (
-                        <span className="shrink-0 rounded-lg bg-slate-200/80 px-2 py-0.5 text-[10px] font-black text-slate-600">已在行程中</span>
+                        <span className="shrink-0 rounded-lg bg-slate-200/80 px-2 py-0.5 text-[10px] font-black text-slate-600">{t('planner.place.alreadyPlanned')}</span>
                       )}
                     </span>
                     <span className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-400"><MapPin size={11} />{placeWhereLabel(cityDisplayName(group.city), countryDisplayName(group.country))}</span>
                     {!isPlanned && group.missingPlaceIdentity && (
-                      <span className="mt-1.5 flex items-start gap-1.5 text-[11px] font-bold text-amber-600"><AlertTriangle size={12} className="mt-0.5 shrink-0" />地圖上還沒找到這個地點</span>
+                      <span className="mt-1.5 flex items-start gap-1.5 text-[11px] font-bold text-amber-600"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{t('planner.place.notOnMap')}</span>
                     )}
                   </span>
                   </span>
@@ -1313,7 +1327,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   <button
                     type="button"
                     data-testid={`remove-inspiration-${group.id}`}
-                    aria-label={`從收藏移除 ${group.placeName}`}
+                    aria-label={t('planner.place.removeAria', { name: group.placeName })}
                     onClick={() => setRemovingGroupId(current => (current === group.id ? null : group.id))}
                     className="flex min-h-11 w-11 shrink-0 items-center justify-center text-slate-300 transition hover:text-rose-500"
                   >
@@ -1353,7 +1367,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                         onClick={() => openLookup(group.id, group.placeName)}
                         className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-violet-200 bg-white px-2.5 text-[11px] font-black text-violet-600"
                       >
-                        <Compass size={12} />在地圖上尋找這個地點
+                        <Compass size={12} />{t('planner.lookup.findOnMap')}
                       </button>
                     ) : (
                       <div className="rounded-2xl border border-violet-100 bg-violet-50/40 p-2.5">
@@ -1363,7 +1377,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                             value={lookupQuery}
                             onChange={event => setLookupQuery(event.target.value)}
                             onKeyDown={event => { if (event.key === 'Enter') void runLookup(group); }}
-                            aria-label={`搜尋 ${group.placeName}`}
+                            aria-label={t('planner.lookup.searchAria', { name: group.placeName })}
                             data-testid={`lookup-input-${group.id}`}
                             className="min-w-0 flex-1 rounded-xl border border-violet-200 bg-white px-2.5 py-1.5 text-xs font-bold text-[#11183d] outline-none"
                           />
@@ -1374,11 +1388,11 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                             disabled={lookupBusy}
                             className="shrink-0 rounded-xl bg-[#5b3df5] px-3 text-xs font-black text-white disabled:opacity-50"
                           >
-                            {lookupBusy ? '搜尋中' : '搜尋'}
+                            {lookupBusy ? t('planner.lookup.searching') : t('planner.lookup.search')}
                           </button>
                         </div>
                         <p className="mt-1.5 text-[10px] font-medium leading-4 text-slate-500">
-                          截圖上的名稱可能被讀錯，可以改成正確的店名再搜尋。
+                          {t('planner.lookup.renameHint')}
                         </p>
                         {lookupError && <p className="mt-1.5 text-[11px] font-bold text-amber-600">{lookupError}</p>}
                         {lookupResults.length > 0 && (
@@ -1402,7 +1416,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                           onClick={() => setLookupGroupId(null)}
                           className="mt-2 text-[11px] font-black text-slate-500"
                         >
-                          取消
+                          {t('common.cancel')}
                         </button>
                       </div>
                     )}
@@ -1416,15 +1430,15 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                     */}
                     <span className="mr-auto text-[11px] font-bold text-slate-500">
                       {group.experienceNotes.length > 0
-                        ? `移除「${group.placeName}」和它的 ${group.experienceNotes.length} 項重點？`
-                        : `移除「${group.placeName}」？`}
+                        ? t('planner.place.removeWithNotes', { name: group.placeName, count: group.experienceNotes.length })
+                        : t('planner.place.removeConfirm', { name: group.placeName })}
                     </span>
                     <button
                       type="button"
                       onClick={() => setRemovingGroupId(null)}
                       className="min-h-9 rounded-xl px-3 text-xs font-black text-slate-500"
                     >
-                      取消
+                      {t('common.cancel')}
                     </button>
                     <button
                       type="button"
@@ -1438,12 +1452,12 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                       }}
                       className="min-h-9 rounded-xl bg-rose-500 px-3 text-xs font-black text-white"
                     >
-                      移除
+                      {t('common.remove')}
                     </button>
                   </div>
                 )}
                 {isPlanned && plannedNoticeGroupId === group.id && (
-                  <p className="px-3 pb-2.5 pl-11 text-[11px] leading-5 text-slate-500">此景點已經存在行程中。</p>
+                  <p className="px-3 pb-2.5 pl-11 text-[11px] leading-5 text-slate-500">{t('planner.place.alreadyPlannedNotice')}</p>
                 )}
                 {/*
                   A place the screenshot named and said nothing about.
@@ -1476,7 +1490,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   const hiddenNotes = group.experienceNotes.length - visibleNotes.length;
                   return (
                   <div className="space-y-1.5 px-3 pb-3 pl-11">
-                    <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">重點</div>
+                    <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">{t('planner.notes.heading')}</div>
                     {visibleNotes.map(note => {
                       const sourcePost = communityPosts.find(post => post.id === note.sourcePostId);
                       const author = sourcePost ? { name: sourcePost.authorName, avatar: sourcePost.authorAvatar } : creatorById.get(note.sourceCreatorId);
@@ -1484,7 +1498,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                         <div key={note.id} className="flex min-w-0 items-start gap-1.5 rounded-lg bg-violet-50/75 px-2 py-1.5 text-xs leading-5 text-slate-700">
                           <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
                           <p className="min-w-0 flex-1 break-words">
-                            {NOTE_TYPE_LABELS[note.type] && <span className="mr-1.5 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-violet-600">{NOTE_TYPE_LABELS[note.type]}</span>}
+                            {NOTE_TYPE_KEYS[note.type] && <span className="mr-1.5 rounded bg-white px-1.5 py-0.5 text-[10px] font-black text-violet-600">{t(NOTE_TYPE_KEYS[note.type] as string)}</span>}
                             {note.text}
                           </p>
                           {/*
@@ -1497,9 +1511,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                           {!note.sourcePostId.startsWith('screenshot:') && (
                             <span className="ml-1 inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-slate-500">
                               <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white text-[9px] text-violet-600">
-                                {author?.avatar ? <img src={author.avatar} alt="" className="h-full w-full object-cover" /> : '旅'}
+                                {author?.avatar ? <img src={author.avatar} alt="" className="h-full w-full object-cover" /> : t('planner.notes.authorInitial')}
                               </span>
-                              {author?.name || '原作者'}
+                              {author?.name || t('planner.notes.originalAuthor')}
                             </span>
                           )}
                         </div>
@@ -1513,7 +1527,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                           notesExpanded ? current.filter(id => id !== group.id) : [...current, group.id])}
                         className="text-[11px] font-black text-violet-600"
                       >
-                        {notesExpanded ? '收起' : `還有 ${hiddenNotes} 項重點`}
+                        {notesExpanded ? t('planner.notes.collapse') : t('planner.notes.moreCount', { count: hiddenNotes })}
                       </button>
                     )}
                   </div>
@@ -1555,7 +1569,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             <>
               <div className="mt-3">
                 <label htmlFor="trip-planning-preferences" className="block text-xs font-black text-slate-600">
-                  告訴 AI 你想怎麼玩<span className="ml-1.5 font-bold text-slate-400">選填</span>
+                  {t('planner.prefs.planLabel')}<span className="ml-1.5 font-bold text-slate-400">{t('planner.prefs.optional')}</span>
                 </label>
                 <textarea
                   id="trip-planning-preferences"
@@ -1563,13 +1577,13 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   value={planningPreferences}
                   onChange={event => setPlanningPreferences(event.target.value)}
                   maxLength={500}
-                  placeholder="例如：釜山輕旅行。每天 11 點後再出門，想安排汗蒸幕，有租車，不想把行程排太滿。"
+                  placeholder={t('planner.prefs.planPlaceholder')}
                   className="mt-1.5 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5 text-sm leading-6 text-[#11183d] outline-none transition placeholder:text-slate-400 focus:border-violet-300 focus:bg-white"
                 />
               </div>
 
               <button type="button" disabled={selected.length === 0 || isGenerating} onClick={handleGenerate} className="mt-2.5 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-40">
-                <Sparkles size={16} />{isGenerating ? 'AI 正在排行程…' : `AI 幫我排行程（${selected.length}）`}
+                <Sparkles size={16} />{isGenerating ? t('planner.action.planning') : t('planner.action.planForMe', { count: selected.length })}
               </button>
 
               {/*
@@ -1583,14 +1597,14 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
               {onAddItineraryItems && tripDates.length > 0 && (
                 <div className="mt-2 flex items-center gap-2">
                   <label className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] font-bold text-slate-500">
-                    加到
+                    {t('planner.manualAdd.addTo')}
                     <select
-                      aria-label="直接加入哪一天"
+                      aria-label={t('planner.manualAdd.dayAria')}
                       value={manualAddDate}
                       onChange={event => setManualAddDate(event.target.value)}
                       className="min-w-0 flex-1 rounded-lg border border-[#e4e2f2] bg-white px-2 py-2 text-[11px] font-black text-[#11183d]"
                     >
-                      <option value="">先不指定日期</option>
+                      <option value="">{t('planner.manualAdd.noDay')}</option>
                       {tripDates.map((date, index) => (
                         <option key={date} value={date}>
                           Day {index + 1}・{date.slice(5).replace('-', '/')}
@@ -1616,13 +1630,13 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                     }}
                     className="min-h-11 shrink-0 rounded-2xl border border-[#d9d5f5] bg-white px-3 text-xs font-black text-[#5b3df5] disabled:opacity-40"
                   >
-                    直接加入（{selected.length}）
+                    {t('planner.manualAdd.action', { count: selected.length })}
                   </button>
                 </div>
               )}
               {manualAddedCount > 0 && (
                 <p data-testid="manual-add-done" className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-bold leading-5 text-emerald-700">
-                  已加入 {manualAddedCount} 個地點，筆記也一起帶過去了。到時間軸調整時間與順序。
+                  {t('planner.manualAdd.done', { count: manualAddedCount })}
                 </p>
               )}
             </>
@@ -1662,30 +1676,38 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       */}
       {hasExistingItinerary && (
         <div className="mt-4 rounded-2xl border border-violet-100 bg-violet-50/40 p-4">
-          <h3 className="flex items-center gap-2 font-black text-[#11183d]"><Wand2 size={17} className="text-violet-600" />AI 行程調整模式</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">你目前已經有行程安排了，這次想怎麼調整？</p>
+          <h3 className="flex items-center gap-2 font-black text-[#11183d]"><Wand2 size={17} className="text-violet-600" />{t('planner.adjust.heading')}</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{t('planner.adjust.blurb')}</p>
 
           {/* Read back before asking. Choosing a mode is a decision about days
               that are blank, and the traveller could not see which those were. */}
           {itineraryReadBack && (
             <div className="mt-3 rounded-2xl bg-white/80 p-3.5 ring-1 ring-violet-100">
-              <p className="text-[11px] font-black text-slate-500">AI 讀到的目前行程</p>
+              <p className="text-[11px] font-black text-slate-500">{t('planner.adjust.readBackHeading')}</p>
               <ul className="mt-1.5 space-y-1 text-[12px] leading-5 text-slate-600">
                 <li>
-                  <span className="font-black text-[#11183d]">{itineraryReadBack.anchorCount}</span> 個固定項目（航班、住宿等），不會被更動
+                  <Trans
+                    i18nKey="planner.adjust.anchorCount"
+                    values={{ count: itineraryReadBack.anchorCount }}
+                    components={{ strong: <span className="font-black text-[#11183d]" /> }}
+                  />
                 </li>
                 <li>
-                  <span className="font-black text-[#11183d]">{itineraryReadBack.plannedCount}</span> 個你自己安排的行程
+                  <Trans
+                    i18nKey="planner.adjust.plannedCount"
+                    values={{ count: itineraryReadBack.plannedCount }}
+                    components={{ strong: <span className="font-black text-[#11183d]" /> }}
+                  />
                 </li>
                 <li>
                   {itineraryReadBack.unplannedDates.length === 0 ? (
-                    '每一天都已經有安排了。'
+                    t('planner.adjust.everyDayPlanned')
                   ) : (
                     <>
                       <span className="font-black text-amber-600">
-                        {itineraryReadBack.unplannedDates.length} 天
+                        {t('planner.adjust.emptyDayCount', { count: itineraryReadBack.unplannedDates.length })}
                       </span>
-                      還是空的：{itineraryReadBack.unplannedDates.map(date => formatDayHeading(date)).join('、')}
+                      {t('planner.adjust.stillEmpty', { dates: itineraryReadBack.unplannedDates.map(date => formatDayHeading(date)).join(t('planner.listSeparator')) })}
                     </>
                   )}
                 </li>
@@ -1715,8 +1737,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                     {isActive && <Check size={12} strokeWidth={3} />}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-black text-[#11183d]">{option.label}</span>
-                    <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">{option.subtitle}</span>
+                    <span className="block text-sm font-black text-[#11183d]">{t(option.labelKey)}</span>
+                    <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">{t(option.subtitleKey)}</span>
                   </span>
                 </button>
               );
@@ -1725,7 +1747,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
 
           <div className="mt-3">
             <label htmlFor="trip-adjustment-preferences" className="block text-xs font-black text-slate-600">
-              告訴 AI 你想怎麼調整<span className="ml-1.5 font-bold text-slate-400">選填</span>
+              {t('planner.prefs.adjustLabel')}<span className="ml-1.5 font-bold text-slate-400">{t('planner.prefs.optional')}</span>
             </label>
             <textarea
               id="trip-adjustment-preferences"
@@ -1733,16 +1755,16 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
               value={planningPreferences}
               onChange={event => setPlanningPreferences(event.target.value)}
               maxLength={500}
-              placeholder="例如：想加一個汗蒸幕，但不要刪掉甘川文化村。每天11點後再出門。"
+              placeholder={t('planner.prefs.adjustPlaceholder')}
               className="mt-1.5 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-6 text-[#11183d] outline-none transition placeholder:text-slate-400 focus:border-violet-300"
             />
           </div>
 
           <button type="button" disabled={!adjustmentMode || isAdjusting || isApplying} onClick={handleGenerateAdjustment} className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-40">
-            <Sparkles size={16} />{isAdjusting ? 'AI 正在讀你的行程…' : 'AI 幫我調整行程'}
+            <Sparkles size={16} />{isAdjusting ? t('planner.action.reading') : t('planner.action.adjustForMe')}
           </button>
 
-          <p className="mt-2 text-[11px] leading-5 text-slate-400">你確認之前不會更動任何安排。</p>
+          <p className="mt-2 text-[11px] leading-5 text-slate-400">{t('planner.adjust.nothingChangesYet')}</p>
 
           {adjustmentError && (
             <div className="mt-3 flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-6 text-slate-700">
@@ -1765,9 +1787,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   Names them and says which day, so the sentence is evidence
                   rather than a claim, and offers the way there.
                 */}
-                已把 {forwardedCount} 個 AI 建議放進行程表，打勾就會加入正式行程。
+                {t('planner.forwarded.notice', { count: forwardedCount })}
                 {forwardedNames.length > 0 && (
-                  <span className="mt-1 block font-bold">{forwardedNames.join('、')}</span>
+                  <span className="mt-1 block font-bold">{forwardedNames.join(t('planner.listSeparator'))}</span>
                 )}
                 {onShowItinerary && (
                   <button
@@ -1776,7 +1798,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                     onClick={onShowItinerary}
                     className="mt-1.5 block min-h-9 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white"
                   >
-                    去行程表看
+                    {t('planner.forwarded.goToItinerary')}
                   </button>
                 )}
               </span>
@@ -1787,7 +1809,12 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             <div className="mt-3 flex items-start gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
               <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
               <span className="min-w-0 flex-1 break-words">
-                已套用調整：新增 {appliedSummary.addedCount || 0}、調整時間 {appliedSummary.movedCount || 0}、更新 {appliedSummary.updatedCount || 0}、移除 {appliedSummary.removedCount || 0}。
+                {t('planner.applied.summary', {
+                  added: appliedSummary.addedCount || 0,
+                  moved: appliedSummary.movedCount || 0,
+                  updated: appliedSummary.updatedCount || 0,
+                  removed: appliedSummary.removedCount || 0,
+                })}
               </span>
             </div>
           )}
@@ -1804,7 +1831,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
 
           {adjustment && (
             <div className="mt-4 rounded-2xl border border-violet-200 bg-white p-4">
-              <h4 className="flex items-center gap-2 font-black text-[#11183d]"><CalendarDays size={16} className="text-violet-600" />AI 建議調整</h4>
+              <h4 className="flex items-center gap-2 font-black text-[#11183d]"><CalendarDays size={16} className="text-violet-600" />{t('planner.adjust.proposalHeading')}</h4>
               {adjustment.summary && <p className="mt-1.5 text-xs leading-5 text-slate-500">{adjustment.summary}</p>}
 
               <div className="mt-3 space-y-2.5">
@@ -1812,19 +1839,19 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                   const existing = change.existingItemId ? existingById.get(change.existingItemId) : undefined;
                   const name = change.type === 'add'
                     ? change.proposedItem?.placeName
-                    : (existing?.location || existing?.title || '這個項目');
+                    : (existing?.location || existing?.title || t('planner.change.thisItem'));
                   const key = `${change.type}-${change.existingItemId || change.proposedItem?.id || index}`;
 
                   if (change.type === 'remove') {
                     return (
                       <div key={key} className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5">
                         <div className="flex items-center gap-1.5 text-sm font-black text-rose-700">
-                          <Trash2 size={13} className="shrink-0" />－ 移除：{name}
+                          <Trash2 size={13} className="shrink-0" />{t('planner.change.removing', { name })}
                         </div>
                         <div className="mt-1 text-[11px] leading-5 text-rose-600">
-                          原本：{formatDayHeading(change.fromDate)} {change.fromTime || '未指定時間'}
+                          {t('planner.change.wasAt', { date: formatDayHeading(change.fromDate), time: change.fromTime || t('planner.unspecifiedTime') })}
                         </div>
-                        {change.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">原因：{change.reason}</div>}
+                        {change.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">{t('planner.change.reason', { reason: change.reason })}</div>}
                       </div>
                     );
                   }
@@ -1834,12 +1861,12 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                       <div key={key} className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5">
                         <div className="flex flex-wrap items-center gap-1.5 text-sm font-black text-emerald-800">
                           <Plus size={13} className="shrink-0" />
-                          {change.toTime || change.proposedItem?.suggestedStartTime || '時間待定'} {name}
+                          {change.toTime || change.proposedItem?.suggestedStartTime || t('planner.timeTbd')} {name}
                           <span className={`rounded px-1.5 py-0.5 text-[10px] font-black ${change.proposedItem?.source === 'saved_inspiration' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {change.proposedItem?.source === 'saved_inspiration' ? '收藏靈感' : 'AI 建議'}
+                            {change.proposedItem?.source === 'saved_inspiration' ? t('planner.source.saved') : t('planner.source.ai')}
                           </span>
                         </div>
-                        <div className="mt-1 text-[11px] leading-5 text-emerald-700">加到：{formatDayHeading(change.toDate)}</div>
+                        <div className="mt-1 text-[11px] leading-5 text-emerald-700">{t('planner.change.addedTo', { date: formatDayHeading(change.toDate) })}</div>
                         {/*
                           Whether this name is a place. A suggestion built from
                           a social handle is a name no map has, and it looked
@@ -1859,13 +1886,13 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                           if (preview?.rejection) {
                             return (
                               <div className="mt-1 text-[11px] leading-5 text-amber-700">
-                                地圖上找不到這個地點，加進去會是一段文字，之後要自己補位置。
+                                {t('planner.change.notOnMapWarning')}
                               </div>
                             );
                           }
                           return null;
                         })()}
-                        {change.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">原因：{change.reason}</div>}
+                        {change.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">{t('planner.change.reason', { reason: change.reason })}</div>}
                       </div>
                     );
                   }
@@ -1877,12 +1904,12 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                         {change.toTime || change.fromTime || ''} {name}
                       </div>
                       <div className="mt-1 text-[11px] leading-5 text-slate-500">
-                        原本：{formatDayHeading(change.fromDate)} {change.fromTime || '未指定時間'}
-                        {(change.toDate || change.toTime) && <> → 改為：{formatDayHeading(change.toDate || change.fromDate)} {change.toTime || change.fromTime || '未指定時間'}</>}
+                        {t('planner.change.wasAt', { date: formatDayHeading(change.fromDate), time: change.fromTime || t('planner.unspecifiedTime') })}
+                        {(change.toDate || change.toTime) && <> {t('planner.change.nowAt', { date: formatDayHeading(change.toDate || change.fromDate), time: change.toTime || change.fromTime || t('planner.unspecifiedTime') })}</>}
                       </div>
-                      {change.updatedDurationMinutes !== undefined && <div className="mt-1 text-[11px] leading-5 text-slate-500">停留時間：{change.updatedDurationMinutes} 分</div>}
-                      {change.updatedNote !== undefined && <div className="mt-1 text-[11px] leading-5 text-slate-500">備註：{change.updatedNote}</div>}
-                      {change.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">原因：{change.reason}</div>}
+                      {change.updatedDurationMinutes !== undefined && <div className="mt-1 text-[11px] leading-5 text-slate-500">{t('planner.change.stayMinutes', { minutes: change.updatedDurationMinutes })}</div>}
+                      {change.updatedNote !== undefined && <div className="mt-1 text-[11px] leading-5 text-slate-500">{t('planner.change.note', { note: change.updatedNote })}</div>}
+                      {change.reason && <div className="mt-1 text-[11px] leading-5 text-slate-500">{t('planner.change.reason', { reason: change.reason })}</div>}
                     </div>
                   );
                 })}
@@ -1894,14 +1921,14 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                 </div>
               )}
 
-              <p className="mt-3 text-[11px] leading-5 text-slate-400">這些調整還沒有寫進正式行程。</p>
+              <p className="mt-3 text-[11px] leading-5 text-slate-400">{t('planner.adjust.notWrittenYet')}</p>
 
               <div className="mt-3 flex gap-2">
                 <button type="button" onClick={() => { setAdjustment(null); setAdjustmentError(null); }} disabled={isApplying} className="flex min-h-11 flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-600 transition disabled:opacity-40">
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button type="button" onClick={handleApplyAdjustment} disabled={isApplying} className="flex min-h-11 flex-1 items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:opacity-40">
-                  {isApplying ? '正在套用…' : '套用這些調整'}
+                  {isApplying ? t('planner.action.applying') : t('planner.action.applyChanges')}
                 </button>
               </div>
             </div>
@@ -1919,7 +1946,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       {proposal && (
         <div className="mt-4 rounded-2xl border border-violet-100 bg-gradient-to-br from-white to-violet-50 p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="flex items-center gap-2 font-black text-[#11183d]"><CalendarDays size={17} className="text-violet-600" />AI 行程提案</h3>
+            <h3 className="flex items-center gap-2 font-black text-[#11183d]"><CalendarDays size={17} className="text-violet-600" />{t('planner.proposal.heading')}</h3>
           </div>
 
           <div className="mt-3 space-y-3">
@@ -1934,9 +1961,9 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
                         <span className="flex flex-wrap items-center gap-1.5">
                           <b className="text-sm font-black text-[#11183d]">{item.placeName}</b>
                           <span className={`rounded px-1.5 py-0.5 text-[10px] font-black ${item.source === 'saved_inspiration' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {item.source === 'saved_inspiration' ? '收藏靈感' : 'AI 建議'}
+                            {item.source === 'saved_inspiration' ? t('planner.source.saved') : t('planner.source.ai')}
                           </span>
-                          {item.durationMinutes && <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400"><Clock3 size={10} />{item.durationMinutes} 分</span>}
+                          {item.durationMinutes && <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-400"><Clock3 size={10} />{t('planner.minutes', { count: item.durationMinutes })}</span>}
                         </span>
                         {item.note && <span className="mt-1 block text-[11px] leading-5 text-slate-500">{item.note}</span>}
                       </span>
@@ -1953,7 +1980,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
             </div>
           )}
 
-          <p className="mt-3 text-[11px] leading-5 text-slate-400">接受後會寫進這趟旅程的正式行程，並保存在此裝置。</p>
+          <p className="mt-3 text-[11px] leading-5 text-slate-400">{t('planner.proposal.acceptBlurb')}</p>
 
           {acceptError && (
             <div className="mt-3 flex items-start gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-6 text-slate-700">
@@ -1964,10 +1991,10 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
 
           <div className="mt-3 flex gap-2">
             <button type="button" onClick={handleGenerate} disabled={isGenerating || isAccepting} className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-violet-200 bg-white px-3 text-sm font-black text-violet-600 transition disabled:opacity-40">
-              <RotateCcw size={14} />重新產生
+              <RotateCcw size={14} />{t('planner.action.regenerate')}
             </button>
             <button type="button" onClick={handleAccept} disabled={isGenerating || isAccepting} className="flex min-h-11 flex-1 items-center justify-center rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-3 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:opacity-40">
-              {isAccepting ? '正在整理地點…' : '接受這份行程'}
+              {isAccepting ? t('planner.action.resolvingPlaces') : t('planner.action.acceptPlan')}
             </button>
           </div>
         </div>
@@ -1980,7 +2007,7 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
       {!proposal && acceptedSummary && (
         <div className="mt-4 flex items-start gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-700">
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
-          <span className="min-w-0 flex-1 break-words">已寫入正式行程 {acceptedSummary.addedCount} 個項目。</span>
+          <span className="min-w-0 flex-1 break-words">{t('planner.proposal.accepted', { count: acceptedSummary.addedCount })}</span>
         </div>
       )}
 

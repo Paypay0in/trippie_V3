@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BedDouble, Loader2, Plane, X } from 'lucide-react';
 import { OVERLAY } from '../constants/layers';
 import { ParsedFlight } from '../services/flightIntake';
@@ -45,6 +46,7 @@ const ENDPOINT: Record<Kind, string> = {
 };
 
 const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) => {
+  const { t } = useTranslation();
   const [flights, setFlights] = useState<ParsedFlight[]>([]);
   const [stays, setStays] = useState<ParsedStay[]>([]);
   const [busy, setBusy] = useState<Kind | null>(null);
@@ -83,7 +85,7 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
         // The server words these for the traveller, and whether to retry is
         // the whole of what they need; a generic failure hides it.
         const body = await response.json().catch(() => ({}));
-        setError(body?.error || '這張讀不出來，可以換一張或手動建立。');
+        setError(body?.error || t('bookingImport.unreadable'));
         return;
       }
 
@@ -111,7 +113,7 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
           if (leg) read.push({ ...leg, direction });
         }
         if (read.length === 0) {
-          setError('這張讀不出來，可以換一張或手動建立。');
+          setError(t('bookingImport.unreadable'));
           return;
         }
         setFlights(current => [...current, ...read]);
@@ -119,7 +121,7 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
         setStays(current => [...current, parsed as ParsedStay]);
       }
     } catch {
-      setError('這張讀不出來，可以換一張或手動建立。');
+      setError(t('bookingImport.unreadable'));
     } finally {
       setBusy(null);
       // Clearing lets the same file be picked again after a failure.
@@ -148,15 +150,15 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
       <div className="w-full max-w-md rounded-sheet bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-screen-title font-black tracking-tight text-ink">匯入旅程資料</h2>
+            <h2 className="text-screen-title font-black tracking-tight text-ink">{t('bookingImport.title')}</h2>
             <p className="mt-0.5 text-support text-ink-soft">
-              上傳機票或訂房確認，日期和目的地會自動帶入。
+              {t('bookingImport.blurb')}
             </p>
           </div>
           <button
             type="button"
             onClick={onCancel}
-            aria-label="關閉"
+            aria-label={t('common.close')}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400"
           >
             <X size={20} />
@@ -179,14 +181,14 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
           <Tile
             kind="flight"
             icon={<Plane size={22} className="text-blue-600" />}
-            label="機票"
-            hint="登機證・電子票"
+            label={t('bookingImport.flightLabel')}
+            hint={t('bookingImport.flightHint')}
           />
           <Tile
             kind="stay"
             icon={<BedDouble size={22} className="text-violet-600" />}
-            label="住宿"
-            hint="訂房確認"
+            label={t('bookingImport.stayLabel')}
+            hint={t('bookingImport.stayHint')}
           />
         </div>
 
@@ -207,20 +209,20 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
             <dl className="mt-2 space-y-1 text-support text-ink-soft">
               {derived.destination && (
                 <div className="flex gap-2">
-                  <dt className="shrink-0">目的地</dt>
+                  <dt className="shrink-0">{t('bookingImport.destination')}</dt>
                   <dd className="font-semibold text-ink">{derived.destination}</dd>
                 </div>
               )}
               <div className="flex gap-2">
-                <dt className="shrink-0">日期</dt>
+                <dt className="shrink-0">{t('bookingImport.dates')}</dt>
                 <dd className="font-semibold text-ink" data-testid="import-dates">
                   {derived.startDate
-                    ? `${derived.startDate}${derived.endDate ? ` - ${derived.endDate}` : ' 起（回程未知）'}`
-                    : '還沒讀到日期'}
+                    ? `${derived.startDate}${derived.endDate ? ` - ${derived.endDate}` : t('bookingImport.returnUnknown')}`
+                    : t('bookingImport.noDatesYet')}
                 </dd>
               </div>
             </dl>
-            <p className="mt-2 text-meta text-ink-soft">建立後都還可以修改。</p>
+            <p className="mt-2 text-meta text-ink-soft">{t('bookingImport.editableLater')}</p>
           </div>
         )}
 
@@ -231,7 +233,7 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
           onClick={() => onCreate(derived, readout)}
           className="mt-4 h-[var(--cta-h)] w-full rounded-control bg-violet-600 text-action font-bold text-white disabled:bg-slate-100 disabled:text-ink-soft"
         >
-          建立旅程
+          {t('bookingImport.create')}
         </button>
 
         {/* Some confirmations are a photo of a screen of a PDF. */}
@@ -241,7 +243,7 @@ const BookingImportSheet: React.FC<Props> = ({ onCancel, onCreate, onManual }) =
           onClick={onManual}
           className="mt-2 h-11 w-full text-action font-semibold text-violet-600"
         >
-          手動建立旅程
+          {t('bookingImport.manual')}
         </button>
       </div>
     </div>

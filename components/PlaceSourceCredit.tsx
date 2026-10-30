@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bookmark, ChevronRight } from 'lucide-react';
 import { PlaceCredit } from '../services/collectionCredits';
 
@@ -29,12 +30,13 @@ const asDate = (value: string): string => {
 };
 
 const PlaceSourceCredit: React.FC<Props> = ({ credit, onOpenSource }) => {
-  const who = credit.creatorName || '某位旅人';
+  const { t } = useTranslation();
+  const who = credit.creatorName || t('saved.credit.someTraveller');
   const savedOn = asDate(credit.savedAt);
   /* 「X 的 Y」 only where Y is known; otherwise 「來自 X 的收藏」. */
   const line = credit.collectionTitle
-    ? `來自 ${who} 的${credit.collectionTitle}`
-    : `來自 ${who} 的收藏`;
+    ? t('saved.credit.fromCollectionNamed', { who, title: credit.collectionTitle })
+    : t('saved.credit.fromCollection', { who });
   const openable = Boolean(credit.collectionTitle && credit.collectionId && onOpenSource);
 
   const body = (
@@ -42,7 +44,7 @@ const PlaceSourceCredit: React.FC<Props> = ({ credit, onOpenSource }) => {
       <Bookmark size={12} className="mt-0.5 shrink-0 text-[#5b3df5]" />
       <span className="min-w-0 flex-1">
         <span className="block text-[12px] font-bold text-[#11183d]">{line}</span>
-        {savedOn && <span className="block text-[11px] text-slate-400">收藏於 {savedOn}</span>}
+        {savedOn && <span className="block text-[11px] text-slate-400">{t('saved.credit.savedOn', { date: savedOn })}</span>}
       </span>
       {openable && <ChevronRight size={14} className="mt-0.5 shrink-0 text-slate-300" />}
     </>

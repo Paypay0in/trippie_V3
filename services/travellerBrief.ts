@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { ParsedRental, rentalDays } from './rentalIntake';
 import { TRANSPORT_LABEL, TripPlanBrief } from './tripPlanBrief';
 
@@ -28,10 +29,17 @@ export interface TravellerBriefInput {
   rentals?: ParsedRental[];
 }
 
+/*
+  Everything `travellerBriefText` builds is prompt text, not copy: it is joined
+  into the request sent to the model and is never shown to the traveller.
+  i18n-data: model prompt — prompt language is a separate, undecided call.
+*/
 const peopleLine = (brief: TripPlanBrief): string =>
+  // i18n-data: model prompt — sent to the model, never shown to the traveller.
   brief.travellers > 1 ? `${brief.travellers} 人同行。` : '一個人旅行。';
 
 const rhythmLine = (brief: TripPlanBrief): string =>
+  // i18n-data: model prompt — sent to the model, never shown to the traveller.
   `每天大約 ${brief.dayStartTime} 開始，一天希望安排 ${brief.pace} 個行程。`;
 
 /**
@@ -46,6 +54,7 @@ const carLines = (rentals: ParsedRental[]): string[] =>
     .map(rental => {
       const days = rentalDays(rental);
       if (days.length === 0) return '';
+      // i18n-data: model prompt — sent to the model, never shown to the traveller.
       return `${days.join('、')} 這 ${days.length} 天有租車（${rental.company}），可以安排需要開車的行程。`;
     })
     .filter(Boolean);
@@ -72,18 +81,23 @@ export const travellerBriefText = ({ brief, rentals = [] }: TravellerBriefInput)
         .filter(mode => mode !== 'drive')
         .map(mode => TRANSPORT_LABEL[mode]);
       if (otherDays.length > 0) {
+        // i18n-data: model prompt — sent to the model, never shown to the traveller.
         parts.push(`其餘日子主要使用：${otherDays.join('、')}。`);
       }
     } else if (brief.transport.length > 0) {
       const driving = brief.transport.includes('drive');
+      // i18n-data: model prompt — the Chinese mode names the model is told about.
       const named = brief.transport.map(mode => TRANSPORT_LABEL[mode]).join('、');
       parts.push(
         driving
+          // i18n-data: model prompt — sent to the model, never shown to the traveller.
           ? `主要交通方式：${named}。使用者說可能會開車，但沒有上傳租車訂單，所以不確定哪幾天有車 —— 需要開車的方案請先問過他。`
+          // i18n-data: model prompt — sent to the model, never shown to the traveller.
           : `主要交通方式：${named}。`,
       );
     }
 
+    // i18n-data: model prompt — sent to the model, never shown to the traveller.
     if (brief.notes?.trim()) parts.push(`使用者補充：${brief.notes.trim()}`);
   } else {
     parts.push(...carLines(rentals));
@@ -107,27 +121,34 @@ export const travellerBriefText = ({ brief, rentals = [] }: TravellerBriefInput)
 export const briefChips = ({ brief, rentals = [] }: TravellerBriefInput): string[] => {
   if (!brief) {
     const days = rentals.flatMap(rental => rentalDays(rental)).length;
-    return days > 0 ? [`${days} 天有車`] : [];
+    return days > 0 ? [i18n.t('plan.brief.chips.carDays', { count: days })] : [];
   }
 
   const chips = [
-    brief.travellers > 1 ? `${brief.travellers} 人` : '一個人',
-    `${brief.dayStartTime} 出發`,
-    `一天 ${brief.pace} 個行程`,
+    brief.travellers > 1
+      ? i18n.t('plan.brief.chips.travellers', { count: brief.travellers })
+      : i18n.t('plan.brief.chips.solo'),
+    i18n.t('plan.brief.chips.dayStart', { time: brief.dayStartTime }),
+    i18n.t('plan.brief.chips.pace', { count: brief.pace }),
   ];
 
   const carDays = new Set(rentals.flatMap(rental => rentalDays(rental)));
   if (carDays.size > 0) {
     // The days, because that is what the confirmation knows and the tick box
     // does not — the distinction this whole feature turns on.
-    chips.push(`${carDays.size} 天有車`);
+    chips.push(i18n.t('plan.brief.chips.carDays', { count: carDays.size }));
   }
 
   for (const mode of brief.transport) {
     // Driving is already said by the car days when there is a confirmation;
     // saying it twice makes the trip sound like it is all driven.
     if (mode === 'drive' && carDays.size > 0) continue;
-    chips.push(TRANSPORT_LABEL[mode]);
+    /*
+      The existing `transport.modes.*` keys, not `TRANSPORT_LABEL`: that table
+      is the Chinese the model is told about and has to stay Chinese for the
+      prompt above, so a chip reading it would be untranslatable.
+    */
+    chips.push(i18n.t(`transport.modes.${mode.toUpperCase()}`));
   }
 
   return chips;
@@ -157,21 +178,32 @@ export interface BriefQuestion {
   /** Stable id, so a pick survives the list being rebuilt. */
   id: string;
   question: string;
-  /** Each one is already a sentence; what is tapped is what is sent. */
+  /**
+   * Each one is already a sentence; what is tapped is what is sent.
+   * i18n-data: the option text is the payload — tapping 「前兩天開車」 puts those
+   * five characters into the model request, so it is prompt content and not a
+   * label that may be translated independently of it.
+   */
   options: string[];
 }
 
 const MAX_QUESTIONS = 3;
 
-/** For a trip with no form — the only case with nothing to continue from. */
-const NO_BRIEF_QUESTION: BriefQuestion = {
+/**
+ * For a trip with no form — the only case with nothing to continue from.
+ *
+ * A function rather than a constant: the heading is resolved when it is asked
+ * for, because a module-level `t()` would freeze the language at import.
+ */
+const noBriefQuestion = (): BriefQuestion => ({
   id: 'interest',
-  question: '想以什麼為主？',
+  question: i18n.t('plan.brief.ask.interest'),
+  // i18n-data: option text is the payload sent to the model when tapped.
   options: ['美食', '景點', '購物', '咖啡廳', '自然風景'],
-};
+});
 
 export const promptQuestions = ({ brief, rentals = [] }: TravellerBriefInput): BriefQuestion[] => {
-  if (!brief) return [NO_BRIEF_QUESTION];
+  if (!brief) return [noBriefQuestion()];
 
   const questions: BriefQuestion[] = [];
   const carDays = new Set(rentals.flatMap(rental => rentalDays(rental)));
@@ -184,24 +216,22 @@ export const promptQuestions = ({ brief, rentals = [] }: TravellerBriefInput): B
     */
     questions.push({
       id: 'car-days',
-      question: '開車是哪幾天？',
+      question: i18n.t('plan.brief.ask.carDays'),
+      // i18n-data: option text is the payload sent to the model when tapped.
       options: ['前兩天開車', '中間幾天開車', '最後兩天開車', '整趟都有車'],
     });
   }
 
   if (!brief.notes?.trim()) {
-    questions.push({
-      id: 'interest',
-      question: '想以什麼為主？',
-      options: ['美食', '景點', '購物', '咖啡廳', '自然風景'],
-    });
+    questions.push(noBriefQuestion());
   }
 
   if (brief.travellers >= 3) {
     questions.push({
       id: 'who',
-      question: '有長輩或小孩同行嗎？',
+      question: i18n.t('plan.brief.ask.who'),
       // 「都是大人」 is an answer, and the absence of one is not.
+      // i18n-data: option text is the payload sent to the model when tapped.
       options: ['有長輩同行', '有小孩同行', '都是大人'],
     });
   }
@@ -209,7 +239,8 @@ export const promptQuestions = ({ brief, rentals = [] }: TravellerBriefInput): B
   if (brief.pace === 4) {
     questions.push({
       id: 'must',
-      question: '有哪幾個點一定要排？',
+      question: i18n.t('plan.brief.ask.must'),
+      // i18n-data: option text is the payload sent to the model when tapped.
       options: ['一定要吃到名店', '一定要去代表性景點', '一定要留購物時間', '都可以調整'],
     });
   }
@@ -217,7 +248,8 @@ export const promptQuestions = ({ brief, rentals = [] }: TravellerBriefInput): B
   if (brief.pace === 2) {
     questions.push({
       id: 'slack',
-      question: '想留哪一天放空？',
+      question: i18n.t('plan.brief.ask.slack'),
+      // i18n-data: option text is the payload sent to the model when tapped.
       options: ['第一天慢慢來', '中間留一天放空', '最後一天放空', '不用特別留'],
     });
   }
@@ -225,7 +257,8 @@ export const promptQuestions = ({ brief, rentals = [] }: TravellerBriefInput): B
   if (brief.transport.includes('transit')) {
     questions.push({
       id: 'pass',
-      question: '要先買交通卡或一日券嗎？',
+      question: i18n.t('plan.brief.ask.pass'),
+      // i18n-data: option text is the payload sent to the model when tapped.
       options: ['要買交通卡', '要買一日券', '還不確定，幫我評估'],
     });
   }

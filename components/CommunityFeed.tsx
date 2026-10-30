@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { PublicTrip } from '../types';
 import { Heart, Copy, Share2, MapPin, Calendar } from 'lucide-react';
 
@@ -9,13 +10,14 @@ interface Props {
 }
 
 const CommunityFeed: React.FC<Props> = ({ trips, onClone, onView }) => {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-800">探索旅程</h2>
+        <h2 className="text-xl font-bold text-gray-800">{t('community.feed.title')}</h2>
         <div className="flex gap-2">
-          <span className="text-xs bg-brand-100 text-brand-700 px-2 py-1 rounded-full">熱門</span>
-          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">最新</span>
+          <span className="text-xs bg-brand-100 text-brand-700 px-2 py-1 rounded-full">{t('community.feed.popular')}</span>
+          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{t('community.feed.latest')}</span>
         </div>
       </div>
 
@@ -52,7 +54,7 @@ const CommunityFeed: React.FC<Props> = ({ trips, onClone, onView }) => {
                 </div>
                 <div className="flex items-center gap-1">
                   <MapPin size={12} />
-                  {trip.expenses.length} 筆消費
+                  {t('community.feed.expenseCount', { count: trip.expenses.length })}
                 </div>
               </div>
 
@@ -72,13 +74,13 @@ const CommunityFeed: React.FC<Props> = ({ trips, onClone, onView }) => {
                     onClick={() => onView(trip)}
                     className="text-xs font-bold text-gray-600 hover:text-brand-600 px-3 py-1.5 rounded-lg hover:bg-gray-50"
                   >
-                    查看詳情
+                    {t('community.feed.viewDetails')}
                   </button>
                   <button 
                     onClick={() => onClone(trip)}
                     className="bg-brand-50 text-brand-600 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-brand-100 transition-colors"
                   >
-                    <Copy size={14} /> 複製行程
+                    <Copy size={14} /> {t('community.feed.copyTrip')}
                   </button>
                 </div>
               </div>

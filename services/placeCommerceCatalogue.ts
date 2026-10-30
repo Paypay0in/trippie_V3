@@ -75,10 +75,27 @@ export const MAX_PRICE_AGE_DAYS = 180;
  * must say where the figure came from. A price nobody can point at does not
  * belong in this file; leaving it out simply shows 查看最新票價.
  */
+/*
+  // i18n-data: every Chinese string below this line.
+
+  `nameKeys` are what a stored place name is matched against, in the same array
+  as their Latin and Korean spellings — translating one breaks the match and
+  translating all of them matches nothing.
+
+  `notes` and the 官方網站 link label are produced by `commerceForEntry`, which
+  runs on the server (`server.ts` imports `advanceBookingPlaces`) and answers
+  one payload for every client. There is no language to answer in at that
+  point, so wording them here would hand an English reader Chinese either way.
+  Showing them translated needs the client to look them up — the notes against
+  a key per entry, the label against `provider === 'official'` — which changes
+  the shape of this payload and is not a translator's call.
+*/
 export const PLACE_COMMERCE_CATALOGUE: CuratedCommerceEntry[] = [
   {
+    // i18n-data: server-rendered catalogue payload; see the note above PLACE_COMMERCE_CATALOGUE
     nameKeys: ['spalandcentumcity', 'spaland', '신세계스파랜드', '스파랜드'],
     admissionRequired: true,
+    // i18n-data: server-rendered catalogue payload; see the note above PLACE_COMMERCE_CATALOGUE
     notes: ['未滿 19 歲不可入場', '建議預留 3 小時以上'],
     // priceSource is intentionally absent.
     //
@@ -98,11 +115,15 @@ export const PLACE_COMMERCE_CATALOGUE: CuratedCommerceEntry[] = [
     // NT$410. The card said nothing because this catalogue had never heard of
     // the place, which is a gap in the list rather than a judgement about the
     // ticket.
+    // i18n-data: server-rendered catalogue payload; see the note above PLACE_COMMERCE_CATALOGUE
     nameKeys: ['東京晴空塔', '晴空塔', 'tokyoskytree', 'skytree', '東京スカイツリー', 'スカイツリー'],
     admissionRequired: true,
     officialUrl: 'https://www.tokyo-skytree.jp/ticket/',
+    // i18n-data: server-rendered catalogue payload; see the note above PLACE_COMMERCE_CATALOGUE
     notes: [
+      // i18n-data: server-rendered catalogue payload; see the note above PLACE_COMMERCE_CATALOGUE
       '天望デッキ（350m）與天望回廊（450m）票價不同，可分開或合併購買',
+      // i18n-data: server-rendered catalogue payload; see the note above PLACE_COMMERCE_CATALOGUE
       '當日券與預售票價不同，平日與假日也不同',
     ],
     bookingLinks: [
@@ -258,8 +279,10 @@ export const buildCuratedCommerce = (
     // Declared links only. Each is validated before it reaches the client.
     bookingOptions: [
       ...(entry.officialUrl
+        // i18n-data: server-rendered payload label, one answer for every client; see the note above PLACE_COMMERCE_CATALOGUE
         ? [{ provider: 'official', label: '官方網站', url: entry.officialUrl, urlType: 'direct' as const }]
         : entry.priceSource?.url
+          // i18n-data: server-rendered payload label, one answer for every client; see the note above PLACE_COMMERCE_CATALOGUE
           ? [{ provider: 'official', label: '官方網站', url: entry.priceSource.url, urlType: 'direct' as const }]
           : []),
       ...(entry.bookingLinks || []).map(link => ({

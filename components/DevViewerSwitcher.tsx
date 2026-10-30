@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Eye, X } from 'lucide-react';
 import { TripMember } from '../types';
 import { ViewerResolutionReason } from '../services/tripRoster';
@@ -15,17 +16,21 @@ interface Props {
   overrideMemberId: string | null;
 }
 
-const REASON_LABEL: Record<ViewerResolutionReason, string> = {
-  'owner-user-match': '登入者就是行程擁有者',
-  'member-user-match': '登入者已連結到成員',
-  'member-id-match': '成員 id 即登入者 id（掃碼加入）',
-  'owner-fallback': '未識別，回退為擁有者',
+/*
+  Keys, not words. Both maps are built once at import, where a `t()` would
+  freeze the panel to whichever language loaded first.
+*/
+const REASON_KEY: Record<ViewerResolutionReason, string> = {
+  'owner-user-match': 'devViewer.reasonOwnerUserMatch',
+  'member-user-match': 'devViewer.reasonMemberUserMatch',
+  'member-id-match': 'devViewer.reasonMemberIdMatch',
+  'owner-fallback': 'devViewer.reasonOwnerFallback',
 };
 
-const TYPE_LABEL: Record<TripMember['type'], string> = {
-  owner: '擁有者',
-  member: '成員',
-  guest: '訪客',
+const TYPE_KEY: Record<TripMember['type'], string> = {
+  owner: 'companions.owner',
+  member: 'devViewer.roleMember',
+  guest: 'companions.guest',
 };
 
 /**
@@ -48,6 +53,7 @@ const DevViewerSwitcher: React.FC<Props> = ({
   onOverride,
   overrideMemberId,
 }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
 
   const current = roster.find(member => member.id === viewerMemberId);
@@ -58,10 +64,10 @@ const DevViewerSwitcher: React.FC<Props> = ({
         type="button"
         onClick={() => setIsOpen(true)}
         className="fixed bottom-28 right-3 z-[95] flex items-center gap-1.5 rounded-full bg-slate-900/90 px-3 py-2 text-[11px] font-black text-white shadow-lg"
-        title="開發用：切換檢視者"
+        title={t('devViewer.switchViewerTitle')}
       >
         <Eye size={13} />
-        {current?.name || '檢視者'}
+        {current?.name || t('devViewer.viewer')}
         {overrideMemberId && <span className="text-amber-300">●</span>}
       </button>
     );
@@ -71,21 +77,21 @@ const DevViewerSwitcher: React.FC<Props> = ({
     <div className="fixed bottom-28 right-3 z-[95] w-64 rounded-2xl bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur-sm">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-black tracking-wide text-amber-300">
-          DEV：以誰的身分檢視
+          {t('devViewer.heading')}
         </span>
-        <button type="button" onClick={() => setIsOpen(false)} aria-label="關閉">
+        <button type="button" onClick={() => setIsOpen(false)} aria-label={t('common.close')}>
           <X size={14} className="text-slate-400" />
         </button>
       </div>
 
       <div className="mb-2 rounded-lg bg-white/5 px-2 py-1.5 text-[10px] leading-relaxed text-slate-300">
         <div>
-          實際解析：
+          {t('devViewer.resolvedAs')}
           <span className="font-bold text-white">
             {roster.find(m => m.id === resolvedMemberId)?.name || resolvedMemberId}
           </span>
         </div>
-        <div>原因：{REASON_LABEL[resolvedReason]}</div>
+        <div>{t('devViewer.reason', { reason: t(REASON_KEY[resolvedReason]) })}</div>
       </div>
 
       <div className="space-y-1">
@@ -102,7 +108,7 @@ const DevViewerSwitcher: React.FC<Props> = ({
             >
               <span className="truncate">{member.name}</span>
               <span className="ml-2 shrink-0 text-[9px] text-slate-300">
-                {TYPE_LABEL[member.type]}
+                {t(TYPE_KEY[member.type])}
               </span>
             </button>
           );
@@ -115,12 +121,12 @@ const DevViewerSwitcher: React.FC<Props> = ({
           onClick={() => onOverride(null)}
           className="mt-2 w-full rounded-lg border border-white/20 py-1.5 text-[10px] font-bold text-slate-300 hover:bg-white/10"
         >
-          還原成真實身分
+          {t('devViewer.restoreRealIdentity')}
         </button>
       )}
 
       <p className="mt-2 text-[9px] leading-relaxed text-slate-400">
-        僅開發模式可見，不會進入正式版本。
+        {t('devViewer.devOnlyNotice')}
       </p>
     </div>
   );

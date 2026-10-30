@@ -102,7 +102,9 @@ const JAPAN_PATTERNS: RegExp[] = [
     区 and 區 are different characters, U+533A and U+5340. Only the traditional
     one was ever here, so every Japanese address matched nothing at all.
   */
+  // i18n-data: address-matching anchor, read against Google address text
   /([^都道府県市区郡町村\s\d]{1,4}[区郡町村])/,
+  // i18n-data: address-matching anchor, read against Google address text
   /([^都道府県\s\d]{1,4}市)/,
 ];
 
@@ -115,13 +117,17 @@ const KOREA_PATTERNS: RegExp[] = [
     「釜山廣域市海雲台區中洞」 carries three levels, and the one that decides a day
     is the middle one: the city is the whole trip, and the 洞 is one block of it.
   */
+  // i18n-data: address-matching anchor, read against Google address text
   /([^市道區郡邑\s\d]{1,4}[區郡邑])/,
+  // i18n-data: address-matching anchor, read against Google address text
   /([^市道\s\d]{1,4}市)/,
 ];
 
 /** Traditional characters, and no 都道府県 to trim. */
 const CHINESE_PATTERNS: RegExp[] = [
+  // i18n-data: address-matching anchor, read against Google address text
   /([^市縣區鄉鎮\s\d]{1,4}[區鄉鎮])/,
+  // i18n-data: address-matching anchor, read against Google address text
   /([^市縣\s\d]{1,4}[市縣])/,
 ];
 
@@ -139,12 +145,17 @@ const ANY_PATTERNS: RegExp[] = [
   /\b([A-Z][a-zA-Z]+ City)\b/,
   /\b([A-Z][a-zA-Z]+-(?:gu|gun|eup|si|dong|ku|cho|machi|shi))\b/,
   // District level.
+  // i18n-data: address-matching anchor, read against Google address text
   /([^都道府県市区郡町村\s\d]{1,4}[区郡町村])/,
   /([가-힣]{1,4}[구군읍])/,
+  // i18n-data: address-matching anchor, read against Google address text
   /([^市道區郡邑\s\d]{1,4}[區郡邑])/,
+  // i18n-data: address-matching anchor, read against Google address text
   /([^市縣區鄉鎮\s\d]{1,4}[區鄉鎮])/,
   // City level, last.
+  // i18n-data: address-matching anchor, read against Google address text
   /([^都道府県\s\d]{1,4}市)/,
+  // i18n-data: address-matching anchor, read against Google address text
   /([^市縣\s\d]{1,4}[市縣])/,
 ];
 
@@ -156,8 +167,11 @@ const ANY_PATTERNS: RegExp[] = [
  */
 const KOREA_AREA_NAMES = ['Haeundae', 'Gwangalli', 'Seomyeon', 'Nampo', 'Gamcheon', 'Songjeong', 'Centum'];
 
+// i18n-data: country anchor matched against the trip's stored country name
 const isJapan = (country?: string) => /日本|japan|^jp$/i.test((country || '').trim());
+// i18n-data: country anchor matched against the trip's stored country name
 const isKorea = (country?: string) => /韓國|南韓|韓国|한국|대한민국|korea|^kr$/i.test((country || '').trim());
+// i18n-data: country anchor matched against the trip's stored country name
 const isChinese = (country?: string) => /台灣|臺灣|taiwan|^tw$|香港|hong\s*kong|^hk$|澳門|macau|^mo$/i.test((country || '').trim());
 
 const patternsFor = (country?: string): RegExp[] => {
@@ -187,6 +201,7 @@ export const districtOf = (address?: string, country?: string): string | undefin
       contain 도 and 영 legitimately, and a blacklist inside the match refuses
       the names it is meant to find.
     */
+    // i18n-data: city-prefix anchor trimmed off a matched address fragment
     if (match?.[1]) return match[1].replace(/^[市道시도]+/, '');
   }
   return undefined;
@@ -237,7 +252,16 @@ export const labelForCluster = (places: ClusterablePlace[], country?: string): s
     .map(place => (place.placeName || '').trim())
     .filter(Boolean)
     .sort((left, right) => left.length - right.length)[0];
+  /*
+    Not moved into the bundles, because this module is imported by `server.ts`
+    and `i18n/config` pulls in react-i18next and a browser language detector,
+    neither of which may reach the server runtime. The cluster label is also
+    read back as part of the cluster `id` and compared in `disambiguateLabels`,
+    so it is half identity as well as copy.
+  */
+  // i18n-data: server-imported module; label also forms the cluster id
   if (!named) return '這一區';
+  // i18n-data: server-imported module; label also forms the cluster id
   return `${named.length > 14 ? `${named.slice(0, 14)}…` : named} 一帶`;
 };
 
@@ -256,6 +280,7 @@ export const labelForCluster = (places: ClusterablePlace[], country?: string): s
 */
 const STREET_PATTERNS: RegExp[] = [
   /\b([A-Z][a-zA-Z]+)-(?:daero|ro|gil)\b/,
+  // i18n-data: street-suffix anchor, read against Google address text
   /([一-鿿]{2,4})[路街洞]/,
   /([가-힣]{2,4})[로길동]/,
 ];

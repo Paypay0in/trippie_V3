@@ -7,39 +7,48 @@
  * — two days before a trip, that is the difference between a fixable state
  * and an app that appears broken.
  */
+import i18n from '../i18n/config';
 
 /** What to tell the traveller, given whatever the database said. */
 export const inviteFailureMessage = (raw?: string): string => {
   const message = (raw || '').toLowerCase();
 
+  // i18n-data: Postgres/PostgREST error text, matched not shown.
   if (message.includes('member does not belong')) {
     // The companion exists locally but has no row on the server, so there is
     // no seat to hand out. Saving the trip is what pushes them.
-    return '這位旅伴還沒同步到雲端。請先儲存這趟旅程，等同步完成後再邀請。';
+    return i18n.t('joinTrip.invite.memberNotSynced');
   }
+  // i18n-data: Postgres/PostgREST error text, matched not shown.
   if (message.includes('not the trip owner')) {
-    return '這趟旅程還沒同步到雲端，或不是用建立它的帳號登入。請先儲存旅程並確認登入的帳號。';
+    return i18n.t('joinTrip.invite.tripNotSynced');
   }
+  // i18n-data: Supabase auth error text, matched not shown.
   if (message.includes('jwt') || message.includes('auth')) {
-    return '登入狀態已過期，請重新登入後再邀請。';
+    return i18n.t('joinTrip.invite.sessionExpired');
   }
+  // i18n-data: Postgres missing-function error text, matched not shown.
   if (message.includes('function') && message.includes('does not exist')) {
-    return '雲端還沒套用邀請功能的資料表設定。';
+    return i18n.t('joinTrip.invite.functionMissing');
   }
   // Unknown reasons are shown rather than replaced. A generic sentence hides
   // exactly the cases nobody anticipated, which are the ones worth reading.
-  return raw ? `產生邀請連結失敗：${raw}` : '產生邀請連結失敗';
+  return raw
+    ? i18n.t('joinTrip.invite.failedWithReason', { message: raw })
+    : i18n.t('joinTrip.invite.failed');
 };
 
 /** The same, for the person on the other end of the link. */
 export const claimFailureMessage = (raw?: string): string => {
   const message = (raw || '').toLowerCase();
 
+  // i18n-data: invite RPC error text, matched not shown.
   if (message.includes('must be signed in')) {
-    return '請先登入或註冊，再重新開啟這個邀請連結。';
+    return i18n.t('joinTrip.claim.signInFirst');
   }
+  // i18n-data: invite RPC error text, matched not shown.
   if (message.includes('invite not found') || message.includes('expired')) {
-    return '這個邀請連結已經失效或被用過了，請對方重新產生一次。';
+    return i18n.t('joinTrip.claim.linkUnusable');
   }
   /*
     The seat is held by somebody else's account.
@@ -49,11 +58,15 @@ export const claimFailureMessage = (raw?: string): string => {
     seat. It is also the most likely real failure: the owner invites one
     person per row, and a link forwarded to a second one lands here.
   */
+  // i18n-data: invite RPC error text, matched not shown.
   if (message.includes('seat has already been taken')) {
-    return '這個邀請的位子已經被別的帳號使用了。請對方在「管理旅伴」為你新增一位旅伴，再產生一次連結。';
+    return i18n.t('joinTrip.claim.seatTaken');
   }
+  // i18n-data: Supabase auth error text, matched not shown.
   if (message.includes('jwt') || message.includes('auth')) {
-    return '登入狀態已過期，請重新登入後再開一次連結。';
+    return i18n.t('joinTrip.claim.sessionExpired');
   }
-  return raw ? `加入失敗：${raw}` : '加入失敗，請再試一次或請對方重新邀請。';
+  return raw
+    ? i18n.t('joinTrip.claim.failedWithReason', { message: raw })
+    : i18n.t('joinTrip.claim.failed');
 };

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PlacePhoto } from '../services/placePhotoService';
 
 /**
@@ -26,6 +27,7 @@ interface Props {
 const STRIP = 4;
 
 const PlaceGallery: React.FC<Props> = ({ photos, placeName }) => {
+  const { t } = useTranslation();
   const [index, setIndex] = useState(0);
 
   // A different place starts at its own first photo, not at the last one's.
@@ -61,7 +63,7 @@ const PlaceGallery: React.FC<Props> = ({ photos, placeName }) => {
             <button
               key={photo.imageUrl}
               type="button"
-              aria-label={`${placeName} 照片 ${position + 1}`}
+              aria-label={t('places.galleryPhotoAria', { place: placeName, index: position + 1 })}
               data-testid={`place-gallery-thumb-${position}`}
               onClick={() => setIndex(position)}
               className={`h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 ${position === index ? 'border-[#5b3df5]' : 'border-transparent'}`}

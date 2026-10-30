@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { PublishedTripCard } from '../types';
 import { CollectionCard, PublishedCollectionCard, TripCard } from './PublishedCards';
@@ -41,6 +42,7 @@ const PublishedShelfScreen: React.FC<Props> = ({
   onOpenTrip,
   onOpenCollection,
 }) => {
+  const { t } = useTranslation();
   const [tab, setTab] = React.useState<'public' | 'private'>('public');
   const showing = mine ? tab : 'public';
 
@@ -56,7 +58,7 @@ const PublishedShelfScreen: React.FC<Props> = ({
       <div className="flex items-center gap-2 px-[var(--screen-pad)] pt-5">
         <button
           type="button"
-          aria-label="返回"
+          aria-label={t('common.back')}
           data-testid="published-shelf-back"
           onClick={onBack}
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#11183d] shadow-[0_4px_14px_rgba(17,26,74,.06)]"
@@ -68,8 +70,8 @@ const PublishedShelfScreen: React.FC<Props> = ({
 
       {mine && (
         <div className="mt-4 flex gap-1 border-b border-slate-200 px-[var(--screen-pad)]">
-          {([['public', '公開'], ['private', '私人']] as Array<['public' | 'private', string]>)
-            .map(([key, label]) => (
+          {([['public', 'published.tabPublic'], ['private', 'published.tabPrivate']] as Array<['public' | 'private', string]>)
+            .map(([key, labelKey]) => (
               <button
                 key={key}
                 type="button"
@@ -79,7 +81,7 @@ const PublishedShelfScreen: React.FC<Props> = ({
                   tab === key ? 'border-[#5b3df5] text-[#5b3df5]' : 'border-transparent text-slate-400'
                 }`}
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
         </div>
@@ -105,7 +107,7 @@ const PublishedShelfScreen: React.FC<Props> = ({
             data-testid="published-shelf-empty"
             className="rounded-[20px] border border-dashed border-[#dcd9ec] bg-white/60 px-4 py-10 text-center text-xs font-bold text-slate-400"
           >
-            {showing === 'private' ? '這裡還沒有不公開的項目。' : '這裡還沒有公開的項目。'}
+            {t(showing === 'private' ? 'published.emptyPrivate' : 'published.emptyPublic')}
           </p>
         )}
       </div>

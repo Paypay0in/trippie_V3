@@ -63,9 +63,12 @@ export const tripDaysBrief = (days: TripDay[]): string => {
   if (days.length === 0) return '';
   const free = days.filter(day => day.isFree).map(day => day.date);
   const pinned = days.filter(day => day.hasPinned).map(day => day.date);
+  // i18n-data: planner instruction sent to the model, not a label.
   const parts = [`這趟旅程共 ${days.length} 天。`];
+  // i18n-data: planner instruction sent to the model, not a label.
   parts.push(free.length > 0 ? `完全空著的日期：${free.join('、')}。` : '沒有完全空著的日期。');
   if (pinned.length > 0) {
+    // i18n-data: planner instruction sent to the model, not a label.
     parts.push(`以下日期有使用者固定住的行程，不要安排會佔掉整天的方案：${pinned.join('、')}。`);
   }
   return parts.join('');

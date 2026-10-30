@@ -74,6 +74,7 @@ export const parseEarliestStartPreference = (preferences?: string): string | und
   const text = preferences.replace(/：/g, ':');
 
   // 「11 點後出門」「11點才出發」「11:30 以後再出門」— hour first, intent word after.
+  // i18n-data: regex anchor — matched against the traveller's own typed words.
   const chinese = text.match(/(\d{1,2})\s*(?::\s*([0-5]\d))?\s*點?\s*(?:半)?\s*(?:以後|之後|後|才|再)?\s*(?:才|再)?\s*(?:出門|出發|開始|起床|活動)/);
   // 「出門時間 11 點」「start after 11am」
   const english = text.match(/(?:after|from|start(?:ing)?\s+(?:at|after))\s+(\d{1,2})(?::([0-5]\d))?\s*(am|pm)?/i);
@@ -81,6 +82,7 @@ export const parseEarliestStartPreference = (preferences?: string): string | und
   if (!match) return undefined;
 
   let hour = Number(match[1]);
+  // i18n-data: regex anchor — 半 reads as the half hour in the matched phrase.
   const minute = match[2] ? Number(match[2]) : (/半/.test(match[0]) ? 30 : 0);
   if (english && !chinese && /pm/i.test(match[3] || '') && hour < 12) hour += 12;
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) return undefined;

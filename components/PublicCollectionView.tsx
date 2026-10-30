@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bookmark, Check, Loader2, X } from 'lucide-react';
 import { SavedCollectionItem, SavedTravelInspiration } from '../types';
 import { PublicCollection } from '../services/savedCollectionSync';
@@ -42,6 +43,7 @@ const PublicCollectionView: React.FC<Props> = ({
   onSave,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [picking, setPicking] = React.useState(false);
   const [chosen, setChosen] = React.useState<Set<string>>(new Set());
   const [saved, setSaved] = React.useState(false);
@@ -58,7 +60,7 @@ const PublicCollectionView: React.FC<Props> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto bg-[#f7f8fc] px-[var(--screen-pad)] py-6" data-testid="public-collection">
       <button
         type="button"
-        aria-label="關閉"
+        aria-label={t('common.close')}
         data-testid="public-collection-close"
         onClick={onClose}
         className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 shadow-sm"
@@ -72,7 +74,7 @@ const PublicCollectionView: React.FC<Props> = ({
   if (loading) {
     return shell(
       <p className="flex items-center justify-center gap-2 rounded-2xl bg-white p-8 text-[13px] text-slate-400">
-        <Loader2 size={15} className="animate-spin" />讀取中…
+        <Loader2 size={15} className="animate-spin" />{t('publicTrip.loading')}
       </p>,
     );
   }
@@ -87,8 +89,8 @@ const PublicCollectionView: React.FC<Props> = ({
   if (notFound || !collection) {
     return shell(
       <div className="rounded-2xl bg-white p-8 text-center" data-testid="public-collection-missing">
-        <p className="text-[14px] font-black text-[#11183d]">找不到這份收藏</p>
-        <p className="mt-1 text-[12px] text-slate-400">連結可能已經失效，或對方已經取消公開。</p>
+        <p className="text-[14px] font-black text-[#11183d]">{t('publicCollection.notFoundTitle')}</p>
+        <p className="mt-1 text-[12px] text-slate-400">{t('publicTrip.notFoundBlurb')}</p>
       </div>,
     );
   }
@@ -107,7 +109,7 @@ const PublicCollectionView: React.FC<Props> = ({
           <h1 className="text-xl font-black text-[#11183d]">{collection.title}</h1>
           <p className="mt-0.5 text-[12px] text-slate-400">
             {[collection.city, collection.country].filter(Boolean).join('・')}
-            {items.length > 0 && `・${items.length} 個地點`}
+            {items.length > 0 && t('collections.placeCountWithDot', { n: items.length })}
           </p>
           {collection.description && (
             <p className="mt-2 text-[12px] leading-5 text-slate-500">{collection.description}</p>
@@ -118,7 +120,7 @@ const PublicCollectionView: React.FC<Props> = ({
               data-testid="public-collection-saved"
               className="mt-3 flex items-center justify-center gap-1 rounded-xl bg-emerald-50 py-3 text-[13px] font-black text-emerald-600"
             >
-              <Check size={15} />已存進你的收藏
+              <Check size={15} />{t('publicCollection.saved')}
             </p>
           ) : signedIn ? (
             <div className="mt-3 flex gap-2">
@@ -132,7 +134,9 @@ const PublicCollectionView: React.FC<Props> = ({
                 disabled={picking && selection.length === 0}
                 className="min-h-12 flex-1 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-[13px] font-black text-white disabled:opacity-50"
               >
-                {picking ? `收藏選取的 ${selection.length} 個地點` : '全部收藏'}
+                {picking
+                  ? t('publicCollection.saveSelected', { n: selection.length })
+                  : t('publicCollection.saveAll')}
               </button>
               <button
                 type="button"
@@ -140,7 +144,7 @@ const PublicCollectionView: React.FC<Props> = ({
                 onClick={() => { setPicking(current => !current); setChosen(new Set()); }}
                 className="min-h-12 flex-1 rounded-xl bg-white text-[13px] font-black text-[#5b3df5] ring-1 ring-violet-200"
               >
-                {picking ? '取消選取' : '選擇收藏'}
+                {picking ? t('publicCollection.cancelPicking') : t('publicCollection.pickSome')}
               </button>
             </div>
           ) : (
@@ -155,7 +159,7 @@ const PublicCollectionView: React.FC<Props> = ({
               onClick={() => onSignIn?.()}
               className="mt-3 min-h-12 w-full rounded-xl bg-white text-[13px] font-black text-[#5b3df5] ring-1 ring-violet-200"
             >
-              登入後就能把這些地點存進你的收藏
+              {t('publicTrip.signInToSave')}
             </button>
           )}
         </div>
@@ -197,7 +201,7 @@ const PublicCollectionView: React.FC<Props> = ({
                   data-testid={`public-collection-held-${item.id}`}
                   className="flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-400"
                 >
-                  <Bookmark size={11} />已收藏
+                  <Bookmark size={11} />{t('publicTrip.alreadySaved')}
                 </span>
               )}
             </button>
@@ -205,7 +209,7 @@ const PublicCollectionView: React.FC<Props> = ({
         })}
         {items.length === 0 && (
           <p className="rounded-2xl bg-white p-6 text-center text-[12px] text-slate-400">
-            這份收藏還沒有地點。
+            {t('publicCollection.empty')}
           </p>
         )}
       </div>

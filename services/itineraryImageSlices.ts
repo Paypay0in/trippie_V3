@@ -61,6 +61,12 @@ const MAX_NOTE_CHARS = 40;
 /** Past this the list stops being scannable, which was the whole point. */
 const MAX_NOTES = 6;
 
+/*
+  Every Chinese string from here to the end of the file is a matching anchor —
+  regex alternatives, a simplified-to-traditional comparison table and a set of
+  praise characters — applied to text the model read off a screenshot. None of
+  it is ever displayed. i18n-data: regex anchors and comparison lookups.
+*/
 /** Marketing with no content behind it. A note made only of these says nothing. */
 const EMPTY_PRAISE = /^[\s。，、！!,.]*((很|超|超級|非常|真的|蠻|滿|挺|頗|極|相當|十分|值得)*(推薦|好吃|美味|好玩|不錯|讚|棒|優秀|必去|必吃|好評)|深受(食客|遊客|大家)?好評|口碑(很)?好|人氣(很)?高|CP值(很)?高)[\s。，、！!,.]*$/;
 

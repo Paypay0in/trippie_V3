@@ -22,15 +22,18 @@ export interface TodoLinks {
 }
 
 /** Words too common to mean two texts are about the same thing. */
+// i18n-data: tokens matched against task and post text, never displayed.
 const STOPWORDS = new Set([
-  '預約', '查詢', '確認', '準備', '購買', '申請', '安排', '租借', '服務', '日期',
-  '旅行', '旅遊', '行程', '出發', '注意', '推薦', '體驗', '可以', '需要', '一日',
+  '預約', '查詢', '確認', '準備', '購買', '申請', '安排', '租借', '服務', '日期', // i18n-data: tokens matched against task and post text
+  '旅行', '旅遊', '行程', '出發', '注意', '推薦', '體驗', '可以', '需要', '一日', // i18n-data: tokens matched against task and post text
 ]);
 
 const tokens = (text: string): string[] => {
+  // i18n-data: punctuation stripped off input text; a regex anchor, not copy.
   const cleaned = (text || '').replace(/[\s,，。、()（）「」【】:：]/g, '');
   const found: string[] = [];
   // Chinese runs of 2+ characters, plus Latin words of 3+ letters.
+  // i18n-data: CJK codepoint range, a character class rather than words
   for (const match of cleaned.matchAll(/[一-鿿]{2,}|[A-Za-z]{3,}/g)) {
     found.push(match[0]);
   }

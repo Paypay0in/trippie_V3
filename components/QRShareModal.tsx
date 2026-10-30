@@ -1,6 +1,7 @@
 
 import { OVERLAY } from '../constants/layers';
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { X, Camera, QrCode, Users, Share2, CheckCircle, AlertTriangle, Globe } from 'lucide-react';
 import { inviteTokenFromUrl } from '../services/tripInvites';
@@ -46,6 +47,7 @@ const QRShareModal: React.FC<Props> = ({
   onManageTravelers,
   onOpenPublicShare,
 }) => {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'show' | 'scan'>('show');
   const [scanError, setScanError] = useState('');
 
@@ -66,7 +68,7 @@ const QRShareModal: React.FC<Props> = ({
         const token = inviteTokenFromUrl(decodedText)
           || (/^[a-z0-9]{16,}$/i.test(decodedText.trim()) ? decodedText.trim() : '');
         if (!token) {
-          setScanError('這個 QR 不是旅程邀請碼。請對方在「旅伴管理」裡替你產生邀請連結。');
+          setScanError(t('qrShare.notAnInvite'));
           return;
         }
         setScanError('');
@@ -93,11 +95,11 @@ const QRShareModal: React.FC<Props> = ({
       <div className="flex max-h-[92vh] w-full max-w-sm flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_24px_60px_rgba(17,24,61,.22)]">
         {/* Header — same shell and close-button placement as the other modals */}
         <div className="flex flex-shrink-0 items-center gap-3 border-b border-slate-100 px-5 py-4">
-          <button onClick={onClose} aria-label="關閉" className="-ml-2 rounded-full p-2 text-slate-500 hover:bg-slate-100">
+          <button onClick={onClose} aria-label={t('common.close')} className="-ml-2 rounded-full p-2 text-slate-500 hover:bg-slate-100">
             <X size={20} />
           </button>
           <h2 className="flex items-center gap-2 text-xl font-black text-[#11183d]">
-            <Share2 size={20} className="text-violet-600" /> 共享旅程帳本
+            <Share2 size={20} className="text-violet-600" /> {t('qrShare.title')}
           </h2>
         </div>
 
@@ -110,7 +112,7 @@ const QRShareModal: React.FC<Props> = ({
                 mode === 'show' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-400'
               }`}
             >
-              <QrCode size={17} /> 邀請朋友
+              <QrCode size={17} /> {t('qrShare.inviteTab')}
             </button>
             <button
               onClick={() => setMode('scan')}
@@ -118,7 +120,7 @@ const QRShareModal: React.FC<Props> = ({
                 mode === 'scan' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-400'
               }`}
             >
-              <Camera size={17} /> 掃描對方
+              <Camera size={17} /> {t('qrShare.scanTab')}
             </button>
           </div>
         </div>
@@ -140,23 +142,26 @@ const QRShareModal: React.FC<Props> = ({
                 <Users size={34} className="text-violet-600" />
               </div>
               <h3 className="mt-4 text-center text-lg font-black tracking-tight text-[#11183d]">
-                邀請連結是給某一個人的
+                {t('qrShare.inviteHeading')}
               </h3>
               <p className="mt-2 text-center text-[13px] font-medium leading-relaxed text-slate-500">
-                到「旅伴管理」新增朋友的名字，再按邀請，就會產生她專屬的連結和 QR。
-                她用手機相機掃，或直接點連結就能加入{currentTripName ? `「${currentTripName}」` : '這趟旅程'}。
+                {t('qrShare.inviteBlurb', {
+                  trip: currentTripName
+                    ? t('qrShare.namedTrip', { name: currentTripName })
+                    : t('qrShare.thisTrip'),
+                })}
               </p>
               <button
                 type="button"
                 onClick={() => { onClose(); onManageTravelers(); }}
                 className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-sm font-black text-white"
               >
-                <Share2 size={16} /> 前往旅伴管理
+                <Share2 size={16} /> {t('qrShare.goToCompanions')}
               </button>
               {onOpenPublicShare && (
                 <>
                   <p className="mt-5 text-center text-[11px] font-bold text-slate-400">
-                    想讓別人參考這個行程，而不是一起記帳？
+                    {t('qrShare.publicPrompt')}
                   </p>
                   <button
                     type="button"
@@ -164,7 +169,7 @@ const QRShareModal: React.FC<Props> = ({
                     onClick={() => { onClose(); onOpenPublicShare(); }}
                     className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-black text-[#5b3df5] ring-1 ring-violet-200"
                   >
-                    <Globe size={16} /> 公開分享這個行程
+                    <Globe size={16} /> {t('qrShare.publicShare')}
                   </button>
                 </>
               )}
@@ -172,7 +177,7 @@ const QRShareModal: React.FC<Props> = ({
           ) : (
             <div className="flex w-full flex-col items-center animate-fade-in">
               <p className="mt-4 text-center text-[13px] font-medium text-slate-500">
-                把對方畫面上的邀請 QR 放進框內。
+                {t('qrShare.scanHint')}
               </p>
               {scanError && (
                 <p className="mt-3 flex items-start gap-1.5 text-xs font-bold text-rose-600">
@@ -186,7 +191,7 @@ const QRShareModal: React.FC<Props> = ({
           <div className="mt-5 flex items-start gap-2.5 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
             <CheckCircle size={17} className="mt-0.5 shrink-0 text-emerald-500" />
             <p className="text-xs font-medium leading-relaxed text-slate-500">
-              共享後，雙方皆可即時編輯消費、分攤金額，並同步更新至雲端。
+              {t('qrShare.sharedNotice')}
             </p>
           </div>
         </div>

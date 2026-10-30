@@ -1,5 +1,7 @@
+import i18n from '../i18n/config';
 import { FlightAirport, FlightAnchor, TripFlightMode } from '../types';
 import { airportCandidatesForCity, findAirportByIata } from './airportDirectory';
+import { applyAirport } from './flightAirportFields';
 
 export interface FlightSetupContext {
   destination?: string;
@@ -24,33 +26,14 @@ const blankAnchor = (direction: FlightAnchor['direction']): FlightAnchor => ({
   source: 'MANUAL',
 });
 
-/** Write a canonical airport onto one side of an anchor. Clears it when undefined. */
-export const applyAirport = (
-  anchor: FlightAnchor,
-  side: 'departure' | 'arrival',
-  airport: FlightAirport | undefined,
-): FlightAnchor => {
-  if (side === 'departure') {
-    return {
-      ...anchor,
-      departureAirport: airport ? airport.name : '',
-      departureAirportIata: airport?.iataCode,
-      departureAirportCity: airport?.city,
-      departureAirportCountry: airport?.country,
-      departureAirportLatitude: airport?.latitude,
-      departureAirportLongitude: airport?.longitude,
-    };
-  }
-  return {
-    ...anchor,
-    arrivalAirport: airport ? airport.name : undefined,
-    arrivalAirportIata: airport?.iataCode,
-    arrivalAirportCity: airport?.city,
-    arrivalAirportCountry: airport?.country,
-    arrivalAirportLatitude: airport?.latitude,
-    arrivalAirportLongitude: airport?.longitude,
-  };
-};
+/*
+  `applyAirport` now lives in `flightAirportFields.ts`, re-exported here so the
+  form and this module's own callers keep one import. It moved because
+  `server.ts` reaches it via `flightIntake`, and this module translates its leg
+  labels — a module-level `i18n/config` import that the server has no business
+  loading. The server imports the wordless module directly.
+*/
+export { applyAirport };
 
 export const airportOf = (
   anchor: FlightAnchor,
@@ -124,10 +107,12 @@ export interface FlightAnchorFieldError {
   message: string;
 }
 
-const LEG_LABEL: Record<FlightAnchor['direction'], string> = {
-  OUTBOUND: '去程',
-  RETURN: '回程',
-};
+/**
+ * The leg named inside a validation message. Resolved per call, not at import,
+ * so the sentence is in the language the reader is in now.
+ */
+const legLabel = (direction: FlightAnchor['direction']): string =>
+  i18n.t(`plan.flightAnchor.leg.${direction}`);
 
 /**
  * Field-level validation. Every message names the exact leg and field that is
@@ -136,13 +121,13 @@ const LEG_LABEL: Record<FlightAnchor['direction'], string> = {
 export const validateFlightAnchors = (anchors: FlightAnchor[]): FlightAnchorFieldError[] => {
   const errors: FlightAnchorFieldError[] = [];
   anchors.forEach(anchor => {
-    const leg = LEG_LABEL[anchor.direction];
+    const leg = legLabel(anchor.direction);
     const push = (field: FlightAnchorFieldError['field'], message: string) =>
       errors.push({ anchorId: anchor.id, direction: anchor.direction, field, message });
-    if (!anchor.departureDate) push('departureDate', `請選擇${leg}出發日期`);
-    if (!anchor.departureTime) push('departureTime', `請選擇${leg}出發時間`);
-    if (!anchor.departureAirport.trim()) push('departureAirport', `請選擇${leg}出發機場`);
-    if (!anchor.arrivalAirport?.trim()) push('arrivalAirport', `請選擇${leg}抵達機場`);
+    if (!anchor.departureDate) push('departureDate', i18n.t('plan.flightAnchor.error.departureDate', { leg }));
+    if (!anchor.departureTime) push('departureTime', i18n.t('plan.flightAnchor.error.departureTime', { leg }));
+    if (!anchor.departureAirport.trim()) push('departureAirport', i18n.t('plan.flightAnchor.error.departureAirport', { leg }));
+    if (!anchor.arrivalAirport?.trim()) push('arrivalAirport', i18n.t('plan.flightAnchor.error.arrivalAirport', { leg }));
   });
   return errors;
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PublicTrip } from '../types';
 import { Search, MapPin, Navigation, Filter, Camera } from 'lucide-react';
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 const MapExplorer: React.FC<Props> = ({ trips, onSelectTrip }) => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
@@ -17,7 +19,7 @@ const MapExplorer: React.FC<Props> = ({ trips, onSelectTrip }) => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input 
             type="text" 
-            placeholder="搜尋地點、餐廳或景點..." 
+            placeholder={t('mapExplorer.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none"
@@ -67,11 +69,11 @@ const MapExplorer: React.FC<Props> = ({ trips, onSelectTrip }) => {
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
           <button className="bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-bold text-gray-700 hover:bg-white transition-colors">
             <Navigation size={14} className="text-brand-600" />
-            附近熱門
+            {t('mapExplorer.nearbyPopular')}
           </button>
           <button className="bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-xs font-bold text-gray-700 hover:bg-white transition-colors">
             <Camera size={14} className="text-brand-600" />
-            實景照片
+            {t('mapExplorer.streetPhotos')}
           </button>
         </div>
       </div>

@@ -14,6 +14,7 @@
  * Reads are per trip rather than per stop — a day has a dozen stops and twelve
  * round trips to show one screen is how a page comes to take four seconds.
  */
+import i18n from '../i18n/config';
 import { supabase } from './supabaseClient';
 import type { SyncResult } from './tripSync';
 
@@ -63,7 +64,7 @@ interface JournalRow {
 
 const describe = (error: unknown): string => {
   const detail = error as { message?: string; code?: string } | null;
-  return detail?.message || detail?.code || '不明的錯誤';
+  return detail?.message || detail?.code || i18n.t('common.unknownError');
 };
 
 /**

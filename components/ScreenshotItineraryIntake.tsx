@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Bookmark, Camera, Check, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { ItineraryItem } from '../types';
 import { ItinerarySlice, sliceToItineraryItem } from '../services/itineraryImageSlices';
@@ -43,13 +44,20 @@ interface Props {
   onSaveToCollection?: (slices: ItinerarySlice[]) => Promise<number> | number;
 }
 
-const TYPE_LABELS: Record<ItinerarySlice['type'], string> = {
-  place: '景點',
-  food: '美食',
-  hotel: '住宿',
-  activity: '活動',
-  transport: '交通',
-  tip: '提醒',
+/**
+ * Keys rather than labels.
+ *
+ * The map is built once at import, so a `t()` called here would freeze these
+ * six badges to whichever language loaded first. `slice.type` is the stored
+ * value and stays as it is; only the word on the badge is looked up, at render.
+ */
+const TYPE_LABEL_KEYS: Record<ItinerarySlice['type'], string> = {
+  place: 'itinerary.screenshotIntake.types.place',
+  food: 'itinerary.screenshotIntake.types.food',
+  hotel: 'itinerary.screenshotIntake.types.hotel',
+  activity: 'itinerary.screenshotIntake.types.activity',
+  transport: 'itinerary.screenshotIntake.types.transport',
+  tip: 'itinerary.screenshotIntake.types.tip',
 };
 
 const makeId = () => `shot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -71,6 +79,7 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
   onAddItems,
   onSaveToCollection,
 }) => {
+  const { t } = useTranslation();
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -125,7 +134,7 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
           });
         } catch (caught) {
           // One unreadable screenshot does not discard the nine that worked.
-          failures.push(caught instanceof Error ? caught.message : '辨識失敗');
+          failures.push(caught instanceof Error ? caught.message : t('itinerary.screenshotIntake.readFailed'));
         }
         setProgress(current => ({ ...current, done: current.done + 1 }));
       }
@@ -135,12 +144,12 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
       // Taking one off is one tap; ticking twenty is twenty.
       setChosen(collected.map(slice => slice.id));
       if (collected.length === 0) {
-        setError(failures[0] || '這些截圖看不出可以排進行程的地點，換幾張再試試。');
+        setError(failures[0] || t('itinerary.screenshotIntake.nothingFound'));
       } else if (failures.length > 0) {
-        setError(`有 ${failures.length} 張沒讀出東西，其餘已列在下面。`);
+        setError(t('itinerary.screenshotIntake.someFailed', { n: failures.length }));
       }
       if (files.length > MAX_SCREENSHOTS) {
-        setError(`一次最多 ${MAX_SCREENSHOTS} 張，已處理前 ${MAX_SCREENSHOTS} 張。`);
+        setError(t('itinerary.screenshotIntake.tooMany', { max: MAX_SCREENSHOTS }));
       }
     } finally {
       setBusy(false);
@@ -172,7 +181,7 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
       setSlices([]);
       setChosen([]);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '收藏時出了點問題，請再試一次。');
+      setError(caught instanceof Error ? caught.message : t('itinerary.screenshotIntake.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -186,9 +195,9 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
             <ImageIcon size={17} />
           </span>
           <div>
-            <h3 className="font-black text-[#11183d]">從截圖加入行程</h3>
+            <h3 className="font-black text-[#11183d]">{t('itinerary.screenshotIntake.title')}</h3>
             <p className="mt-0.5 text-[11px] font-medium text-slate-400">
-              社群貼文、部落格、朋友傳的清單都可以，一次最多 {MAX_SCREENSHOTS} 張
+              {t('itinerary.screenshotIntake.blurb', { max: MAX_SCREENSHOTS })}
             </p>
           </div>
         </div>
@@ -200,8 +209,10 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
           {busy
-            ? (progress.total > 1 ? `辨識中 ${progress.done}/${progress.total}` : '辨識中')
-            : '上傳截圖'}
+            ? (progress.total > 1
+              ? t('itinerary.screenshotIntake.readingProgress', { done: progress.done, total: progress.total })
+              : t('itinerary.screenshotIntake.reading'))
+            : t('itinerary.screenshotIntake.upload')}
         </button>
       </div>
 
@@ -209,7 +220,7 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
         ref={fileInput}
         type="file"
         accept="image/*"
-        aria-label="上傳旅行截圖"
+        aria-label={t('itinerary.screenshotIntake.uploadAria')}
         className="hidden"
         multiple
         onChange={event => {
@@ -227,36 +238,39 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
 
       {added > 0 && (
         <p className="mt-3 flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-          <Check size={14} /> 已加入 {added} 個行程，可以到時間軸調整時間與順序。
+          <Check size={14} /> {t('itinerary.screenshotIntake.addedNote', { n: added })}
         </p>
       )}
 
       {saved > 0 && (
         <p data-testid="screenshot-saved-note" className="mt-3 rounded-xl bg-[#f3f0ff] px-3 py-2 text-xs font-bold leading-5 text-[#5b3df5]">
           <Check size={14} className="mr-1 inline" />
-          已收藏 {saved} 個地點。想一次排進行程的話，到下面選「補充行程」——AI 會先讀過你目前的安排，再把收藏的地點依地址排進合適的空檔。
+          {t('itinerary.screenshotIntake.savedNote', { n: saved })}
         </p>
       )}
 
       {slices.length > 0 && (
         <div className="mt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-black text-[#11183d]">讀到 {slices.length} 個可以加入的項目</p>
+            <p className="text-xs font-black text-[#11183d]">{t('itinerary.screenshotIntake.foundCount', { n: slices.length })}</p>
             {dates.length > 0 && (
               <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500">
-                加到
+                {t('itinerary.screenshotIntake.addTo')}
                 <select
-                  aria-label="加入哪一天"
+                  aria-label={t('itinerary.screenshotIntake.addToAria')}
                   value={date}
                   onChange={event => setDate(event.target.value)}
                   className="rounded-lg border border-[#e4e2f2] bg-white px-2 py-1 text-[11px] font-black text-[#11183d]"
                 >
                   {/* 「先放著，之後再排」 is a real answer: a place with no day yet
                       sits in the undated bucket rather than on a guessed one. */}
-                  <option value="">先不指定日期</option>
+                  <option value="">{t('itinerary.screenshotIntake.noDateYet')}</option>
                   {dates.map((tripDate, index) => (
                     <option key={tripDate} value={tripDate}>
-                      Day {index + 1}・{tripDate.slice(5).replace('-', '/')}
+                      {t('itinerary.screenshotIntake.dayOption', {
+                        day: index + 1,
+                        date: tripDate.slice(5).replace('-', '/'),
+                      })}
                     </option>
                   ))}
                 </select>
@@ -290,7 +304,7 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="min-w-0 truncate text-sm font-black text-[#11183d]">{slice.title}</span>
                         <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-500">
-                          {TYPE_LABELS[slice.type]}
+                          {t(TYPE_LABEL_KEYS[slice.type])}
                         </span>
                         {slice.suggestedStartTime && (
                           <span className="shrink-0 rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-black text-violet-600">
@@ -342,7 +356,9 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
               className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 py-3 text-sm font-black text-white disabled:opacity-40"
             >
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Bookmark size={15} />}
-              {saving ? '收藏中…' : `收藏 ${chosen.length} 個，稍後讓 AI 排`}
+              {saving
+                ? t('itinerary.screenshotIntake.saving')
+                : t('itinerary.screenshotIntake.saveToCollection', { n: chosen.length })}
             </button>
           )}
 
@@ -357,11 +373,13 @@ const ScreenshotItineraryIntake: React.FC<Props> = ({
                   : 'mt-3 bg-gradient-to-r from-blue-600 to-violet-600 text-white'
               }`}
             >
-              直接加到{date ? '這一天' : '行程'}（{chosen.length}）
+              {date
+                ? t('itinerary.screenshotIntake.addToThisDay', { n: chosen.length })
+                : t('itinerary.screenshotIntake.addToItinerary', { n: chosen.length })}
             </button>
           )}
           <p className="mt-1.5 text-center text-[10px] font-medium text-slate-400">
-            截圖讀到的是名稱與筆記，地圖位置會在行程裡再連結
+            {t('itinerary.screenshotIntake.footnote')}
           </p>
         </div>
       )}

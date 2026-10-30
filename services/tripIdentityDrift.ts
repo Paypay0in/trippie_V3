@@ -73,6 +73,7 @@ export const identityDrift = (
     if (!remote) return [];
     const cloudName = text(remote.name);
     const localName = text(draft.name);
+    // i18n-data: the placeholder `fetchMyTrips` stores for a null name, compared with ===.
     if (!cloudName || cloudName === '未命名旅程') return [];
     if (!localName || localName === cloudName) return [];
     return [{

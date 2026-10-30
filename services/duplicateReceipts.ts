@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { Expense } from '../types';
 
 /**
@@ -181,5 +182,5 @@ export const mergeDuplicate = (keep: Expense, drop: Expense): Expense => ({
 /** How a pair reads to the person deciding. */
 export const describeDuplicate = (pair: DuplicatePair): string =>
   pair.confidence === 'same_day'
-    ? '同一天、同金額，很可能是同一筆'
-    : '金額相同、日期差一天，可能是同一筆';
+    ? i18n.t('duplicates.sameDayReason')
+    : i18n.t('duplicates.nextDayReason');

@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { FlightAnchor } from '../types';
 import { airportCandidatesForCity } from './airportDirectory';
 
@@ -28,9 +29,13 @@ export interface AnchorContradiction {
   message: string;
 }
 
-const LEG_LABEL: Record<FlightAnchor['direction'], string> = {
-  OUTBOUND: '去程',
-  RETURN: '回程',
+/**
+ * Keys rather than words: this table is built once at import, and a `t()`
+ * called here would freeze both legs to whichever language loaded first.
+ */
+const LEG_LABEL_KEYS: Record<FlightAnchor['direction'], string> = {
+  OUTBOUND: 'plan.anchorCheck.legOutbound',
+  RETURN: 'plan.anchorCheck.legReturn',
 };
 
 /**
@@ -72,7 +77,7 @@ export const anchorContradictions = ({
   const found: AnchorContradiction[] = [];
 
   for (const anchor of anchors) {
-    const leg = LEG_LABEL[anchor.direction];
+    const leg = i18n.t(LEG_LABEL_KEYS[anchor.direction]);
 
     /*
       The dates, which are unambiguous. A flight outside the trip's own range
@@ -84,7 +89,12 @@ export const anchorContradictions = ({
       found.push({
         anchorId: anchor.id,
         kind: 'date',
-        message: `${leg}是 ${anchor.departureDate}，不在這趟旅程的日期（${tripStartDate} – ${tripEndDate}）裡。`,
+        message: i18n.t('plan.anchorCheck.dateOutsideTrip', {
+          leg,
+          date: anchor.departureDate,
+          start: tripStartDate,
+          end: tripEndDate,
+        }),
       });
     }
 
@@ -98,7 +108,7 @@ export const anchorContradictions = ({
       found.push({
         anchorId: anchor.id,
         kind: 'airport',
-        message: `${leg}的機場是 ${airport}，看起來不是飛往${destination}的航班。`,
+        message: i18n.t('plan.anchorCheck.airportMismatch', { leg, airport, destination }),
       });
     }
   }
@@ -163,5 +173,9 @@ export const contradictionHeadline = (
   }
 
   if (ticket.length === 0 || trip.length === 0) return '';
-  return `這張票是${ticket.join('・')}，但旅程是${trip.join('・')}，確定嗎？`;
+  const separator = i18n.t('planner.placeSeparator');
+  return i18n.t('plan.anchorCheck.headline', {
+    ticket: ticket.join(separator),
+    trip: trip.join(separator),
+  });
 };

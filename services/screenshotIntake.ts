@@ -1,3 +1,4 @@
+import i18n from '../i18n/config';
 import { ParsedRental, normalizeParsedRental } from './rentalIntake';
 import { ParsedStay, normalizeParsedStay } from './stayIntake';
 import { ItinerarySlice, normalizeItinerarySlices } from './itineraryImageSlices';
@@ -86,9 +87,9 @@ const post = async (endpoint: string, body: unknown, fallback: string): Promise<
     // Separated because the answers differ: one is worth retrying now, the
     // other is worth retrying with a smaller or clearer picture.
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error('讀太久了，辨識服務可能忙碌中，請稍後再試一次。');
+      throw new Error(i18n.t('plan.screenshotIntake.timeout'));
     }
-    throw new Error('現在無法辨識截圖，請確認連線後再試。');
+    throw new Error(i18n.t('plan.screenshotIntake.offline'));
   }
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
@@ -101,7 +102,7 @@ export const classifyScreenshot = async (input: ScreenshotInput): Promise<Screen
   const payload = await post(
     '/api/screenshots/kind',
     { base64Data: input.base64Data, mimeType: input.mimeType },
-    '現在無法辨識截圖，請稍後再試。',
+    i18n.t('plan.screenshotIntake.unreadable'),
   ) as { kind?: unknown } | null;
   return normalizeScreenshotKind(payload?.kind);
 };
@@ -114,7 +115,7 @@ export const classifyScreenshot = async (input: ScreenshotInput): Promise<Screen
  * empty card the traveller fills in is recoverable; a confidently wrong one
  * is not, and that is the whole reason those two return null at all.
  */
-const refusal = '這張截圖讀不出完整的訂單，請改用該區塊的上傳按鈕手動確認。';
+const refusal = (): string => i18n.t('plan.screenshotIntake.partialBooking');
 
 export const readScreenshot = async (input: ScreenshotInput): Promise<ScreenshotResult> => {
   /*
@@ -131,14 +132,14 @@ export const readScreenshot = async (input: ScreenshotInput): Promise<Screenshot
   const picture = { base64Data: input.base64Data, mimeType: input.mimeType };
 
   if (kind === 'rental') {
-    const rental = normalizeParsedRental(await post(route.endpoint, picture, '現在無法辨識租車訂單，請手動輸入。'));
-    if (!rental) throw new Error(refusal);
+    const rental = normalizeParsedRental(await post(route.endpoint, picture, i18n.t('plan.screenshotIntake.rentalUnreadable')));
+    if (!rental) throw new Error(refusal());
     return { kind, rental };
   }
 
   if (kind === 'stay') {
-    const stay = normalizeParsedStay(await post(route.endpoint, picture, '現在無法辨識訂房截圖，請手動輸入。'));
-    if (!stay) throw new Error(refusal);
+    const stay = normalizeParsedStay(await post(route.endpoint, picture, i18n.t('plan.screenshotIntake.stayUnreadable')));
+    if (!stay) throw new Error(refusal());
     return { kind, stay };
   }
 
@@ -146,14 +147,14 @@ export const readScreenshot = async (input: ScreenshotInput): Promise<Screenshot
     // The flight route answers with a {OUTBOUND?, RETURN?} envelope rather
     // than one flight, and its own sheet is what knows how to place the two
     // legs on the trip. Handed over whole, unread.
-    return { kind, flights: await post(route.endpoint, picture, '現在無法辨識機票，請手動輸入。') };
+    return { kind, flights: await post(route.endpoint, picture, i18n.t('plan.screenshotIntake.flightReadFailed')) };
   }
 
   const slices = normalizeItinerarySlices(await post(
     route.endpoint,
     { ...picture, destination: input.destination, destinationCountry: input.destinationCountry },
-    '現在無法辨識截圖，請稍後再試。',
+    i18n.t('plan.screenshotIntake.unreadable'),
   ));
-  if (slices.length === 0) throw new Error('這張截圖看不出可以排進行程的地點，換一張再試試。');
+  if (slices.length === 0) throw new Error(i18n.t('plan.screenshotIntake.nothingToPlanOne'));
   return { kind: 'inspiration', slices };
 };

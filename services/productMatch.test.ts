@@ -93,7 +93,9 @@ describe('size', () => {
     );
 
     expect(match.confidence).toBe('none');
-    expect(match.reason).toContain('規格不同');
+    // The reason names both sizes, so the card can say which is which.
+    expect(match.reasonKey).toBe('shopping.match.sizeDiffers');
+    expect(match.reasonParams).toEqual({ wanted: '45ml', offered: '60ml' });
   });
 
   /* A page that states no size cannot contradict one. */

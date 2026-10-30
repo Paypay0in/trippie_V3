@@ -198,13 +198,13 @@ describe('creating a trip', () => {
   it('opens the new trip the same way every other trip is opened', () => {
     const start = APP.indexOf('if (tripSetupMode === "create") {');
     expect(start).toBeGreaterThan(-1);
-    const branch = APP.slice(start, APP.indexOf('showToast("新旅程已建立', start));
+    const branch = APP.slice(start, APP.indexOf("showToast(t('app.toast.tripCreated')", start));
     expect(branch).toContain('hydrateDraft(newDraft)');
   });
 
   it('does not hand-reset the state hydrating already handles', () => {
     const start = APP.indexOf('if (tripSetupMode === "create") {');
-    const branch = APP.slice(start, APP.indexOf('showToast("新旅程已建立', start));
+    const branch = APP.slice(start, APP.indexOf("showToast(t('app.toast.tripCreated')", start));
     for (const setter of ['setExpenses(', 'setItinerary(', 'setShoppingList(']) {
       expect(branch).not.toContain(setter);
     }

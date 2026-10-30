@@ -129,18 +129,11 @@ export const rentalDays = (rental: Pick<ParsedRental, 'pickUpDate' | 'dropOffDat
 export const hasCarOn = (rentals: ParsedRental[], date: string): boolean =>
   rentals.some(rental => rentalDays(rental).includes(date));
 
-/** 「10/03 10:00 – 10/05 18:00」, or as much of it as the confirmation gave. */
-export const formatRentalSpan = (rental: ParsedRental): string => {
-  const side = (date?: string, time?: string) => {
-    if (!date) return '';
-    const day = date.slice(5).replace('-', '/');
-    return time ? `${day} ${time}` : day;
-  };
-  const from = side(rental.pickUpDate, rental.pickUpTime);
-  const to = side(rental.dropOffDate, rental.dropOffTime);
-  if (from && to) return `${from} – ${to}`;
-  return from || to || '日期待確認';
-};
+/*
+  `formatRentalSpan` lives in `services/rentalSpanWording.ts`. It is the only
+  part of a hire that is words, and `server.ts` imports this module — see that
+  file's note and `tests/serverNeverImportsBrowserI18n.test.ts`.
+*/
 
 export const rentalPrompt = () => `
       Analyze this image. It is a car hire confirmation — from a rental

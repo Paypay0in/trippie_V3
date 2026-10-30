@@ -21,33 +21,46 @@
 /** Unsplash photo ids, one per place, each actually of that place. */
 const FIXTURES: Record<string, string> = {
   // Japan
+  // i18n-data: lookup key matched inside the destination text.
   東京: 'photo-1540959733332-eab4deabeeaf',
   tokyo: 'photo-1540959733332-eab4deabeeaf',
+  // i18n-data: lookup key matched inside the destination text.
   大阪: 'photo-1528360983277-13d401cdc186',
   osaka: 'photo-1528360983277-13d401cdc186',
+  // i18n-data: lookup key matched inside the destination text.
   京都: 'photo-1492571350019-22de08371fd3',
   kyoto: 'photo-1492571350019-22de08371fd3',
+  // i18n-data: lookup key matched inside the destination text.
   沖繩: 'photo-1589452271712-64b8a66c7b71',
+  // i18n-data: lookup key matched inside the destination text.
   沖縄: 'photo-1589452271712-64b8a66c7b71',
   okinawa: 'photo-1589452271712-64b8a66c7b71',
+  // i18n-data: lookup key matched inside the destination text.
   北海道: 'photo-1542051841857-5f90071e7989',
   hokkaido: 'photo-1542051841857-5f90071e7989',
   // The country's own picture, for a trip that only says which country.
+  // i18n-data: lookup key matched inside the destination text.
   日本: 'photo-1493976040374-85c8e12f0c0e',
   japan: 'photo-1493976040374-85c8e12f0c0e',
 
   // Korea
+  // i18n-data: lookup key matched inside the destination text.
   釜山: 'photo-1538485399081-7c897a0c8d7b',
   busan: 'photo-1538485399081-7c897a0c8d7b',
+  // i18n-data: lookup key matched inside the destination text.
   首爾: 'photo-1538669715315-155098f0fb1d',
   seoul: 'photo-1538669715315-155098f0fb1d',
+  // i18n-data: lookup key matched inside the destination text.
   濟州島: 'photo-1539650116574-75c0c6d73f6e',
+  // i18n-data: lookup key matched inside the destination text.
   濟州: 'photo-1539650116574-75c0c6d73f6e',
   jeju: 'photo-1539650116574-75c0c6d73f6e',
 
   // Elsewhere
+  // i18n-data: lookup key matched inside the destination text.
   巴黎: 'photo-1502602898657-3e91760cbb34',
   paris: 'photo-1502602898657-3e91760cbb34',
+  // i18n-data: lookup key matched inside the destination text.
   聖托里尼: 'photo-1570077188670-e3a8d69ac5ff',
   santorini: 'photo-1570077188670-e3a8d69ac5ff',
 };
@@ -61,6 +74,7 @@ const DEFAULT_FIXTURE = 'photo-1500534623283-312aade485b7';
  * happens to be spelled with — 「日本」 and 「沖繩」 are both two characters, so
  * comparing lengths got this exactly wrong.
  */
+// i18n-data: lookup keys of FIXTURES, matched not displayed.
 const COUNTRY_KEYS = new Set(['日本', 'japan']);
 
 const namesACity = (key?: string): boolean => Boolean(key) && !COUNTRY_KEYS.has(key!);

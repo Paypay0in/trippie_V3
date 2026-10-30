@@ -22,7 +22,7 @@ import { ItineraryItem } from '../types';
 import { clusterSavedPlaces } from './placeClusters';
 import { stopsOnTheGround } from './dayMapImage';
 import { durationOf, isTimedItem, minutesToTime, timeToMinutes } from './itineraryTimeline';
-import { LATEST_EXTENSION, MEAL_WINDOWS } from './dayTemplate';
+import { LATEST_EXTENSION, MEAL_WINDOWS, MealKey } from './dayTemplate';
 import { transitMinutesBetween } from './itineraryScheduling';
 import { separateOverlaps } from './separateOverlaps';
 import { earliestFreeStartByDate, fixedAnchorSchedule, latestFreeStartByDate, TRANSFER_ID_PREFIX } from './itineraryDayFloor';
@@ -96,7 +96,16 @@ export interface RoutePlan {
    * Only windows the day actually reaches: lunch on a day that lands at 14:00
    * was never missed.
    */
-  mealsMissing: Array<{ date: string; label: string }>;
+  mealsMissing: Array<{
+    date: string;
+    /**
+     * The block's own name, which is also how `slotLabel` recognises the
+     * window. Kept so nothing that already reads it changes.
+     */
+    label: string;
+    /** The same window, for a screen to look a sentence up by. */
+    key: MealKey;
+  }>;
   /**
    * Restaurants whose mealtime could only be reached by walking further.
    *
@@ -460,7 +469,7 @@ export const optimiseTripRoute = (
   const movable = items.filter(item => !isAnchored(item) && located(item) && ground.has(item.id));
   const unplaced = items
     .filter(item => !isAnchored(item) && !located(item))
-    .map(item => ({ item, reason: '沒有地圖位置，無法排進動線' }));
+    .map(item => ({ item, reason: '沒有地圖位置，無法排進動線' })); // i18n-data: internal diagnostic asserted by optimiseTripRoute.test.ts; no screen renders `reason`, ItineraryCalendar lists only the stop names
 
   /*
     Pinned stops are clustered with the movable ones, and never scheduled.
@@ -617,6 +626,7 @@ export const optimiseTripRoute = (
         position, and for the same reason: the traveller can see it and decide.
       */
       if (cursor >= ceiling || cursor + durationOf(item) > ceiling) {
+        // i18n-data: internal diagnostic asserted by optimiseTripRoute.test.ts; no screen renders `reason`, ItineraryCalendar lists only the stop names
         unplaced.push({ item, reason: '今天已經排不下，留在原本的時間' });
         return;
       }
@@ -679,7 +689,7 @@ export const optimiseTripRoute = (
   /*
     Which meal windows end up with nothing to eat in them. See `mealsMissing`.
   */
-  const mealsMissing: Array<{ date: string; label: string }> = [];
+  const mealsMissing: RoutePlan['mealsMissing'] = [];
   if (options.categoryOf) {
     days.forEach(day => {
       const minutes = day.items
@@ -699,7 +709,7 @@ export const optimiseTripRoute = (
           return start !== undefined && start >= from && start < to
             && options.categoryOf?.(item) === 'food';
         });
-        if (!fed) mealsMissing.push({ date: day.date, label: window.label });
+        if (!fed) mealsMissing.push({ date: day.date, label: window.label, key: window.key });
       });
     });
   }

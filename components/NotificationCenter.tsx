@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { MessageCircleQuestion, CheckCircle2, Receipt, X, Lightbulb } from 'lucide-react';
 import { DisputeNotice, describeNotice } from '../services/disputeInbox';
 import {
@@ -27,26 +29,43 @@ export interface Props {
   onClose: () => void;
 }
 
+/**
+ * The shelf names, as keys resolved at render.
+ *
+ * `NOTICE_CATEGORIES` carries its label in the tuple, built once at import —
+ * a `t()` there would freeze the shelf names to whichever language loaded
+ * first. The key is what travels; the sentence is fetched in the language the
+ * reader is in now. 全部 is the one the rest of the app already says.
+ */
+const FILTER_KEYS: Record<NoticeCategory, string> = {
+  all: 'common.all',
+  itinerary: 'notifications.filters.itinerary',
+  settlement: 'notifications.filters.settlement',
+  travel: 'notifications.filters.travel',
+  system: 'notifications.filters.system',
+};
+
 /** When it happened, in the length a list can carry. */
-const whenLabel = (at: string): string => {
+const whenLabel = (at: string, t: TFunction): string => {
   const moment = new Date(at);
   if (Number.isNaN(moment.getTime())) return '';
   const minutes = Math.round((Date.now() - moment.getTime()) / 60000);
-  if (minutes < 1) return '剛剛';
-  if (minutes < 60) return `${minutes} 分鐘前`;
+  if (minutes < 1) return t('notifications.justNow');
+  if (minutes < 60) return t('notifications.minutesAgo', { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} 小時前`;
+  if (hours < 24) return t('notifications.hoursAgo', { n: hours });
   return `${moment.getMonth() + 1}/${moment.getDate()}`;
 };
 
 const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
+  const { t } = useTranslation();
   const [category, setCategory] = useState<NoticeCategory>('all');
   const shown = noticesInCategory(notices, category);
 
   return (
     <div
       role="dialog"
-      aria-label="通知"
+      aria-label={t('notifications.title')}
       data-testid="notification-center"
       className="fixed inset-0 z-[80] bg-black/40"
       onClick={onClose}
@@ -84,10 +103,10 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
       >
         <div className="sticky top-0 z-10 rounded-t-[1.75rem] bg-white px-5 pb-3 pt-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-[1.6rem] font-black tracking-tight text-[#11183d]">通知</h2>
+            <h2 className="text-[1.6rem] font-black tracking-tight text-[#11183d]">{t('notifications.title')}</h2>
             <button
               type="button"
-              aria-label="關閉通知"
+              aria-label={t('notifications.closeAria')}
               data-testid="close-notifications"
               onClick={onClose}
               className="rounded-full p-2 text-slate-400"
@@ -104,7 +123,7 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
             data-testid="notification-filters"
             className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1"
           >
-            {NOTICE_CATEGORIES.map(([key, label]) => {
+            {NOTICE_CATEGORIES.map(([key]) => {
               const active = key === category;
               const count = noticesInCategory(notices, key).length;
               return (
@@ -120,7 +139,7 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
                       : 'border-slate-200 bg-white text-slate-500'
                   }`}
                 >
-                  {label}
+                  {t(FILTER_KEYS[key])}
                   {count > 0 && (
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-violet-600' : 'bg-rose-500'}`}
@@ -142,12 +161,12 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
             className="flex flex-col items-center justify-center px-6 pb-2 pt-6 text-center"
           >
             <NotificationBellArt />
-            <p className="mt-4 text-xl font-black text-[#11183d]">目前沒有新通知</p>
+            <p className="mt-4 text-xl font-black text-[#11183d]">{t('notifications.emptyTitle')}</p>
             <p className="mt-2 text-sm font-medium text-slate-400">
-              旅伴對帳目提出的疑問會出現在這裡
+              {t('notifications.emptyBlurb')}
             </p>
             <p className="mt-1 text-xs font-medium text-slate-400">
-              例如分帳確認、行程變更、或航班提醒等
+              {t('notifications.emptyExamples')}
             </p>
           </div>
         ) : (
@@ -188,12 +207,12 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
                         it can be answered without opening anything.
                       */}
                       <span className="mt-0.5 block truncate text-xs font-medium text-slate-600">
-                        「{notice.message}」
+                        {t('notifications.quoted', { message: notice.message })}
                       </span>
                       <span className="mt-1 block text-[10px] font-bold text-slate-400">
-                        {whenLabel(notice.at)}
-                        {whenLabel(notice.at) && ' · '}
-                        {waiting ? '點一下回覆' : '點一下查看'}
+                        {whenLabel(notice.at, t)}
+                        {whenLabel(notice.at, t) && ' · '}
+                        {waiting ? t('notifications.tapToReply') : t('notifications.tapToView')}
                       </span>
                     </span>
                   </button>
@@ -217,9 +236,9 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
             <Lightbulb size={17} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black text-[#11183d]">小提醒</span>
+            <span className="block text-sm font-black text-[#11183d]">{t('notifications.tipTitle')}</span>
             <span className="mt-0.5 block text-xs font-medium leading-5 text-slate-500">
-              當有人新增支出、提出分帳疑問、航班異動或行程變更時，我們會立即通知你！
+              {t('notifications.tipBody')}
             </span>
           </span>
         </div>
