@@ -62,6 +62,7 @@ const EN_LABELS: Record<string, string> = {
  * written to storage. A label that happens to resemble the value it names is
  * still a label.
  */
+// i18n-translated: Japanese display labels; kanji shares Chinese's Unicode block
 const JA_LABELS: Record<string, string> = {
   [Category.FLIGHT]: '航空券',
   [Category.ACCOMMODATION]: '宿泊',

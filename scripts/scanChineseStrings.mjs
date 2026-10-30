@@ -34,7 +34,13 @@
  *              would have been a false statement — hence a kind of their own:
  *              `// i18n-devtool: <reason>`.
  *
- * COPY is the only kind that is work. The other four are each a decision that
+ *    TRANSLATED — a string that already IS a translation, in a language whose
+ *              script overlaps Chinese. Japanese display labels are the case:
+ *              航空券 for the stored 機票 is finished work, not missing work,
+ *              and only a line saying so can tell them apart. Marked with
+ *              `// i18n-translated: <reason>`.
+ *
+ * COPY is the only kind that is work. The other five are each a decision that
  * has been made, which is what lets this reach `COPY: 0` and makes "done"
  * distinguishable from "nearly done".
  *
@@ -177,7 +183,9 @@ const classify = (file, line, inBlockComment, previousLine = "") => {
   if (EXEMPT.test(line) || EXEMPT.test(previousLine)) return "DATA";
   if (DEVTOOL.test(line) || DEVTOOL.test(previousLine)) return "DEVTOOL";
   if (PROMPT_LINE.test(line) || PROMPT_LINE.test(previousLine)) return "PROMPT";
+  if (TRANSLATED.test(line) || TRANSLATED.test(previousLine)) return "TRANSLATED";
   const base = file.split("/").pop();
+  if (TRANSLATED_FILES.has(base)) return "TRANSLATED";
   if (PROMPT_FILES.has(base)) return "PROMPT";
   if (DATA_FILES.has(base)) return "DATA";
   /*
@@ -210,6 +218,30 @@ const EXEMPT = /i18n-data:\s*\S+\s+\S+/;
  */
 const DEVTOOL = /i18n-devtool:\s*\S+\s+\S+/;
 const PROMPT_LINE = /i18n-prompt:\s*\S+\s+\S+/;
+/*
+  A string that IS a translation, written in a language whose script this
+  scanner cannot tell apart from Chinese.
+
+  Japanese is the case that forced this: 航空券 and 宿泊 are correct Japanese
+  display labels for the stored values 機票 and 住宿, and every character in
+  them is in the same Unicode block the Han test looks for. Reported as COPY
+  they read as seventeen strings somebody forgot to translate, which is the
+  exact opposite of what they are. `i18n-data` would have been a lie — these
+  are not stored values — and leaving them in COPY makes the count unable to
+  reach zero, which is how a count stops being read at all.
+*/
+const TRANSLATED = /i18n-translated:\s*\S+\s+\S+/;
+
+/**
+ * Files whose CJK is finished translation rather than unfinished Chinese.
+ *
+ * Whole-file, because the alternative is a marker comment above all twenty-four
+ * entries of a lookup table — noise that would be skimmed, and skimmed markers
+ * are how a real string gets exempted by accident. `categoryDisplay` holds
+ * nothing but display labels: English, Japanese, and the stored value itself,
+ * which types.ts owns and this file only reads.
+ */
+const TRANSLATED_FILES = new Set(["categoryDisplay.ts"]);
 
 const findings = [];
 for (const file of walk(ROOT)) {
