@@ -608,7 +608,8 @@
     "followDevice": "Follow my phone",
     "name": {
       "zhHant": "Traditional Chinese",
-      "en": "English"
+      "en": "English",
+      "ja": "Japanese"
     }
   },
   "ledger": {

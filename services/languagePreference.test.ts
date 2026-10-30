@@ -38,7 +38,7 @@ describe('loadLanguagePreference', () => {
     // Someone editing localStorage by hand, or a language that was dropped in
     // a later release. Falling back to the device beats booting into a
     // language whose bundle does not exist.
-    localStorage.setItem(LANGUAGE_PREFERENCE_STORAGE_KEY, 'ja');
+    localStorage.setItem(LANGUAGE_PREFERENCE_STORAGE_KEY, 'ko');
 
     expect(loadLanguagePreference()).toBeUndefined();
   });

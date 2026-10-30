@@ -25,7 +25,7 @@ describe('resolveLanguage', () => {
     // Simplified Chinese is the pointed case: serving Traditional Chinese to a
     // zh-CN reader and calling it their language is worse than English, which
     // at least does not misrepresent itself.
-    for (const tag of ['zh-CN', 'zh-Hans', 'ja', 'ko-KR', 'fr']) {
+    for (const tag of ['zh-CN', 'zh-Hans', 'ko-KR', 'fr']) {
       expect(resolveLanguage(tag)).toBe('en');
     }
   });

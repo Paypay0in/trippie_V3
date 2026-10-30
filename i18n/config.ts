@@ -18,6 +18,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import zhHant from './locales/zh-Hant.json';
 import en from './locales/en.json';
+import ja from './locales/ja.json';
 
 export const FALLBACK_LANGUAGE = 'zh-Hant';
 
@@ -31,7 +32,7 @@ export const FALLBACK_LANGUAGE = 'zh-Hant';
  */
 export const FOLLOW_DEVICE_LANGUAGE = false;
 
-export const SUPPORTED_LANGUAGES = ['zh-Hant', 'en'] as const;
+export const SUPPORTED_LANGUAGES = ['zh-Hant', 'en', 'ja'] as const;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 /**
@@ -55,9 +56,10 @@ export const resolveLanguage = (requested?: string | null): SupportedLanguage =>
     return 'zh-Hant';
   }
   if (tag.startsWith('en')) return 'en';
+  if (tag.startsWith('ja')) return 'ja';
 
-  // Anything else — including Simplified Chinese, Japanese and Korean — gets
-  // English, which is the closest thing to a shared language we ship today.
+  // Anything else — including Simplified Chinese and Korean — gets English,
+  // which is the closest thing to a shared language we ship today.
   return 'en';
 };
 
@@ -98,6 +100,7 @@ export const initI18n = (options: { language?: string } = {}): I18nInstance => {
     resources: {
       'zh-Hant': { translation: zhHant },
       en: { translation: en },
+      ja: { translation: ja },
     },
     lng: options.language ? resolveLanguage(options.language) : undefined,
     fallbackLng: FALLBACK_LANGUAGE,

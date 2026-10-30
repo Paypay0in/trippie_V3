@@ -590,7 +590,8 @@
     "followDevice": "跟隨手機設定",
     "name": {
       "zhHant": "繁體中文",
-      "en": "英文"
+      "en": "英文",
+      "ja": "日文"
     }
   },
   "ledger": {

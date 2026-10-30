@@ -35,6 +35,7 @@ import {
 const LANGUAGE_NAME_KEYS: Record<SupportedLanguage, string> = {
   'zh-Hant': 'language.name.zhHant',
   en: 'language.name.en',
+  ja: 'language.name.ja',
 };
 
 /** What each option calls itself. Never translated. */
@@ -43,6 +44,7 @@ const LANGUAGE_NAME_KEYS: Record<SupportedLanguage, string> = {
 const LANGUAGE_ENDONYMS: Record<SupportedLanguage, string> = {
   'zh-Hant': '繁體中文', // i18n-data: endonym — a language names itself so a stranded traveller can read it
   en: 'English',
+  ja: '日本語', // i18n-data: endonym — a language names itself so a stranded traveller can read it
 };
 
 interface Props {
