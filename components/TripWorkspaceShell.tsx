@@ -136,9 +136,16 @@ const TripWorkspaceShell: React.FC<Props> = ({
         <button onClick={() => onSectionChange('records')} className={`flex min-h-12 min-w-14 flex-col items-center justify-center gap-1 text-[10px] font-bold ${currentSection === 'records' ? 'text-blue-600' : 'text-slate-400'}`}><BookOpenText size={20} />{t('workspace.navRecords')}</button>
         <div className="relative">
           {moreOpen && (
-            <div className="absolute bottom-16 right-0 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+            // Sized by its own labels, not by a number measured in Chinese.
+            // 「目的地設定」 is five characters; "Destination settings" is twenty,
+            // and at w-48 it wrapped onto two lines — 「就很擠」. `w-max` makes the
+            // menu as wide as its longest item in whatever language it is being
+            // read in, `min-w-48` stops it shrinking to a stub, and the max keeps
+            // it on screen on the narrowest phone rather than trading a wrap for
+            // a bleed.
+            <div className="absolute bottom-16 right-0 w-max min-w-48 max-w-[min(17rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
               {[[Pencil, 'app.trip.edit', onEdit], [Globe, 'workspace.destinationSettings', onDestination], [Users, 'app.trip.manageCompanions', onTravelers], [Share2, 'trips.shareTrip', onShare]].map(([Icon, labelKey, handler]) => (
-                <button key={labelKey as string} onClick={() => { (handler as () => void)(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold text-slate-700 hover:bg-slate-50">
+                <button key={labelKey as string} onClick={() => { (handler as () => void)(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 text-left text-sm font-bold text-slate-700 hover:bg-slate-50">
                   {React.createElement(Icon as React.ElementType, { size: 17 })}{t(labelKey as string)}
                 </button>
               ))}
