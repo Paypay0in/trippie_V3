@@ -19,12 +19,25 @@ import {
  * the language the phone happens to report today — somebody who picks it keeps
  * following the phone when they change the phone.
  *
- * Each language is named in itself. A traveller who has landed in the wrong
- * language cannot read a list written in that wrong language, which is exactly
- * when they need this screen.
+ * Each row carries two names: the language's name in the language you are
+ * reading right now, and the language's own name underneath it.
+ *
+ * 「翻英文」 — on an English screen a row reading 繁體中文 and nothing else is
+ * the one line a reader of English cannot parse, so the name they can read
+ * leads. But the endonym cannot simply be replaced by it: the person who most
+ * needs this screen is the one who has landed in a language they do not read,
+ * and 繁體中文 is the only thing on it they can recognise. Dropping it would
+ * close the exit for exactly the reader it was built for. Both, then — one
+ * legible now, one legible when everything else has stopped being.
  */
 
-/** What each option says, in its own language. Never translated. */
+/** What each option is called in the language being read. Translated. */
+const LANGUAGE_NAME_KEYS: Record<SupportedLanguage, string> = {
+  'zh-Hant': 'language.name.zhHant',
+  en: 'language.name.en',
+};
+
+/** What each option calls itself. Never translated. */
 // i18n-data: endonyms. Each option names itself so a traveller stranded in the
 // wrong language can still read the row that gets them out.
 const LANGUAGE_ENDONYMS: Record<SupportedLanguage, string> = {
@@ -63,19 +76,32 @@ const LanguageSetting: React.FC<Props> = ({ onChanged }) => {
     onChanged?.(effective);
   };
 
-  const rows: Array<{ key: string; label: string; icon: React.ReactNode; value?: SupportedLanguage }> = [
+  const rows: Array<{
+    key: string;
+    label: string;
+    /** The language's own name, shown only when it differs from the label. */
+    endonym?: string;
+    icon: React.ReactNode;
+    value?: SupportedLanguage;
+  }> = [
     {
       key: 'device',
       label: t('language.followDevice'),
       icon: <Smartphone size={16} className="text-slate-400" />,
       value: undefined,
     },
-    ...SUPPORTED_LANGUAGES.map(language => ({
-      key: language,
-      label: LANGUAGE_ENDONYMS[language],
-      icon: <Globe size={16} className="text-slate-400" />,
-      value: language as SupportedLanguage,
-    })),
+    ...SUPPORTED_LANGUAGES.map(language => {
+      const label = t(LANGUAGE_NAME_KEYS[language]);
+      const endonym = LANGUAGE_ENDONYMS[language];
+      return {
+        key: language,
+        label,
+        // English read in English says "English" twice otherwise.
+        endonym: endonym === label ? undefined : endonym,
+        icon: <Globe size={16} className="text-slate-400" />,
+        value: language as SupportedLanguage,
+      };
+    }),
   ];
 
   return (
@@ -95,7 +121,12 @@ const LanguageSetting: React.FC<Props> = ({ onChanged }) => {
             className="flex w-full items-center gap-2.5 border-b border-hairline px-4 py-3 text-left text-field font-semibold last:border-b-0"
           >
             {row.icon}
-            <span className="flex-1">{row.label}</span>
+            <span className="flex-1">
+              {row.label}
+              {row.endonym && (
+                <span className="ml-1.5 font-medium text-slate-400">{row.endonym}</span>
+              )}
+            </span>
             {selected && <Check size={16} className="text-violet-600" aria-hidden />}
           </button>
         );

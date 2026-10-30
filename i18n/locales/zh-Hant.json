@@ -587,7 +587,11 @@
   },
   "language": {
     "title": "語言",
-    "followDevice": "跟隨手機設定"
+    "followDevice": "跟隨手機設定",
+    "name": {
+      "zhHant": "繁體中文",
+      "en": "英文"
+    }
   },
   "ledger": {
     "helpBuyReceivable": "朋友代買 (應收款)",

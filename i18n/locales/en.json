@@ -605,7 +605,11 @@
   },
   "language": {
     "title": "Language",
-    "followDevice": "Follow my phone"
+    "followDevice": "Follow my phone",
+    "name": {
+      "zhHant": "Traditional Chinese",
+      "en": "English"
+    }
   },
   "ledger": {
     "helpBuyReceivable": "Buying for friends (receivable)",
