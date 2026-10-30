@@ -118,10 +118,24 @@ const NotificationCenter: React.FC<Props> = ({ notices, onOpen, onClose }) => {
           {/*
             The shelves. Kept visible when empty — a filter that appears only
             once it has contents cannot answer 「is there anything here?」.
+
+            They wrap; they do not scroll sideways.
+
+            「這個有切到邊」 — the second time the Founder reported the same
+            thing. The row used to bleed past the padding (`-mx-5 … px-5`) on
+            purpose, as the affordance that says it can be swiped. It does not
+            read that way: a half-visible 系統通知 reads as a layout bug, and a
+            filter you cannot see is a filter you do not know exists. Under
+            English and Japanese the labels are longer still, so the cut lands
+            earlier.
+
+            `flex-wrap` costs one extra row at the widest and shows all five.
+            Nothing here is below the fold, so there is no reason to hide a
+            control behind a gesture.
           */}
           <div
             data-testid="notification-filters"
-            className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1"
+            className="mt-3 flex flex-wrap gap-2 pb-1"
           >
             {NOTICE_CATEGORIES.map(([key]) => {
               const active = key === category;

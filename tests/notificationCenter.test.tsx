@@ -187,16 +187,27 @@ describe('通知面板的位置', () => {
   });
 
   /**
-   * The row keeps its own scrolling, and keeps bleeding to the edge — that
-   * bleed is the affordance that says it can be swiped. Clipping it at the
-   * padding boundary instead would fix the border by removing the only hint
-   * that there is more to see.
+   * 「這個有切到邊」 — reported twice. The row used to bleed past the padding
+   * and scroll sideways, which was meant to read as "swipe me" and instead
+   * read as a chopped-off chip. Every filter is now visible at once.
+   *
+   * jsdom has no layout engine, so this asserts the decision, not the pixels:
+   * the row wraps, it does not scroll, and it does not bleed. Anyone who pins
+   * a horizontal scroller back here fails this.
    */
-  it('分類那排仍然可以滑，仍然貼齊邊緣', async () => {
+  it('分類那排會換行，不會被切掉', async () => {
     await openPanel();
     const filters = screen.getByTestId('notification-filters');
-    expect(filters.className).toContain('overflow-x-auto');
-    expect(filters.className).toContain('-mx-5');
+    expect(filters.className).toContain('flex-wrap');
+    expect(filters.className).not.toContain('overflow-x-auto');
+    expect(filters.className).not.toContain('-mx-5');
+  });
+
+  /** All five shelves are reachable without a gesture. */
+  it('五個分類全部看得到', async () => {
+    await openPanel();
+    const filters = screen.getByTestId('notification-filters');
+    expect(filters.querySelectorAll('button')).toHaveLength(5);
   });
 });
 
