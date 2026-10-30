@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { categoryLabel, displayLocaleFrom } from '../services/categoryDisplay';
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Users, X } from 'lucide-react';
 import { Expense, TripMember } from '../types';
 import { getCategoryIcon } from '../constants';
@@ -52,7 +53,8 @@ const MemberSettlementDetail: React.FC<Props> = ({
   onAddExpense,
   onOpenExpense,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const displayLocale = displayLocaleFrom(i18n.language);
   const positions = React.useMemo(
     () => buildMemberPositions(expenses, members, ownerMemberId),
     [expenses, members, ownerMemberId],
@@ -264,7 +266,7 @@ const MemberSettlementDetail: React.FC<Props> = ({
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="flex min-w-0 items-center gap-2 text-sm font-black">
-                      <span className="truncate">{expense.category}</span>
+                      <span className="truncate">{categoryLabel(expense.category, displayLocale)}</span>
                       <span className="shrink-0 text-[11px] font-medium text-slate-400">{expense.date.replace(/-/g, '/')}</span>
                     </p>
                     <p className="mt-0.5 truncate text-xs text-slate-500">{expense.description}</p>

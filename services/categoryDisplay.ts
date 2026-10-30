@@ -70,6 +70,18 @@ export const displayLabel = (stored: StoredValue | string, locale: DisplayLocale
   return value;
 };
 
+/**
+ * The interface language, reduced to the two display locales this table has.
+ *
+ * Callers kept writing `i18n.language?.startsWith('en') ? 'en' : 'zh-Hant'`
+ * inline, which is the same rule copied into every screen that shows a stored
+ * value — and a rule with many homes is a rule with many answers the day one
+ * of them is written differently. Takes the language rather than reading i18n
+ * so it stays a pure function and a test can state what it does.
+ */
+export const displayLocaleFrom = (language?: string | null): DisplayLocale =>
+  String(language ?? '').startsWith('en') ? 'en' : 'zh-Hant';
+
 export const categoryLabel = (category: Category | string, locale: DisplayLocale = 'zh-Hant'): string =>
   displayLabel(category, locale);
 

@@ -2,6 +2,7 @@
 import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { categoryLabel, displayLocaleFrom } from '../services/categoryDisplay';
 import { isRefundableCategory } from '../services/refundableCategories';
 import { creditedRefundTwd, findDuplicateRefund, isRefundEntry } from '../services/refundSettlement';
 import { refundClaimableBy } from '../services/refundClaimant';
@@ -44,7 +45,8 @@ interface Props {
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#84cc16'];
 
 const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true, viewerMemberId, ownerMemberId, onOpenExpense }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const displayLocale = displayLocaleFrom(i18n.language);
   /** The bill behind a line of the breakdown, for opening it. */
   const expenseById = React.useMemo(
     () => new Map(expenses.map(expense => [expense.id, expense])),
@@ -501,17 +503,17 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
           </div>
           <h2>1. ${t('summary.sectionPre')}</h2>
           <table><thead><tr><th>${t('summary.colDate')}</th><th>${t('summary.colItem')}</th><th>${t('summary.colCategory')}</th><th class="right">${t('summary.colAmount')}</th></tr></thead><tbody>
-              ${preExpenses.map(e => `<tr><td>${e.date}</td><td>${e.desc}</td><td><span class="badge">${e.cat}</span></td><td class="right">${Math.round(e.amount).toLocaleString()}</td></tr>`).join('')}
+              ${preExpenses.map(e => `<tr><td>${e.date}</td><td>${e.desc}</td><td><span class="badge">${categoryLabel(e.cat, displayLocale)}</span></td><td class="right">${Math.round(e.amount).toLocaleString()}</td></tr>`).join('')}
               <tr class="total-row"><td colspan="3">${t('summary.rowTotal')}</td><td class="right">NT$ ${Math.round(preExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</td></tr>
           </tbody></table>
           <h2>2. ${t('summary.sectionDuring')}</h2>
           <table><thead><tr><th>${t('summary.colCategory')}</th><th>${t('summary.colShare')}</th><th class="right">${t('summary.colAmount')}</th></tr></thead><tbody>
-              ${duringCategoryStats.map(s => `<tr><td>${s.category}</td><td>${(s.percentage*100).toFixed(1)}%</td><td class="right">${Math.round(s.amount).toLocaleString()}</td></tr>`).join('')}
+              ${duringCategoryStats.map(s => `<tr><td>${categoryLabel(s.category, displayLocale)}</td><td>${(s.percentage*100).toFixed(1)}%</td><td class="right">${Math.round(s.amount).toLocaleString()}</td></tr>`).join('')}
                <tr class="total-row"><td colspan="2">${t('summary.rowTotal')}</td><td class="right">NT$ ${Math.round(duringTotal).toLocaleString()}</td></tr>
           </tbody></table>
           <h2>3. ${t('summary.sectionPost')}</h2>
           <table><thead><tr><th>${t('summary.colDate')}</th><th>${t('summary.colItem')}</th><th>${t('summary.colCategory')}</th><th class="right">${t('summary.colAmount')}</th></tr></thead><tbody>
-              ${postExpenses.length===0?`<tr><td colspan="4" style="text-align:center">${t('summary.noRecords')}</td></tr>`:postExpenses.map(e => `<tr><td>${e.date}</td><td>${e.desc}</td><td><span class="badge">${e.cat}</span></td><td class="right">${Math.round(e.amount).toLocaleString()}</td></tr>`).join('')}
+              ${postExpenses.length===0?`<tr><td colspan="4" style="text-align:center">${t('summary.noRecords')}</td></tr>`:postExpenses.map(e => `<tr><td>${e.date}</td><td>${e.desc}</td><td><span class="badge">${categoryLabel(e.cat, displayLocale)}</span></td><td class="right">${Math.round(e.amount).toLocaleString()}</td></tr>`).join('')}
                <tr class="total-row"><td colspan="3">${t('summary.rowTotal')}</td><td class="right">NT$ ${Math.round(postExpenses.reduce((s,e)=>s+e.amount,0)).toLocaleString()}</td></tr>
           </tbody></table>
           ${helpBuySection}
@@ -729,7 +731,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                       >
                         <span className="flex flex-col">
                           <span className="font-medium text-gray-800">{item.desc}</span>
-                          <span className="text-[10px] text-gray-400">{item.date} • {item.cat}</span>
+                          <span className="text-[10px] text-gray-400">{item.date} • {categoryLabel(item.cat, displayLocale)}</span>
                         </span>
                         <span className="font-mono font-bold text-gray-600">
                           ${Math.round(item.amount).toLocaleString()}
@@ -774,7 +776,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                         >
                           <div className="flex justify-between text-xs mb-1">
                             <span className="font-medium text-gray-700 flex items-center gap-1">
-                               {stat.category}
+                               {categoryLabel(stat.category, displayLocale)}
                                <ChevronDown
                                  size={12}
                                  className={`text-gray-300 transition-transform ${openCategory === stat.category ? 'rotate-180' : ''}`}
@@ -1048,7 +1050,7 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                       >
                         <span className="flex flex-col">
                           <span className="font-medium text-gray-800">{item.desc}</span>
-                          <span className="text-[10px] text-gray-400">{item.date} • {item.cat}</span>
+                          <span className="text-[10px] text-gray-400">{item.date} • {categoryLabel(item.cat, displayLocale)}</span>
                         </span>
                         <span className="font-mono font-bold text-gray-600">
                           ${Math.round(item.amount).toLocaleString()}

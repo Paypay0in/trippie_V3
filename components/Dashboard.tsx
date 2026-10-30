@@ -2,6 +2,7 @@
 import { OVERLAY } from '../constants/layers';
 import React, { useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { categoryLabel, displayLocaleFrom } from '../services/categoryDisplay';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { Expense, Category, PaymentMethod, Phase, Companion, TripMember, SettlementBatch, TaxRule, VisaInfo, TravelRules } from '../types';
 import { PHASES, COMMON_CURRENCIES } from '../constants';
@@ -70,7 +71,8 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
   onToggleRefundedAtPurchase,
   onToggleRefundIneligible,
   onRecordActualRefund, onOpenSettlement, viewerMemberId, settlementOnly, refundableCustomCategories = {} }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const displayLocale = displayLocaleFrom(i18n.language);
   const [isRefundListExpanded, setIsRefundListExpanded] = useState(false);
   
   // Wallet History State
@@ -417,7 +419,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                       <div key={expense.id} className="flex items-center justify-between py-2 text-xs">
                         <div className="min-w-0 pr-3">
                           <div className="truncate font-medium text-gray-700">{duringRefundState.status === 'estimate_available' || duringRefundState.status === 'threshold_met' ? expense.description : '購物支出'}</div>
-                          <div className="text-[10px] text-gray-400">{expense.date} · {expense.category}</div>
+                          <div className="text-[10px] text-gray-400">{expense.date} · {categoryLabel(expense.category, displayLocale)}</div>
                         </div>
                         <div className="shrink-0 font-mono font-bold text-amber-700">{expense.amount.toLocaleString()} {expense.currency}</div>
                       </div>
@@ -862,7 +864,7 @@ const Dashboard: React.FC<Props> = ({ expenses, allExpenses, companions, members
                                               </div>
                                               <div>
                                                   <div className="font-bold text-gray-800 text-sm line-clamp-1">{item.description}</div>
-                                                  <div className="text-xs text-gray-400">{item.date} • {item.category}</div>
+                                                  <div className="text-xs text-gray-400">{item.date} • {categoryLabel(item.category, displayLocale)}</div>
                                               </div>
                                           </div>
                                           <div className="text-right">

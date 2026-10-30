@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { categoryLabel, displayLocaleFrom } from '../services/categoryDisplay';
 import { Expense, Category, TaxRule, TripMember } from '../types';
 import { getCategoryIcon } from '../constants';
 import { Tag, ArrowDownLeft, AlertTriangle, Users, ChevronRight } from 'lucide-react';
@@ -49,7 +50,8 @@ const ExpenseList: React.FC<Props> = ({
   onOpenDisputes,
   members = [],
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const displayLocale = displayLocaleFrom(i18n.language);
   const [othersShown, setOthersShown] = React.useState(false);
   /** A receipt opened full size, because a 40-pixel crop cannot be read. */
   const [viewingReceipt, setViewingReceipt] = React.useState<string | null>(null);
@@ -328,7 +330,7 @@ const ExpenseList: React.FC<Props> = ({
                                 }`}>
                                     <Icon size={11} />
                                     {/* item.category is the stored value, not copy. i18n-data: written to Supabase and matched on read. */}
-                                    {isIncome ? t('expenseList.refundIncome') : isPersonal ? t('expenseList.personalSpend') : item.category}
+                                    {isIncome ? t('expenseList.refundIncome') : isPersonal ? t('expenseList.personalSpend') : categoryLabel(item.category, displayLocale)}
                                 </span>
                                 {isRefundable && (
                                     <span data-testid={`refund-eligible-${item.id}`} className="flex items-center gap-0.5 whitespace-nowrap rounded-md border border-amber-200 bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700">

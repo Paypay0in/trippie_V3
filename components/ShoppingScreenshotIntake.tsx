@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { categoryLabel, displayLocaleFrom } from '../services/categoryDisplay';
 import { Camera, Check, Image as ImageIcon, Loader2, Pencil, ShoppingBag, Sparkles } from 'lucide-react';
 import { ShoppingItem } from '../types';
 import { readAndDownscale, SHOPPING_THUMB } from '../services/postPhotos';
@@ -35,7 +36,8 @@ interface Props {
 }
 
 const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const displayLocale = displayLocaleFrom(i18n.language);
   const inputRef = useRef<HTMLInputElement>(null);
   /*
     A separate input, because 拍照 and 從相簿選擇 differ only by `capture` and
@@ -288,7 +290,7 @@ const ShoppingScreenshotIntake: React.FC<Props> = ({ phase, makeId, onAdd }) => 
                       <span className="mt-0.5 flex flex-wrap gap-1.5 text-[10px] text-slate-400">
                         {/* i18n-data: the category and shop are model-returned text about the traveller's screenshot, not product copy. */}
                         {candidate.category && (
-                          <span className="rounded bg-violet-50 px-1.5 py-0.5 font-bold text-violet-600">{candidate.category}</span>
+                          <span className="rounded bg-violet-50 px-1.5 py-0.5 font-bold text-violet-600">{categoryLabel(candidate.category, displayLocale)}</span>
                         )}
                         {candidate.shop && <span>{t('shopping.screenshotIntake.atShopUnconfirmed', { shop: candidate.shop })}</span>}
                       </span>
