@@ -174,6 +174,23 @@ interface Props {
   /** Choosing a country creates or selects that passport. */
   onSelectPassportCountry: (countryCode: string) => void;
   onChangeDestination: (value: string) => void;
+  /**
+   * Whether this trip leaves the traveller's home country.
+   *
+   * 'domestic' hides the entry-rules and 注意事項 blocks: a weekend in 台南 has
+   * no visa, and a passport-expiry card sitting on that screen teaches the
+   * traveller that every other preparation item is decoration too.
+   *
+   * Nothing else changes. The readiness number counts shopping pre-tasks and
+   * ticket to-dos (`totalTasks` below) and has never counted entry rules, so
+   * hiding them cannot move it — 「不得將隱藏的跨境事項計入準備完成率」 holds by
+   * construction rather than by a second rule that could drift from this one.
+   *
+   * Undefined means nobody resolved it, and an unresolved trip keeps showing
+   * the rules. Hiding an entry requirement on a guess is the one error here
+   * that a traveller discovers at a border.
+   */
+  tripScope?: 'domestic' | 'international';
   /** Departure date, used to spot guidance whose period has already passed. */
   tripStartDate?: string;
   /**
@@ -250,7 +267,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, tripScope, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const { t } = useTranslation();
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   const preTasks = shoppingPreTasks;
@@ -808,7 +825,7 @@ const TripPlanOverview: React.FC<Props> = ({
         )}
       </section>}
 
-      <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+      {tripScope !== 'domestic' && <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex items-start gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600"><Receipt size={18} /></span>
@@ -1034,9 +1051,9 @@ const TripPlanOverview: React.FC<Props> = ({
             })}
           </div>
         )}
-      </section>
+      </section>}
 
-      {(advisoryTasks.length > 0 || (entrySummary && entryRules.length === 0)) && (
+      {tripScope !== 'domestic' && (advisoryTasks.length > 0 || (entrySummary && entryRules.length === 0)) && (
         /* Sits under the formalities it qualifies: these are the conditions and
            limits attached to them, not separate advice. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">

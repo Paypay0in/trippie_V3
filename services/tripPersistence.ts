@@ -1,3 +1,4 @@
+import type { TripScope } from './tripScope';
 import { withoutCloudHeldPhotos } from './draftPhotoBallast';
 import { TripPlanBrief } from './tripPlanBrief';
 import { ParsedRental } from './rentalIntake';
@@ -68,6 +69,20 @@ export interface TripDraft {
    * *which days* a car exists, which 「開車」 on the brief cannot.
    */
   carRentals?: ParsedRental[];
+  /**
+   * Whether this trip stays inside the traveller's home country.
+   *
+   * Stored rather than recomputed, because the inputs move under it: residence
+   * lives in the profile and the trip's country is often inferred from a name
+   * or a boarding pass. Deriving this on every render would reclassify every
+   * past trip the day somebody moves house, and the preparation page would
+   * start hiding entry rules on a trip that needed them.
+   *
+   * Absent means nobody resolved it — which `effectiveTripScope` turns back
+   * into a derivation at the point of use, and which must never be read as
+   * 國外 by default.
+   */
+  tripScope?: TripScope;
   shoppingList: ShoppingItem[];
   /**
    * Which country this trip's shopping list compares prices against.
@@ -381,6 +396,7 @@ const normalizeDraft = (value: Partial<TripDraft>): TripDraft | null => {
       : {}),
     itinerary: normalizeItinerary(value.itinerary),
     travelCountry: typeof value.travelCountry === 'string' && value.travelCountry ? value.travelCountry : undefined,
+    tripScope: value.tripScope === 'domestic' || value.tripScope === 'international' ? value.tripScope : undefined,
     taxRule: value.taxRule,
     visaInfo: value.visaInfo,
     savedInspirations: normalizeInspirations(value.savedInspirations),

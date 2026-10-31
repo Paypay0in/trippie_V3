@@ -1477,7 +1477,22 @@
       "travellerOne": "person",
       "travellerMany": "people",
       "create": "Create trip",
-      "saveChanges": "Save changes"
+      "saveChanges": "Save changes",
+      "scopeHeading": "Trip type",
+      "scopeDomestic": "Domestic trip",
+      "scopeDomesticHint": "Inside my home country",
+      "scopeInternational": "International trip",
+      "scopeInternationalHint": "To another country or region",
+      "destinationHeadingDomestic": "Destination (city / area)",
+      "destinationHeadingInternational": "Destination (country / city)",
+      "destinationPlaceholderDomestic": "Search a city, area or landmark",
+      "destinationPlaceholderInternational": "Search a country or city (e.g. Tokyo, Japan)",
+      "popularHeading": "Popular destinations",
+      "passportHeading": "Passport",
+      "passportCheckExpiry": "Check the expiry date",
+      "passportExpiresOn": "Valid until {{date}}",
+      "passportValid": "Valid",
+      "coverHeading": "Cover photo (optional)"
     },
     "coverFallbackName": "My trip",
     "ways": {

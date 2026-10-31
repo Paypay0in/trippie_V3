@@ -233,7 +233,22 @@
       "travellerOne": "人",
       "travellerMany": "人",
       "create": "旅を作成",
-      "saveChanges": "変更を保存"
+      "saveChanges": "変更を保存",
+      "scopeHeading": "旅行タイプ",
+      "scopeDomestic": "国内旅行",
+      "scopeDomesticHint": "居住国のなか",
+      "scopeInternational": "海外旅行",
+      "scopeInternationalHint": "ほかの国・地域へ",
+      "destinationHeadingDomestic": "目的地（都市・エリア）",
+      "destinationHeadingInternational": "目的地（国・都市）",
+      "destinationPlaceholderDomestic": "都市・エリア・スポットを検索",
+      "destinationPlaceholderInternational": "国や都市を検索（例：日本 東京）",
+      "popularHeading": "人気の目的地",
+      "passportHeading": "パスポート",
+      "passportCheckExpiry": "有効期限を確認",
+      "passportExpiresOn": "{{date}} まで有効",
+      "passportValid": "有効",
+      "coverHeading": "カバー写真（任意）"
     },
     "coverFallbackName": "わたしの旅",
     "ways": {

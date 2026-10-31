@@ -264,6 +264,7 @@ import { BookingReadout, DerivedTrip, tripFromBookings } from "./services/tripFr
 import { viewerIdentityNotice } from "./services/viewerIdentityNotice";
 import { flightAnchorsFromParsed } from "./services/flightIntake";
 import { tripCountry } from "./services/tripCountry";
+import { TripScope, effectiveTripScope } from "./services/tripScope";
 import { preferredCountryName, sameCountry } from "./services/countryIdentity";
 import type { ParsedFlight } from "./services/flightIntake";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
@@ -1391,6 +1392,18 @@ const App: React.FC = () => {
   const [travelCountry, setTravelCountry] = useState<string>(() => {
     return initialActiveDraft?.travelCountry || "";
   });
+  /*
+    國內 or 國外, as this trip was set up.
+
+    Stored rather than derived on every render, and deliberately: a traveller
+    who moves house would otherwise have every trip they have ever taken
+    silently reclassified, and the preparation page would start hiding entry
+    rules on a trip that needed them. Absent means nobody resolved it, which
+    `effectiveTripScope` turns back into a derivation at the point of use.
+  */
+  const [tripScope, setTripScope] = useState<TripScope | undefined>(
+    () => initialActiveDraft?.tripScope,
+  );
 
   const [tripDestination, setTripDestination] = useState<string>(() => {
     return initialActiveDraft?.destination || "";
@@ -1905,6 +1918,7 @@ const App: React.FC = () => {
         companions,
         shoppingList,
         travelCountry: travelCountry || undefined,
+        tripScope,
         taxRule: taxRule || undefined,
         visaInfo: visaInfo || undefined,
         travelRules,
@@ -1946,6 +1960,10 @@ const App: React.FC = () => {
       itinerary: Array.isArray(trip.itinerary) ? trip.itinerary : undefined,
       travelCountry:
         typeof trip.travelCountry === "string" ? trip.travelCountry : undefined,
+      tripScope:
+        trip.tripScope === "domestic" || trip.tripScope === "international"
+          ? trip.tripScope
+          : undefined,
       comparisonCountryCode:
         typeof trip.comparisonCountryCode === "string" ? trip.comparisonCountryCode : undefined,
       travelBook: readStoredTravelBook(trip),
@@ -2736,6 +2754,7 @@ const App: React.FC = () => {
               carRentals: carRentals.length > 0 ? [...carRentals] : undefined,
               selectedPassportId,
               travelCountry: travelCountry || undefined,
+              tripScope,
               comparisonCountryCode: comparisonCountryCode || undefined,
               taxRule: taxRule || undefined,
               visaInfo: visaInfo || undefined,
@@ -2756,6 +2775,7 @@ const App: React.FC = () => {
     shoppingList,
     taxRule,
     travelCountry,
+    tripScope,
     comparisonCountryCode,
     tripDestination,
     tripEndDate,
@@ -2874,6 +2894,14 @@ const App: React.FC = () => {
     setTravelCountry(
       draft.travelCountry || draft.taxRule?.country || namedPlace?.country || "",
     );
+    /*
+      Per-trip, so it is reset here with everything else.
+
+      `tripStateCannotLeak` caught this one before a traveller did: a scope
+      left over from the previous trip would have hidden the entry rules on a
+      trip to Japan because the trip before it was a weekend in 台南.
+    */
+    setTripScope(draft.tripScope);
     setComparisonCountryCode(draft.comparisonCountryCode || "");
     setTaxRule(draft.taxRule || null);
     setVisaInfo(draft.visaInfo || null);
@@ -3048,6 +3076,22 @@ const App: React.FC = () => {
     profilePassports.find((passport) => passport.countryCode)
   );
   const resolvedPassportId = resolvedPassport?.id;
+  /**
+   * 國內 or 國外 for the trip on screen, or undefined when nobody resolved it.
+   *
+   * Stored scope wins; otherwise the residence and the trip's country decide.
+   * `undefined` deliberately keeps the entry-rules block visible — an
+   * unresolved trip is not a domestic one.
+   */
+  const resolvedTripScope = (() => {
+    const resolved = effectiveTripScope(
+      tripScope,
+      userProfile.residenceCountryCode,
+      tripCountry(travelCountry, flightAnchors),
+    );
+    return resolved === 'unknown' ? undefined : resolved;
+  })();
+
   const resolvedPassportLabel = resolvedPassport
     ? t('app.label.passportOf', { country: resolvedPassport.country })
     : undefined;
@@ -3338,6 +3382,7 @@ const App: React.FC = () => {
       setCurrentPhase("pre");
       setTripDestination("");
       setTravelCountry("");
+      setTripScope(undefined);
       setComparisonCountryCode("");
       setTaxRule(null);
       setVisaInfo(null);
@@ -5683,6 +5728,7 @@ const App: React.FC = () => {
       setCurrentPhase("pre");
       setTripDestination("");
       setTravelCountry("");
+      setTripScope(undefined);
       setComparisonCountryCode("");
       setTaxRule(null);
       setVisaInfo(null);
@@ -6121,6 +6167,7 @@ const App: React.FC = () => {
     currency,
     budget,
     companions: nextCompanions,
+    tripScope: nextTripScope,
   }: TripSetupValues, brief?: TripPlanBrief) => {
     // A trip started from a saved destination already knows its country, which
     // gives the place lookup the context it would otherwise have to guess.
@@ -6155,6 +6202,7 @@ const App: React.FC = () => {
         budget,
         expenses: [],
         companions: nextCompanions,
+        tripScope: nextTripScope,
         shoppingList: [],
         /*
           On the draft, not set afterwards.
@@ -6249,6 +6297,7 @@ const App: React.FC = () => {
                 currency,
                 budget,
                 companions: nextCompanions,
+                tripScope: nextTripScope,
                 updatedAt: new Date().toISOString(),
               }
             : draft,
@@ -6267,6 +6316,7 @@ const App: React.FC = () => {
                 currency,
                 budget,
                 companions: nextCompanions,
+                tripScope: nextTripScope,
               }
             : trip,
         ),
@@ -6282,6 +6332,7 @@ const App: React.FC = () => {
     setTripCurrency(currency);
     setTripBudget(budget);
     setCompanions(nextCompanions);
+    setTripScope(nextTripScope);
     setViewMode("trip");
   };
 
@@ -8281,6 +8332,25 @@ const App: React.FC = () => {
         initialBudget={tripSetupMode === "create" ? undefined : tripBudget}
         initialCompanions={tripSetupMode === "create" ? [] : companions}
         friends={friends}
+        residenceCountryCode={userProfile.residenceCountryCode}
+        initialTravelCountry={
+          tripSetupMode === "create"
+            ? pendingTripDestination?.country
+            : tripCountry(travelCountry, flightAnchors)
+        }
+        initialTripScope={tripSetupMode === "create" ? undefined : tripScope}
+        /*
+          The passport as the mockup has it, minus a fact we do not hold.
+
+          `PassportProfile` is { id, country, countryCode } — there is no
+          expiry date anywhere in this app. The card therefore invites the
+          traveller to check it rather than asserting 「有效至 2030/05/20」,
+          which would be a date the app made up. Adding an expiry is new
+          stored data and is the Founder's call, not a detail to infer from a
+          mockup.
+        */
+        passportLabel={resolvedPassportLabel}
+        onOpenPassport={() => setIsTravelIdentityOpen(true)}
         onBack={() =>
           setViewMode(tripSetupMode === "create" ? "bookshelf" : "trip")
         }
@@ -9167,6 +9237,15 @@ const App: React.FC = () => {
                   travelCountry ||
                   detectDestinationFromTripName(tripDestination)?.country
                 }
+                /*
+                  Resolved at the point of use, never stored twice.
+                
+                  A trip that recorded its own scope keeps it; one that never did asks
+                  the two countries, and 「unknown」 leaves the entry rules visible.
+                  Hiding a border requirement on a guess is the one error here that a
+                  traveller discovers at the border.
+                */
+                tripScope={resolvedTripScope}
                 travelRules={travelRules}
                 hasPassport={Boolean(resolvedPassportId)}
                 passportLabel={resolvedPassportLabel}
@@ -9326,6 +9405,7 @@ const App: React.FC = () => {
                 travelCountry ||
                 detectDestinationFromTripName(tripDestination)?.country
               }
+              tripScope={resolvedTripScope}
               travelRules={travelRules}
               hasPassport={Boolean(resolvedPassportId)}
               passportLabel={resolvedPassportLabel}

@@ -2,10 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
+  BookUser,
   CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Home,
   Image as ImageIcon,
   Loader2,
   MapPin,
+  Plane,
   Search,
   Users,
 } from 'lucide-react';
@@ -15,7 +20,14 @@ import {
   DestinationImage,
   fetchDestinationImage,
 } from '../services/destinationImageService';
+import {
+  TripScope,
+  deriveTripScope,
+  popularDestinations,
+  suggestedCurrency,
+} from '../services/tripScope';
 import CompanionsModal from './CompanionsModal';
+import PopularDestinationTile from './PopularDestinationTile';
 
 export type TripSetupValues = {
   destination: string;
@@ -24,6 +36,14 @@ export type TripSetupValues = {
   currency: string;
   budget?: number;
   companions: Companion[];
+  /**
+   * 國內 or 國外, as the traveller left the toggle.
+   *
+   * Absent means they never resolved it — the derivation had nothing to go on
+   * and nothing was preselected. The trip keeps saying nobody decided rather
+   * than being recorded as 國外 by omission.
+   */
+  tripScope?: TripScope;
 };
 
 type Props = {
@@ -35,6 +55,17 @@ type Props = {
   initialBudget?: number;
   initialCompanions: Companion[];
   friends: Companion[];
+  /** Where the traveller lives. Absent is the common case and must stay safe. */
+  residenceCountryCode?: string;
+  /** What this trip already said its country was, for the preselection only. */
+  initialTravelCountry?: string;
+  /** A scope already chosen on this trip, which outranks any derivation. */
+  initialTripScope?: TripScope;
+  /** The default passport, shown on 國外 trips the way the mockup has it. */
+  passportLabel?: string;
+  passportExpiry?: string;
+  passportValid?: boolean;
+  onOpenPassport?: () => void;
   onBack: () => void;
   onSubmit: (values: TripSetupValues) => void;
 };
@@ -51,6 +82,13 @@ const CreateEditTripScreen: React.FC<Props> = ({
   initialBudget,
   initialCompanions,
   friends,
+  residenceCountryCode,
+  initialTravelCountry,
+  initialTripScope,
+  passportLabel,
+  passportExpiry,
+  passportValid,
+  onOpenPassport,
   onBack,
   onSubmit,
 }) => {
@@ -59,6 +97,28 @@ const CreateEditTripScreen: React.FC<Props> = ({
   const [startDate, setStartDate] = useState(initialStartDate);
   const [endDate, setEndDate] = useState(initialEndDate);
   const [currency, setCurrency] = useState(initialCurrency || 'TWD');
+  /*
+    What the toggle shows before anybody touches it.
+
+    A scope already on the trip wins; otherwise the two country fields are
+    asked, and when either is missing NOTHING is selected. 「自動判斷」 is a
+    convenience, and a convenience that answers when it does not know is just
+    a wrong answer delivered faster.
+  */
+  const [tripScope, setTripScope] = useState<TripScope | undefined>(() => {
+    if (initialTripScope) return initialTripScope;
+    const derived = deriveTripScope(residenceCountryCode, initialTravelCountry);
+    return derived === 'unknown' ? undefined : derived;
+  });
+  /*
+    Whether the currency is still the app's idea or the traveller's.
+
+    The switch may update a suggestion; it may never overwrite a decision.
+    Once this is true the scope toggle stops touching the currency for the
+    rest of the session — 「不得靜默清除已輸入資料」 covers the field somebody
+    deliberately set, not only the ones they typed into.
+  */
+  const [currencyTouched, setCurrencyTouched] = useState(false);
   const [budget, setBudget] = useState(initialBudget === undefined ? '' : String(initialBudget));
   const [draftCompanions, setDraftCompanions] = useState<Companion[]>(initialCompanions);
   const [isCompanionsOpen, setIsCompanionsOpen] = useState(false);
@@ -106,6 +166,34 @@ const CreateEditTripScreen: React.FC<Props> = ({
 
   const dateRangeInvalid = Boolean(startDate && endDate && endDate < startDate);
   const travelerCount = 1 + draftCompanions.length;
+  const shortcuts = tripScope ? popularDestinations(tripScope, residenceCountryCode) : [];
+
+  /**
+   * Choose a scope, and let the currency follow only if it may.
+   *
+   * Nothing else on the form is read or cleared here. That is the whole of
+   * 「切換類型時，不得靜默清除已輸入資料」 — destination, dates, budget,
+   * companions and cover are not this handler's business.
+   */
+  const handleScope = (next: TripScope) => {
+    setTripScope(next);
+    if (currencyTouched) return;
+    const home = next === 'domestic' ? suggestedCurrency(residenceCountryCode) : undefined;
+    if (home) setCurrency(home);
+  };
+
+  /*
+    A destination implies a currency only while nobody has set one.
+
+    Typing 日本 on a 國外 trip should land JPY in the box; typing it after
+    deliberately choosing TWD should not. Domestic currency comes from the
+    residence country instead, which the toggle already handled.
+  */
+  useEffect(() => {
+    if (currencyTouched || tripScope !== 'international') return;
+    const abroad = suggestedCurrency(normalizeDestinationQuery(destination));
+    if (abroad) setCurrency(abroad);
+  }, [destination, tripScope, currencyTouched]);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -118,6 +206,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
       currency,
       budget: budget === '' ? undefined : Number(budget),
       companions: draftCompanions,
+      tripScope,
     });
   };
 
@@ -191,85 +280,59 @@ const CreateEditTripScreen: React.FC<Props> = ({
             one element that was taking space in proportion to the phone instead
             of in proportion to its job.
           */}
-          <section className="relative h-[clamp(5rem,13vh,7.5rem)] shrink-0 overflow-hidden rounded-cover bg-gradient-to-br from-slate-100 to-blue-50">
-            {destinationImage && !destinationImageFailed ? (
-              <>
-                <img
-                  src={destinationImage.imageUrl}
-                  alt={t('trips.setup.coverAlt', { destination: destinationImage.destinationQuery })}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  onError={() => setDestinationImageFailed(true)}
-                />
-                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent" />
-                {/* Attribution is a licence condition, so it stays legible and its links stay real. */}
-                <p className="absolute bottom-2.5 left-3.5 right-3.5 z-10 text-meta font-medium text-white/90">
-                  Photo by{' '}
-                  <a
-                    href={destinationImage.photographerUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-white/50 underline-offset-2"
-                  >
-                    {destinationImage.photographer}
-                  </a>{' '}
-                  on{' '}
-                  <a
-                    href={destinationImage.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline decoration-white/50 underline-offset-2"
-                  >
-                    Pexels
-                  </a>
-                </p>
-              </>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-slate-300">
-                {isImageLoading ? (
-                  <Loader2 size={24} className="animate-spin" />
-                ) : (
-                  <ImageIcon size={28} strokeWidth={1.6} />
-                )}
-              </div>
-            )}
-          </section>
+          {/*
+            國內 or 國外, before anything else on the form.
 
+            It is first because it changes what the fields below mean — which
+            places the shortcuts offer, which currency is suggested, whether a
+            passport is any of the app's business. Asking it after the
+            destination would be asking somebody to re-read what they just
+            filled in.
+
+            Two cards rather than a switch: a switch has a default, and the
+            honest state here is frequently 「nobody said」. Neither card is
+            selected until somebody selects one or the countries settle it.
+          */}
           <section>
-            <p className="text-section font-semibold tracking-tight">{t('trips.setup.budgetHeading')}</p>
-            {/*
-              Currency is a three-letter code and takes a three-letter column;
-              the amount takes the rest. Two equal halves gave a wide select
-              holding 「TWD」 beside an input that had to hold six digits.
-            */}
-            <div className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5">
-              <label className="text-support font-medium text-ink-soft">
-                {t('trips.setup.currency')}
-                <select
-                  value={currency}
-                  onChange={event => setCurrency(event.target.value)}
-                  className="mt-1 h-[var(--control-h)] w-full rounded-field border border-hairline bg-white px-2.5 text-field font-medium text-ink outline-none focus:border-violet-400"
-                >
-                  {COMMON_CURRENCIES.map(option => <option key={option.code} value={option.code}>{option.code}</option>)}
-                </select>
-              </label>
-              <label className="text-support font-medium text-ink-soft">
-                {t('trips.setup.totalBudget')}
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={budget}
-                  onChange={event => setBudget(event.target.value)}
-                  placeholder={t('trips.setup.optional')}
-                  className="mt-1 h-[var(--control-h)] w-full rounded-field border border-hairline bg-white px-3 text-field font-medium text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
-                />
-              </label>
+            <div className="grid grid-cols-2 gap-2.5" role="group" aria-label={t('trips.setup.scopeHeading')}>
+              {([
+                ['domestic', Home, 'trips.setup.scopeDomestic', 'trips.setup.scopeDomesticHint'],
+                ['international', Plane, 'trips.setup.scopeInternational', 'trips.setup.scopeInternationalHint'],
+              ] as const).map(([value, Icon, titleKey, hintKey]) => {
+                const selected = tripScope === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => handleScope(value)}
+                    aria-pressed={selected}
+                    data-testid={`trip-scope-${value}`}
+                    className={`flex items-center gap-2 rounded-cover px-3 py-2.5 text-left transition ${
+                      selected
+                        ? 'bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-[0_8px_20px_rgba(91,61,245,.28)]'
+                        : 'border border-hairline bg-white text-ink hover:border-violet-200'
+                    }`}
+                  >
+                    <Icon size={18} strokeWidth={2.1} className={selected ? 'text-white' : 'text-violet-600'} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-support font-semibold">{t(titleKey)}</span>
+                      <span className={`block truncate text-meta font-medium ${selected ? 'text-white/80' : 'text-ink-soft'}`}>
+                        {t(hintKey)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </section>
 
           <section>
             <label htmlFor="trip-destination" className="text-section font-semibold tracking-tight">
-              {t('trips.setup.destinationHeading')}
+              {tripScope === 'domestic'
+                ? t('trips.setup.destinationHeadingDomestic')
+                : tripScope === 'international'
+                  ? t('trips.setup.destinationHeadingInternational')
+                  : t('trips.setup.destinationHeading')}
             </label>
             <div className="relative mt-2">
               <Search
@@ -281,12 +344,42 @@ const CreateEditTripScreen: React.FC<Props> = ({
                 type="text"
                 value={destination}
                 onChange={(event) => setDestination(event.target.value)}
-                placeholder={t('trips.setup.destinationPlaceholder')}
+                placeholder={
+                  tripScope === 'domestic'
+                    ? t('trips.setup.destinationPlaceholderDomestic')
+                    : tripScope === 'international'
+                      ? t('trips.setup.destinationPlaceholderInternational')
+                      : t('trips.setup.destinationPlaceholder')
+                }
                 autoComplete="off"
                 className="h-[var(--control-h)] w-full rounded-field border border-hairline bg-white pl-10 pr-3 text-field font-medium text-ink outline-none transition placeholder:text-slate-300 focus:border-violet-400"
               />
             </div>
           </section>
+
+          {/*
+            Shortcuts, and only ones that are true.
+
+            An unknown residence yields no domestic list rather than a borrowed
+            one, so this section simply does not appear — which is also the
+            answer for a country the curated table does not cover.
+          */}
+          {shortcuts.length > 0 && (
+            <section>
+              <div className="flex items-end justify-between">
+                <p className="text-section font-semibold tracking-tight">{t('trips.setup.popularHeading')}</p>
+              </div>
+              <div className="mt-2 flex items-start gap-2.5 overflow-x-auto pb-1">
+                {shortcuts.map(place => (
+                  <PopularDestinationTile
+                    key={place.id}
+                    place={place}
+                    onSelect={selected => setDestination(selected.query)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
 
           <section>
             <p className="text-section font-semibold tracking-tight">{t('trips.setup.datesHeading')}</p>
@@ -356,6 +449,83 @@ const CreateEditTripScreen: React.FC<Props> = ({
           </section>
 
           <section>
+            <p className="text-section font-semibold tracking-tight">{t('trips.setup.budgetHeading')}</p>
+            {/*
+              Currency is a three-letter code and takes a three-letter column;
+              the amount takes the rest. Two equal halves gave a wide select
+              holding 「TWD」 beside an input that had to hold six digits.
+            */}
+            <div className="mt-2 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5">
+              <label className="text-support font-medium text-ink-soft">
+                {t('trips.setup.currency')}
+                <select
+                  value={currency}
+                  onChange={event => {
+                    setCurrencyTouched(true);
+                    setCurrency(event.target.value);
+                  }}
+                  className="mt-1 h-[var(--control-h)] w-full rounded-field border border-hairline bg-white px-2.5 text-field font-medium text-ink outline-none focus:border-violet-400"
+                >
+                  {COMMON_CURRENCIES.map(option => <option key={option.code} value={option.code}>{option.code}</option>)}
+                </select>
+              </label>
+              <label className="text-support font-medium text-ink-soft">
+                {t('trips.setup.totalBudget')}
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={budget}
+                  onChange={event => setBudget(event.target.value)}
+                  placeholder={t('trips.setup.optional')}
+                  className="mt-1 h-[var(--control-h)] w-full rounded-field border border-hairline bg-white px-3 text-field font-medium text-ink outline-none placeholder:text-slate-300 focus:border-violet-400"
+                />
+              </label>
+            </div>
+          </section>
+
+          {/*
+            The passport, only where it is anybody's business.
+
+            A domestic weekend has no entry requirements, and an expiry date
+            sitting on that form teaches the traveller that the preparation
+            items are decoration. On 國外 it is the first thing worth knowing
+            before the dates are locked in, which is why it reads here and not
+            three screens later.
+          */}
+          {tripScope === 'international' && passportLabel && (
+            <section>
+              <p className="text-section font-semibold tracking-tight">{t('trips.setup.passportHeading')}</p>
+              <button
+                type="button"
+                onClick={onOpenPassport}
+                disabled={!onOpenPassport}
+                data-testid="trip-passport-card"
+                className="mt-2 flex w-full items-center gap-2.5 rounded-cover border border-hairline bg-white px-3 py-2.5 text-left transition disabled:cursor-default hover:border-violet-200"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                  <BookUser size={18} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-support font-semibold text-ink">{passportLabel}</span>
+                  <span className="block truncate text-meta font-medium text-ink-soft">
+                    {passportExpiry
+                      ? t('trips.setup.passportExpiresOn', { date: passportExpiry })
+                      : t('trips.setup.passportCheckExpiry')}
+                  </span>
+                </span>
+                {passportValid && (
+                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-meta font-semibold text-emerald-600">
+                    <CheckCircle2 size={13} />
+                    {t('trips.setup.passportValid')}
+                  </span>
+                )}
+                {onOpenPassport && <ChevronRight size={16} className="shrink-0 text-slate-300" />}
+              </button>
+            </section>
+          )}
+
+          <section>
             <p className="text-section font-semibold tracking-tight">{t('trips.setup.companionsHeading')}</p>
             {/*
               The people, not a count of them.
@@ -401,6 +571,52 @@ const CreateEditTripScreen: React.FC<Props> = ({
             The actions take the room left over rather than adding to the pile,
             so 「不用上下滑就能看完並儲存」 survives the restyle.
           */}
+          <section>
+            <p className="text-section font-semibold tracking-tight">{t('trips.setup.coverHeading')}</p>
+            <div className="relative mt-2 h-[clamp(5rem,13vh,7.5rem)] shrink-0 overflow-hidden rounded-cover bg-gradient-to-br from-slate-100 to-blue-50">
+            {destinationImage && !destinationImageFailed ? (
+              <>
+                <img
+                  src={destinationImage.imageUrl}
+                  alt={t('trips.setup.coverAlt', { destination: destinationImage.destinationQuery })}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onError={() => setDestinationImageFailed(true)}
+                />
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent" />
+                {/* Attribution is a licence condition, so it stays legible and its links stay real. */}
+                <p className="absolute bottom-2.5 left-3.5 right-3.5 z-10 text-meta font-medium text-white/90">
+                  Photo by{' '}
+                  <a
+                    href={destinationImage.photographerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-white/50 underline-offset-2"
+                  >
+                    {destinationImage.photographer}
+                  </a>{' '}
+                  on{' '}
+                  <a
+                    href={destinationImage.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-white/50 underline-offset-2"
+                  >
+                    Pexels
+                  </a>
+                </p>
+              </>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-slate-300">
+                {isImageLoading ? (
+                  <Loader2 size={24} className="animate-spin" />
+                ) : (
+                  <ImageIcon size={28} strokeWidth={1.6} />
+                )}
+              </div>
+            )}
+            </div>
+          </section>
+
           <section className="mt-auto space-y-0.5 pt-2">
             <button
               type="submit"

@@ -1438,7 +1438,22 @@
       "travellerOne": "person",
       "travellerMany": "people",
       "create": "建立旅程",
-      "saveChanges": "儲存變更"
+      "saveChanges": "儲存變更",
+      "scopeHeading": "旅行類型",
+      "scopeDomestic": "國內旅行",
+      "scopeDomesticHint": "在我的常住國家內",
+      "scopeInternational": "國外旅行",
+      "scopeInternationalHint": "前往其他國家／地區",
+      "destinationHeadingDomestic": "目的地（城市／地區）",
+      "destinationHeadingInternational": "目的地（國家／城市）",
+      "destinationPlaceholderDomestic": "搜尋城市、地區或景點",
+      "destinationPlaceholderInternational": "搜尋國家或城市（例如：日本 東京）",
+      "popularHeading": "熱門目的地",
+      "passportHeading": "護照",
+      "passportCheckExpiry": "查看有效期限",
+      "passportExpiresOn": "{{date}} 到期",
+      "passportValid": "有效",
+      "coverHeading": "封面照片（選填）"
     },
     "coverFallbackName": "我的旅程",
     "ways": {

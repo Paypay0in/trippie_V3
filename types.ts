@@ -1,3 +1,4 @@
+import type { TripScope } from './services/tripScope';
 
 
 // Type-only, so nothing is imported at runtime and no cycle is created.
@@ -631,6 +632,21 @@ export interface Trip {
   planBrief?: TripPlanBrief;
   carRentals?: ParsedRental[];
   travelCountry?: string;
+  /**
+   * Whether this trip stays inside the traveller's home country.
+   *
+   * Stored rather than recomputed, because the inputs move under it: residence
+   * lives in the profile and the trip's country is often inferred from a name
+   * or a boarding pass. Deriving this on every render would reclassify every
+   * past trip the day somebody moves house, and the preparation page would
+   * start hiding entry rules on a trip that needed them.
+   *
+   * Absent means nobody resolved it — which `effectiveTripScope` turns back
+   * into a derivation at the point of use, and which must never be read as
+   * 國外 by default.
+   */
+  tripScope?: TripScope;
+
   /**
    * Which country this trip's shopping list compares prices against.
    *
