@@ -270,7 +270,22 @@ const TripPlanOverview: React.FC<Props> = ({
   promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, tripScope, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const { t } = useTranslation();
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
-  const preTasks = shoppingPreTasks;
+  /*
+    A domestic trip does not count the border paperwork it no longer shows.
+
+    Founder V-8 B: entry-rule items added while the trip was 國外 STAY in the
+    stored list — nothing is deleted, and switching back brings them straight
+    back with their ticks intact. They simply leave the readiness fraction
+    while the trip is 國內.
+
+    Both ends of the fraction, which is the part that is easy to get wrong:
+    dropping them from the numerator alone would report 4/10 on a trip with
+    four things left to do, and tell the traveller they are behind on work
+    that is not on their screen.
+  */
+  const preTasks = tripScope === 'domestic'
+    ? shoppingPreTasks.filter(item => item.sourceType !== 'travel_rules')
+    : shoppingPreTasks;
   /*
     「行程表上若有需要訂門票的景點或活動 就要放在前面的待辦事項欄位」.
 

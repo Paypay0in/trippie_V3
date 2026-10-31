@@ -55,7 +55,27 @@ const show = (props: Record<string, unknown> = {}) =>
 
 afterEach(cleanup);
 
-const readinessText = () => screen.getByText(/\d+\s*\/\s*\d+/).textContent;
+/** 「已完成 N 項」 + 「還有 M 項…」, read back as done/total. */
+const readiness = () => {
+  const done = Number(screen.getByText(/^已完成 \d+ 項$/).textContent!.match(/\d+/)![0]);
+  const open = Number(screen.getByText(/^還有 \d+ 項/).textContent!.match(/\d+/)![0]);
+  return `${done}/${done + open}`;
+};
+
+/** A pre-trip task the traveller wrote, and one the entry-rules lookup added. */
+const ownTask = {
+  id: 'own-1',
+  name: '買行動電源',
+  isPurchased: false,
+  phase: 'pre',
+};
+const ruleTask = (id: string, isPurchased = false) => ({
+  id,
+  name: `入境手續 ${id}`,
+  isPurchased,
+  phase: 'pre',
+  sourceType: 'travel_rules',
+});
 
 describe('the preparation page by trip scope', () => {
   it('hides the entry-rules block on a domestic trip', () => {
@@ -76,18 +96,49 @@ describe('the preparation page by trip scope', () => {
 
     expect(screen.getByText('入境規定')).toBeTruthy();
   });
+});
 
-  /*
-    The readiness denominator counts shopping pre-tasks and ticket to-dos and
-    has never counted entry rules. This asserts it STAYS that way: the number
-    is identical with the block shown and hidden, so nothing hidden is counted.
-  */
-  it('reports the same readiness whether or not the rules are shown', () => {
-    show({ tripScope: 'international', destination: '日本' });
-    const abroad = readinessText();
+/*
+  Founder V-8 B, and the half of it that is easy to get wrong.
+
+  An earlier version of this file asserted the readiness fraction was
+  IDENTICAL whether the rules were shown or hidden. That was true only
+  because its fixture had no entry-rule items in it — a test that passes for
+  a reason unrelated to the rule it claims to protect. It is rewritten here
+  to assert the exclusion itself.
+*/
+describe('domestic readiness excludes the cross-border items it hides', () => {
+  it('drops travel-rule items from BOTH ends of the fraction', () => {
+    show({
+      tripScope: 'international',
+      destination: '日本',
+      shoppingList: [ownTask, ruleTask('r1', true), ruleTask('r2')],
+    });
+    expect(readiness()).toBe('1/3');
     cleanup();
 
-    show({ tripScope: 'domestic', destination: '台南' });
-    expect(readinessText()).toBe(abroad);
+    show({
+      tripScope: 'domestic',
+      shoppingList: [ownTask, ruleTask('r1', true), ruleTask('r2')],
+    });
+    /*
+      Not 1/1. The completed rule item leaves the numerator with its own
+      denominator — counting it would report 1/1 「done」 on a trip with one
+      thing still to do.
+    */
+    expect(readiness()).toBe('0/1');
+  });
+
+  /* The items are hidden from the count, never removed from the data. */
+  it('brings the items back when the trip becomes international again', () => {
+    const list = [ownTask, ruleTask('r1', true), ruleTask('r2')];
+
+    show({ tripScope: 'domestic', shoppingList: list });
+    expect(readiness()).toBe('0/1');
+    cleanup();
+
+    show({ tripScope: 'international', destination: '日本', shoppingList: list });
+    expect(readiness()).toBe('1/3');
+    expect(list).toHaveLength(3);
   });
 });
