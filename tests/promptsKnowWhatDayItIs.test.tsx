@@ -24,6 +24,34 @@ import { resolve } from 'path';
 const server = readFileSync(resolve(__dirname, '../server.ts'), 'utf8');
 
 /**
+ * The whole of `factsPreamble`, located rather than measured.
+ *
+ * This used to be `slice(at, at + 600)`. A fixed byte window is a guard that
+ * stops guarding the moment somebody writes a comment inside the function —
+ * which is how three assertions here failed on a change that made the
+ * preamble stricter rather than weaker. The declaration ends at the blank
+ * line before the next top-level statement.
+ */
+const preambleSource = (): string => {
+  const at = server.indexOf('const factsPreamble =');
+  expect(at).toBeGreaterThan(-1);
+  const end = server.indexOf('\nasync function', at);
+  return server.slice(at, end > at ? end : server.length);
+};
+
+/**
+ * The prompt's own template literal, from its opening backtick.
+ *
+ * Also replaces a fixed window (70 characters back), for the same reason: the
+ * call site grew when the preamble started taking the interface language, and
+ * a guard measured in bytes reported that as a missing preamble.
+ */
+const promptOpening = (at: number): string => {
+  const backtick = server.lastIndexOf('`', at);
+  return server.slice(backtick < 0 ? Math.max(0, at - 200) : backtick, at);
+};
+
+/**
  * Prompts that tell the traveller something about the real world — rules,
  * places, prices, opening hours. Parsing a receipt they are holding is not one
  * of these: nothing there can be stale.
@@ -40,7 +68,7 @@ const WORLD_FACING_PROMPTS = [
 describe('the shared preamble', () => {
   it('states the date, bans reasoning from expired memory, and bans hedging', () => {
     expect(server).toContain('const factsPreamble =');
-    const body = server.slice(server.indexOf('const factsPreamble ='), server.indexOf('const factsPreamble =') + 600);
+    const body = preambleSource();
 
     expect(body).toContain('今天是 ${new Date().toISOString().slice(0, 10)}');
     expect(body).toContain('已經到期的資訊推測現在的狀態');
@@ -60,7 +88,7 @@ describe('the shared preamble', () => {
         now takes an argument — `hasUserText` decides what language the answer
         comes back in — so the check is on the call, not on one spelling of it.
       */
-      return !/\$\{factsPreamble\(/.test(server.slice(Math.max(0, at - 70), at));
+      return !/\$\{factsPreamble\(/.test(promptOpening(at));
     });
 
     expect(missing).toEqual([]);
@@ -73,19 +101,21 @@ describe('the shared preamble', () => {
       answering in Chinese to an English traveller. The rule is in the shared
       preamble now, and a prompt that re-adds its own would contradict it.
     */
-    const body = server.slice(
-      server.indexOf('const factsPreamble ='),
-      server.indexOf('const factsPreamble =') + 1200,
-    );
+    const body = preambleSource();
 
-    expect(body).toContain('outputLanguageRule({ hasUserText })');
+    /*
+      The rule now also needs the language the app is being read in: a
+      Japanese interface was answered in Chinese because this call passed only
+      `hasUserText` and the language sat on an optional default nobody set.
+    */
+    expect(body).toContain('outputLanguageRule({ hasUserText, interfaceLanguage })');
 
     // Only the two lookups with no traveller prose may name a language, and
     // they do it by passing `hasUserText: false` rather than in their text.
     const selfDeclared = WORLD_FACING_PROMPTS.filter(prompt => {
       const at = server.indexOf(prompt);
       if (at < 0) return false;
-      const callsite = server.slice(Math.max(0, at - 70), at);
+      const callsite = promptOpening(at);
       if (callsite.includes('hasUserText: false')) return false;
       // The prompt body up to the end of its template literal.
       const end = server.indexOf('`,', at);

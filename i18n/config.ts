@@ -20,7 +20,22 @@ import zhHant from './locales/zh-Hant.json';
 import en from './locales/en.json';
 import ja from './locales/ja.json';
 
-export const FALLBACK_LANGUAGE = 'zh-Hant';
+/**
+ * The language vocabulary itself lives in `./languages`, with no i18next or
+ * bundle imports, so the server can resolve a request header with the same
+ * function the browser uses. Re-exported here: every existing import of
+ * FALLBACK_LANGUAGE / SUPPORTED_LANGUAGES / SupportedLanguage /
+ * resolveLanguage from `i18n/config` keeps working.
+ */
+import {
+  FALLBACK_LANGUAGE,
+  SUPPORTED_LANGUAGES,
+  resolveLanguage,
+  type SupportedLanguage,
+} from './languages';
+
+export { FALLBACK_LANGUAGE, SUPPORTED_LANGUAGES, resolveLanguage };
+export type { SupportedLanguage };
 
 /**
  * Whether the device's language decides the app's.
@@ -31,37 +46,6 @@ export const FALLBACK_LANGUAGE = 'zh-Hant';
  * not simply reads as Chinese.
  */
 export const FOLLOW_DEVICE_LANGUAGE = false;
-
-export const SUPPORTED_LANGUAGES = ['zh-Hant', 'en', 'ja'] as const;
-export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
-
-/**
- * Maps whatever the device reports onto a language we actually ship.
- *
- * Browsers report Chinese in several shapes — `zh-TW`, `zh-Hant`, `zh-HK`,
- * `zh-MO`, and bare `zh` — and a reader of any of them should get the
- * Traditional Chinese build rather than being dropped into English by a string
- * comparison that only knew about one spelling.
- *
- * Simplified Chinese is deliberately not claimed here: it is not shipped yet,
- * and showing Traditional Chinese while pretending it is Simplified would be
- * worse than showing English.
- */
-export const resolveLanguage = (requested?: string | null): SupportedLanguage => {
-  const tag = (requested || '').trim().toLowerCase();
-  if (!tag) return FALLBACK_LANGUAGE;
-
-  if (tag === 'zh' || tag.startsWith('zh-hant') || tag.startsWith('zh-tw')
-    || tag.startsWith('zh-hk') || tag.startsWith('zh-mo')) {
-    return 'zh-Hant';
-  }
-  if (tag.startsWith('en')) return 'en';
-  if (tag.startsWith('ja')) return 'ja';
-
-  // Anything else — including Simplified Chinese and Korean — gets English,
-  // which is the closest thing to a shared language we ship today.
-  return 'en';
-};
 
 /**
  * `?lang=en` — a way to look at a language that is not the device's.

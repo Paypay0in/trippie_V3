@@ -19,9 +19,20 @@ import type { SupportedLanguage } from '../i18n/config';
  * caller passes it and the model is told plainly rather than left to pick.
  */
 
+/**
+ * Every supported language has a name here, and the type says so.
+ *
+ * `ja` was missing while Japanese was shipping to production: the lookup fell
+ * through to Traditional Chinese, so a traveller reading the app in Japanese
+ * was answered in Chinese. TypeScript had been reporting it the whole time —
+ * it was one of the fifty errors `npm run lint` was red with, which is what a
+ * type gate nobody can see costs. Adding a language to SUPPORTED_LANGUAGES
+ * now fails to compile until it is named here.
+ */
 const LANGUAGE_NAMES: Record<SupportedLanguage, string> = {
   'zh-Hant': 'Traditional Chinese',
   en: 'English',
+  ja: 'Japanese',
 };
 
 /**

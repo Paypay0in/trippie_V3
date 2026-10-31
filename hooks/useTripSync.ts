@@ -579,7 +579,19 @@ export const useTripSync = ({
               fingerprint recorded against the local id never matches again and
               every open rewrites the whole list.
             */
-            fingerprints: result.status === 'ok' ? result.data.fingerprints : knownRef.current.fingerprints,
+            /*
+              The guard checks `status` and the next expression has to trust
+              `data`. One test double returned `{ status: 'ok', data: null }`
+              and this threw — 5092 tests passing while the process exited 1,
+              which is the quietest way a crash can happen. The double is
+              typed now, but keeping the payload check means a success without
+              fingerprints costs a stale fingerprint set, not an exception:
+              the next push then rewrites those rows, which is slow and
+              correct rather than fast and broken.
+            */
+            fingerprints: result.status === 'ok' && result.data
+              ? result.data.fingerprints
+              : knownRef.current.fingerprints,
             members: nextKnownIds(knownRef.current.members ?? [], m.map(member => member.id)),
             expenses: nextKnownIds(knownRef.current.expenses, e.map(expense => expense.id)),
             itinerary: nextKnownIds(knownRef.current.itinerary, i.map(item => item.id)),

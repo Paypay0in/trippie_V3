@@ -34,7 +34,13 @@ describe('the entry-rules research prompt', () => {
     // `hasUserText: false` because this lookup is a destination and a passport
     // code — there are no traveller's words here for the answer's language to
     // follow, so the preamble names one instead of mirroring nothing.
-    expect(prompt).toContain('${factsPreamble({ hasUserText: false })}');
+    // Matched on the two arguments rather than the whole literal: D-6 added
+    // `interfaceLanguage` to every call site, and an assertion on the exact
+    // byte string failed for a prompt that had in fact gained a guarantee.
+    expect(prompt).toMatch(/\$\{factsPreamble\(\{[^}]*hasUserText: false/);
+    expect(prompt).toMatch(
+      /\$\{factsPreamble\(\{[^}]*interfaceLanguage: interfaceLanguageOf\(req\)/,
+    );
   });
 
   it('forbids predicting a current rule from an expired one', () => {

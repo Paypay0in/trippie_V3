@@ -37,10 +37,20 @@ vi.mock('../services/tripSync', async (importOriginal) => {
         flightAnchors: [],
       },
     }),
-    pushTripSnapshot: async (snapshot: { expenses: Expense[] }) => {
-      pushed.push({ expenses: snapshot.expenses });
-      return { status: 'ok', data: null };
-    },
+    /*
+      Typed against the real export, not hand-shaped.
+
+      This returned `{ status: 'ok', data: null }` — a success the real
+      function never produces: `pushTripSnapshot` reports the fingerprints it
+      wrote, always. The hook read `result.data.fingerprints` and the process
+      exited 1 while all 5092 tests reported passing, so the only signal was a
+      number nobody reads. `satisfies` makes the drift a compile error instead
+      of a crash in a test double.
+    */
+    pushTripSnapshot: (async (snapshot) => {
+      pushed.push({ expenses: snapshot.expenses as Expense[] });
+      return { status: 'ok', data: { fingerprints: {} } };
+    }) satisfies typeof actual.pushTripSnapshot,
   };
 });
 

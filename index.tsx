@@ -6,8 +6,10 @@ import StaleBuildBanner from './components/StaleBuildBanner';
 import { overflowProbeRequested, startOverflowProbe } from './services/overflowProbe';
 import { foldProbeRequested, startFoldProbe } from './services/foldProbe';
 import './index.css';
-import { FOLLOW_DEVICE_LANGUAGE, initI18n } from './i18n/config';
+import i18next from 'i18next';
+import { FOLLOW_DEVICE_LANGUAGE, initI18n, resolveLanguage } from './i18n/config';
 import { resolveStartingLanguage } from './services/languagePreference';
+import { installApiLanguageHeader } from './services/apiLanguageHeader';
 
 // Before the first render: a screen that paints in one language and swaps to
 // another a tick later is worse than a slightly later first paint.
@@ -35,6 +37,12 @@ initI18n({
         : navigator.language || navigator.languages?.[0],
   }),
 });
+
+// Every API call from here on says which language the traveller is reading in,
+// so the server can tell the model. Installed after initI18n and before the
+// first render, because a request fired during mount is as entitled to an
+// answer in the right language as one fired an hour later.
+installApiLanguageHeader(() => resolveLanguage(i18next.language));
 
 // Polyfill process for libraries that might expect it in the browser
 if (typeof window !== 'undefined' && !window.process) {
