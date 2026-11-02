@@ -82,11 +82,22 @@ describe('a trip with no flights and no hotel', () => {
     expect(screen.getByText('AI 幫我想方案')).toBeTruthy();
   });
 
-  it('says which two things it needs, and why', () => {
+  /*
+    Named, and never demanded.
+
+    「還是一樣問我機票」. The wording used to be 「先補上航班資訊與住宿資訊」 and
+    the blurb 「要先確定…才能依據這兩個點規劃」 — a precondition, stated to a
+    traveller the box below was already willing to answer. Both halves are
+    asserted: the two things are still named, so the suggestion keeps its
+    point, and 先/才能 may not come back.
+  */
+  it('names what would sharpen the plan, without demanding it', () => {
     mount();
 
-    expect(screen.getByText(/先補上航班資訊與住宿資訊/)).toBeTruthy();
-    expect(screen.getByText(/知道幾點落地才知道第一天剩多少時間/)).toBeTruthy();
+    expect(screen.getByText(/航班資訊與住宿資訊/)).toBeTruthy();
+    expect(screen.getByText(/知道幾點落地/)).toBeTruthy();
+    expect(screen.queryByText(/先補上/)).toBeNull();
+    expect(screen.queryByText(/才能依據/)).toBeNull();
   });
 
   /**
@@ -142,7 +153,7 @@ describe('a trip with no flights and no hotel', () => {
   it('names only what is actually absent', () => {
     mount({ flightAnchors: [flight] as never });
 
-    expect(screen.getByText('先補上住宿資訊')).toBeTruthy();
+    expect(screen.getByText('有住宿資訊的話，行程會更準')).toBeTruthy();
   });
 });
 

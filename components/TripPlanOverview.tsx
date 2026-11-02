@@ -1385,51 +1385,6 @@ const TripPlanOverview: React.FC<Props> = ({
           </div>
         )}
 
-        {/*
-          What the trip still needs, said without standing in the way.
-
-          「不要拿機票或飯店上傳當門檻」. This block used to REPLACE the question
-          box: no flight on file meant no planning at all. The earlier ask was
-          for a gate — 「要他們先傳航班與住宿資訊」 — and the reasoning held for
-          an itinerary that has to fit around a landing time.
-
-          It does not hold for the question itself. Planning a day in a city
-          is answerable without a flight number, and a traveller who has not
-          booked yet is exactly the one asking. So the anchors are still
-          named, and still first, but the box below stays usable. What the
-          planner is NOT told remains visible: `anchorsBrief` only carries
-          anchors that exist.
-        */}
-        {missing.length > 0 && (
-          <div data-testid="plan-anchors-required" className="mb-3 rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 px-4 py-4 text-center">
-            <p className="text-sm font-black text-[#11183d]">
-              {t('plan.fillInFirst', { items: missing.map(item => t(ANCHOR_LABEL[item])).join(t('plan.and')) })}
-            </p>
-            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
-              {t('plan.anchorsNeededBlurb')}
-            </p>
-
-            {/*
-              The fast way first. A screenshot of the booking is the whole of
-              what is being asked for, and typing it in is the fallback for
-              when the picture cannot be read — so the picture gets the button
-              and the form gets a line of text under it.
-            */}
-            {screenshotIntake}
-
-            {onAddAnchors && (
-              <button
-                type="button"
-                data-testid="plan-anchors-cta"
-                onClick={onAddAnchors}
-                className="mt-3 inline-flex min-h-11 items-center justify-center gap-1.5 text-xs font-black text-violet-700 underline underline-offset-4"
-              >
-                {t('plan.fillInByHand', { items: missing.map(item => t(ANCHOR_LABEL[item])).join(t('plan.and')) })}<ArrowRight size={14} />
-              </button>
-            )}
-          </div>
-        )}
-
         <form onSubmit={handleGenerate} className="space-y-2">
           <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder={t('plan.askPlaceholder')} className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
 
@@ -1481,6 +1436,56 @@ const TripPlanOverview: React.FC<Props> = ({
           )}
           <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? t('plan.thinkingUpPlans') : t('plan.askAiForPlans')}<ArrowRight size={16} /></button>
         </form>
+
+        {/*
+          What the trip still needs, said without standing in the way.
+
+          「不要拿機票或飯店上傳當門檻」. This block used to REPLACE the question
+          box: no flight on file meant no planning at all. The earlier ask was
+          for a gate — 「要他們先傳航班與住宿資訊」 — and the reasoning held for
+          an itinerary that has to fit around a landing time.
+
+          It does not hold for the question itself. Planning a day in a city
+          is answerable without a flight number, and a traveller who has not
+          booked yet is exactly the one asking.
+
+          Keeping it named but first was not enough: 「還是一樣問我機票」. A
+          demand does not stop reading as a demand because the box under it
+          happens to work — it was the first thing on the card, in the loudest
+          weight on the screen. So it sits BELOW the question now, in the
+          quiet styling of a suggestion, and the copy no longer says 先 or
+          「才能」. What the planner is not told stays visible either way:
+          `anchorsBrief` only carries anchors that exist.
+        */}
+        {missing.length > 0 && (
+          <div data-testid="plan-anchors-required" className="mt-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3.5 text-center">
+            <p className="text-xs font-black text-slate-600">
+              {t('plan.fillInFirst', { items: missing.map(item => t(ANCHOR_LABEL[item])).join(t('plan.and')) })}
+            </p>
+            <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
+              {t('plan.anchorsNeededBlurb')}
+            </p>
+
+            {/*
+              The fast way first. A screenshot of the booking is the whole of
+              what is being asked for, and typing it in is the fallback for
+              when the picture cannot be read — so the picture gets the button
+              and the form gets a line of text under it.
+            */}
+            {screenshotIntake}
+
+            {onAddAnchors && (
+              <button
+                type="button"
+                data-testid="plan-anchors-cta"
+                onClick={onAddAnchors}
+                className="mt-3 inline-flex min-h-11 items-center justify-center gap-1.5 text-xs font-black text-violet-700 underline underline-offset-4"
+              >
+                {t('plan.fillInByHand', { items: missing.map(item => t(ANCHOR_LABEL[item])).join(t('plan.and')) })}<ArrowRight size={14} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/*
           The information is already on their phone.
