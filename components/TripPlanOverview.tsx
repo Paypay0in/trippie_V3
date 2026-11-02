@@ -186,9 +186,16 @@ interface Props {
   /**
    * Whether this trip leaves the traveller's home country.
    *
-   * 'domestic' hides the entry-rules and 注意事項 blocks: a weekend in 台南 has
-   * no visa, and a passport-expiry card sitting on that screen teaches the
+   * 'domestic' hides every block that only means something across a border:
+   * the entry rules, the 注意事項 advisories, and 電壓與插座. A weekend in 台南
+   * has no visa, and a passport-expiry card sitting on that screen teaches the
    * traveller that every other preparation item is decoration too.
+   *
+   * 「國內旅遊不用插座提示」 — the power card was written after this comment and
+   * never added to it, so it shipped ungated and told a 台灣 trip what a
+   * Taiwanese socket looks like. `domesticHidesEveryBorderBlock` in
+   * `tests/domesticTripHidesEntryRules.test.tsx` now fails if a fourth one is
+   * added the same way: the list in a comment is not a guard.
    *
    * Nothing else changes. The readiness number counts shopping pre-tasks and
    * ticket to-dos (`totalTasks` below) and has never counted entry rules, so
@@ -1204,9 +1211,13 @@ const TripPlanOverview: React.FC<Props> = ({
         </section>
       )}
 
-      {power && (
+      {tripScope !== 'domestic' && power && (
         /* Above the crowd-sourced tips and below the official rules, because
-           it is neither: nobody can waive it and nobody had to find it out. */
+           it is neither: nobody can waive it and nobody had to find it out.
+
+           Gated like its two siblings above: a traveller going to 新莊 from
+           新莊 already owns the sockets. `undefined` is not domestic, so every
+           trip created before 國內／國外 existed keeps the card. */
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
           <h2 className="mb-1 flex items-center gap-2 font-black">
             <Plug size={18} className="text-amber-500" />{t('plan.powerAndPlugs')}

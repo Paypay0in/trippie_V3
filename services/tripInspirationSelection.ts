@@ -225,6 +225,28 @@ const compareCity = (city?: string, destination?: string): TextComparison => {
 };
 
 /**
+ * The ward, compared the same way the city is.
+ *
+ * 「我在新莊的旅冊中 我也有收藏該地點的收藏 但顯示不出來」 — eight saves, all in
+ * 新莊區, hidden from a 新莊 trip. The saves name 新北市 and the trip names the
+ * district inside it, and `district` — the one field that holds the answer —
+ * was never read here, though this module carries it at `:58`, `:375` and
+ * `:525`.
+ *
+ * Containment, not a 區/市/縣 suffix table: that is the rule `compareCity`
+ * already applies one function below, and a second looser normalisation beside
+ * the first is the defect this ticket exists to fix.
+ */
+const compareDistrict = (district?: string, destination?: string): TextComparison => {
+  const districtText = normalizeText(district);
+  const destinationText = normalizeText(destination);
+  if (!districtText || !destinationText) return 'unknown';
+  return districtText.includes(destinationText) || destinationText.includes(districtText)
+    ? 'match'
+    : 'mismatch';
+};
+
+/**
  * True when the user typed a country as the destination ("韓國" / "South Korea")
  * rather than a city. Such a trip must be able to reach places anywhere inside
  * that country, so distance alone must not rule them out.
@@ -264,7 +286,7 @@ export const distanceInKm = (from: PlaceCoordinates, to: PlaceCoordinates): numb
  * matching is never the deciding signal while structured data is available.
  */
 export const matchesTripDestination = (
-  item: Pick<SavedTravelInspiration, 'country' | 'city' | 'placeName' | 'placeId' | 'latitude' | 'longitude'>,
+  item: Pick<SavedTravelInspiration, 'country' | 'city' | 'district' | 'placeName' | 'placeId' | 'latitude' | 'longitude'>,
   trip: TripDestinationContext,
 ): DestinationMatch => {
   const tripPlaceId = trip.destinationPlaceId?.trim();
@@ -294,6 +316,15 @@ export const matchesTripDestination = (
 
   if (countryComparison === 'mismatch-confident') return { matched: false, basis: 'country' };
   if (cityComparison === 'match') return { matched: true, basis: 'text' };
+  /*
+    The trip names a district and the save names the city containing it. Read
+    after the country veto and after the city, so geometry and a confident
+    country disagreement both still win: two cities can hold a 中山區, and
+    coordinates know which one this is when text does not.
+  */
+  if (compareDistrict(item.district, trip.destination) === 'match') {
+    return { matched: true, basis: 'text' };
+  }
   if (countryComparison === 'match') {
     // Same country, different city, and no coordinates to arbitrate. The ticket
     // asks for other cities to stay hidden on a city-scoped trip.

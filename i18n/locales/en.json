@@ -2189,6 +2189,7 @@
     "inspirationCount": "{{count}} saved idea",
     "inspirationCount_other": "{{count}} saved ideas",
     "fromCommunity": "Travel notes you saved from the community",
+    "decorativeImage": "Illustrative image",
     "createTripIn": "Plan a trip to {{city}}",
     "createTripHint": "Once it exists you can pick these saved ideas while planning",
     "filterVisited": "Visited",

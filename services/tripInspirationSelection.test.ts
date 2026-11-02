@@ -492,3 +492,60 @@ describe('a tag read from the place name', () => {
     expect(group.category).toBeUndefined();
   });
 });
+
+/*
+  「我在新莊的旅冊中 我也有收藏該地點的收藏 但顯示不出來」 — eight saves, every
+  one of them in 新莊區, invisible on a 新莊 trip.
+
+  I first blamed DESTINATION_RADIUS_KM and was wrong: his screenshot showed all
+  eight sitting on a map of 新莊, zero kilometres away. The radius hid nothing.
+  The trip names a district, the saves name the city containing it, and
+  `district` — the field that holds the answer — was never read.
+
+  The negative cases below are the point. Loosening a match is easy; loosening
+  it without letting 高雄's 中山區 surface on a 台北 trip is the work.
+*/
+describe('a save in the district the trip named', () => {
+  const trip = { destination: '新莊', travelCountry: '台灣' };
+
+  it('matches when the save names the city and the trip names the district', () => {
+    expect(matchesTripDestination(
+      { country: '台灣', city: '新北市', district: '新莊區', placeName: '熊鶴鐵板燒' },
+      trip,
+    ).matched).toBe(true);
+  });
+
+  it('matches when the spellings are the other way round', () => {
+    expect(matchesTripDestination(
+      { country: '台灣', city: '新北市', district: '新莊', placeName: 'x' },
+      { destination: '新莊區', travelCountry: '台灣' },
+    ).matched).toBe(true);
+  });
+
+  it('lets coordinates overrule a district name two cities share', () => {
+    expect(matchesTripDestination(
+      {
+        country: '台灣', city: '高雄市', district: '中山區', placeName: 'x',
+        latitude: 22.63, longitude: 120.30,
+      },
+      {
+        destination: '中山區', travelCountry: '台灣',
+        destinationLatitude: 25.06, destinationLongitude: 121.53,
+      },
+    ).matched).toBe(false);
+  });
+
+  it('still refuses a confident country disagreement', () => {
+    expect(matchesTripDestination(
+      { country: '日本', city: '東京', district: '新莊', placeName: 'x' },
+      trip,
+    ).matched).toBe(false);
+  });
+
+  it('says nothing about a save that carries no district', () => {
+    expect(matchesTripDestination(
+      { country: '台灣', city: '台中市', placeName: 'x' },
+      trip,
+    ).matched).toBe(false);
+  });
+});

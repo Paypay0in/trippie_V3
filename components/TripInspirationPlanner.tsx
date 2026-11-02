@@ -544,8 +544,8 @@ const TripInspirationPlanner: React.FC<Props> = ({ inspirations, communityPosts,
     nothing saying which is which.
   */
   const elsewhere = useMemo(
-    () => savedElsewhere(inspirations, trip.destinationCountry || trip.destination),
-    [inspirations, trip.destinationCountry, trip.destination],
+    () => savedElsewhere(inspirations, trip.destinationCountry || trip.travelCountry),
+    [inspirations, trip.destinationCountry, trip.travelCountry],
   );
   /*
     「我的東京儲存的旅遊靈感都不見了」 — on a 東京 trip, one of twenty-two showing.

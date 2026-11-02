@@ -2168,6 +2168,7 @@
     "travel": "移動",
     "inspirationCount": "保存したアイデア {{count}} 件",
     "fromCommunity": "コミュニティから保存した旅のメモ",
+    "decorativeImage": "イメージ画像",
     "createTripIn": "{{city}} への旅を計画する",
     "createTripHint": "旅をつくると、計画中にこの保存したアイデアを選べます",
     "filterVisited": "訪問済み",

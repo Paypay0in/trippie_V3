@@ -379,14 +379,30 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
     <header data-safe-top style={{ ["--safe-top-base" as string]: "var(--header-top)" }} className="bg-white px-[var(--screen-pad)] pb-2">
       <button type="button" onClick={onBack} className="-ml-2 flex min-h-11 items-center px-2 text-sm font-black text-violet-600">← {t('saved.travel')}</button>
     </header>
-    <section className="relative h-[200px] overflow-hidden">
-      <img src={heroImage} alt={`${country}・${city}`} className="h-full w-full object-cover" />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/80 via-transparent to-transparent" />
-      <div className="absolute bottom-5 left-5 text-white">
-        <h1 className="text-3xl font-black">{countryDisplayName(country)}・{cityDisplayName(city)}</h1>
-        <p className="mt-1 text-sm font-semibold text-white/90">{t('saved.inspirationCount', { count: items.length })}</p>
-        <p className="mt-1 text-xs text-white/75">{t('saved.fromCommunity')}</p>
-      </div>
+    {/*
+      「新北市 但圖片是台北」 — the search asked Pexels for 「台灣 新北市」 and got
+      Taipei Main Station, because a mid-sized city beside a famous one always
+      will. Nothing in the fetch is broken; what was broken is that three things
+      here ASSERTED the photograph was of this place: an alt text naming the
+      city, a full gradient, and the name laid over the image. Together they are
+      a caption, and we cannot verify a stock photo is of anywhere.
+
+      So the picture stays and stops making the claim. `alt=""` is the correct
+      way to tell assistive technology an image carries no information — which,
+      once it is admitted to be decoration, is true. Describing content we
+      cannot vouch for is the real accessibility defect.
+    */}
+    <section className="relative h-[140px] overflow-hidden">
+      <img src={heroImage} alt="" aria-hidden="true" className="h-full w-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#11183d]/40 via-transparent to-transparent" />
+      <span className="absolute bottom-2 right-3 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white/90">
+        {t('saved.decorativeImage')}
+      </span>
+    </section>
+    <section className="px-5 pt-4">
+      <h1 className="text-3xl font-black text-[#11183d]">{countryDisplayName(country)}・{cityDisplayName(city)}</h1>
+      <p className="mt-1 text-sm font-semibold text-slate-500">{t('saved.inspirationCount', { count: items.length })}</p>
+      <p className="mt-0.5 text-xs text-slate-400">{t('saved.fromCommunity')}</p>
     </section>
     <section className="px-4 pt-4">
       <button type="button" onClick={() => onCreateTrip(country, city)} className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition active:scale-[.99]">

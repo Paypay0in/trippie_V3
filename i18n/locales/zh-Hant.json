@@ -2129,6 +2129,7 @@
     "travel": "旅行",
     "inspirationCount": "{{count}} 則旅行靈感",
     "fromCommunity": "來自你在社群收藏的旅行筆記",
+    "decorativeImage": "示意圖片",
     "createTripIn": "建立{{city}}旅行",
     "createTripHint": "建立後可在行程規劃中挑選這裡的收藏靈感",
     "filterVisited": "已訪",

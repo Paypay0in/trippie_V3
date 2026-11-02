@@ -96,6 +96,47 @@ describe('the preparation page by trip scope', () => {
 
     expect(screen.getByText('入境規定')).toBeTruthy();
   });
+
+  /*
+    「國內旅遊不用插座提示」.
+
+    The domestic rule was honoured at the entry rules, the 注意事項 block and
+    the readiness count — and dropped at 電壓與插座, which shipped telling a
+    台灣 trip what a Taiwanese socket looks like. One rule, four places, three
+    of them remembering.
+
+    So this asserts the whole class rather than the one that was reported. A
+    fifth border-only block added ungated fails here, which is the only reason
+    this test is worth more than the one-line fix beside it.
+  */
+  it('hides every border-only block on a domestic trip, not just the two in the comment', () => {
+    /*
+      `destinationCountry` matters here and the first version of this test did
+      not have it. The default fixture travels to 台南, which `powerProfileFor`
+      cannot place, so the card never rendered and the assertion passed on a
+      trip that was never going to show it — green for a reason that had
+      nothing to do with the fix. A country with a known profile is what makes
+      this a test rather than a decoration.
+    */
+    show({ tripScope: 'domestic', destinationCountry: '台灣' });
+
+    expect(screen.queryByText('入境規定')).toBeNull();
+    expect(screen.queryByTestId('power-plugs')).toBeNull();
+    expect(screen.queryByText('電壓與插座')).toBeNull();
+  });
+
+  it('keeps 電壓與插座 on an international trip', () => {
+    show({ tripScope: 'international', destination: '日本' });
+
+    expect(screen.getByText('電壓與插座')).toBeTruthy();
+  });
+
+  /* Every trip created before 國內／國外 existed carries no scope at all. */
+  it('keeps 電壓與插座 when nobody resolved the scope', () => {
+    show({ tripScope: undefined, destination: '日本' });
+
+    expect(screen.getByText('電壓與插座')).toBeTruthy();
+  });
 });
 
 /*
