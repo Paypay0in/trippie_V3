@@ -4081,7 +4081,7 @@ ${MODE_RULES[mode]}
       let weatherLatitude = latitude; let weatherLongitude = longitude;
       if (!hasCoordinates) {
         const geocodeUrl = new URL("https://geocoding-api.open-meteo.com/v1/search"); geocodeUrl.searchParams.set("name", destination); geocodeUrl.searchParams.set("count", "1"); geocodeUrl.searchParams.set("language", "en"); geocodeUrl.searchParams.set("format", "json");
-        const geocodeResponse = await fetch(geocodeUrl, { signal: AbortSignal.timeout(5_000) }); if (!geocodeResponse.ok) throw new Error("Geocoding failed");
+        const geocodeResponse = await fetch(geocodeUrl, { signal: AbortSignal.timeout(5_000) }); if (!geocodeResponse.ok) throw new Error(`geocode ${geocodeResponse.status} from ${geocodeUrl.host}`);
         const geocode = await geocodeResponse.json() as { results?: Array<{ latitude: number; longitude: number }> }; let place = geocode.results?.[0];
         if (!place && country && /korea|韓國|韩国/i.test(country)) { const fallback = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=kr&q=${encodeURIComponent(destination)}`, { headers: { 'User-Agent': 'Trippie/1.0' }, signal: AbortSignal.timeout(5_000) }); const results = await fallback.json() as Array<{ lat?: string; lon?: string }>; const match = results[0]; if (match && Number.isFinite(Number(match.lat)) && Number.isFinite(Number(match.lon))) place = { latitude: Number(match.lat), longitude: Number(match.lon) }; }
         if (!place) { res.status(404).json({ error: "Destination could not be resolved." }); return; }
@@ -4103,7 +4103,22 @@ ${MODE_RULES[mode]}
       weatherUrl.searchParams.set("forecast_days", "2");
       weatherUrl.searchParams.set("timezone", "auto");
       const weatherResponse = await fetch(weatherUrl, { signal: AbortSignal.timeout(5_000) });
-      if (!weatherResponse.ok) throw new Error("Weather provider failed");
+      /*
+        Say which upstream refused, and with what.
+
+        「另外為何沒有天氣資訊」 — the card read 「目前無法取得天氣」 for every
+        destination, and the handler below answered that for every cause: DNS,
+        timeout, 429, 500. The one fact that names the cause was destroyed by
+        the error path, so nobody could tell a rate limit from an outage. The
+        body text is included because a 429 and a 403 from the same host mean
+        different repairs, and neither is guessable from 502.
+      */
+      if (!weatherResponse.ok) {
+        const detail = await weatherResponse.text().catch(() => "");
+        throw new Error(
+          `forecast ${weatherResponse.status} from ${weatherUrl.host}: ${detail.slice(0, 200)}`,
+        );
+      }
       const weather = await weatherResponse.json() as {
         current?: { temperature_2m?: number; weather_code?: number };
         daily?: { temperature_2m_max?: number[]; temperature_2m_min?: number[]; precipitation_probability_max?: number[]; weather_code?: number[] };
@@ -4133,8 +4148,17 @@ ${MODE_RULES[mode]}
         : undefined;
       res.json({ temperature: current.temperature_2m, condition, high: daily.temperature_2m_max[0], low: daily.temperature_2m_min[0], precipitationProbability: daily.precipitation_probability_max[0], ...(tomorrow ? { tomorrow } : {}) });
     } catch (error) {
-      console.error("Weather request failed:", error);
-      res.status(502).json({ error: "Weather provider is unavailable." });
+      /*
+        Reported, not swallowed. `upstream` is diagnostic only — the traveller
+        still reads 「目前無法取得天氣」, which is the honest thing to show
+        somebody who cannot act on a status code. Nothing here retries or
+        falls back: every repair past this point depends on knowing whether
+        this is 429, DNS or a timeout, and guessing one produced a wrong fix
+        earlier the same night.
+      */
+      const upstream = error instanceof Error ? error.message : String(error);
+      console.error("Weather request failed:", upstream);
+      res.status(502).json({ error: "Weather provider is unavailable.", upstream });
     }
   });
 
