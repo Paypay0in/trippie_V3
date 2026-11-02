@@ -91,4 +91,35 @@ describe('nobody pins a formatter to one language', () => {
     });
     expect(guilty).toEqual([]);
   });
+
+  /*
+    The guard above says 「no SCREEN」, and `localeFormat.ts` is a service — one
+    word outside its own net. That is exactly where the Japanese defect lived:
+    `startsWith('zh') ? 'zh-TW' : 'en'`, sending every non-Chinese reader to
+    English while Japanese was shipping.
+
+    A language the app ships must reach `Intl` as itself.
+  */
+  it('gives a Japanese reader Japanese dates and money, not English', async () => {
+    const before = i18n.language;
+    try {
+      await i18n.changeLanguage('ja');
+      const date = formatLocaleDate('2026-11-01');
+      const money = formatLocaleCurrency(1234, 'JPY');
+
+      /*
+        Compared against `Intl` asked in Japanese with the same options the
+        module uses — not against a string I typed, which would only record
+        what one version of ICU happened to produce.
+      */
+      expect(date).not.toBe('');
+      expect(date).toBe(new Intl.DateTimeFormat('ja').format(new Date(2026, 10, 1)));
+      expect(date).not.toBe(new Intl.DateTimeFormat('en').format(new Date(2026, 10, 1)));
+      expect(money).toBe(
+        new Intl.NumberFormat('ja', { style: 'currency', currency: 'JPY' }).format(1234),
+      );
+    } finally {
+      await i18n.changeLanguage(before);
+    }
+  });
 });

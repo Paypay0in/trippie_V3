@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, Pencil, Plus, WalletCards } from 'lucide-react';
 import { Category, Expense, TripMember } from '../types';
-import { categoryLabel } from '../services/categoryDisplay';
+import { categoryLabel, displayLocaleFrom } from '../services/categoryDisplay';
 import { totalPaidByMember } from '../services/expensePaidBy';
 import { partitionByConcern } from '../services/expenseConcernsMember';
 import { expenseCostToViewer } from '../services/viewerSpend';
@@ -42,7 +42,7 @@ const WalletPreScreen: React.FC<Props> = ({ currency, budget, expenses, onEditBu
     `Category.FLIGHT` IS the 機票 written to localStorage and Supabase. `categoryDisplay`
     stays the one home for it, so this only tells it which language to answer in.
   */
-  const displayLocale = i18n.language?.startsWith('en') ? 'en' : 'zh-Hant';
+  const displayLocale = displayLocaleFrom(i18n.language);
   const normalizedCurrency = currency?.trim().toUpperCase();
   const preExpenses = useMemo(() => expenses.filter(expense => expense.phase === 'pre'), [expenses]);
   /*

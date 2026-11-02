@@ -115,6 +115,19 @@ export const displayLabel = (stored: StoredValue | string, locale: DisplayLocale
  * value — and a rule with many homes is a rule with many answers the day one
  * of them is written differently. Takes the language rather than reading i18n
  * so it stays a pure function and a test can state what it does.
+ *
+ * That paragraph was written in the past tense while five components still
+ * held their own copy, and a comment claiming a cleanup that did not happen is
+ * what a reviewer reads instead of the code. The copies returned `'zh-Hant'`
+ * for anything not starting with `en`, so a Japanese reader saw Traditional
+ * Chinese category labels on the wallet, both checklists, the expense form and
+ * the delete dialog — beside sibling components on the same screens showing
+ * correct Japanese, because `JA_LABELS` was right here the whole time and
+ * simply never asked.
+ *
+ * `displayLocaleHasOneHome` in `tests/storedValuesNeverRenderRaw.test.tsx` now
+ * fails if that ternary reappears anywhere. The claim is an assertion now, not
+ * a sentence.
  */
 export const displayLocaleFrom = (language?: string | null): DisplayLocale => {
   const tag = String(language ?? '');

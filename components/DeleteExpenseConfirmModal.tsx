@@ -4,7 +4,7 @@ import { OVERLAY } from '../constants/layers';
 import { Trash2 } from 'lucide-react';
 import { Category, Expense } from '../types';
 import { getCategoryIcon } from '../constants';
-import { paymentMethodLabel } from '../services/categoryDisplay';
+import { paymentMethodLabel, displayLocaleFrom } from '../services/categoryDisplay';
 
 interface Props {
   /** The expense awaiting confirmation. `null` keeps the modal closed. */
@@ -44,7 +44,7 @@ const DeleteExpenseConfirmModal: React.FC<Props> = ({
     Supabase. `categoryDisplay` stays the one home for naming it, so this only
     tells it which language to answer in.
   */
-  const displayLocale = i18n.language?.startsWith('en') ? 'en' : 'zh-Hant';
+  const displayLocale = displayLocaleFrom(i18n.language);
   const paymentLabel = paymentMethodLabel(expense.paymentMethod, displayLocale);
   const isExchange = expense.category === Category.EXCHANGE;
   const expenseTitle = expense.description || t('expense.thisExpense');

@@ -21,8 +21,32 @@ import { fromLocalIsoDate } from './localDate';
  *
  * `zh-Hant` is what the app stores and what i18next reports; `zh-TW` is what
  * `Intl` has the data for, and the two are not interchangeable to it.
+ *
+ * This used to read `startsWith('zh') ? 'zh-TW' : 'en'`, which sent every
+ * language that is not Chinese to English — and Japanese has been shipping
+ * since before that line was written. A traveller reading the app in Japanese
+ * got `November 1, 2026` on the itinerary and a dollar-shaped figure on the
+ * settlement screen. Nobody reported it because a date in the wrong format is
+ * still a date; money in the wrong format is how two friends disagree about a
+ * bill.
+ *
+ * Named rather than inferred: a new language gets English here until somebody
+ * adds it, and that is a visible omission rather than a silent fallback.
  */
-const intlLocale = (): string => (i18n.language?.startsWith('zh') ? 'zh-TW' : 'en');
+const INTL_LOCALES: Record<string, string> = {
+  'zh-Hant': 'zh-TW',
+  ja: 'ja',
+  en: 'en',
+};
+
+const intlLocale = (): string => {
+  const tag = i18n.language ?? '';
+  if (INTL_LOCALES[tag]) return INTL_LOCALES[tag];
+  // `zh-TW`, `zh-Hant-TW` and friends all reach `Intl` as Taiwan Chinese.
+  if (tag.startsWith('zh')) return 'zh-TW';
+  if (tag.startsWith('ja')) return 'ja';
+  return 'en';
+};
 
 /**
  * A date as the reader's language writes it, or '' for anything unreadable.

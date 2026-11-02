@@ -3,7 +3,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Category, Expense } from '../types';
 import { PRE_TRIP_SUGGESTIONS } from '../constants';
-import { categoryLabel } from '../services/categoryDisplay';
+import { categoryLabel, displayLocaleFrom } from '../services/categoryDisplay';
 import { CheckCircle2 } from 'lucide-react';
 
 interface Props {
@@ -19,7 +19,7 @@ const PreTripChecklist: React.FC<Props> = ({ onQuickAddCategory, expenses }) => 
     `categoryDisplay` stays the one home for it, so this only tells it which
     language to answer in.
   */
-  const displayLocale = i18n.language?.startsWith('en') ? 'en' : 'zh-Hant';
+  const displayLocale = displayLocaleFrom(i18n.language);
 
   const isCategoryCompleted = (category: Category) => {
     return expenses.some(e => e.phase === 'pre' && e.category === category);

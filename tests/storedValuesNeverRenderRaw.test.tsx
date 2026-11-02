@@ -21,7 +21,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { categoryLabel, displayLocaleFrom, paymentMethodLabel } from '../services/categoryDisplay';
 import { Category, PaymentMethod } from '../types';
@@ -90,6 +90,35 @@ describe('stored values never render raw', () => {
     expect(displayLocaleFrom('en-GB')).toBe('en');
     expect(displayLocaleFrom('zh-Hant')).toBe('zh-Hant');
     expect(displayLocaleFrom(undefined)).toBe('zh-Hant');
+    /*
+      Japanese was missing from these four lines, which is why nothing here
+      noticed that five screens were sending a Japanese reader to Traditional
+      Chinese. A guard that does not test the language that breaks is not
+      guarding it.
+    */
+    expect(displayLocaleFrom('ja')).toBe('ja');
+    expect(displayLocaleFrom('ja-JP')).toBe('ja');
+  });
+
+  /*
+    「One home now」 was written above while five components still held a copy.
+    Checking that the good path works says nothing about whether the bad one
+    survived — the same blindness as a parity test where both sides agree with
+    each other.
+
+    So this reads the components and asserts the ternary is gone, repo-wide.
+    The next person to inline it fails here instead of shipping a Japanese
+    reader a Chinese label.
+  */
+  it('displayLocaleHasOneHome: no component resolves the display locale inline', () => {
+    const dir = resolve(__dirname, '../components');
+    const offenders = readdirSync(dir)
+      .filter(name => name.endsWith('.tsx'))
+      .filter(name => /startsWith\('en'\)\s*\?\s*'en'\s*:\s*'zh-Hant'/.test(
+        readFileSync(resolve(dir, name), 'utf8'),
+      ));
+
+    expect(offenders).toEqual([]);
   });
 
   it('shows an unknown stored value as itself rather than blanking it', () => {

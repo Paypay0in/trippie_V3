@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Category, Phase, Expense, PaymentMethod, Companion, SplitMethod, TaxRule, TravelRules, TripMember } from '../types';
 import { CATEGORIES_BY_PHASE, COMMON_CURRENCIES, PAYMENT_METHODS_CONFIG, getCategoryIcon } from '../constants';
 import { CustomCategories, categoriesForPhase } from '../services/customCategories';
-import { categoryLabel, paymentMethodLabel } from '../services/categoryDisplay';
+import { categoryLabel, paymentMethodLabel, displayLocaleFrom } from '../services/categoryDisplay';
 import { parseExpenseWithGemini, parseImageExpenseWithGemini, fetchCurrentExchangeRate } from '../services/geminiService';
 import { LEGACY_OWNER_ID, describeMemberAmountConflicts, normalizeMemberIds, normalizeMemberAmountRecord, normalizeOwnerMemberId } from '../services/memberIdentity';
 import {
@@ -121,7 +121,7 @@ const ExpenseForm: React.FC<Props> = ({
     the traveller typed themselves falls through that table and is shown as
     they wrote it.
   */
-  const displayLocale = i18n.language?.startsWith('en') ? 'en' : 'zh-Hant';
+  const displayLocale = displayLocaleFrom(i18n.language);
   const effectiveOwnerMemberId = ownerMemberId || LEGACY_OWNER_ID;
   // Compatibility boundary: every historical owner encoding ('me', an owner id
   // from another trip id) collapses onto the active owner TripMember id, so
