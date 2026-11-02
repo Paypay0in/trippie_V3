@@ -24,6 +24,8 @@ interface Props {
   tripName: string;
   dateRange: string;
   destination: string;
+  /** The resolved Google place for the destination, for the cover photo. */
+  destinationPlaceId?: string;
   currentPhase: Phase;
   currentSection: WorkspaceSection;
   companionCount: number;
@@ -41,6 +43,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
   tripName,
   dateRange,
   destination,
+  destinationPlaceId,
   currentPhase,
   currentSection,
   companionCount,
@@ -114,7 +117,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
           </div>
         </div>
 
-        <TripCover query={imageQuery} dateRange={dateRange}>
+        <TripCover query={imageQuery} placeId={destinationPlaceId} dateRange={dateRange}>
           {currentSection !== 'records' && <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-indigo-700 backdrop-blur">
             <span className={`h-2 w-2 rounded-full ${currentPhase === 'during' ? 'bg-emerald-500' : 'bg-violet-500'}`} />
             {currentPhase === 'during' ? t('workspace.phaseDuring') : currentPhase === 'pre' ? t('workspace.phasePre') : currentPhase === 'post' ? t('workspace.phasePost') : t('workspace.phaseRecap')}

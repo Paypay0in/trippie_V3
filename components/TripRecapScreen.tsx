@@ -30,7 +30,7 @@ import { PlaceThumbnail } from './PlaceThumbnail';
 import { SavedTravelInspiration } from '../types';
 
 interface Props {
-  trip: Pick<Trip, 'name' | 'itinerary' | 'travelCountry'>;
+  trip: Pick<Trip, 'name' | 'itinerary' | 'travelCountry' | 'destinationPlaceId'>;
   expenses: Expense[];
   today: string;
   /**
@@ -291,7 +291,7 @@ const TripRecapScreen: React.FC<Props> = ({ trip, expenses, today, viewerMemberI
           its purest form: one thing, two implementations.
         */}
         <section data-testid="recap-cover">
-          <TripCover query={trip.name} dateRange={dates} minHeight="min-h-44">
+          <TripCover query={trip.name} placeId={trip.destinationPlaceId} dateRange={dates} minHeight="min-h-44">
             <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-indigo-700 backdrop-blur">
               <span className="h-2 w-2 rounded-full bg-violet-500" />{t('recap.coverBadge')}
             </span>

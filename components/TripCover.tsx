@@ -14,7 +14,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DestinationImage, fetchDestinationImage } from '../services/destinationImageService';
+import { PlacePhoto, fetchPlacePhoto } from '../services/placePhotoService';
 
 interface Props {
   /**
@@ -25,6 +25,23 @@ interface Props {
    * shown.
    */
   query: string;
+  /**
+   * The Google place this trip resolved to, when it resolved to one.
+   *
+   * 「我覺得是台北車站還是太怪了」 — a 新莊 trip wearing a photograph of Taipei
+   * Main Station. The old cover searched Pexels for the destination's name,
+   * and a stock search beside a famous neighbour returns the famous
+   * neighbour. Nothing could verify what came back.
+   *
+   * A photo Google holds AGAINST a placeId is a different kind of fact: it is
+   * attached to the place, not ranked against its name. `/api/places/resolve`
+   * already answers 新莊 with 新莊區 and `photoAvailable: true`, so the right
+   * picture was one request away the whole time.
+   *
+   * Absent, or holding no photo, means the gradient — which this cover has
+   * always had underneath. A plain gradient says nothing false.
+   */
+  placeId?: string;
   dateRange?: string;
   /** The badge under the dates: TRIP 旅行中, and such. */
   children?: React.ReactNode;
@@ -32,21 +49,21 @@ interface Props {
   minHeight?: string;
 }
 
-const TripCover: React.FC<Props> = ({ query, dateRange, children, minHeight = 'min-h-48' }) => {
+const TripCover: React.FC<Props> = ({ query, placeId, dateRange, children, minHeight = 'min-h-48' }) => {
   const { t } = useTranslation();
-  const [image, setImage] = useState<DestinationImage | null>(null);
+  const [image, setImage] = useState<PlacePhoto | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
     setImage(null);
     setImageFailed(false);
-    if (!query) return () => { active = false; };
-    fetchDestinationImage(query).then(result => {
+    if (!placeId) return () => { active = false; };
+    fetchPlacePhoto(placeId).then(result => {
       if (active) setImage(result);
     });
     return () => { active = false; };
-  }, [query]);
+  }, [placeId]);
 
   const shown = image && !imageFailed ? image : null;
 
@@ -81,16 +98,17 @@ const TripCover: React.FC<Props> = ({ query, dateRange, children, minHeight = 'm
         {dateRange && <div className="text-sm font-semibold text-white/90">{dateRange}</div>}
         {children}
       </div>
-      {shown && (
-        /* Says what the picture is, beside the name it sits under, so the two
-           are not read as a caption and its subject. */
-        <div className="absolute right-3 bottom-3 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur">
-          {t('saved.decorativeImage')}
-        </div>
-      )}
-      {shown?.attributionRequired && (
+      {/*
+        No 示意圖片 badge any more, and that is the point of the change rather
+        than an omission: the badge existed to warn that the picture might not
+        be the place. This one is held against the place's own id, so the
+        warning would now be the false statement.
+      */}
+      {shown?.attribution?.displayName && (
         <div className="absolute right-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[9px] text-white backdrop-blur">
-          Photo by <a className="underline" href={shown.photographerUrl} target="_blank" rel="noreferrer">{shown.photographer}</a> on <a className="underline" href={shown.sourceUrl} target="_blank" rel="noreferrer">Pexels</a>
+          {shown.attribution.uri
+            ? <a className="underline" href={shown.attribution.uri} target="_blank" rel="noreferrer">{shown.attribution.displayName}</a>
+            : shown.attribution.displayName}
         </div>
       )}
     </div>

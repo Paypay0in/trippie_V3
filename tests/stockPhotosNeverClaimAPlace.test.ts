@@ -39,11 +39,30 @@ describe('stock photography', () => {
     feature, so this states that the screens still mark the picture as
     illustrative rather than silently dropping both the claim and the label.
   */
-  it('tells the reader the cover image is illustrative', () => {
-    const cover = readFileSync(resolve(COMPONENTS, 'TripCover.tsx'), 'utf8');
+  it('tells the reader a stock image is illustrative', () => {
     const collection = readFileSync(resolve(COMPONENTS, 'SavedTravelDestinationDetail.tsx'), 'utf8');
 
-    expect(cover).toContain('saved.decorativeImage');
     expect(collection).toContain('saved.decorativeImage');
+  });
+
+  /*
+    The cover left this guard by answering the question instead of labelling
+    it. 「我覺得是台北車站還是太怪了」 — so it stopped searching stock entirely
+    and now shows the photo Google holds against the destination's own
+    placeId. The 示意圖片 badge existed to warn that the picture might not be
+    the place; keeping it on a photo attached to that place would make the
+    badge the false statement.
+
+    Asserted as 「does not search by name」 rather than 「uses placeId」 alone,
+    because the defect was never the photo: it was asking a ranking engine a
+    question only an identity can answer.
+  */
+  it('does not ask a stock library for the trip cover at all', () => {
+    const cover = readFileSync(resolve(COMPONENTS, 'TripCover.tsx'), 'utf8');
+
+    expect(cover).not.toContain('destinationImageService');
+    expect(cover).not.toContain('saved.decorativeImage');
+    expect(cover).toContain('fetchPlacePhoto');
+    expect(cover).toContain('placeId');
   });
 });

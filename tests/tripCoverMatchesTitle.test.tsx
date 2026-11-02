@@ -18,9 +18,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
+/*
+   What the cover asked for, by place id.
+
+   The original defect was a stock search keyed on a name the header was not
+   showing. 「我覺得是台北車站還是太怪了」 ended the search entirely: the cover
+   now asks for the photo Google holds against the destination's placeId, so
+   there is no name to disagree with. The title assertions below survive
+   unchanged — the words on the picture are still the words the traveller
+   reads, which is the half of the original report that still applies.
+*/
 const asked: string[] = [];
+vi.mock('../services/placePhotoService', () => ({
+  fetchPlacePhoto: vi.fn(async (placeId: string) => { asked.push(placeId); return null; }),
+}));
 vi.mock('../services/destinationImageService', () => ({
-  fetchDestinationImage: vi.fn(async (query: string) => { asked.push(query); return null; }),
+  fetchDestinationImage: vi.fn(async () => {
+    throw new Error('the cover must never search a stock library by name');
+  }),
 }));
 
 import TripWorkspaceShell from '../components/TripWorkspaceShell';
@@ -50,30 +65,34 @@ const open = (props: Record<string, unknown>) =>
   );
 
 describe('the cover photo', () => {
-  it('searches for the title the traveller is reading', async () => {
-    open({ tripName: '日本沖繩', destination: '日本' });
-    await waitFor(() => expect(asked).toEqual(['日本沖繩']));
+  it('asks for the photo held against the resolved place', async () => {
+    open({ tripName: '日本沖繩', destination: '日本', destinationPlaceId: 'place-okinawa' });
+    await waitFor(() => expect(asked).toEqual(['place-okinawa']));
   });
 
-  /** The exact report: the name said Okinawa, the search said Japan. */
-  it('never searches a destination the header is not showing', async () => {
-    open({ tripName: '日本沖繩', destination: '日本' });
+  /*
+    The original report, now unreachable rather than guarded: the name said
+    Okinawa and the search said Japan. Neither name reaches the request.
+  */
+  it('never asks for either name', async () => {
+    open({ tripName: '日本沖繩', destination: '日本', destinationPlaceId: 'place-okinawa' });
     await waitFor(() => expect(asked.length).toBe(1));
+    expect(asked).not.toContain('日本沖繩');
     expect(asked).not.toContain('日本');
   });
 
-  it('falls back to the destination when the trip has no name', async () => {
-    open({ tripName: '', destination: '韓國 釜山' });
-    await waitFor(() => expect(asked).toEqual(['韓國 釜山']));
-  });
-
-  it('asks for nothing when there is nothing to ask', async () => {
-    open({ tripName: '', destination: '   ' });
+  /*
+    An unresolved trip gets the gradient. The cover has always had one
+    underneath, and a gradient states nothing that can be wrong.
+  */
+  it('asks for nothing when the trip resolved to no place', async () => {
+    open({ tripName: '韓國 釜山', destination: '釜山' });
     await waitFor(() => expect(asked).toEqual([]));
   });
 
-  it('shows the same words it searched with', async () => {
-    open({ tripName: '日本沖繩', destination: '日本' });
+  /* Unchanged: the words on the cover are still the words the header shows. */
+  it('shows the title the traveller is reading', async () => {
+    open({ tripName: '日本沖繩', destination: '日本', destinationPlaceId: 'place-okinawa' });
     expect(screen.getByText('日本沖繩')).toBeTruthy();
   });
 });

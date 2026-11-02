@@ -9229,6 +9229,7 @@ const App: React.FC = () => {
           tripName={currentTripName}
           dateRange={tripDateRangeDisplay}
           destination={tripDestination}
+          destinationPlaceId={tripDestinationDraft?.destinationPlaceId}
           currentPhase={currentPhase}
           currentSection={workspaceSection}
           companionCount={companions.length}
