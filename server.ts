@@ -4083,6 +4083,26 @@ ${MODE_RULES[mode]}
     } catch { res.status(502).json({ error: "Itinerary planning service unavailable." }); }
   });
 
+  /*
+    One forecast per place per hour, shared by everybody.
+
+    Measured on production: `forecast 429 from api.open-meteo.com: "Daily API
+    request limit exceeded"`. The limit is counted against THIS SERVER's
+    address, not per traveller — so a cache in the browser would protect one
+    phone and leave the quota exactly where it was. It has to live here.
+
+    An hour, because that is the resolution of the answer: Open-Meteo returns
+    an hourly model, so a second request inside the same hour spends quota to
+    receive the same numbers. Keyed to two decimals (~1km) for the same reason
+    — two stops on one street are one forecast.
+
+    Deliberately not a stale-on-failure fallback. Serving yesterday's forecast
+    during an outage would make 「目前無法取得天氣」 disappear while the data
+    behind it was wrong, and a wrong forecast is read as a right one.
+  */
+  const WEATHER_TTL_MS = 60 * 60 * 1000;
+  const weatherCache = new Map<string, { at: number; body: unknown }>();
+
   app.get("/api/weather", async (req, res) => {
     const destination = typeof req.query.destination === "string" ? req.query.destination.trim() : "";
     const country = typeof req.query.country === "string" ? req.query.country.trim() : "";
@@ -4102,6 +4122,13 @@ ${MODE_RULES[mode]}
         if (!place && country && /korea|韓國|韩国/i.test(country)) { const fallback = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=kr&q=${encodeURIComponent(destination)}`, { headers: { 'User-Agent': 'Trippie/1.0' }, signal: AbortSignal.timeout(5_000) }); const results = await fallback.json() as Array<{ lat?: string; lon?: string }>; const match = results[0]; if (match && Number.isFinite(Number(match.lat)) && Number.isFinite(Number(match.lon))) place = { latitude: Number(match.lat), longitude: Number(match.lon) }; }
         if (!place) { res.status(404).json({ error: "Destination could not be resolved." }); return; }
         weatherLatitude = place.latitude; weatherLongitude = place.longitude;
+      }
+
+      const cacheKey = `${weatherLatitude.toFixed(2)},${weatherLongitude.toFixed(2)}`;
+      const cached = weatherCache.get(cacheKey);
+      if (cached && Date.now() - cached.at < WEATHER_TTL_MS) {
+        res.json(cached.body);
+        return;
       }
 
       const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
@@ -4162,7 +4189,9 @@ ${MODE_RULES[mode]}
             condition: typeof daily.weather_code?.[1] === "number" ? describe(daily.weather_code[1]) : "",
           }
         : undefined;
-      res.json({ temperature: current.temperature_2m, condition, high: daily.temperature_2m_max[0], low: daily.temperature_2m_min[0], precipitationProbability: daily.precipitation_probability_max[0], ...(tomorrow ? { tomorrow } : {}) });
+      const body = { temperature: current.temperature_2m, condition, high: daily.temperature_2m_max[0], low: daily.temperature_2m_min[0], precipitationProbability: daily.precipitation_probability_max[0], ...(tomorrow ? { tomorrow } : {}) };
+      weatherCache.set(cacheKey, { at: Date.now(), body });
+      res.json(body);
     } catch (error) {
       /*
         Reported, not swallowed. `upstream` is diagnostic only — the traveller

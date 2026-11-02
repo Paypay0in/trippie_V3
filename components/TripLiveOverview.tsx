@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import TripWays from './TripWays';
 import { AlertCircle, ArrowRight, CalendarRange, CloudSun, Coffee, Images, Map, MapPin, MoreHorizontal, Navigation, Plus, Receipt, ShoppingBag, TrainFront, Users } from 'lucide-react';
 import { Category, Expense, ItineraryItem, TripMember } from '../types';
-import { WeatherSnapshot } from '../services/weatherService';
+import { WeatherSnapshot, fetchTripWeather } from '../services/weatherService';
 import { tomorrowLabel, whatToWear } from '../services/whatToWear';
 import { estimateRoute, RouteEstimate } from '../services/routesService';
 import { localDateKey, selectNextStop } from '../services/nextStop';
@@ -127,11 +127,6 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
   // i18n-data: regex anchors matched against a stop's own address text, not copy.
   const embeddedCountry = nextStopText?.match(/\bSouth Korea\b|\bKorea\b|韓國|韩国/i)?.[0];
   const selectedCountry = destinationCountry || embeddedCountry;
-  const weatherParams = new URLSearchParams();
-  if (selectedCoordinates) { weatherParams.set('latitude', String(selectedCoordinates.latitude)); weatherParams.set('longitude', String(selectedCoordinates.longitude)); }
-  if (selectedDestination) weatherParams.set('destination', selectedDestination);
-  if (selectedCountry) weatherParams.set('country', selectedCountry);
-  const weatherRequest = `/api/weather?${weatherParams.toString()}`;
   const navigationTarget = nextStop && (nextStopCoordinates || nextStop.location || nextStop.address) ? nextStopCoordinates ? `https://www.google.com/maps/dir/?api=1&destination=${nextStopCoordinates.latitude},${nextStopCoordinates.longitude}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nextStop.address || nextStop.location)}` : null;
   const requestRouteEstimate = () => {
     if (!nextStop || !nextStopCoordinates || !navigator.geolocation) { setRouteError('location'); return; }
@@ -153,7 +148,20 @@ const TripLiveOverview: React.FC<Props> = ({ expenses, itinerary, startDate, end
   useEffect(() => {
     if (!destination.trim() && !selectedCoordinates && !selectedDestination) { setWeather(null); setWeatherError(true); return; }
     let cancelled = false; setWeatherLoading(true); setWeatherError(false);
-    fetch(weatherRequest).then(async response => { const body = await response.json().catch(() => null); if (!response.ok) throw new Error(`${response.status}: ${body?.error || 'request failed'}`); return body as WeatherSnapshot; }).then(body => { if (!cancelled) setWeather(body); }).catch(() => { if (!cancelled) { setWeather(null); setWeatherError(true); } }).finally(() => { if (!cancelled) setWeatherLoading(false); });
+    /*
+      Through the service, not a second hand-built query.
+
+      This effect used to build `/api/weather?...` itself while
+      `fetchTripWeather` sat unused beside it — two homes, and the typed one
+      was dead. It also re-runs on the next stop and today's items, so one
+      trip asked several times; the service now collapses those into one
+      request and caches it for the hour. Production had answered
+      `forecast 429 ... "Daily API request limit exceeded"`.
+    */
+    fetchTripWeather(selectedDestination, selectedCoordinates, selectedCountry)
+      .then(body => { if (!cancelled) setWeather(body); })
+      .catch(() => { if (!cancelled) { setWeather(null); setWeatherError(true); } })
+      .finally(() => { if (!cancelled) setWeatherLoading(false); });
     return () => { cancelled = true; };
   }, [selectedDestination, selectedCountry, selectedCoordinates?.latitude, selectedCoordinates?.longitude, weatherRetry, nextStop?.id, nextStop?.latitude, nextStop?.longitude, nextStop?.location, nextStop?.address, todayCoordinateItem?.id, todayTextItem?.id]);
   /*

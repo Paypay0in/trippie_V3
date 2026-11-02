@@ -11,6 +11,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { clearTripWeatherCache } from '../services/weatherService';
 import TripLiveOverview from '../components/TripLiveOverview';
 
 const weather = {
@@ -162,6 +163,15 @@ describe('旅程回顧', () => {
  * printed above it.
  */
 describe('明天穿什麼', () => {
+  /*
+    The forecast is cached per place for an hour, because production answered
+    `forecast 429 ... "Daily API request limit exceeded"` and that quota is
+    counted against the server, not the traveller. Both cases below ask about
+    the same coordinates, so without this the second one reads the first
+    one's answer — the cache working, not the screen failing.
+  */
+  beforeEach(() => { clearTripWeatherCache(); });
+
   it('reads tomorrow and says what to wear', async () => {
     show({ destinationCoordinates: { latitude: 35.68, longitude: 139.76 } });
 
