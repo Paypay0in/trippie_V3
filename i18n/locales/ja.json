@@ -253,7 +253,9 @@
       "passportExpiryOptional": "任意",
       "passportExpiryHint": "パスポートの記載どおりに入力。この端末にのみ保存されます。",
       "passportExpiryInvalid": "YYYY-MM-DD の形式で入力してください。",
-      "coverHeading": "カバー写真（任意）"
+      "coverHeading": "カバー写真（任意）",
+      "transportHeading": "移動手段は？",
+      "transportHint": "任意です。選ぶと、使わないセクションは最初から表示されません。"
     },
     "coverFallbackName": "わたしの旅",
     "ways": {
@@ -1149,6 +1151,11 @@
       "permanent": "この行き先の旅行ルールは見つかりませんでした。到着時のやることは手で追加してください。",
       "quota": "本日分の旅行ルール検索の上限に達しました。明日また利用できます。到着時のやることは手でも追加できます。",
       "transient": "いまは旅行ルールを更新できませんでした。しばらくしてからお試しください。"
+    },
+    "sectionStillNeeded": "{{section}}を入力する",
+    "section": {
+      "flights": "航空券情報",
+      "rental": "レンタカー情報"
     }
   },
   "itinerary": {

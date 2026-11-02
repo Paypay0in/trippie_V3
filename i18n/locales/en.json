@@ -1122,6 +1122,11 @@
       "permanent": "No travel rules were found for this destination. Add your arrival to-dos by hand.",
       "quota": "You've used today's travel-rules lookups. They come back tomorrow — you can still add arrival to-dos by hand.",
       "transient": "Travel rules couldn't be updated just now. Try again shortly."
+    },
+    "sectionStillNeeded": "Still need to add {{section}}",
+    "section": {
+      "flights": "flight details",
+      "rental": "car rental"
     }
   },
   "settle": {
@@ -1498,7 +1503,9 @@
       "passportExpiryOptional": "Optional",
       "passportExpiryHint": "As printed in the passport. Kept on this device only.",
       "passportExpiryInvalid": "Enter the date as YYYY-MM-DD.",
-      "coverHeading": "Cover photo (optional)"
+      "coverHeading": "Cover photo (optional)",
+      "transportHeading": "How will you get around?",
+      "transportHint": "Optional. What you pick decides which sections this trip opens with."
     },
     "coverFallbackName": "My trip",
     "ways": {

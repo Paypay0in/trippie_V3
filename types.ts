@@ -3,7 +3,7 @@ import type { TripScope } from './services/tripScope';
 
 // Type-only, so nothing is imported at runtime and no cycle is created.
 import type { ParsedRental } from './services/rentalIntake';
-import type { TripPlanBrief } from './services/tripPlanBrief';
+import type { BriefTransport, TripPlanBrief } from './services/tripPlanBrief';
 
 export type Phase = 'pre' | 'during' | 'post' | 'summary';
 
@@ -646,6 +646,21 @@ export interface Trip {
    * 國外 by default.
    */
   tripScope?: TripScope;
+
+  /**
+   * How the traveller said they will get around on this trip.
+   *
+   * 「租車與航班資訊 應該是用戶在建立旅程時有點選才需要出現」. Asked once, when
+   * the trip is created, and kept on the trip — the planner already asks the
+   * same question per request (`TripPlanBrief.transport`), but that answer
+   * belongs to one ask and is gone by the next, so it cannot decide which
+   * preparation sections a trip opens with.
+   *
+   * Absent and empty both mean nobody said, which shows every section. It is
+   * never read as a 'no': `services/tripSections.ts` only decides what a trip
+   * OPENS with, and every section stays one tap away.
+   */
+  tripTransport?: BriefTransport[];
 
   /**
    * Which country this trip's shopping list compares prices against.

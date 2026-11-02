@@ -1093,6 +1093,11 @@
       "permanent": "這個目的地目前查不到旅行規定，請手動建立入境待辦。",
       "quota": "今日旅行規定查詢次數已用完，明天會恢復。你仍可以手動建立入境待辦。",
       "transient": "旅行規定暫時無法更新，稍後可再試。"
+    },
+    "sectionStillNeeded": "還是要填{{section}}",
+    "section": {
+      "flights": "航班資訊",
+      "rental": "租車資訊"
     }
   },
   "settle": {
@@ -1459,7 +1464,9 @@
       "passportExpiryOptional": "選填",
       "passportExpiryHint": "照護照上印的填。只留在這台裝置。",
       "passportExpiryInvalid": "請用 YYYY-MM-DD 的格式填寫。",
-      "coverHeading": "封面照片（選填）"
+      "coverHeading": "封面照片（選填）",
+      "transportHeading": "會怎麼移動？",
+      "transportHint": "可以不選。選了之後，用不到的區塊就不會先擺出來。"
     },
     "coverFallbackName": "我的旅程",
     "ways": {

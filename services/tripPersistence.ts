@@ -1,6 +1,6 @@
 import type { TripScope } from './tripScope';
 import { withoutCloudHeldPhotos } from './draftPhotoBallast';
-import { TripPlanBrief } from './tripPlanBrief';
+import { BriefTransport, TRANSPORT_MODES, TripPlanBrief } from './tripPlanBrief';
 import { ParsedRental } from './rentalIntake';
 import {
   Companion,
@@ -83,6 +83,8 @@ export interface TripDraft {
    * 國外 by default.
    */
   tripScope?: TripScope;
+  /** How the traveller said they will get around. See `types.ts`. */
+  tripTransport?: BriefTransport[];
   shoppingList: ShoppingItem[];
   /**
    * Which country this trip's shopping list compares prices against.
@@ -397,6 +399,10 @@ const normalizeDraft = (value: Partial<TripDraft>): TripDraft | null => {
     itinerary: normalizeItinerary(value.itinerary),
     travelCountry: typeof value.travelCountry === 'string' && value.travelCountry ? value.travelCountry : undefined,
     tripScope: value.tripScope === 'domestic' || value.tripScope === 'international' ? value.tripScope : undefined,
+    tripTransport: Array.isArray(value.tripTransport)
+      ? value.tripTransport.filter((mode: unknown): mode is BriefTransport =>
+          typeof mode === 'string' && (TRANSPORT_MODES as string[]).includes(mode))
+      : undefined,
     taxRule: value.taxRule,
     visaInfo: value.visaInfo,
     savedInspirations: normalizeInspirations(value.savedInspirations),

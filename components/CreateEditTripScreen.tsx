@@ -26,6 +26,7 @@ import {
   suggestedCurrency,
 } from '../services/tripScope';
 import { PassportExpiryState } from '../services/passportExpiryState';
+import { BriefTransport, TRANSPORT_MODES } from '../services/tripPlanBrief';
 import CompanionsModal from './CompanionsModal';
 import PopularDestinationTile from './PopularDestinationTile';
 
@@ -44,6 +45,13 @@ export type TripSetupValues = {
    * than being recorded as 國外 by omission.
    */
   tripScope?: TripScope;
+  /**
+   * How they said they will get around, or absent when they did not say.
+   *
+   * 「租車與航班資訊 應該是用戶在建立旅程時有點選才需要出現」. Empty and absent
+   * both mean nobody said, which opens every section — never a 'no'.
+   */
+  tripTransport?: BriefTransport[];
 };
 
 type Props = {
@@ -61,6 +69,8 @@ type Props = {
   initialTravelCountry?: string;
   /** A scope already chosen on this trip, which outranks any derivation. */
   initialTripScope?: TripScope;
+  /** Transport already chosen on this trip, so editing does not clear it. */
+  initialTripTransport?: BriefTransport[];
   /** The default passport, shown on 國外 trips the way the mockup has it. */
   passportLabel?: string;
   /** The date the traveller typed, `YYYY-MM-DD`, or absent. */
@@ -95,6 +105,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
   residenceCountryCode,
   initialTravelCountry,
   initialTripScope,
+  initialTripTransport,
   passportLabel,
   passportExpiry,
   passportExpiryState = 'absent',
@@ -120,6 +131,19 @@ const CreateEditTripScreen: React.FC<Props> = ({
     const derived = deriveTripScope(residenceCountryCode, initialTravelCountry);
     return derived === 'unknown' ? undefined : derived;
   });
+  /*
+    How they will get around, asked once and kept on the trip.
+
+    Nothing is preselected and nothing is inferred from the scope: a 國外 trip
+    is not necessarily a flight (there are ferries and trains across borders),
+    and a 國內 one can be 松山→澎湖. Empty stays empty, and an empty answer
+    opens every section rather than hiding any.
+  */
+  const [tripTransport, setTripTransport] = useState<BriefTransport[]>(initialTripTransport ?? []);
+  const toggleTransport = (mode: BriefTransport) =>
+    setTripTransport(current =>
+      current.includes(mode) ? current.filter(item => item !== mode) : [...current, mode]);
+
   /*
     Whether the currency is still the app's idea or the traveller's.
 
@@ -217,6 +241,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
       budget: budget === '' ? undefined : Number(budget),
       companions: draftCompanions,
       tripScope,
+      tripTransport: tripTransport.length > 0 ? tripTransport : undefined,
     });
   };
 
@@ -330,6 +355,41 @@ const CreateEditTripScreen: React.FC<Props> = ({
                         {t(hintKey)}
                       </span>
                     </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/*
+            How they will get around, asked here so the trip knows later.
+
+            「租車與航班資訊 應該是用戶在建立旅程時有點選才需要出現」. Optional and
+            multi-select, with nothing preselected: an answer the app filled in
+            is not an answer. Skipping it opens every preparation section,
+            which is the honest reading of 「沒人說過」 — the same one the
+            entry-rules block gives an unresolved scope.
+          */}
+          <section>
+            <p className="text-section font-semibold tracking-tight">{t('trips.setup.transportHeading')}</p>
+            <p className="mt-1 text-meta font-medium text-ink-soft">{t('trips.setup.transportHint')}</p>
+            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={t('trips.setup.transportHeading')}>
+              {TRANSPORT_MODES.map(mode => {
+                const on = tripTransport.includes(mode);
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    data-testid={`trip-transport-${mode}`}
+                    aria-pressed={on}
+                    onClick={() => toggleTransport(mode)}
+                    className={`min-h-11 min-w-[4.5rem] flex-1 rounded-field border px-2 text-support font-bold ${
+                      on
+                        ? 'border-violet-300 bg-violet-50 text-violet-700'
+                        : 'border-hairline bg-white text-ink-soft'
+                    }`}
+                  >
+                    {t(`transport.modes.${mode.toUpperCase()}`)}{on ? ' \u2713' : ''}
                   </button>
                 );
               })}

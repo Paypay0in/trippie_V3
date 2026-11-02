@@ -257,7 +257,7 @@ import { listPublicCollections } from "./services/savedCollectionSync";
 import FriendProfileScreen from "./components/FriendProfileScreen";
 import BookingImportSheet from "./components/BookingImportSheet";
 import TripPlanBriefScreen from "./components/TripPlanBriefScreen";
-import { TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
+import { BriefTransport, TripPlanBrief, briefToTripSetup } from "./services/tripPlanBrief";
 import { generateTripInspirationProposal } from "./services/itineraryPlanningService";
 import { buildTripPlanningInput } from "./services/tripInspirationSelection";
 import { BookingReadout, DerivedTrip, tripFromBookings } from "./services/tripFromBookings";
@@ -293,6 +293,8 @@ import ItineraryItemForm from "./components/ItineraryItemForm";
 import FlightAnchorsForm from "./components/FlightAnchorsForm";
 import StayUploadCard from "./components/StayUploadCard";
 import RentalUploadCard from "./components/RentalUploadCard";
+import OptionalPlanSection from "./components/OptionalPlanSection";
+import { sectionIsExpected } from "./services/tripSections";
 import { ParsedRental } from "./services/rentalIntake";
 import { briefChips, promptQuestions, travellerBriefText } from "./services/travellerBrief";
 import { drivingPreparationFor } from "./services/drivingDocuments";
@@ -1402,6 +1404,16 @@ const App: React.FC = () => {
     rules on a trip that needed them. Absent means nobody resolved it, which
     `effectiveTripScope` turns back into a derivation at the point of use.
   */
+  /*
+    How the traveller said they will get around on this trip.
+
+    Per-trip, so it is restored and reset everywhere `tripScope` is — including
+    `handleOpenCompletedTrip`, which forgot the scope and is the whole reason
+    「我選了國內旅遊 還是問我入境規定」 happened tonight.
+  */
+  const [tripTransport, setTripTransport] = useState<BriefTransport[] | undefined>(
+    () => initialActiveDraft?.tripTransport,
+  );
   const [tripScope, setTripScope] = useState<TripScope | undefined>(
     () => initialActiveDraft?.tripScope,
   );
@@ -1965,6 +1977,7 @@ const App: React.FC = () => {
         trip.tripScope === "domestic" || trip.tripScope === "international"
           ? trip.tripScope
           : undefined,
+      tripTransport: Array.isArray(trip.tripTransport) ? trip.tripTransport : undefined,
       comparisonCountryCode:
         typeof trip.comparisonCountryCode === "string" ? trip.comparisonCountryCode : undefined,
       travelBook: readStoredTravelBook(trip),
@@ -2903,6 +2916,7 @@ const App: React.FC = () => {
       trip to Japan because the trip before it was a weekend in 台南.
     */
     setTripScope(draft.tripScope);
+    setTripTransport(draft.tripTransport);
     setComparisonCountryCode(draft.comparisonCountryCode || "");
     setTaxRule(draft.taxRule || null);
     setVisaInfo(draft.visaInfo || null);
@@ -3401,6 +3415,7 @@ const App: React.FC = () => {
       setTripDestination("");
       setTravelCountry("");
       setTripScope(undefined);
+      setTripTransport(undefined);
       setComparisonCountryCode("");
       setTaxRule(null);
       setVisaInfo(null);
@@ -5747,6 +5762,7 @@ const App: React.FC = () => {
       setTripDestination("");
       setTravelCountry("");
       setTripScope(undefined);
+      setTripTransport(undefined);
       setComparisonCountryCode("");
       setTaxRule(null);
       setVisaInfo(null);
@@ -5792,6 +5808,7 @@ const App: React.FC = () => {
       setTravelCountry(trip.travelCountry || "");
     }
     setComparisonCountryCode(trip.comparisonCountryCode || "");
+    setTripTransport(trip.tripTransport);
     /*
       Per-trip, like everything else here — see the draft path.
 
@@ -6196,6 +6213,7 @@ const App: React.FC = () => {
     budget,
     companions: nextCompanions,
     tripScope: nextTripScope,
+    tripTransport: nextTripTransport,
   }: TripSetupValues, brief?: TripPlanBrief) => {
     // A trip started from a saved destination already knows its country, which
     // gives the place lookup the context it would otherwise have to guess.
@@ -6231,6 +6249,7 @@ const App: React.FC = () => {
         expenses: [],
         companions: nextCompanions,
         tripScope: nextTripScope,
+        tripTransport: nextTripTransport,
         shoppingList: [],
         /*
           On the draft, not set afterwards.
@@ -6326,6 +6345,7 @@ const App: React.FC = () => {
                 budget,
                 companions: nextCompanions,
                 tripScope: nextTripScope,
+                tripTransport: nextTripTransport,
                 updatedAt: new Date().toISOString(),
               }
             : draft,
@@ -6345,6 +6365,7 @@ const App: React.FC = () => {
                 budget,
                 companions: nextCompanions,
                 tripScope: nextTripScope,
+                tripTransport: nextTripTransport,
               }
             : trip,
         ),
@@ -6361,6 +6382,7 @@ const App: React.FC = () => {
     setTripBudget(budget);
     setCompanions(nextCompanions);
     setTripScope(nextTripScope);
+    setTripTransport(nextTripTransport);
     setViewMode("trip");
   };
 
@@ -8261,13 +8283,50 @@ const App: React.FC = () => {
     showToast(t('app.toast.rentalAdded', { company: rental.company }));
   };
 
-  const rentalCard = (
+  /*
+    Car rental and the flight forms, shown when the trip says it needs them.
+
+    「租車與航班資訊 應該是用戶在建立旅程時有點選才需要出現」. One home each: both
+    render in two places in this file, and a gate written at each call site is
+    how one of them ends up with the older rule.
+
+    Collapsed, never removed — `OptionalPlanSection` keeps them one tap away,
+    because 松山→澎湖 is a domestic flight and somebody who picked 火車 in March
+    can book a plane in April.
+  */
+  const rentalUpload = (
     <RentalUploadCard
       rentals={carRentals}
       onAdd={addRentalFromScreenshot}
       onRemove={index => setCarRentals(current => current.filter((_, at) => at !== index))}
     />
   );
+  const rentalCard = sectionIsExpected('rental', tripTransport) || carRentals.length > 0
+    ? rentalUpload
+    : (
+      <OptionalPlanSection label={t('plan.section.rental')} testId="rental-section-disclosure">
+        {rentalUpload}
+      </OptionalPlanSection>
+    );
+
+  const flightAnchorsForm = (
+    <FlightAnchorsForm
+      anchors={flightAnchors}
+      onChange={setFlightAnchors}
+      destination={tripDestination}
+      startDate={tripStartDate}
+      endDate={tripEndDate}
+      flightMode={flightMode}
+      onFlightModeChange={setFlightMode}
+    />
+  );
+  const flightAnchorsSection = sectionIsExpected('flights', tripTransport) || flightAnchors.length > 0
+    ? flightAnchorsForm
+    : (
+      <OptionalPlanSection label={t('plan.section.flights')} testId="flights-section-disclosure">
+        {flightAnchorsForm}
+      </OptionalPlanSection>
+    );
 
   const planBriefScreen = isPlanBriefOpen ? (
     <TripPlanBriefScreen
@@ -8831,15 +8890,7 @@ const App: React.FC = () => {
             onCancel={() => setItineraryFormItem(undefined)}
           />
         )}
-        <FlightAnchorsForm
-          anchors={flightAnchors}
-          onChange={setFlightAnchors}
-          destination={tripDestination}
-          startDate={tripStartDate}
-          endDate={tripEndDate}
-          flightMode={flightMode}
-          onFlightModeChange={setFlightMode}
-        />
+        {flightAnchorsSection}
         <StayUploadCard
           itinerary={itinerary}
           flightArrivals={flightArrivals(flightAnchors)}
@@ -10117,15 +10168,7 @@ const App: React.FC = () => {
                     onCancel={() => setItineraryFormItem(undefined)}
                   />
                 )}
-                <FlightAnchorsForm
-                  anchors={flightAnchors}
-                  onChange={setFlightAnchors}
-                  destination={tripDestination}
-                  startDate={tripStartDate}
-                  endDate={tripEndDate}
-                  flightMode={flightMode}
-                  onFlightModeChange={setFlightMode}
-                />
+                {flightAnchorsSection}
                 <StayUploadCard
                   itinerary={itinerary}
                   flightArrivals={flightArrivals(flightAnchors)}
