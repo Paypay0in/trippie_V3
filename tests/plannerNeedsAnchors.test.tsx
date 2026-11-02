@@ -67,13 +67,19 @@ const mount = (props: Partial<Props> = {}) => render(
 );
 
 describe('a trip with no flights and no hotel', () => {
-  it('does not offer to plan anything', () => {
+  /*
+    Reversed on 2026-11-01, by 「不要拿機票或飯店上傳當門檻」.
+
+    This used to assert the ask box was GONE. The anchors are still named
+    first — that part of the original request stands — but a traveller who
+    has not booked yet is exactly the one with a question, and refusing to
+    take it taught them nothing a sentence could not.
+  */
+  it('still names what it needs, without taking the question box away', () => {
     mount();
 
     expect(screen.getByTestId('plan-anchors-required')).toBeTruthy();
-    // The box and the button are gone, not merely disabled: a disabled
-    // button invites pressing it and explains nothing.
-    expect(screen.queryByText('AI 幫我想方案')).toBeNull();
+    expect(screen.getByText('AI 幫我想方案')).toBeTruthy();
   });
 
   it('says which two things it needs, and why', () => {

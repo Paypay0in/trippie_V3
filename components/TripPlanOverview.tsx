@@ -1385,8 +1385,23 @@ const TripPlanOverview: React.FC<Props> = ({
           </div>
         )}
 
-        {missing.length > 0 ? (
-          <div data-testid="plan-anchors-required" className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 px-4 py-4 text-center">
+        {/*
+          What the trip still needs, said without standing in the way.
+
+          「不要拿機票或飯店上傳當門檻」. This block used to REPLACE the question
+          box: no flight on file meant no planning at all. The earlier ask was
+          for a gate — 「要他們先傳航班與住宿資訊」 — and the reasoning held for
+          an itinerary that has to fit around a landing time.
+
+          It does not hold for the question itself. Planning a day in a city
+          is answerable without a flight number, and a traveller who has not
+          booked yet is exactly the one asking. So the anchors are still
+          named, and still first, but the box below stays usable. What the
+          planner is NOT told remains visible: `anchorsBrief` only carries
+          anchors that exist.
+        */}
+        {missing.length > 0 && (
+          <div data-testid="plan-anchors-required" className="mb-3 rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 px-4 py-4 text-center">
             <p className="text-sm font-black text-[#11183d]">
               {t('plan.fillInFirst', { items: missing.map(item => t(ANCHOR_LABEL[item])).join(t('plan.and')) })}
             </p>
@@ -1413,7 +1428,8 @@ const TripPlanOverview: React.FC<Props> = ({
               </button>
             )}
           </div>
-        ) : (
+        )}
+
         <form onSubmit={handleGenerate} className="space-y-2">
           <textarea value={prompt} onChange={event => setPrompt(event.target.value)} rows={3} placeholder={t('plan.askPlaceholder')} className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100" />
 
@@ -1465,7 +1481,6 @@ const TripPlanOverview: React.FC<Props> = ({
           )}
           <button type="submit" disabled={!askText || isGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">{isGenerating ? t('plan.thinkingUpPlans') : t('plan.askAiForPlans')}<ArrowRight size={16} /></button>
         </form>
-        )}
 
         {/*
           The information is already on their phone.
