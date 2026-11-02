@@ -598,7 +598,7 @@ const TripPlanOverview: React.FC<Props> = ({
     different: a plan written without knowing where the traveller sleeps reads
     exactly like one written with it, right up to the day they try to use it.
   */
-  const missing = missingAnchors({ flightAnchors, stays });
+  const missing = missingAnchors({ flightAnchors, stays, tripScope });
 
   /*
     Flights that disagree with the trip they are on.

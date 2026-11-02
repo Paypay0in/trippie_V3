@@ -24,16 +24,33 @@ import { formatStayDates } from './stayDateWording';
 export interface PlanningAnchorsInput {
   flightAnchors?: FlightAnchor[];
   stays?: StaySpan[];
+  /**
+   * 國內 or 國外, when the trip has been classified.
+   *
+   * 「國內旅遊沒有這個」, said about the 上傳機票 button on a 新莊 trip. Asking a
+   * domestic traveller for a boarding pass is asking for a thing that does not
+   * exist, and an unanswerable request makes the answerable one beside it look
+   * optional too.
+   *
+   * Only the ASKING stops. 松山→澎湖 and 松山→金門 are domestic flights, so an
+   * anchor that is already on the trip is still read and still written into
+   * the prompt — `anchorsBrief` reports what exists and never asks.
+   */
+  tripScope?: 'domestic' | 'international';
 }
 
 export type MissingAnchor = 'flights' | 'stays';
 
 /** What the trip still needs before a plan can be shaped around anything. */
-export const missingAnchors = ({ flightAnchors = [], stays = [] }: PlanningAnchorsInput): MissingAnchor[] => {
+export const missingAnchors = ({ flightAnchors = [], stays = [], tripScope }: PlanningAnchorsInput): MissingAnchor[] => {
   const missing: MissingAnchor[] = [];
   // A flight with no date anchors nothing: the point is knowing which hours
-  // of which day are already spent.
-  if (!flightAnchors.some(anchor => anchor.departureDate)) missing.push('flights');
+  // of which day are already spent. A domestic trip is never asked — see
+  // `tripScope` above. `undefined` is not domestic, so an unclassified trip
+  // is still asked, exactly as the entry-rules block treats it.
+  if (tripScope !== 'domestic' && !flightAnchors.some(anchor => anchor.departureDate)) {
+    missing.push('flights');
+  }
   // A stay is only an anchor once it says where. A name with no address and
   // no coordinates cannot group a day geographically, which is the whole job.
   if (!stays.some(stay => stay.name && (stay.address || typeof stay.latitude === 'number'))) {
