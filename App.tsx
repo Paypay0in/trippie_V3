@@ -5792,6 +5792,16 @@ const App: React.FC = () => {
       setTravelCountry(trip.travelCountry || "");
     }
     setComparisonCountryCode(trip.comparisonCountryCode || "");
+    /*
+      Per-trip, like everything else here — see the draft path.
+
+      「我選了國內旅遊 還是問我入境規定」: this line was missing, so a trip
+      classified 國內 asked about a border every time it was opened, and a
+      trip to Japan opened after a weekend in 台南 inherited 'domestic' and
+      hid the entry rules entirely. Restored, never re-derived: the stored
+      answer is the one the traveller gave.
+    */
+    setTripScope(trip.tripScope);
 
     // Restore Visa Info
     if (trip.visaInfo) {
