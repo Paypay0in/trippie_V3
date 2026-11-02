@@ -3347,10 +3347,26 @@ ${city ? `城市：${city}` : ""}
     } catch (error: any) {
       const status = error?.status ?? error?.response?.status;
       const exhausted = error?.code === "RESOURCE_EXHAUSTED" || error?.message?.includes("RESOURCE_EXHAUSTED");
-      console.warn("Activity plan generation failed", { exhausted: Boolean(exhausted || status === 429) });
+      /*
+        Say what failed, not just whether it was quota.
+
+        This logged a single boolean and answered 「現在查不到資料」 for every
+        cause, which is the same shape the weather endpoint had: the one fact
+        that names the repair is destroyed by the error path, so a quota
+        refusal, an auth failure and a parse error are indistinguishable in
+        production. `upstream` is diagnostic only — the traveller still reads
+        the same sentence, because a status code is not something they can act
+        on.
+      */
+      const upstream = [
+        status ? `status ${status}` : "",
+        error?.code ? `code ${error.code}` : "",
+        typeof error?.message === "string" ? error.message.slice(0, 200) : "",
+      ].filter(Boolean).join(" | ") || "unknown";
+      console.warn("Activity plan generation failed", { exhausted: Boolean(exhausted || status === 429), upstream });
       // Nobody can name a beginner-friendly resort without looking it up, so
       // there is no honest offline fallback to fall back to here.
-      res.status(502).json({ error: "現在查不到資料，稍後再試一次。" });
+      res.status(502).json({ error: "現在查不到資料，稍後再試一次。", upstream });
     }
   });
 
