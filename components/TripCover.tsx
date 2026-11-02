@@ -52,11 +52,26 @@ const TripCover: React.FC<Props> = ({ query, dateRange, children, minHeight = 'm
 
   return (
     <div className={`relative ${minHeight} overflow-hidden rounded-[1.4rem] bg-gradient-to-br from-blue-700 via-indigo-700 to-violet-700`}>
+      {/*
+        「新北市 但圖片是台北」 — and the same thing here, on the trip cover: a
+        Pexels search for a city returns whatever it ranks, which beside a
+        famous neighbour is usually the famous neighbour.
+
+        The alt said 「<city> destination scenery」, which is an assertion about
+        what the photograph shows, and we cannot verify it. An empty alt is the
+        specified way to say 「this image carries no information」 — true, once
+        the picture is admitted to be decoration. Describing content we cannot
+        vouch for is the actual accessibility defect, not the silence.
+
+        Fixed on `SavedTravelDestinationDetail` first and not here, because I
+        looked at one screen and called the rule done. Two homes again.
+      */}
       {shown && (
         <img
           className="absolute inset-0 h-full w-full object-cover"
           src={shown.imageUrl}
-          alt={`${shown.destinationQuery} destination scenery`}
+          alt=""
+          aria-hidden="true"
           onError={() => setImageFailed(true)}
         />
       )}
@@ -66,6 +81,13 @@ const TripCover: React.FC<Props> = ({ query, dateRange, children, minHeight = 'm
         {dateRange && <div className="text-sm font-semibold text-white/90">{dateRange}</div>}
         {children}
       </div>
+      {shown && (
+        /* Says what the picture is, beside the name it sits under, so the two
+           are not read as a caption and its subject. */
+        <div className="absolute right-3 bottom-3 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur">
+          {t('saved.decorativeImage')}
+        </div>
+      )}
       {shown?.attributionRequired && (
         <div className="absolute right-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[9px] text-white backdrop-blur">
           Photo by <a className="underline" href={shown.photographerUrl} target="_blank" rel="noreferrer">{shown.photographer}</a> on <a className="underline" href={shown.sourceUrl} target="_blank" rel="noreferrer">Pexels</a>

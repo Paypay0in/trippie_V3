@@ -147,7 +147,9 @@ const JourneyThumbnail: React.FC<JourneyThumbnailProps> = ({
       {image && !imageFailed ? (
         <img
           src={image.imageUrl}
-          alt={`${query} destination thumbnail`}
+          /* A stock photo we cannot verify is of this place. See TripCover. */
+          alt=""
+          aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
           onError={() => setImageFailed(true)}
         />
@@ -484,7 +486,9 @@ const TripSelectionScreen: React.FC<Props> = ({
               <>
                 <img
                   src={destinationImage.imageUrl}
-                  alt={`${primaryTrip.destinationImageQuery} destination scenery`}
+                  /* Decoration, not evidence. See TripCover. */
+                  alt=""
+                  aria-hidden="true"
                   className="absolute inset-0 h-full w-full object-cover"
                   onError={() => setDestinationImageFailed(true)}
                 />
