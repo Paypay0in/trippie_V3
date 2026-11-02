@@ -246,8 +246,13 @@
       "popularHeading": "人気の目的地",
       "passportHeading": "パスポート",
       "passportCheckExpiry": "有効期限を確認",
-      "passportExpiresOn": "{{date}} まで有効",
-      "passportValid": "有効",
+      "passportExpiresOn": "{{date}} に期限切れ",
+      "passportExpired": "{{date}} に期限切れ済み",
+      "passportExpiryTight": "{{date}} に期限切れ — 渡航先の条件を確認してください",
+      "passportExpiryLabel": "パスポートの有効期限",
+      "passportExpiryOptional": "任意",
+      "passportExpiryHint": "パスポートの記載どおりに入力。この端末にのみ保存されます。",
+      "passportExpiryInvalid": "YYYY-MM-DD の形式で入力してください。",
       "coverHeading": "カバー写真（任意）"
     },
     "coverFallbackName": "わたしの旅",
@@ -1000,6 +1005,7 @@
       "uploadStayHint": "予約確認メールで大丈夫です",
       "transportTitle": "主な移動手段（複数可）",
       "transportHint": "どの手段で移動するか教えてください",
+      "transportUndecided": "まだ決めていない",
       "startTimeTitle": "1 日は何時から始めますか？",
       "startTimeHint": "いつも出かけたい時間を選んでください",
       "startTimeAria": "1 日の開始時刻",
@@ -2418,7 +2424,11 @@
     "modes": {
       "TRANSIT": "公共交通",
       "DRIVE": "車",
-      "WALK": "徒歩"
+      "WALK": "徒歩",
+      "TRAIN": "電車",
+      "BUS": "バス",
+      "FLIGHT": "飛行機",
+      "OTHER": "その他"
     },
     "calculating": "経路を計算しています…",
     "serviceUnavailable": "いま経路サービスを利用できません。",

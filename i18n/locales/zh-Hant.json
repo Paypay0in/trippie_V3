@@ -949,6 +949,7 @@
       "uploadStayHint": "可上傳訂房確認信",
       "transportTitle": "主要交通工具（可複選）",
       "transportHint": "告訴我你會使用哪些交通方式",
+      "transportUndecided": "還沒決定",
       "startTimeTitle": "每天幾點開始安排行程？",
       "startTimeHint": "選擇你平均希望每天開始玩耍的時間",
       "startTimeAria": "每天幾點開始",
@@ -1452,7 +1453,12 @@
       "passportHeading": "護照",
       "passportCheckExpiry": "查看有效期限",
       "passportExpiresOn": "{{date}} 到期",
-      "passportValid": "有效",
+      "passportExpired": "已於 {{date}} 到期",
+      "passportExpiryTight": "{{date}} 到期 —— 請確認目的地的規定",
+      "passportExpiryLabel": "護照效期",
+      "passportExpiryOptional": "選填",
+      "passportExpiryHint": "照護照上印的填。只留在這台裝置。",
+      "passportExpiryInvalid": "請用 YYYY-MM-DD 的格式填寫。",
       "coverHeading": "封面照片（選填）"
     },
     "coverFallbackName": "我的旅程",
@@ -2276,7 +2282,11 @@
     "modes": {
       "TRANSIT": "大眾運輸",
       "DRIVE": "開車",
-      "WALK": "步行"
+      "WALK": "步行",
+      "TRAIN": "火車",
+      "BUS": "巴士",
+      "FLIGHT": "飛機",
+      "OTHER": "其他"
     },
     "calculating": "計算交通中…",
     "serviceUnavailable": "路線服務暫時無法使用。",

@@ -758,6 +758,19 @@ export interface PassportProfile {
   id: string;
   country: string;
   countryCode?: string;
+  /**
+   * The expiry date the traveller typed, `YYYY-MM-DD`, or absent.
+   *
+   * Absent means 「nobody has said」 and must never render as valid or safe.
+   * Never inferred, never defaulted, never backfilled: a date this app made
+   * up is a date somebody could be turned away on.
+   *
+   * Device-local. It rides inside `trippie_profile` in localStorage, is not a
+   * column on Supabase `profiles`, and never travels to a model — the
+   * entry-rules lookup sends the passport's country code and nothing else
+   * (`server.ts`), because a date plus a nationality is identity-grade data.
+   */
+  expiresOn?: string;
 }
 
 export interface SavedInspiration {

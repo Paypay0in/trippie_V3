@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import i18n from '../i18n/config';
-import { DEFAULT_BRIEF, TripPlanBrief } from './tripPlanBrief';
+import { BriefTransport, DEFAULT_BRIEF, TripPlanBrief } from './tripPlanBrief';
 import { briefChips, promptQuestions, travellerBriefText } from './travellerBrief';
 import { ParsedRental } from './rentalIntake';
 
@@ -29,7 +29,8 @@ const chip = {
   dayStart: (time: string) => i18n.t('plan.brief.chips.dayStart', { time }),
   pace: (count: number) => i18n.t('plan.brief.chips.pace', { count }),
   carDays: (count: number) => i18n.t('plan.brief.chips.carDays', { count }),
-  mode: (mode: 'WALK' | 'DRIVE' | 'TRANSIT') => i18n.t(`transport.modes.${mode}`),
+  /* Uppercase of any BriefTransport, so a new mode needs no edit here. */
+  mode: (mode: Uppercase<BriefTransport>) => i18n.t(`transport.modes.${mode}`),
 };
 
 const brief = (over: Partial<TripPlanBrief> = {}): TripPlanBrief => ({
@@ -176,10 +177,56 @@ describe('it actually reaches the prompt', () => {
  * is indistinguishable from not being carried at all. These are about it
  * being visible, which is the half that was missing.
  */
+/**
+ * The regression this ticket was most likely to cause.
+ *
+ * `promptQuestions` asked about a transit pass by matching the exact string
+ * 'transit'. Adding 火車 and 巴士 as their own choices would have silently
+ * stopped that question for the travellers most likely to want a rail pass —
+ * one rule, a second path that does less. The rule now lives in
+ * `usesScheduledPublicTransport` and both callers read it there.
+ */
+describe('the pass question follows every scheduled public mode', () => {
+  const hasPass = (transport: BriefTransport[]) =>
+    promptQuestions({ brief: brief({ transport }) }).some(question => question.id === 'pass');
+
+  it('asks when the traveller picked 大眾運輸, 火車 or 巴士', () => {
+    expect(hasPass(['transit'])).toBe(true);
+    expect(hasPass(['train'])).toBe(true);
+    expect(hasPass(['bus'])).toBe(true);
+  });
+
+  it('does not ask for walking, driving, flying or 其他', () => {
+    expect(hasPass(['walk'])).toBe(false);
+    expect(hasPass(['drive'])).toBe(false);
+    expect(hasPass(['flight'])).toBe(false);
+    expect(hasPass(['other'])).toBe(false);
+  });
+
+  it('still asks which days have a car when 開車 has no rental, and only then', () => {
+    const carDays = (transport: BriefTransport[]) =>
+      promptQuestions({ brief: brief({ transport }) })
+        .some(question => question.id === 'car-days');
+    expect(carDays(['drive'])).toBe(true);
+    expect(carDays(['flight'])).toBe(false);
+    expect(carDays(['train'])).toBe(false);
+  });
+});
+
 describe('what the traveller can see', () => {
+  /*
+    No mode chips on a default brief any more: Founder Q3 A removed the
+    pre-selection, so an untouched brief has nothing to say about transport.
+  */
   it('shows the people, the start and the pace', () => {
     expect(briefChips({ brief: brief() })).toEqual([
-      chip.travellers(2), chip.dayStart('09:00'), chip.pace(3), chip.mode('WALK'), chip.mode('TRANSIT'),
+      chip.travellers(2), chip.dayStart('09:00'), chip.pace(3),
+    ]);
+  });
+
+  it('shows a chip for each mode the traveller actually chose', () => {
+    expect(briefChips({ brief: brief({ transport: ['train', 'bus'] }) })).toEqual([
+      chip.travellers(2), chip.dayStart('09:00'), chip.pace(3), chip.mode('TRAIN'), chip.mode('BUS'),
     ]);
   });
 

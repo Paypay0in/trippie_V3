@@ -972,6 +972,7 @@
       "uploadStayHint": "A booking confirmation email works",
       "transportTitle": "Main ways of getting around (pick any)",
       "transportHint": "Tell me which ways you'll be travelling",
+      "transportUndecided": "Haven't decided yet",
       "startTimeTitle": "What time do your days start?",
       "startTimeHint": "Pick the time you'd usually like to head out",
       "startTimeAria": "What time days start",
@@ -1490,8 +1491,13 @@
       "popularHeading": "Popular destinations",
       "passportHeading": "Passport",
       "passportCheckExpiry": "Check the expiry date",
-      "passportExpiresOn": "Valid until {{date}}",
-      "passportValid": "Valid",
+      "passportExpiresOn": "Expires {{date}}",
+      "passportExpired": "Expired {{date}}",
+      "passportExpiryTight": "Expires {{date}} — check what this destination requires",
+      "passportExpiryLabel": "Expiry date",
+      "passportExpiryOptional": "Optional",
+      "passportExpiryHint": "As printed in the passport. Kept on this device only.",
+      "passportExpiryInvalid": "Enter the date as YYYY-MM-DD.",
       "coverHeading": "Cover photo (optional)"
     },
     "coverFallbackName": "My trip",
@@ -2347,7 +2353,11 @@
     "modes": {
       "TRANSIT": "Transit",
       "DRIVE": "Driving",
-      "WALK": "Walking"
+      "WALK": "Walking",
+      "TRAIN": "Train",
+      "BUS": "Bus",
+      "FLIGHT": "Flight",
+      "OTHER": "Other"
     },
     "calculating": "Working out the journey…",
     "serviceUnavailable": "The routing service is unavailable right now.",

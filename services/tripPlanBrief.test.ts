@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import en from '../i18n/locales/en.json';
+import ja from '../i18n/locales/ja.json';
+import zhHant from '../i18n/locales/zh-Hant.json';
 import {
   DEFAULT_BRIEF,
+  TRANSPORT_LABEL,
+  TRANSPORT_MODES,
+  isScheduledPublicMode,
   briefDayCount,
   briefIsReady,
   briefProblems,
@@ -142,5 +148,53 @@ describe('what the model is given', () => {
     );
     expect(request.days).toBe(4);
     expect(request.startDate).toBeUndefined();
+  });
+});
+
+/**
+ * What the model is told about transport, and what the traveller sees.
+ *
+ * Two different tables for the same seven modes, which is the trap this
+ * ticket had to walk through: `TRANSPORT_LABEL` is the Chinese sent to the
+ * model and must stay Chinese; `transport.modes.*` is what a traveller reads
+ * and must exist in all three bundles. Translating the first or forgetting the
+ * second are both silent failures.
+ */
+describe('the transport modes', () => {
+  it('leaves the three existing prompt values byte-identical', () => {
+    expect(TRANSPORT_LABEL.walk).toBe('步行');
+    expect(TRANSPORT_LABEL.drive).toBe('開車');
+    expect(TRANSPORT_LABEL.transit).toBe('大眾運輸');
+  });
+
+  it('gives every mode a prompt value', () => {
+    for (const mode of TRANSPORT_MODES) {
+      expect(TRANSPORT_LABEL[mode]).toBeTruthy();
+    }
+  });
+
+  it('names a display key for every mode in all three bundles', () => {
+    for (const mode of TRANSPORT_MODES) {
+      const key = mode.toUpperCase();
+      for (const bundle of [en, ja, zhHant]) {
+        const value = (bundle as { transport: { modes: Record<string, string> } }).transport.modes[key];
+        expect(value, `${key} missing`).toBeTruthy();
+      }
+    }
+  });
+
+  it('starts with nothing chosen, so the model is told nothing nobody said', () => {
+    expect(DEFAULT_BRIEF.transport).toEqual([]);
+    expect(DEFAULT_BRIEF.transportUndecided).toBeUndefined();
+  });
+
+  it('counts 大眾運輸, 火車 and 巴士 as scheduled public transport, and nothing else', () => {
+    expect(TRANSPORT_MODES.filter(isScheduledPublicMode)).toEqual(['transit', 'train', 'bus']);
+  });
+
+  it('never gates planning on transport', () => {
+    const ready = { ...DEFAULT_BRIEF, destination: '東京', startDate: '2027-03-01', endDate: '2027-03-05' };
+    expect(briefIsReady(ready)).toBe(true);
+    expect(briefIsReady({ ...ready, transportUndecided: true })).toBe(true);
   });
 });

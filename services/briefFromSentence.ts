@@ -25,7 +25,7 @@
  *   what they can see.
  */
 import i18n from '../i18n/config';
-import { BriefTransport, DEFAULT_BRIEF, TravelPace, TripPlanBrief } from './tripPlanBrief';
+import { BriefTransport, DEFAULT_BRIEF, TRANSPORT_MODES, TravelPace, TripPlanBrief } from './tripPlanBrief';
 
 /** What the model is asked to pull out. Every field optional, on purpose. */
 export interface SentenceParse {
@@ -151,11 +151,21 @@ export const briefFromSentence = (
       : parse.pace === 4 ? i18n.t('plan.brief.read.paceBusy') : i18n.t('plan.brief.read.paceBalanced'));
   }
 
+  /*
+    Filtered against the one list of modes, not a hand-written triple.
+
+    It used to name 'walk', 'drive' and 'transit' inline, so adding 火車 to the
+    form while leaving this alone would have made 「我會搭新幹線」 parse to
+    nothing — understood by the model, dropped on the floor here, and the chips
+    would claim the field was read.
+  */
   const transport = (parse.transport || []).filter(
-    (mode): mode is BriefTransport => mode === 'walk' || mode === 'drive' || mode === 'transit',
+    (mode): mode is BriefTransport => TRANSPORT_MODES.includes(mode as BriefTransport),
   );
   if (transport.length) {
     brief.transport = Array.from(new Set(transport));
+    /* A stated mode answers the question, so it is no longer undecided. */
+    brief.transportUndecided = false;
     /*
       The chip said 「交通：walk、transit」 — the stored ids, printed raw. It was
       wrong in Chinese too; English only made it look deliberate.

@@ -1,6 +1,6 @@
 import i18n from '../i18n/config';
 import { ParsedRental, rentalDays } from './rentalIntake';
-import { TRANSPORT_LABEL, TripPlanBrief } from './tripPlanBrief';
+import { TRANSPORT_LABEL, TripPlanBrief, usesScheduledPublicTransport } from './tripPlanBrief';
 
 /**
  * What the traveller already told us, said back to the model.
@@ -95,6 +95,14 @@ export const travellerBriefText = ({ brief, rentals = [] }: TravellerBriefInput)
           // i18n-data: model prompt — sent to the model, never shown to the traveller.
           : `主要交通方式：${named}。`,
       );
+    } else if (brief.transportUndecided) {
+      /*
+        Said out loud rather than left as silence. 「還沒決定」 is an answer, and
+        a planner told nothing about transport assumes; told this, it can keep
+        the days workable either way.
+      */
+      // i18n-data: model prompt — sent to the model, never shown to the traveller.
+      parts.push('交通方式還沒決定，請不要假設有車，並盡量讓行程在步行或大眾運輸下也成立。');
     }
 
     // i18n-data: model prompt — sent to the model, never shown to the traveller.
@@ -254,7 +262,17 @@ export const promptQuestions = ({ brief, rentals = [] }: TravellerBriefInput): B
     });
   }
 
-  if (brief.transport.includes('transit')) {
+  /*
+    Trains and buses need a pass as much as a metro does.
+
+    This was `includes('transit')`, which was correct while 大眾運輸 was the
+    only scheduled mode on the form. Adding 火車 and 巴士 as their own choices
+    would have silently dropped this question for the travellers who are most
+    likely to want a rail pass — so the rule moved into
+    `usesScheduledPublicTransport` and both callers read it there. 飛機 is not
+    in it: a flight is not a day ticket.
+  */
+  if (usesScheduledPublicTransport(brief)) {
     questions.push({
       id: 'pass',
       question: i18n.t('plan.brief.ask.pass'),

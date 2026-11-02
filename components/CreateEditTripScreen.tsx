@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   BookUser,
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
   Home,
   Image as ImageIcon,
@@ -26,6 +25,7 @@ import {
   popularDestinations,
   suggestedCurrency,
 } from '../services/tripScope';
+import { PassportExpiryState } from '../services/passportExpiryState';
 import CompanionsModal from './CompanionsModal';
 import PopularDestinationTile from './PopularDestinationTile';
 
@@ -63,8 +63,18 @@ type Props = {
   initialTripScope?: TripScope;
   /** The default passport, shown on 國外 trips the way the mockup has it. */
   passportLabel?: string;
+  /** The date the traveller typed, `YYYY-MM-DD`, or absent. */
   passportExpiry?: string;
-  passportValid?: boolean;
+  /**
+   * What the card may say about that date, from `passportExpiryState`.
+   *
+   * Computed once by the caller and passed to every surface that shows the
+   * passport row, so the three of them cannot disagree. There is deliberately
+   * no 「valid」 state: Founder V-9-SCOPE A struck that badge because validity
+   * beyond the stay is a per-destination rule, and a tick computed from one
+   * constant would be wrong at a real counter.
+   */
+  passportExpiryState?: PassportExpiryState;
   onOpenPassport?: () => void;
   onBack: () => void;
   onSubmit: (values: TripSetupValues) => void;
@@ -87,7 +97,7 @@ const CreateEditTripScreen: React.FC<Props> = ({
   initialTripScope,
   passportLabel,
   passportExpiry,
-  passportValid,
+  passportExpiryState = 'absent',
   onOpenPassport,
   onBack,
   onSubmit,
@@ -508,18 +518,30 @@ const CreateEditTripScreen: React.FC<Props> = ({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-support font-semibold text-ink">{passportLabel}</span>
-                  <span className="block truncate text-meta font-medium text-ink-soft">
-                    {passportExpiry
-                      ? t('trips.setup.passportExpiresOn', { date: passportExpiry })
-                      : t('trips.setup.passportCheckExpiry')}
+                  {/*
+                    Four states, no verdict. `absent` keeps the invitation to
+                    go and look — a date nobody entered must never read as
+                    safe. `ok` states the date and says nothing else: whether
+                    it satisfies a particular border is that border's rule,
+                    which this app does not hold.
+                  */}
+                  <span
+                    data-testid="trip-passport-expiry"
+                    className={`block truncate text-meta font-medium ${
+                      passportExpiryState === 'expired' || passportExpiryState === 'tight'
+                        ? 'text-rose-600'
+                        : 'text-ink-soft'
+                    }`}
+                  >
+                    {passportExpiryState === 'absent' || !passportExpiry
+                      ? t('trips.setup.passportCheckExpiry')
+                      : passportExpiryState === 'expired'
+                        ? t('trips.setup.passportExpired', { date: passportExpiry })
+                        : passportExpiryState === 'tight'
+                          ? t('trips.setup.passportExpiryTight', { date: passportExpiry })
+                          : t('trips.setup.passportExpiresOn', { date: passportExpiry })}
                   </span>
                 </span>
-                {passportValid && (
-                  <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-meta font-semibold text-emerald-600">
-                    <CheckCircle2 size={13} />
-                    {t('trips.setup.passportValid')}
-                  </span>
-                )}
                 {onOpenPassport && <ChevronRight size={16} className="shrink-0 text-slate-300" />}
               </button>
             </section>

@@ -50,6 +50,40 @@ const TravelIdentityModal: React.FC<Props> = ({ tripId, passports: initial, defa
     <section className="mt-6"><div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-black text-[#111A4A]">{t('travelIdentity.passportForThisTrip')} <span className="text-[#e54870]">*</span></h3><button type="button" onClick={() => { setOpen(true); focusSearch(); }} className="flex min-h-11 items-center gap-1 rounded-xl px-2 text-xs font-bold text-[#5b3df5]"><Plus size={15}/>{t('travelIdentity.addPassport')}</button></div>
       {selectedPassport && !open ? <button type="button" onClick={() => { setOpen(true); focusSearch(); }} className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-[#cfc7ff] bg-[#faf9ff] p-3.5 text-left"><span className="flex items-center gap-3"><span className="text-2xl">{selectedOption?.flag || '🌐'}</span><span><span className="block text-sm font-extrabold text-[#111A4A]">{selectedOption?.passportLabel || labelFor(selectedPassport)}</span><span className="mt-0.5 block text-xs text-slate-500">{defaultId === selectedPassport.id ? t('travelIdentity.default') : t('travelIdentity.usedForThisTrip')}</span></span></span><span className="flex items-center gap-1 text-xs font-bold text-[#5b3df5]">{t('travelIdentity.change')} <ChevronDown size={16}/></span></button> : <div className="relative"><div className="flex min-h-12 items-center gap-2 rounded-2xl border border-[#cfc7ff] bg-white px-3"><Search size={18} className="text-slate-400"/><input ref={inputRef} autoFocus={open} value={query} onFocus={() => setOpen(true)} onChange={event => { setQuery(event.target.value); setOpen(true); }} onKeyDown={event => { if (event.key === 'Escape') setOpen(false); if (event.key === 'Enter' && matches[0]) { event.preventDefault(); choose(matches[0]); } }} placeholder={selectedOption ? `${selectedOption.flag} ${selectedOption.passportLabel}` : t('travelIdentity.searchPlaceholder')} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-[#111A4A] outline-none" aria-label={t('travelIdentity.searchAria')}/>{query && <button type="button" onClick={() => setQuery('')} aria-label={t('home.clearSearch')} className="rounded-full p-2 text-slate-400"><X size={16}/></button>}<ChevronDown size={17} className="text-slate-400"/></div>{open && <div className="absolute z-10 mt-2 max-h-64 w-full overflow-y-auto rounded-2xl border border-[#e5e3f1] bg-white p-2 shadow-[0_12px_28px_rgba(17,26,74,.16)]">{matches.length ? matches.map(option => <button key={option.countryCode} type="button" onClick={() => choose(option)} className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left ${option.countryCode === selectedOption?.countryCode ? 'bg-[#f0edff]' : 'hover:bg-[#faf9ff]'}`}><span className="text-xl">{option.flag}</span><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-[#111A4A]">{option.passportLabel}</span><span className="block text-xs text-slate-500">{option.displayName} · {option.countryCode}</span></span>{option.countryCode === selectedOption?.countryCode && <Check size={17} className="text-[#5b3df5]"/>}</button>) : <p className="p-4 text-center text-xs text-slate-400">{t('travelIdentity.noMatches')}</p>}</div>}</div>}
       {open && passports.length > 0 && <div className="mt-2 max-h-52 space-y-2 overflow-y-auto">{passports.map(passport => <div key={passport.id} className="flex items-center justify-between rounded-2xl border border-[#e8e7f1] bg-white p-3"><button type="button" onClick={() => { setSelected(passport.id); setOpen(false); }} className="flex min-h-11 items-center gap-3 text-left"><span className="text-xl">{optionFor(passport)?.flag || '🌐'}</span><span><span className="block text-sm font-bold text-[#111A4A]">{optionFor(passport)?.passportLabel || labelFor(passport)}</span><span className="block text-xs text-slate-500">{optionFor(passport)?.displayName || passport.country} · {passport.countryCode || '—'}</span></span></button><button type="button" onClick={() => setDefaultId(passport.id)} className={`rounded-full px-2.5 py-1.5 text-[10px] font-bold ${defaultId === passport.id ? 'bg-[#5b3df5] text-white' : 'bg-[#f4f3f8] text-slate-500'}`}>{defaultId === passport.id ? t('travelIdentity.default') : t('travelIdentity.makeDefault')}</button></div>)}</div>}
+      {/*
+        The expiry date, typed by hand and optional.
+
+        Only for the passport this trip will use: asking for every passport on
+        file turns one question into four, and the other three are not going
+        anywhere this week. Clearing the field removes the value rather than
+        storing an empty string, so 「no answer」 stays distinguishable from
+        「answered with nothing」.
+
+        A date already in the past is accepted and stored. Refusing it would
+        hide the single case the traveller most needs to see, and the card
+        says 已到期 rather than pretending the field is empty.
+      */}
+      {selectedPassport && (
+        <label className="mt-3 block rounded-2xl border border-[#e8e7f1] bg-white p-3">
+          <span className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-[#111A4A]">{t('trips.setup.passportExpiryLabel')}</span>
+            <span className="text-[10px] font-semibold text-slate-400">{t('trips.setup.passportExpiryOptional')}</span>
+          </span>
+          <input
+            type="date"
+            value={selectedPassport.expiresOn || ''}
+            data-testid="passport-expiry-input"
+            onChange={event => {
+              const value = event.target.value;
+              setPassports(current => current.map(passport => passport.id !== selectedPassport.id
+                ? passport
+                : { ...passport, ...(value ? { expiresOn: value } : { expiresOn: undefined }) }));
+            }}
+            className="mt-1.5 min-h-11 w-full rounded-xl border border-[#cfc7ff] bg-white px-3 text-sm font-semibold text-[#111A4A] outline-none"
+          />
+          <span className="mt-1.5 block text-[11px] leading-4 text-slate-500">{t('trips.setup.passportExpiryHint')}</span>
+        </label>
+      )}
     </section><div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f3f0ff] p-3.5"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[#5b3df5] text-white"><Check size={14}/></span><div><p className="text-xs font-bold text-[#111A4A]">{t('travelIdentity.savedToProfile')}</p><p className="mt-1 text-[11px] leading-4 text-slate-500">{t('travelIdentity.savedToProfileHint')}</p></div></div><button type="button" onClick={handleSaveAndResearch} disabled={!passports.length || !selected || requestState === 'UPDATING' || requestState === 'UPDATED'} className="mt-5 min-h-12 w-full rounded-2xl bg-gradient-to-r from-[#2F5BFF] to-[#8B3DFF] text-sm font-black text-white shadow-[0_10px_22px_rgba(91,61,245,.24)]">{requestState === 'UPDATING' ? t('travelIdentity.updating') : requestState === 'UPDATED' ? t('travelIdentity.updated') : t('travelIdentity.saveAndUpdate')}</button>
     {requestState === 'UPDATED' && <div className="mt-4 rounded-2xl bg-[#f3f0ff] p-3.5 text-xs leading-5 text-[#4d35c7]"><p className="font-black">{t('travelIdentity.updated')}</p><p>{t('travelIdentity.entryRulesSynced')}</p><p>{t('travelIdentity.refundRulesReady')}</p><button type="button" onClick={handleSaveAndResearch} disabled={requestState === 'UPDATING'} className="mt-2 font-bold underline underline-offset-2">{t('travelIdentity.refresh')}</button></div>}
     {researchError && requestState !== 'UPDATED' && <div className="mt-4 rounded-2xl bg-[#fff7f8] p-3.5 text-xs leading-5 text-rose-600">{researchError}</div>}

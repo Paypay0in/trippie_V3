@@ -133,15 +133,25 @@ describe('what each type shows', () => {
     expect(screen.queryByText('熱門目的地')).toBeNull();
   });
 
-  it('shows the passport only on an international trip', async () => {
+  /*
+    The card appears on 國外 and nowhere else — and it never claims validity.
+
+    This assertion used to require a 「有效」 badge, which Founder V-9-SCOPE A
+    struck: how much validity a destination demands beyond the stay is that
+    destination's rule, so a tick computed from a constant would be wrong at a
+    real counter. The badge is gone from the component, and the assertion is
+    inverted rather than deleted so nothing can put it back quietly.
+  */
+  it('shows the passport only on an international trip, and never claims it is valid', async () => {
     const user = userEvent.setup();
-    show({ residenceCountryCode: 'TW', passportLabel: '台灣護照', passportExpiry: '2030/05/20', passportValid: true });
+    show({ residenceCountryCode: 'TW', passportLabel: '台灣護照', passportExpiry: '2030-05-20', passportExpiryState: 'ok' });
 
     await user.click(domestic());
     expect(screen.queryByTestId('trip-passport-card')).toBeNull();
 
     await user.click(international());
     expect(screen.getByTestId('trip-passport-card')).toBeTruthy();
-    expect(screen.getByText('有效')).toBeTruthy();
+    expect(screen.getByTestId('trip-passport-expiry').textContent).toContain('2030-05-20 到期');
+    expect(screen.queryByText('有效')).toBeNull();
   });
 });

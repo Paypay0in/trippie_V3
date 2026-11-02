@@ -2,6 +2,7 @@ import { entryPoints, worthListing } from '../services/entryPoints';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n/config';
 import { isPassportAdvisory } from '../services/entryRuleGrouping';
+import { PassportExpiryState } from '../services/passportExpiryState';
 import { travelRulesErrorMessage } from '../services/travelRulesErrorMessage';
 import { useTicketTodos } from './useTicketTodos';
 import { ERRAND_ID_PREFIX, ticketErrands } from '../services/ticketErrands';
@@ -164,6 +165,14 @@ interface Props {
   hasPassport: boolean;
   /** The passport the lookup will use, named rather than assumed. */
   passportLabel?: string;
+  /** The expiry date the traveller typed, `YYYY-MM-DD`, or absent. */
+  passportExpiry?: string;
+  /**
+   * What may be said about that date, from `passportExpiryState` — computed
+   * once by the caller so every passport surface agrees. No 「valid」 state
+   * exists: validity beyond the stay is a per-destination rule.
+   */
+  passportExpiryState?: PassportExpiryState;
   /** Runs the entry-rules lookup with the default passport. */
   onResearchEntryRules: () => Promise<void> | void;
   /** Opens the full identity sheet, for choosing a different passport. */
@@ -267,7 +276,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, tripScope, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, tripScope, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, passportExpiry, passportExpiryState = 'absent', onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const { t } = useTranslation();
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   /*
@@ -926,6 +935,30 @@ const TripPlanOverview: React.FC<Props> = ({
                   ))}
                 </select>
                 <span className="mt-0.5 block truncate text-[11px] text-slate-400">{hasPassport ? t('plan.willUseThisPassport') : t('plan.choosePassportToLookUp')}</span>
+                {/*
+                  The same four states as the setup screen, from the same
+                  module and the same computed prop. Two date comparisons
+                  would be two answers, and the one that disagrees is the one
+                  somebody reads two days before a flight.
+                */}
+                {hasPassport && (
+                  <span
+                    data-testid="plan-passport-expiry"
+                    className={`mt-0.5 block truncate text-[11px] font-semibold ${
+                      passportExpiryState === 'expired' || passportExpiryState === 'tight'
+                        ? 'text-rose-600'
+                        : 'text-slate-400'
+                    }`}
+                  >
+                    {passportExpiryState === 'absent' || !passportExpiry
+                      ? t('trips.setup.passportCheckExpiry')
+                      : passportExpiryState === 'expired'
+                        ? t('trips.setup.passportExpired', { date: passportExpiry })
+                        : passportExpiryState === 'tight'
+                          ? t('trips.setup.passportExpiryTight', { date: passportExpiry })
+                          : t('trips.setup.passportExpiresOn', { date: passportExpiry })}
+                  </span>
+                )}
               </label>
             </div>
             {/*

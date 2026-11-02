@@ -265,6 +265,7 @@ import { viewerIdentityNotice } from "./services/viewerIdentityNotice";
 import { flightAnchorsFromParsed } from "./services/flightIntake";
 import { tripCountry } from "./services/tripCountry";
 import { TripScope, effectiveTripScope } from "./services/tripScope";
+import { passportExpiryState } from "./services/passportExpiryState";
 import { preferredCountryName, sameCountry } from "./services/countryIdentity";
 import type { ParsedFlight } from "./services/flightIntake";
 import { CompanionSeat, companionSuggestions } from "./services/companionSuggestions";
@@ -3095,6 +3096,23 @@ const App: React.FC = () => {
   const resolvedPassportLabel = resolvedPassport
     ? t('app.label.passportOf', { country: resolvedPassport.country })
     : undefined;
+
+  /*
+    What the passport card may say about its expiry date — decided once, here.
+
+    The row renders on the trip setup screen and at both entries into the
+    preparation page. Comparing the date in each of them would be the defect
+    this repo keeps producing: three implementations, and the day one of them
+    disagrees is the day somebody reads the wrong answer two days before a
+    flight. `today` is passed in rather than read inside the module, so the
+    arithmetic is testable on the dates that matter.
+  */
+  const resolvedPassportExpiry = resolvedPassport?.expiresOn;
+  const resolvedPassportExpiryState = passportExpiryState({
+    expiresOn: resolvedPassportExpiry,
+    tripEndDate,
+    today: new Date().toISOString().slice(0, 10),
+  });
 
   /**
    * Typing a destination on the overview.
@@ -8340,16 +8358,19 @@ const App: React.FC = () => {
         }
         initialTripScope={tripSetupMode === "create" ? undefined : tripScope}
         /*
-          The passport as the mockup has it, minus a fact we do not hold.
+          The passport card, with the one claim the mockup made that we refuse
+          to make.
 
-          `PassportProfile` is { id, country, countryCode } — there is no
-          expiry date anywhere in this app. The card therefore invites the
-          traveller to check it rather than asserting 「有效至 2030/05/20」,
-          which would be a date the app made up. Adding an expiry is new
-          stored data and is the Founder's call, not a detail to infer from a
-          mockup.
+          The expiry date now exists — `PassportProfile.expiresOn`, typed by
+          the traveller, optional, device-local — so the card can state it.
+          What it still never does is assert 「有效」. Validity beyond the stay
+          is the destination's rule, not a six-month constant, and a green
+          tick computed from a constant is wrong at a real counter. Absent
+          stays an invitation to go and look.
         */
         passportLabel={resolvedPassportLabel}
+        passportExpiry={resolvedPassportExpiry}
+        passportExpiryState={resolvedPassportExpiryState}
         onOpenPassport={() => setIsTravelIdentityOpen(true)}
         onBack={() =>
           setViewMode(tripSetupMode === "create" ? "bookshelf" : "trip")
@@ -9249,6 +9270,8 @@ const App: React.FC = () => {
                 travelRules={travelRules}
                 hasPassport={Boolean(resolvedPassportId)}
                 passportLabel={resolvedPassportLabel}
+                passportExpiry={resolvedPassportExpiry}
+                passportExpiryState={resolvedPassportExpiryState}
                 onResearchEntryRules={() =>
                   handleResearchTravelRules(resolvedPassportId)
                 }
@@ -9409,6 +9432,8 @@ const App: React.FC = () => {
               travelRules={travelRules}
               hasPassport={Boolean(resolvedPassportId)}
               passportLabel={resolvedPassportLabel}
+              passportExpiry={resolvedPassportExpiry}
+              passportExpiryState={resolvedPassportExpiryState}
               onResearchEntryRules={() =>
                 handleResearchTravelRules(resolvedPassportId)
               }

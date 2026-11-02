@@ -141,3 +141,42 @@ describe('unreadFields', () => {
       .toEqual([]);
   });
 });
+
+/**
+ * The new modes have to survive the parser, not just the form.
+ *
+ * The filter used to name 'walk', 'drive' and 'transit' inline, so a sentence
+ * saying 「我會搭新幹線」 would have been understood by the model and then
+ * dropped here — while the read-back chips claimed the field was understood.
+ */
+describe('transport modes the sentence names', () => {
+  it('keeps train, bus, flight and other', () => {
+    const { brief } = briefFromSentence({ ...THE_SENTENCE, transport: ['train', 'bus', 'flight', 'other'] });
+    expect(brief.transport).toEqual(['train', 'bus', 'flight', 'other']);
+  });
+
+  it('still keeps the three that existed before', () => {
+    const { brief } = briefFromSentence({ ...THE_SENTENCE, transport: ['walk', 'transit', 'drive'] });
+    expect(brief.transport).toEqual(['walk', 'transit', 'drive']);
+  });
+
+  it('drops a mode the app does not have, rather than storing it', () => {
+    const { brief } = briefFromSentence({ ...THE_SENTENCE, transport: ['helicopter' as never, 'bus'] });
+    expect(brief.transport).toEqual(['bus']);
+  });
+
+  it('reads a stated mode back to the traveller', () => {
+    const { read } = briefFromSentence({ ...THE_SENTENCE, transport: ['train'] });
+    expect(read.join(' ')).toContain('火車');
+  });
+
+  it('a stated mode means they have decided', () => {
+    const { brief } = briefFromSentence({ ...THE_SENTENCE, transport: ['bus'] });
+    expect(brief.transportUndecided).toBe(false);
+  });
+
+  it('says nothing about transport when the sentence did not', () => {
+    const { brief } = briefFromSentence(THE_SENTENCE);
+    expect(brief.transport).toEqual([]);
+  });
+});

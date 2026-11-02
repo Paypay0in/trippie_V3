@@ -48,13 +48,77 @@ describe('before anything is filled in', () => {
     expect(screen.getByTestId('brief-generate').hasAttribute('disabled')).toBe(true);
   });
 
-  it('starts on the defaults the design shows', () => {
+  /*
+    Founder Q3 A: no transport mode is pre-selected any more.
+
+    It used to arrive ticked as 步行 + 大眾運輸, which was invisible while the
+    question sat fifth on the form. Asked first, a prefilled answer is an
+    answer nobody gave — and it travelled to the model as a stated
+    preference.
+  */
+  it('starts with nothing selected for transport, and the other defaults intact', () => {
     open();
     expect(screen.getByTestId('brief-travellers').textContent).toBe('2');
-    expect(screen.getByTestId('brief-transport-walk').getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByTestId('brief-transport-transit').getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByTestId('brief-transport-drive').getAttribute('aria-pressed')).toBe('false');
+    for (const mode of ['walk', 'transit', 'train', 'bus', 'drive', 'flight', 'other']) {
+      expect(screen.getByTestId(`brief-transport-${mode}`).getAttribute('aria-pressed')).toBe('false');
+    }
+    expect(screen.getByTestId('brief-transport-undecided').getAttribute('aria-pressed')).toBe('false');
     expect(screen.getByTestId('brief-pace-3').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('asks about transport before anything else', () => {
+    open();
+    const order = ['brief-transport-walk', 'brief-travellers', 'brief-destination']
+      .map(id => screen.getByTestId(id));
+    expect(order[0].compareDocumentPosition(order[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(order[1].compareDocumentPosition(order[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('treats 還沒決定 and a chosen mode as mutually exclusive, both ways', () => {
+    open();
+    fireEvent.click(screen.getByTestId('brief-transport-train'));
+    fireEvent.click(screen.getByTestId('brief-transport-undecided'));
+    expect(screen.getByTestId('brief-transport-train').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('brief-transport-undecided').getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('brief-transport-bus'));
+    expect(screen.getByTestId('brief-transport-undecided').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('brief-transport-bus').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  /*
+    The planner was never gated on an upload — `briefProblems` asks only for a
+    destination, a length and at least one traveller. Pinned here so no future
+    change quietly starts demanding a flight or a hotel first.
+  */
+  it('can plan with no transport answered and no booking uploaded', () => {
+    const { onPreview } = open();
+    fill();
+    fireEvent.click(screen.getByTestId('brief-generate'));
+    expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({ transport: [] }));
+  });
+
+  it('can plan when the traveller says 還沒決定', () => {
+    const { onPreview } = open();
+    fill();
+    fireEvent.click(screen.getByTestId('brief-transport-undecided'));
+    fireEvent.click(screen.getByTestId('brief-generate'));
+    expect(onPreview).toHaveBeenCalledWith(expect.objectContaining({
+      transport: [],
+      transportUndecided: true,
+    }));
+  });
+
+  it('shows every mode in the traveller\u2019s own language, never the prompt table', () => {
+    open();
+    /*
+      `TRANSPORT_LABEL` is the Chinese the model is told about. Rendering it
+      here showed 步行 to English and Japanese travellers; the chips read
+      `transport.modes.*` instead.
+    */
+    for (const label of ['步行', '大眾運輸', '火車', '巴士', '開車', '飛機', '其他']) {
+      expect(screen.getByText(new RegExp(label))).toBeTruthy();
+    }
   });
 });
 
@@ -79,7 +143,7 @@ describe('filling it in', () => {
       startDate: '2026-10-02',
       endDate: '2026-10-07',
       travellers: 2,
-      transport: ['walk', 'transit', 'drive'],
+      transport: ['drive'],
       dayStartTime: '11:00',
       pace: 2,
       notes: '想去汗蒸幕',

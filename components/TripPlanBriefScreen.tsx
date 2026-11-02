@@ -9,7 +9,7 @@ import {
   BriefTransport,
   DEFAULT_BRIEF,
   PACE_LABEL,
-  TRANSPORT_LABEL,
+  TRANSPORT_MODES,
   TravelPace,
   TripPlanBrief,
   briefDayCount,
@@ -107,6 +107,8 @@ const TripPlanBriefScreen: React.FC<Props> = ({
   const toggleTransport = (mode: BriefTransport) =>
     setBrief(current => ({
       ...current,
+      /* Naming a mode is deciding, so it cannot stay 還沒決定. */
+      transportUndecided: false,
       transport: current.transport.includes(mode)
         ? current.transport.filter(other => other !== mode)
         : [...current.transport, mode],
@@ -225,6 +227,66 @@ const TripPlanBriefScreen: React.FC<Props> = ({
             </p>
           )}
         </section>
+
+        {/*
+          交通方式, asked first (Founder AI-TRANSPORT-ENTRY-UX B).
+
+          It used to sit fifth, below the optional booking upload, which made
+          the pre-ticked default invisible. Asked first, nothing is selected
+          until somebody selects it, and 還沒決定 is a real answer rather than
+          the absence of one.
+
+          The labels read `transport.modes.*`, NOT `TRANSPORT_LABEL`. That
+          table is the Chinese the model is told about and has to stay
+          Chinese; rendering it here showed 步行 to English and Japanese
+          travellers.
+        */}
+        <Section
+          icon={<MapPin size={16} />}
+          title={t('plan.brief.transportTitle')}
+          hint={t('plan.brief.transportHint')}
+          optional
+        >
+          <div className="flex flex-wrap gap-2">
+            {TRANSPORT_MODES.map(mode => {
+              const on = brief.transport.includes(mode);
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  data-testid={`brief-transport-${mode}`}
+                  aria-pressed={on}
+                  onClick={() => toggleTransport(mode)}
+                  className={`min-h-11 min-w-[4.5rem] flex-1 rounded-field border px-2 text-support font-bold ${
+                    on
+                      ? 'border-violet-300 bg-violet-50 text-violet-700'
+                      : 'border-hairline bg-white text-ink-soft'
+                  }`}
+                >
+                  {t(`transport.modes.${mode.toUpperCase()}`)}{on ? ' \u2713' : ''}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            data-testid="brief-transport-undecided"
+            aria-pressed={Boolean(brief.transportUndecided)}
+            onClick={() => setBrief(current => ({
+              ...current,
+              transportUndecided: !current.transportUndecided,
+              /* Exclusive both ways: undecided clears the modes. */
+              transport: current.transportUndecided ? current.transport : [],
+            }))}
+            className={`mt-2 min-h-11 w-full rounded-field border text-support font-bold ${
+              brief.transportUndecided
+                ? 'border-violet-300 bg-violet-50 text-violet-700'
+                : 'border-hairline bg-white text-ink-soft'
+            }`}
+          >
+            {t('plan.brief.transportUndecided')}{brief.transportUndecided ? ' \u2713' : ''}
+          </button>
+        </Section>
 
         <Section
           icon={<Users size={16} />}
@@ -364,34 +426,6 @@ const TripPlanBriefScreen: React.FC<Props> = ({
               <span className="text-support font-bold">{t('plan.brief.uploadStay')}</span>
               <span className="text-meta text-ink-soft">{t('plan.brief.uploadStayHint')}</span>
             </button>
-          </div>
-        </Section>
-
-        <Section
-          icon={<MapPin size={16} />}
-          title={t('plan.brief.transportTitle')}
-          hint={t('plan.brief.transportHint')}
-        >
-          <div className="flex gap-2">
-            {(['walk', 'drive', 'transit'] as BriefTransport[]).map(mode => {
-              const on = brief.transport.includes(mode);
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  data-testid={`brief-transport-${mode}`}
-                  aria-pressed={on}
-                  onClick={() => toggleTransport(mode)}
-                  className={`min-h-11 flex-1 rounded-field border text-support font-bold ${
-                    on
-                      ? 'border-violet-300 bg-violet-50 text-violet-700'
-                      : 'border-hairline bg-white text-ink-soft'
-                  }`}
-                >
-                  {TRANSPORT_LABEL[mode]}{on ? ' ✓' : ''}
-                </button>
-              );
-            })}
           </div>
         </Section>
 

@@ -17,7 +17,36 @@
 import i18n from '../i18n/config';
 
 export type TravelPace = 2 | 3 | 4;
-export type BriefTransport = 'walk' | 'drive' | 'transit';
+
+/**
+ * How the traveller gets around, as stored.
+ *
+ * `transit` is KEPT rather than split into train and bus (Founder Q1 A). It is
+ * the stored value in every brief already in flight, and three behaviours
+ * match on it or on `drive` by name — splitting it away would have stopped the
+ * transit-pass question firing for exactly the people who ride trains and
+ * buses. Train and bus are additions beside it, not replacements for it.
+ *
+ * `other` carries 「mixed / something else」. Mixed needs no value of its own:
+ * the field is a list, so selecting three modes IS mixed, and 補充描述 holds
+ * the detail.
+ */
+export type BriefTransport = 'walk' | 'transit' | 'drive' | 'train' | 'bus' | 'flight' | 'other';
+
+/**
+ * The modes that run to a timetable somebody can buy a pass for.
+ *
+ * One home, called by the prompt builder and by the question builder. Written
+ * twice, it would be two rules, and the day they disagree is the day a
+ * traveller who selected 火車 never gets asked about a rail pass. `flight` is
+ * deliberately absent: a flight is not a transit pass.
+ */
+export const isScheduledPublicMode = (mode: BriefTransport): boolean =>
+  mode === 'transit' || mode === 'train' || mode === 'bus';
+
+/** Whether this brief should be asked about passes and day tickets at all. */
+export const usesScheduledPublicTransport = (brief: TripPlanBrief): boolean =>
+  brief.transport.some(isScheduledPublicMode);
 
 export interface TripPlanBrief {
   /** Including the person filling this in, so never below one. */
@@ -37,6 +66,14 @@ export interface TripPlanBrief {
    */
   approximateDays?: number;
   transport: BriefTransport[];
+  /**
+   * Set when the traveller said 「還沒決定」.
+   *
+   * NOT a mode, on purpose. 「I have not decided」 is the absence of an answer,
+   * and as a mode it would let a brief ask for a plan that both walks and is
+   * undecided. Setting it clears the modes; choosing a mode clears it.
+   */
+  transportUndecided?: boolean;
   /** HH:mm the traveller wants each day to begin. */
   dayStartTime: string;
   /** Stops per day: the design's 輕旅行 / 中度 / 緊湊. */
@@ -48,7 +85,17 @@ export interface TripPlanBrief {
 export const DEFAULT_BRIEF: TripPlanBrief = {
   travellers: 2,
   destination: '',
-  transport: ['walk', 'transit'],
+  /*
+    Nothing pre-selected (Founder Q3 A).
+
+    It used to arrive ticked as 步行 + 大眾運輸, which was invisible while the
+    question sat fifth on the form. Asked first, a prefilled answer is an
+    answer nobody gave — and it was reaching the model as a stated preference.
+    The consequence is deliberate and was approved: a traveller who answers
+    nothing now sends no transport line at all, so their plan differs from
+    what today's would have been.
+  */
+  transport: [],
   dayStartTime: '09:00',
   pace: 3,
 };
@@ -82,7 +129,18 @@ export const TRANSPORT_LABEL: Record<BriefTransport, string> = {
   drive: '開車',
   // i18n-data: model prompt — joined into the planner request by `travellerBriefText`.
   transit: '大眾運輸',
+  // i18n-data: model prompt — joined into the planner request by `travellerBriefText`.
+  train: '火車',
+  // i18n-data: model prompt — joined into the planner request by `travellerBriefText`.
+  bus: '巴士',
+  // i18n-data: model prompt — joined into the planner request by `travellerBriefText`.
+  flight: '飛機',
+  // i18n-data: model prompt — joined into the planner request by `travellerBriefText`.
+  other: '其他方式',
 };
+
+/** Every mode, in the order the entry screen offers them. */
+export const TRANSPORT_MODES: BriefTransport[] = ['walk', 'transit', 'train', 'bus', 'drive', 'flight', 'other'];
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
