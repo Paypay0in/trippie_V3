@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BedDouble, X, MapPin, Phone, ExternalLink, Copy, Check, CalendarDays, Hash, Info } from 'lucide-react';
+import { BedDouble, X, MapPin, Copy, Check, CalendarDays, Hash, Info } from 'lucide-react';
 import { StaySpan, stayMapUrl } from '../services/stayIntake';
 import { formatStayDates } from '../services/stayDateWording';
 
@@ -13,8 +13,6 @@ interface Props {
 
 interface PlaceFacts {
   address?: string;
-  phone?: string;
-  website?: string;
   mapsUri?: string;
   photoUrl?: string;
   /** Google requires the photographer to be credited wherever the photo shows. */
@@ -72,7 +70,7 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
 
         if (details.ok) {
           const data = await details.json() as PlaceFacts;
-          setFacts(current => ({ ...current, phone: data.phone, website: data.website, mapsUri: data.mapsUri }));
+          setFacts(current => ({ ...current, mapsUri: data.mapsUri }));
         }
         if (photo.ok) {
           // The endpoint nests it: { photo: { imageUrl, attribution } }.
@@ -170,24 +168,12 @@ const StayDetailSheet: React.FC<Props> = ({ stay, notes, onClose }) => {
           >
             <MapPin size={14} /> {t('stay.viewOnMap')}
           </a>
-          {facts.phone && (
-            <a
-              href={`tel:${facts.phone.replace(/\s/g, '')}`}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[#e8e7f4] px-3 text-xs font-black text-[#5b3df5]"
-            >
-              <Phone size={14} /> {t('stay.call')}
-            </a>
-          )}
-          {facts.website && (
-            <a
-              href={facts.website}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-[#e8e7f4] px-3 text-xs font-black text-[#5b3df5]"
-            >
-              <ExternalLink size={14} /> {t('stay.website')}
-            </a>
-          )}
+          {/*
+            No dial button and no website button: both values are Enterprise
+            fields on Place Details, and the map link above reaches Google's own
+            page for this stay, where the number and the site are listed.
+            Founder's call, 2026-11-05 — see the field mask in `server.ts`.
+          */}
         </div>
 
         <div className="mt-4 space-y-2">

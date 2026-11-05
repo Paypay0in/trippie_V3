@@ -647,9 +647,19 @@ describe('tonight’s stay banner', () => {
       await waitFor(() => expect(sheet.querySelector('img')).toBeTruthy());
       expect(sheet.querySelector('img')?.getAttribute('src')).toBe('https://img.example/a.jpg');
       expect(within(sheet).getByLabelText('查看照片來源')).toBeTruthy();
-      // And the contact buttons appear once their values arrive.
-      expect(within(sheet).getByRole('link', { name: /致電/ })).toBeTruthy();
-      expect(within(sheet).getByRole('link', { name: /前往官網/ })).toBeTruthy();
+      /*
+        And no contact buttons, even when the endpoint hands them over: phone
+        and website are Enterprise fields on Place Details, so the sheet reaches
+        them through Google's own page instead. Founder's call, 2026-11-05.
+
+        Asserted against a response that still carries both values, so this
+        fails if the buttons come back on data the endpoint should no longer be
+        asking for — not merely because the mask changed.
+      */
+      expect(within(sheet).queryByRole('link', { name: /致電/ })).toBeNull();
+      expect(within(sheet).queryByRole('link', { name: /前往官網/ })).toBeNull();
+      // The way out is still there, and it is the one that costs Essentials.
+      expect(within(sheet).getByRole('link', { name: /在地圖中查看/ })).toBeTruthy();
     } finally {
       globalThis.fetch = originalFetch;
     }

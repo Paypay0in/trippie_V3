@@ -1363,9 +1363,24 @@ async function startServer() {
     const placeId = typeof req.body?.placeId === "string" ? req.body.placeId.trim() : "";
     if (!placeId || !process.env.GOOGLE_MAPS_API_KEY) { res.status(404).json({ error: "Place details unavailable." }); return; }
     try {
-      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location,nationalPhoneNumber,internationalPhoneNumber,websiteUri,googleMapsUri,primaryType" }, signal: AbortSignal.timeout(5_000) });
+      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, /*
+          No phone number and no website, deliberately.
+
+          Google bills a Place Details request at the most expensive tier any
+          field in the mask belongs to. `nationalPhoneNumber`, its
+          international twin and `websiteUri` are Enterprise ($20/1000, 1,000
+          free); without them this mask tops out at `primaryType`, which is Pro
+          ($17/1000, 5,000 free) — and the three callers that only resolve a
+          place never rendered either value.
+
+          The stay sheet did show a dial and a website button. Both are now one
+          tap further away, through the 「在地圖上查看」 link that was already on
+          that card: `googleMapsUri` is Essentials, and Google's own page lists
+          the number and the site. Founder's call, 2026-11-05.
+        */
+        "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location,googleMapsUri,primaryType" }, signal: AbortSignal.timeout(5_000) });
       if (!response.ok) throw new Error("Place details failed");
-      const data = await response.json() as { id?: string; displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number }; addressComponents?: Array<{ longText?: string; types?: string[] }>; nationalPhoneNumber?: string; internationalPhoneNumber?: string; websiteUri?: string; googleMapsUri?: string; primaryType?: string };
+      const data = await response.json() as { id?: string; displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number }; addressComponents?: Array<{ longText?: string; types?: string[] }>; googleMapsUri?: string; primaryType?: string };
       if (!data.displayName?.text || typeof data.location?.latitude !== "number" || typeof data.location.longitude !== "number") throw new Error("Incomplete place details");
       res.json({
         placeId: data.id || placeId,
@@ -1392,11 +1407,11 @@ async function startServer() {
         // The ward, which is what an area heading is named by. See
         // `districtFromComponents`.
         district: districtFromComponents(data.addressComponents),
-        // Contact details, for a stay the traveller may need to phone from the
-        // street. Absent for places Google has none for, which is why the UI
-        // renders each button only when its value arrived.
-        phone: data.internationalPhoneNumber || data.nationalPhoneNumber,
-        website: data.websiteUri,
+        /*
+          The way to the number: Google's own page for this place, which lists
+          the phone and the website. Essentials, and the only contact route
+          this endpoint now returns — see the field mask above for why.
+        */
         mapsUri: data.googleMapsUri,
       });
     } catch { res.status(502).json({ error: "Place details unavailable." }); }
