@@ -52,6 +52,7 @@ import { checkProposedChanges } from "./services/adjustmentChanges";
 import { normalizeItinerarySlices } from "./services/itineraryImageSlices";
 import { earliestFreeStartByDate, fixedAnchorScheduleFromSnapshot, latestFreeStartByDate } from "./services/itineraryDayFloor";
 import { enumerateTripDates } from "./services/tripDates";
+import { googleUsageSnapshot, recordGoogleCall } from "./services/googleSkuUsage";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -114,6 +115,29 @@ const factsPreamble = (
 
 
 async function startServer() {
+  /*
+    Every billable Google request goes through here, so the count has one home.
+
+    Threading a label through fifteen call sites is the shape this repo keeps
+    getting wrong — a rule honoured by one path and silently dropped by another.
+    A label is also a second opinion about what a request costs, and it is the
+    one that goes stale: edit the field mask and the label still says Essentials.
+
+    So nothing is passed in. The SKU is derived from the request itself, from the
+    same two inputs Google prices on — the endpoint and the field mask — and a
+    call site cannot be wrong about its own cost because it never states it.
+
+    Transparent otherwise: same arguments, same return, failures unchanged. A
+    request that errors is still counted, because Google bills for served errors
+    and a count that quietly drops them would under-report exactly when something
+    is retrying in a loop.
+  */
+  const billedFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    const headers = (init?.headers || {}) as Record<string, string>;
+    recordGoogleCall({ url, fieldMask: headers["X-Goog-FieldMask"] });
+    return fetch(url, init);
+  };
+
   const mode = process.env.NODE_ENV || "development";
   Object.assign(process.env, loadEnv(mode, __dirname, ""));
 
@@ -389,7 +413,7 @@ async function startServer() {
     const query = merchantSearchQuery({ merchant, address });
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!query || !apiKey) return undefined;
-    const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    const response = await billedFetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1115,7 +1139,7 @@ async function startServer() {
     const future = departureTime && Date.parse(departureTime) > Date.now() ? departureTime : undefined;
 
     try {
-      const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+      const response = await billedFetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1219,7 +1243,7 @@ async function startServer() {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) { res.status(503).json({ error: "Routing service unavailable." }); return; }
     try {
-      const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+      const response = await billedFetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": "routes.distanceMeters,routes.duration" },
         /*
@@ -1276,7 +1300,7 @@ async function startServer() {
 
     const place = async (query: string): Promise<{ latitude: number; longitude: number } | null> => {
       try {
-        const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+        const response = await billedFetch("https://places.googleapis.com/v1/places:searchText", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": "places.location" },
           body: JSON.stringify({ textQuery: query, languageCode: "zh-TW", maxResultCount: 1 }),
@@ -1312,7 +1336,7 @@ async function startServer() {
       // costs one round trip and makes the answer exist in Busan at all.
       const ask = async (travelMode: "DRIVE" | "TRANSIT") => {
         try {
-          const routed = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+          const routed = await billedFetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey, "X-Goog-FieldMask": "routes.distanceMeters,routes.duration" },
             body: JSON.stringify({
@@ -1352,7 +1376,7 @@ async function startServer() {
     try {
       const body: Record<string, unknown> = { input: query, languageCode: "zh-TW" };
       if (Number.isFinite(req.body?.latitude) && Number.isFinite(req.body?.longitude)) body.locationBias = { circle: { center: { latitude: Number(req.body.latitude), longitude: Number(req.body.longitude) }, radius: 50000 } };
-      const response = await fetch("https://places.googleapis.com/v1/places:autocomplete", { method: "POST", headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey }, body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) });
+      const response = await billedFetch("https://places.googleapis.com/v1/places:autocomplete", { method: "POST", headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey }, body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) });
       if (!response.ok) { res.json({ suggestions: [] }); return; }
       const data = await response.json() as { suggestions?: Array<{ placePrediction?: { placeId?: string; types?: string[]; structuredFormat?: { mainText?: { text?: string }; secondaryText?: { text?: string } }; text?: { text?: string } } }> };
       /*
@@ -1393,7 +1417,7 @@ async function startServer() {
     */
     const needsCategory = req.body?.needsCategory !== false;
     try {
-      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,/*
+      const response = await billedFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,/*
           No phone number and no website, deliberately.
 
           Google bills a Place Details request at the most expensive tier any
@@ -1468,7 +1492,7 @@ async function startServer() {
       // The language is asked for explicitly. Without it Google answers in the
       // place's own locale, so a Busan cafe comes back as 「Cafe」 and 「Monday:
       // 9:00 AM – 6:00 PM」 on a card the traveller reads in Chinese.
-      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=zh-TW`, {
+      const response = await billedFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=zh-TW`, {
         headers: {
           "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
           /*
@@ -1530,7 +1554,7 @@ async function startServer() {
       return;
     }
     try {
-      const detailsResponse = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "id,photos" }, signal: AbortSignal.timeout(5_000) });
+      const detailsResponse = await billedFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, "X-Goog-FieldMask": "id,photos" }, signal: AbortSignal.timeout(5_000) });
       if (!detailsResponse.ok) { res.json({ photo: null }); return; }
       const details = await detailsResponse.json() as { photos?: Array<{ name?: string; authorAttributions?: Array<{ displayName?: string; uri?: string }> }> };
       /*
@@ -1548,7 +1572,7 @@ async function startServer() {
         .slice(0, 6);
       if (selected.length === 0) { placePhotoCache.set(placeId, { expiresAt: Date.now() + 60_000, value: [] }); res.json({ photo: null, photos: [] }); return; }
       const resolved = await Promise.all(selected.map(async photo => {
-        const mediaResponse = await fetch(`https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=720&maxHeightPx=720&skipHttpRedirect=true`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY as string }, signal: AbortSignal.timeout(5_000) });
+        const mediaResponse = await billedFetch(`https://places.googleapis.com/v1/${photo.name}/media?maxWidthPx=720&maxHeightPx=720&skipHttpRedirect=true`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY as string }, signal: AbortSignal.timeout(5_000) });
         if (!mediaResponse.ok) return null;
         const media = await mediaResponse.json() as { photoUri?: string };
         if (!media.photoUri) return null;
@@ -1568,7 +1592,7 @@ async function startServer() {
     try {
       const apiKey = process.env.GOOGLE_MAPS_API_KEY;
       if (apiKey) {
-        const googleResponse = await fetch("https://places.googleapis.com/v1/places:searchText", {
+        const googleResponse = await billedFetch("https://places.googleapis.com/v1/places:searchText", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1945,7 +1969,7 @@ async function startServer() {
 
     try {
       const groups = await Promise.all(queries.map(async (query) => {
-        const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+        const response = await billedFetch("https://places.googleapis.com/v1/places:searchText", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -2102,7 +2126,7 @@ ${sentence}
     const cached = placeReviewsCache.get(placeId);
     if (cached && cached.expiresAt > Date.now()) { res.json({ reviews: cached.value }); return; }
     try {
-      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=zh-TW`, {
+      const response = await billedFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=zh-TW`, {
         headers: {
           "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
           "X-Goog-FieldMask": "reviews",
@@ -3202,7 +3226,7 @@ ${city ? `城市：${city}` : ""}
       const resolvePlace = async (name: string) => {
         if (!mapsKey || !name) return null;
         try {
-          const lookup = await fetch("https://places.googleapis.com/v1/places:searchText", {
+          const lookup = await billedFetch("https://places.googleapis.com/v1/places:searchText", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -3243,7 +3267,7 @@ ${city ? `城市：${city}` : ""}
       const travelMinutes = async (lat: number, lng: number): Promise<number | undefined> => {
         if (!mapsKey || !hasOrigin) return undefined;
         try {
-          const route = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+          const route = await billedFetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Goog-Api-Key": mapsKey, "X-Goog-FieldMask": "routes.duration" },
             body: JSON.stringify({
@@ -4349,6 +4373,31 @@ ${MODE_RULES[mode]}
     } catch {
       res.status(502).json({ error: "Destination image provider is unavailable." });
     }
+  });
+
+  /**
+   * What this instance has bought from Google, since it woke up.
+   *
+   * Answerable in one request because every cost conversation so far has been
+   * a unit price multiplied by a number I made up — 「20 searches per traveller
+   * per month」 was never measured, and the gap between $3,000 and $12,000 at
+   * 10,000 testers is entirely that guess.
+   *
+   * Three honesty constraints are built into the answer rather than left to
+   * whoever quotes it:
+   *
+   *  - `countingSince`, because Render's free instance sleeps. A snapshot is
+   *    one process's waking life, never a month.
+   *  - `marginalUsdIgnoringFreeQuota`, named so it cannot be read as a bill.
+   *    Free quotas are monthly and account-wide; this process cannot know what
+   *    another instance already spent.
+   *  - counts per SKU rather than one total, because the whole finding in
+   *    CLB-183 was that identical-looking calls sit in different tiers.
+   *
+   * Read-only, and it buys nothing itself.
+   */
+  app.get("/api/usage/google", (_req, res) => {
+    res.json(googleUsageSnapshot());
   });
 
   /**
