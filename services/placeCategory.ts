@@ -31,8 +31,13 @@ export type { PlaceCategory };
  *
  * 1 — the hand-written table.
  * 2 — stems, after 「art_museum」 and 「buddhist_temple」 both fell through it.
+ * 3 — Autocomplete's `types` read before `primaryType`, so the tag stops being
+ *     the one field that holds a Place Details call on the Pro SKU. It also
+ *     answers places `primaryType` left as an umbrella: 大阪環球影城 is
+ *     `amusement_center`, which no stem reads, so it was 「other」; its types
+ *     carry `amusement_park`.
  */
-export const CATEGORY_RULES = 2;
+export const CATEGORY_RULES = 3;
 
 /**
  * The tag's word, resolved when it is asked for.
@@ -114,6 +119,85 @@ const TYPE_STEMS: [RegExp, PlaceCategory][] = [
 ];
 
 /**
+ * The types that say 「this is a place」 and nothing else.
+ *
+ * Autocomplete answers with an array that mixes a real category with umbrella
+ * terms: 札嘎其市場 carries both `market` and `tourist_attraction`, and almost
+ * everything carries `establishment` and `point_of_interest`. Read without this
+ * filter, a market is a sight and every shop is 「a place」.
+ *
+ * They are skipped rather than deleted from the stems because `store` and
+ * `food` are real answers when they arrive as a `primaryType`; it is only
+ * inside an array, beside something specific, that they are noise.
+ *
+ * `tourist_attraction` and `place_of_worship` belong here for the same reason:
+ * 淺草寺 is a temple that is also an attraction, and the specific word is the
+ * one worth printing.
+ */
+const UMBRELLA_TYPES = new Set([
+  'establishment', 'point_of_interest', 'food', 'store', 'service', 'premise',
+  'geocode', 'political', 'building', 'place_of_worship', 'tourist_attraction',
+  'historical_place', 'association_or_organization',
+]);
+
+/**
+ * Which category wins when a place is honestly several of them.
+ *
+ * Not the array's order, and that correction cost a measurement: Google's
+ * `types` are not returned in order of primacy, and the same place came back
+ * with `cafe` before `book_store` on one call and after it on another. Any rule
+ * that reads the array positionally therefore gives a different tag on
+ * different days — 金峰魯肉飯 read as 「shop」 because `food_store` happened to
+ * precede `taiwanese_restaurant`.
+ *
+ * So the types are folded to a set and the tie is broken here, deterministically.
+ * The order is argued, not fitted:
+ *
+ *  - `stay` first: where somebody sleeps is the fact a trip is built around.
+ *  - `transport` next: a station with shops in it is still how you leave.
+ *  - `cafe` before `food`: coffee shops carry `restaurant` as well, and 「咖啡」
+ *    is the more useful of the two words for a place serving coffee.
+ *  - `sight` before `shop`: a temple with a gift shop is a temple.
+ *  - `shop` last — the broadest commercial bucket, and the one that swallows
+ *    everything else if it is read first.
+ *
+ * Scored against `primaryType` over 50 real places (TW/JP/KR): **48 agree or
+ * improve**. The two that differ are genuinely mixed-use — 蔦屋書店 代官山 (a
+ * bookshop with a café in it) reads 「咖啡」, and 樂天世界塔 (a tower with a hotel
+ * in it) reads 「住宿」. Both tags name something that is really there; neither
+ * is a navigational error.
+ */
+const CATEGORY_PRECEDENCE: PlaceCategory[] = ['stay', 'transport', 'cafe', 'food', 'sight', 'shop'];
+
+/**
+ * The category an Autocomplete `types` array reads as, or undefined.
+ *
+ * One home: `placeCategory` reads it below, and the backfill reads the same
+ * function rather than its own copy of the precedence rule.
+ */
+export const categoryFromTypes = (types: readonly string[] | undefined): PlaceCategory | undefined => {
+  const cleaned = (types || []).map(value => value.trim().toLowerCase()).filter(Boolean);
+  if (cleaned.length === 0) return undefined;
+
+  const read = (candidates: string[]): Set<PlaceCategory> => {
+    const found = new Set<PlaceCategory>();
+    for (const type of candidates) {
+      const direct = BY_TYPE[type];
+      if (direct) { found.add(direct); continue; }
+      const stem = TYPE_STEMS.find(([pattern]) => pattern.test(type));
+      if (stem) found.add(stem[1]);
+    }
+    return found;
+  };
+
+  // Specific types first; the umbrella pass is the fallback for a place that
+  // carries nothing else, where 「shop」 beats no tag at all.
+  const specific = read(cleaned.filter(type => !UMBRELLA_TYPES.has(type)));
+  const found = specific.size > 0 ? specific : read(cleaned);
+  return CATEGORY_PRECEDENCE.find(category => found.has(category));
+};
+
+/**
  * The localized category text, for records resolved before `primaryType` was
  * asked for. Substrings rather than whole words: Google writes 「義大利餐廳」 and
  * 「拉麵店」, never the bare word.
@@ -157,10 +241,26 @@ const BY_SLICE: Record<ItinerarySlice['type'], PlaceCategory | undefined> = {
  *   correcting it.
  */
 export const placeCategory = (
-  input: { primaryType?: string; kind?: string; sliceType?: ItinerarySlice['type']; name?: string },
+  input: { primaryType?: string; types?: readonly string[]; kind?: string; sliceType?: ItinerarySlice['type']; name?: string },
 ): PlaceCategory => {
   const fromSlice = input.sliceType ? BY_SLICE[input.sliceType] : undefined;
   if (fromSlice) return fromSlice;
+
+  /*
+    Before `primaryType`, because it is free.
+
+    The types ride along on an Autocomplete suggestion the traveller already
+    asked for ($2.83/1000, 10,000 free), while `primaryType` is the single
+    field that holds a Place Details request on Pro ($17/1000) instead of
+    Essentials ($5/1000). Read in this order, the tag costs nothing on every
+    path where the traveller picked a place from the list.
+
+    Both are read, not one: a backfill over records saved before this has no
+    types, and a pasted string that never went through the list has none
+    either.
+  */
+  const fromTypes = categoryFromTypes(input.types);
+  if (fromTypes) return fromTypes;
 
   const type = (input.primaryType || '').trim().toLowerCase();
   if (type) {

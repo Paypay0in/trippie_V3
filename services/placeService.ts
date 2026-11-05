@@ -5,7 +5,22 @@
  * identity (for photos) must treat `resolvedPlaceName` as the discriminator.
  */
 export type ResolvedPlace = { placeId?: string; resolvedPlaceName?: string; address?: string; country?: string; countryCode?: string; city?: string; district?: string; latitude: number; longitude: number; photoAvailable?: boolean; /** Google's category enum; see `placeCategory`. */ primaryType?: string };
-export type PlaceSuggestion = { placeId: string; primaryText: string; secondaryText?: string; city?: string; country?: string };
+export type PlaceSuggestion = {
+  placeId: string;
+  primaryText: string;
+  secondaryText?: string;
+  city?: string;
+  country?: string;
+  /**
+   * Google's types for this prediction, which the 🏷️ tag is read from.
+   *
+   * Free: they arrive inside the autocomplete answer the traveller already
+   * asked for, so a place picked from the list needs no `primaryType` from
+   * Place Details — the one field that holds that call on the Pro tier.
+   * See `categoryFromTypes`.
+   */
+  types?: string[];
+};
 
 export const autocompletePlaces = async (query: string, context: { latitude?: number; longitude?: number; country?: string; travelCountry?: string }, signal?: AbortSignal): Promise<PlaceSuggestion[]> => {
   const response = await fetch('/api/places/autocomplete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, body: JSON.stringify({ query: query.trim(), ...context }) });
@@ -13,8 +28,17 @@ export const autocompletePlaces = async (query: string, context: { latitude?: nu
   return (await response.json() as { suggestions?: PlaceSuggestion[] }).suggestions || [];
 };
 
-export const getPlaceDetails = async (placeId: string, sessionToken: string): Promise<ResolvedPlace & { location: string }> => {
-  const response = await fetch('/api/places/details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ placeId, sessionToken }) });
+/**
+ * `needsCategory: false` drops `primaryType` from the request, which drops the
+ * whole call from Pro ($17/1000) to Essentials ($5/1000, 10,000 free). Pass it
+ * only when the caller already holds the suggestion's `types`.
+ */
+export const getPlaceDetails = async (
+  placeId: string,
+  sessionToken: string,
+  options: { needsCategory?: boolean } = {},
+): Promise<ResolvedPlace & { location: string }> => {
+  const response = await fetch('/api/places/details', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ placeId, sessionToken, ...(options.needsCategory === false ? { needsCategory: false } : {}) }) });
   if (!response.ok) throw new Error('Place details unavailable');
   return await response.json() as ResolvedPlace & { location: string };
 };

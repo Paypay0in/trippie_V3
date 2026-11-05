@@ -60,7 +60,7 @@ export const manualInspirationFrom = (
     placeName: resolved.placeName,
     placeId: resolved.placeId,
     // The 🏷️ tag, from the same lookup that confirmed the place.
-    category: placeCategory({ primaryType: resolved.primaryType }),
+    category: placeCategory({ primaryType: resolved.primaryType, types: resolved.types }),
     categoryRules: CATEGORY_RULES,
     // Claimed because the traveller picked this exact place off a list of
     // candidates, which is the strongest confirmation the app ever gets.

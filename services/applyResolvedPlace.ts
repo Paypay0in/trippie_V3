@@ -28,6 +28,8 @@ export interface ResolvedPlaceFields {
   country?: string;
   /** Google's category enum, folded into the 🏷️ tag. See `placeCategory`. */
   primaryType?: string;
+  /** The search's own types, read before `primaryType`. See `categoryFromTypes`. */
+  types?: string[];
 }
 
 const located = (value: unknown): value is number =>
@@ -62,8 +64,8 @@ export const applyResolvedPlace = (
     Written even as 「other」, which is the record saying 「asked, and the answer
     was nothing」 — that is what ends the backfill loop. It is never printed.
   */
-  category: placeCategory({ primaryType: resolved.primaryType }) !== 'other'
-    ? placeCategory({ primaryType: resolved.primaryType })
+  category: placeCategory({ primaryType: resolved.primaryType, types: resolved.types }) !== 'other'
+    ? placeCategory({ primaryType: resolved.primaryType, types: resolved.types })
     : inspiration.category || 'other',
   // Which rules read it, so a better reading can reach it later.
   categoryRules: CATEGORY_RULES,

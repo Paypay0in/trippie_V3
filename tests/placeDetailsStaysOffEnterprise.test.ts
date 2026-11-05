@@ -37,16 +37,21 @@ const detailsEndpoint = (): string => {
 };
 
 /**
- * The mask literal alone, not the comment above it.
+ * The mask expression alone, not the comment above it.
  *
  * Read off the header rather than the whole endpoint on purpose: the comment
  * explaining this rule has to be able to name the fields it forbids, and a
  * substring check over the endpoint body made that comment fail its own test.
+ *
+ * Either quoting, because the mask became a template literal once
+ * `primaryType` was made conditional on `needsCategory` — a test that only
+ * knew the double-quoted form reported a missing mask rather than a changed
+ * one.
  */
 const fieldMask = (): string => {
-  const match = /"X-Goog-FieldMask":\s*"([^"]+)"/.exec(detailsEndpoint());
+  const match = /"X-Goog-FieldMask":\s*(?:"([^"]+)"|`([^`]+)`)/.exec(detailsEndpoint());
   expect(match).not.toBeNull();
-  return match![1];
+  return match![1] ?? match![2];
 };
 
 describe('the place details field mask', () => {

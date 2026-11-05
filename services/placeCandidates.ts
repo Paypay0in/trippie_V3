@@ -20,6 +20,14 @@ export interface PlaceCandidate {
   name: string;
   /** Address or district, as Google phrases it. */
   detail?: string;
+  /**
+   * Google's types for this suggestion, carried from the search that found it.
+   *
+   * The 🏷️ tag is read from these rather than from Place Details'
+   * `primaryType`, which is the one field that holds that request on the Pro
+   * tier. Measured 23/24 agreement over real places; see `categoryFromTypes`.
+   */
+  types?: string[];
 }
 
 /**
@@ -46,6 +54,7 @@ export const findPlaceCandidates = async (
         placeId: suggestion.placeId,
         name: suggestion.primaryText,
         detail: suggestion.secondaryText,
+        types: suggestion.types,
       }));
     }
   }
@@ -57,6 +66,8 @@ export interface ResolvedCandidate {
   placeName: string;
   /** Google's category enum, folded into the 🏷️ tag. See `placeCategory`. */
   primaryType?: string;
+  /** The search's own types, read before `primaryType`. See `PlaceCandidate`. */
+  types?: string[];
   address?: string;
   latitude?: number;
   longitude?: number;
@@ -78,7 +89,17 @@ export interface ResolvedCandidate {
 
 /** Turns a chosen candidate into the fields a saved place stores. */
 export const resolveCandidate = async (candidate: PlaceCandidate): Promise<ResolvedCandidate | null> => {
-  const details = await getPlaceDetails(candidate.placeId, `lookup-${candidate.placeId}`).catch(() => null);
+  /*
+    The search already answered the one question `primaryType` is asked for, so
+    this call does not buy it again: a candidate carrying types resolves on
+    Essentials ($5/1000) instead of Pro ($17/1000).
+
+    A candidate with no types — an older cached list, or a path that never went
+    through autocomplete — still asks. Tagging it 「other」 to save $12/1000
+    would also end the backfill, because 「other」 records an answer.
+  */
+  const needsCategory = !(candidate.types && candidate.types.length > 0);
+  const details = await getPlaceDetails(candidate.placeId, `lookup-${candidate.placeId}`, { needsCategory }).catch(() => null);
   if (!details) return null;
   return {
     placeId: details.placeId || candidate.placeId,
@@ -90,6 +111,7 @@ export const resolveCandidate = async (candidate: PlaceCandidate): Promise<Resol
     district: details.district,
     country: details.country,
     primaryType: details.primaryType,
+    types: candidate.types,
   };
 };
 

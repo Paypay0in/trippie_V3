@@ -1354,16 +1354,46 @@ async function startServer() {
       if (Number.isFinite(req.body?.latitude) && Number.isFinite(req.body?.longitude)) body.locationBias = { circle: { center: { latitude: Number(req.body.latitude), longitude: Number(req.body.longitude) }, radius: 50000 } };
       const response = await fetch("https://places.googleapis.com/v1/places:autocomplete", { method: "POST", headers: { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey }, body: JSON.stringify(body), signal: AbortSignal.timeout(5_000) });
       if (!response.ok) { res.json({ suggestions: [] }); return; }
-      const data = await response.json() as { suggestions?: Array<{ placePrediction?: { placeId?: string; structuredFormat?: { mainText?: { text?: string }; secondaryText?: { text?: string } }; text?: { text?: string } } }> };
-      res.json({ suggestions: (data.suggestions || []).flatMap(item => { const p = item.placePrediction; return p?.placeId && p.structuredFormat?.mainText?.text ? [{ placeId: p.placeId, primaryText: p.structuredFormat.mainText.text, secondaryText: p.structuredFormat.secondaryText?.text || p.text?.text }] : []; }) });
+      const data = await response.json() as { suggestions?: Array<{ placePrediction?: { placeId?: string; types?: string[]; structuredFormat?: { mainText?: { text?: string }; secondaryText?: { text?: string } }; text?: { text?: string } } }> };
+      /*
+        `types` is forwarded because it is the 🏷️ tag, free.
+
+        Autocomplete carries each prediction's types in this same response, on a
+        SKU that costs $2.83/1000 with 10,000 free calls. The alternative is
+        `primaryType` from Place Details, and that one field is what holds a
+        details request on Pro ($17/1000) rather than Essentials ($5/1000).
+        Scored over 50 real places, the free source agrees with or improves on
+        `primaryType` 48 times; 大阪環球影城 is one of the improvements, since
+        `amusement_center` reads as 「other」 and its types carry
+        `amusement_park`.
+
+        See `CATEGORY_PRECEDENCE` for why the array cannot be read positionally:
+        Google does not return these in order of primacy, and the same place
+        came back in two different orders.
+      */
+      res.json({ suggestions: (data.suggestions || []).flatMap(item => { const p = item.placePrediction; return p?.placeId && p.structuredFormat?.mainText?.text ? [{ placeId: p.placeId, primaryText: p.structuredFormat.mainText.text, secondaryText: p.structuredFormat.secondaryText?.text || p.text?.text, types: p.types }] : []; }) });
     } catch { res.json({ suggestions: [] }); }
   });
 
   app.post("/api/places/details", async (req, res) => {
     const placeId = typeof req.body?.placeId === "string" ? req.body.placeId.trim() : "";
     if (!placeId || !process.env.GOOGLE_MAPS_API_KEY) { res.status(404).json({ error: "Place details unavailable." }); return; }
+    /*
+      `primaryType` only when the caller has no cheaper source for the tag.
+
+      It is the one Pro field left in this mask ($17/1000, 5,000 free); without
+      it the request is Essentials ($5/1000, 10,000 free). A caller that came
+      from an Autocomplete suggestion already holds that suggestion's `types`
+      and says so by sending `needsCategory: false`.
+
+      Default is to ask. An omitted flag means an older client or a path with no
+      types at all, and a place silently tagged 「other」 is worse than a place
+      that cost $17/1000 — 「other」 means 「asked, and there was no answer」,
+      which is what stops the backfill ever asking again.
+    */
+    const needsCategory = req.body?.needsCategory !== false;
     try {
-      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY, /*
+      const response = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, { headers: { "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,/*
           No phone number and no website, deliberately.
 
           Google bills a Place Details request at the most expensive tier any
@@ -1378,7 +1408,7 @@ async function startServer() {
           that card: `googleMapsUri` is Essentials, and Google's own page lists
           the number and the site. Founder's call, 2026-11-05.
         */
-        "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,location,googleMapsUri,primaryType" }, signal: AbortSignal.timeout(5_000) });
+        "X-Goog-FieldMask": `id,displayName,formattedAddress,addressComponents,location,googleMapsUri${needsCategory ? ",primaryType" : ""}` }, signal: AbortSignal.timeout(5_000) });
       if (!response.ok) throw new Error("Place details failed");
       const data = await response.json() as { id?: string; displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number }; addressComponents?: Array<{ longText?: string; types?: string[] }>; googleMapsUri?: string; primaryType?: string };
       if (!data.displayName?.text || typeof data.location?.latitude !== "number" || typeof data.location.longitude !== "number") throw new Error("Incomplete place details");
