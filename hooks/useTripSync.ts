@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, ShoppingItem, TripMember } from '../types';
+import { knownInspirationIds } from '../services/knownInspirationIds';
 import type { SharedTaxRule } from '../services/sharedTaxRule';
 import {
   KnownRemoteIds,
@@ -596,7 +597,23 @@ export const useTripSync = ({
             expenses: nextKnownIds(knownRef.current.expenses, e.map(expense => expense.id)),
             itinerary: nextKnownIds(knownRef.current.itinerary, i.map(item => item.id)),
             flightAnchors: nextKnownIds(knownRef.current.flightAnchors, f.map(anchor => anchor.id)),
-            inspirations: nextKnownIds(knownRef.current.inspirations ?? [], s.map(entry => entry.id)),
+            /*
+              The server's ids, not this phone's.
+
+              `alignInspirationRowIds` rewrites a saved place's id to the one
+              the server already holds for that place, so remembering the local
+              id makes the next prune name a row that does not exist — it
+              deletes nothing, reports success, and the following read brings
+              the place back. 「這個東西我已經刪掉兩次了」, a third time, through a
+              third door. See `knownInspirationIds`.
+            */
+            inspirations: nextKnownIds(
+              knownRef.current.inspirations ?? [],
+              knownInspirationIds(
+                result.status === 'ok' ? result.data?.fingerprints : undefined,
+                s.map(entry => entry.id),
+              ),
+            ),
             shoppingList: nextKnownIds(knownRef.current.shoppingList ?? [], (sl ?? []).map(item => item.id)),
           };
           // What this device just put there, it has now seen there.
