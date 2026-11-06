@@ -322,6 +322,19 @@ export const fetchMyTrips = async (): Promise<SyncResult<RemoteTripSummary[]>> =
   }
 };
 
+/*
+  Every column except the images, for the twenty-second re-read.
+
+  Written out rather than derived, because PostgREST has no 「everything but」 —
+  and that makes the list a second home for the row's shape. A column added to
+  `ExpenseRow` and forgotten here would be dropped from every re-read and then
+  merged over the local copy, which is the quiet kind of data loss.
+  `syncLightColumnsCoverEveryRowField` reads both this file and the row
+  interfaces and fails when they disagree, so the list cannot drift silently.
+*/
+const EXPENSE_COLUMNS_WITHOUT_IMAGES = "id,trip_id,created_by_member_id,description,amount,currency,exchange_rate,handling_fee,twd_amount,category,payment_method,phase,date,payer_id,payer_allocations,beneficiaries,split_method,split_allocations,disputes,not_duplicate_of,needs_review,linked_shopping_item_id,rating,receipt_items,merchant,merchant_address,merchant_place_id,merchant_latitude,merchant_longitude,note,tax_refunded_at_purchase,tax_refund_ineligible,tax_refund_actual,tax_refund_channel";
+const ITINERARY_COLUMNS_WITHOUT_IMAGES = "id,trip_id,date,time,title,location,notes,type,place_id,address,latitude,longitude,duration_minutes,is_completed,sort_order,is_pinned,schedule_flexibility,fixed_event_kind,origin,linked_expense_id,derived_from_flight_anchor_id,source_creator_id,source_collection_id,source_inspiration_ids,saved_travel_notes,rating,visibility,owner_user_id,ticket_bought";
+
 /**
  * Everything this trip holds remotely.
  *
@@ -332,6 +345,24 @@ export const fetchMyTrips = async (): Promise<SyncResult<RemoteTripSummary[]>> =
  */
 export const fetchTripSnapshot = async (
   tripId: string,
+  /**
+   * Leave the image columns on the server.
+   *
+   * Measured 2026-11-05: 0.04 GB of database, 7.33 GB of egress in thirty
+   * days — the same rows fetched about a hundred and eighty times, because
+   * this runs every twenty seconds and `expenses.receipt_photos` and
+   * `itinerary_items.photos` hold base64 images.
+   *
+   * Only the periodic re-read passes this. The first read of a trip still
+   * takes everything, because a device that has never seen the trip has
+   * nothing to re-join the light rows to.
+   *
+   * The caller MUST pass the result through `restoreItineraryPhotos` and
+   * `restoreExpensePhotos`. A light row says nothing about photos, and this
+   * repo already paid for reading 「nothing」 as 「none」 —
+   * 「為什麼我點進去 上傳照片馬上就被刪掉了」.
+   */
+  options: { omitImages?: boolean } = {},
 ): Promise<SyncResult<TripSyncSnapshot>> => {
   if (!supabase) return { status: 'unavailable' };
   try {
@@ -342,8 +373,8 @@ export const fetchTripSnapshot = async (
     // that had not happened.
     const [members, expenses, itinerary, flights, inspirations, shopping, taxRule] = await Promise.all([
       supabase.from('trip_members').select('*').eq('trip_id', tripId).order('id'),
-      supabase.from('expenses').select('*').eq('trip_id', tripId).order('id'),
-      supabase.from('itinerary_items').select('*').eq('trip_id', tripId).order('id'),
+      supabase.from('expenses').select(options.omitImages ? EXPENSE_COLUMNS_WITHOUT_IMAGES : '*').eq('trip_id', tripId).order('id'),
+      supabase.from('itinerary_items').select(options.omitImages ? ITINERARY_COLUMNS_WITHOUT_IMAGES : '*').eq('trip_id', tripId).order('id'),
       supabase.from('flight_anchors').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('trip_inspirations').select('*').eq('trip_id', tripId).order('id'),
       supabase.from('shopping_items').select('*').eq('trip_id', tripId).order('id'),
@@ -381,8 +412,8 @@ export const fetchTripSnapshot = async (
       status: 'ok',
       data: {
         members: (members.data as TripMemberRow[]).map(fromMemberRow),
-        expenses: (expenses.data as ExpenseRow[]).map(fromExpenseRow),
-        itinerary: (itinerary.data as ItineraryItemRow[]).map(fromItineraryRow),
+        expenses: (expenses.data as unknown as ExpenseRow[]).map(fromExpenseRow),
+        itinerary: (itinerary.data as unknown as ItineraryItemRow[]).map(fromItineraryRow),
         flightAnchors: flights.error
           ? []
           : (flights.data as FlightAnchorRow[]).map(fromFlightAnchorRow),

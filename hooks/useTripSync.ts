@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Expense, FlightAnchor, ItineraryItem, SavedTravelInspiration, ShoppingItem, TripMember } from '../types';
 import { knownInspirationIds } from '../services/knownInspirationIds';
+import { restoreExpensePhotos, restoreItineraryPhotos } from '../services/syncHeavyFields';
 import type { SharedTaxRule } from '../services/sharedTaxRule';
 import {
   KnownRemoteIds,
@@ -668,9 +669,43 @@ export const useTripSync = ({
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       inFlight = true;
       try {
-        const remote = await fetchTripSnapshot(tripId);
+        /*
+          Without the image columns.
+
+          Measured 2026-11-05: 0.04 GB of database had produced 7.33 GB of
+          egress in thirty days, because this runs every twenty seconds and
+          `select('*')` pulls every base64 photo each time. One open tab, one
+          trip, a hundred and eighty full downloads an hour.
+
+          The rows come back saying nothing about photos, so they are re-joined
+          to the copies already held before anything is merged. A row this
+          device has never held has no copy to join to; those are listed and
+          fetched whole, once, rather than guessed at as 「no photos」.
+        */
+        const remote = await fetchTripSnapshot(tripId, { omitImages: true });
         if (readyTripIdRef.current !== tripId) return;
         if (remote.status === 'ok') {
+          const held = payloadRef.current;
+          const restoredItinerary = restoreItineraryPhotos(remote.data.itinerary, held.itinerary);
+          const restoredExpenses = restoreExpensePhotos(remote.data.expenses, held.expenses);
+          if (restoredItinerary.unknownIds.length > 0 || restoredExpenses.unknownIds.length > 0) {
+            // Something arrived that this device has never held. Its images are
+            // unknown rather than absent, so they are fetched in full — one
+            // extra read for genuinely new rows, not a read of everything on a
+            // timer.
+            const whole = await fetchTripSnapshot(tripId);
+            if (readyTripIdRef.current !== tripId) return;
+            if (whole.status === 'ok') {
+              remote.data.itinerary = whole.data.itinerary;
+              remote.data.expenses = whole.data.expenses;
+            } else {
+              remote.data.itinerary = restoredItinerary.rows;
+              remote.data.expenses = restoredExpenses.rows;
+            }
+          } else {
+            remote.data.itinerary = restoredItinerary.rows;
+            remote.data.expenses = restoredExpenses.rows;
+          }
           // Merged, not applied. Applying a snapshot replaces the local list,
           // and this one arrives while the trip is being edited — a read
           // landing between a new record and the push that carries it would
