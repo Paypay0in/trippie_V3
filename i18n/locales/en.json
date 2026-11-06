@@ -283,7 +283,8 @@
     "openTrip": "Open {{name}}",
     "notUploaded": "Not uploaded",
     "yourMemories": "Your travel memories",
-    "noMemoriesYet": "No completed travel memories yet"
+    "noMemoriesYet": "No completed travel memories yet",
+    "declineRecovery": "No thanks"
   },
   "itinerary": {
     "fixedFlight": "Flight · fixed",

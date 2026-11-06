@@ -280,7 +280,8 @@
     "openTrip": "開啟 {{name}}",
     "notUploaded": "未上傳",
     "yourMemories": "你的旅行回憶",
-    "noMemoriesYet": "尚未完成旅行回憶"
+    "noMemoriesYet": "尚未完成旅行回憶",
+    "declineRecovery": "不用了"
   },
   "itinerary": {
     "fixedFlight": "航班 · 固定",

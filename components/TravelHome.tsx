@@ -96,6 +96,14 @@ interface Props {
   recoverable?: RecoverableTrip[];
   onRecoverTrip?: (trip: RecoverableTrip) => void;
   /**
+   * 「我不要同步」 — the answer this notice was missing.
+   *
+   * It offered one button, so a traveller who did not want the trip back could
+   * only keep looking at it. Declining hides it on this device and leaves the
+   * cloud row alone; it is an answer, not a second deletion.
+   */
+  onDeclineRecovery?: (trip: RecoverableTrip) => void;
+  /**
    * The trip ids the account holds, once they are known.
    *
    * `undefined` until the fetch returns, which is the difference between
@@ -210,6 +218,7 @@ const TravelHome: React.FC<Props> = ({
   onRestoreTripIdentity,
   recoverable = [],
   onRecoverTrip,
+  onDeclineRecovery,
   cloudTripIds,
   signedIn = false,
 }) => {
@@ -568,6 +577,19 @@ const TravelHome: React.FC<Props> = ({
                     className="shrink-0 rounded-full bg-sky-600 px-3.5 py-1.5 text-[11px] font-black text-white"
                   >
                     {t("home.pullBack")}
+                  </button>
+                  {/*
+                    Quieter than the offer it sits beside: declining is the
+                    ordinary answer, not the dangerous one, and it destroys
+                    nothing.
+                  */}
+                  <button
+                    type="button"
+                    data-testid={`recoverable-trip-decline-${trip.id}`}
+                    onClick={() => onDeclineRecovery?.(trip)}
+                    className="shrink-0 rounded-full px-3 py-1.5 text-[11px] font-black text-sky-700"
+                  >
+                    {t("home.declineRecovery")}
                   </button>
                 </li>
               ))}

@@ -40,12 +40,22 @@ export const recoverableTrips = (
   cloud: RemoteTripSummary[],
   localIds: string[],
   deletedIds: string[],
+  /**
+   * Offers already turned down on this device.
+   *
+   * 「我希望我可以回應他說 我不要同步 那這個藍色就消失」 — without this the notice
+   * had one button, so a traveller who did not want the trip back could only
+   * keep looking at it. Declining is an answer to the question, not a second
+   * deletion: see `declinedRecoveries`, and note the cloud row stays.
+   */
+  declinedIds: string[] = [],
 ): RecoverableTrip[] => {
   if (deletedIds.length === 0) return [];
   const here = new Set(localIds);
   const refused = new Set(deletedIds);
+  const declined = new Set(declinedIds);
   return cloud
-    .filter(trip => refused.has(trip.id) && !here.has(trip.id))
+    .filter(trip => refused.has(trip.id) && !here.has(trip.id) && !declined.has(trip.id))
     .map(trip => ({
       id: trip.id,
       name: trip.name,

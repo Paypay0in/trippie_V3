@@ -168,7 +168,8 @@
     "openTrip": "{{name}} を開く",
     "notUploaded": "未アップロード",
     "yourMemories": "あなたの旅の思い出",
-    "noMemoriesYet": "完了した旅の思い出はまだありません"
+    "noMemoriesYet": "完了した旅の思い出はまだありません",
+    "declineRecovery": "不要です"
   },
   "trips": {
     "untitledDraft": "次はどこへ？",

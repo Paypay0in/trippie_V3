@@ -122,6 +122,11 @@ import {
 } from "./services/destinationFromTripName";
 import { deleteTripRow, fetchMyTrips, isSyncAvailable, removeTripMember } from "./services/tripSync";
 import { RecoverableTrip, recoverableTrips } from "./services/recoverableTrips";
+import {
+  declinedRecoveryIds,
+  forgetDeclinedRecovery,
+  rememberDeclinedRecovery,
+} from "./services/declinedRecoveries";
 import { IdentityDrift, identityDrift } from "./services/tripIdentityDrift";
 import {
   StatedVisits,
@@ -2446,6 +2451,7 @@ const App: React.FC = () => {
         result.data,
         draftsRef.current.map((draft) => draft.id),
         forgotten,
+        declinedRecoveryIds(),
       ));
       const missing = withoutDeleted(result.data, forgotten)
         .filter((trip) => !known.has(trip.id))
@@ -5857,8 +5863,22 @@ const App: React.FC = () => {
    * shelf now rather than after a reload, and its contents arrive the moment
    * it is opened and synced — the same path every merged trip takes.
    */
+  /*
+    「我不要同步」 — the other answer to the notice.
+
+    Device-local and non-destructive: the cloud row stays, so another phone, or
+    this one after a re-invite, still finds the trip. 「Stop offering me this」
+    is not 「destroy it」, and a shared trip belongs to everyone on it.
+  */
+  const handleDeclineRecovery = (trip: RecoverableTrip) => {
+    rememberDeclinedRecovery(trip.id);
+    setRecoverableTripList((current) => current.filter((entry) => entry.id !== trip.id));
+  };
+
   const handleRecoverTrip = (trip: RecoverableTrip) => {
     forgetDeletedTrip(trip.id);
+    // Asked for it back after all, so a future deletion can be offered again.
+    forgetDeclinedRecovery(trip.id);
     const now = new Date().toISOString();
     setDrafts((current) =>
       current.some((draft) => draft.id === trip.id)
@@ -8475,6 +8495,7 @@ const App: React.FC = () => {
         onRestoreTripIdentity={handleRestoreTripIdentity}
         recoverable={recoverableTripList}
         onRecoverTrip={handleRecoverTrip}
+        onDeclineRecovery={handleDeclineRecovery}
         cloudTripIds={cloudTripIds}
         signedIn={Boolean(authUser?.id)}
         authStatus={authStatus}
