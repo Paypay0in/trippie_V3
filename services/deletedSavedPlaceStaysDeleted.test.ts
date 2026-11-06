@@ -100,6 +100,45 @@ describe('deleting a place that arrived from somebody else', () => {
   });
 });
 
+describe('re-pointing a place at a different one', () => {
+  /*
+    「這幾個我已經重新訂位到釜山過了」 — rebound, and still showing the Seoul
+    binding after a reload.
+
+    Alignment is keyed on the place, not on the row id (`inspirationRowKey`:
+    `place:<place_id>`). Re-pointing a save changes that key, so the server's
+    existing row — written under a remote id when the place was still the old
+    one — stops matching and is left behind. The rebound record goes up under
+    this phone's own id, and the orphan comes back on the next read as the
+    binding the traveller just replaced.
+
+    Recording the aligned ids is what lets the orphan be pruned: it was known,
+    it is no longer in the list, so it goes. Recording local ids left known and
+    current identical, so nothing was ever deleted.
+  */
+  it('prunes the row the old binding left behind', () => {
+    const remoteIdBeforeRebind = 'remote-seoul';
+    const localIdAfterRebind = 'local-busan';
+
+    // What the device knew after the last push, under the old binding.
+    const known = knownInspirationIds(
+      { 'trip_inspirations:remote-seoul': '{}' },
+      ['local-seoul'],
+    );
+    expect(known).toEqual([remoteIdBeforeRebind]);
+
+    // After re-pointing, the outgoing row no longer matches the server's key,
+    // so it keeps this phone's id.
+    expect(idsToPrune(known, [localIdAfterRebind])).toEqual([remoteIdBeforeRebind]);
+  });
+
+  it('would have pruned nothing had local ids been recorded', () => {
+    // The state production was in: known and current agree, so the stale row
+    // survives and reappears. This is the regression, written down.
+    expect(idsToPrune(['local-seoul'], ['local-seoul'])).toEqual([]);
+  });
+});
+
 describe('the hook records what the server holds', () => {
   const hook = readFileSync(join(process.cwd(), 'hooks/useTripSync.ts'), 'utf8');
 
