@@ -2833,7 +2833,9 @@
     "manualInputPlaceholder": "Shop name, address, or paste a Google Maps link",
     "linkWouldNotExpand": "This link will not expand. Paste the full URL, or just type the shop name.",
     "linkHasNoName": "This link only carries coordinates, no shop name. Add a name and search again.",
-    "linkNameNotFound": "This link has a shop name, but no matching place was found. Try wording it differently."
+    "linkNameNotFound": "This link has a shop name, but no matching place was found. Try wording it differently.",
+    "manualCardTitle": "Add a place by hand",
+    "manualCardBlurb": "A shop name or a Google Maps link both work"
   },
   "devViewer": {
     "reasonOwnerUserMatch": "The signed-in user owns this trip",

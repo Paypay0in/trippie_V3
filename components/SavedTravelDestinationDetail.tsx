@@ -421,9 +421,16 @@ const SavedTravelDestinationDetail: React.FC<Props> = ({ country, city, items, c
       */}
       {onAddSavedPlace && (
         <div className="mt-3">
+          {/*
+            Drawn as a card, the same size as the screenshot intake below it.
+            「手動新增能不能跟截圖的按鈕一樣大」 — as a chip it read as the lesser of
+            the two, and it is not: a place nobody screenshotted has no other
+            way in.
+          */}
           <AddPlaceByName
             context={{ city: cityDisplayName(city), country: countryDisplayName(country) }}
             onAdd={onAddSavedPlace}
+            presentation="card"
           />
         </div>
       )}

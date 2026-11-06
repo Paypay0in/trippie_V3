@@ -2752,7 +2752,9 @@
     "manualInputPlaceholder": "店名、地址，或貼上 Google 地圖連結",
     "linkWouldNotExpand": "這個連結展不開，請改貼完整網址或直接打店名。",
     "linkHasNoName": "這個連結只有座標沒有店名，請加上店名再搜尋。",
-    "linkNameNotFound": "這個連結讀得到店名，但查不到對應的地點，換個說法試試。"
+    "linkNameNotFound": "這個連結讀得到店名，但查不到對應的地點，換個說法試試。",
+    "manualCardTitle": "手動新增地點",
+    "manualCardBlurb": "知道店名或有 Google 地圖連結都可以"
   },
   "devViewer": {
     "reasonOwnerUserMatch": "登入者就是行程擁有者",

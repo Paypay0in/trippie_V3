@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus } from 'lucide-react';
+import { MapPinPlus, Plus } from 'lucide-react';
 import {
   expandMapsShortLink,
   findPlaceCandidates,
@@ -48,10 +48,24 @@ interface Props {
   defaultQuery?: string;
   /** Run the search as soon as it opens, when the query came from a record. */
   searchOnOpen?: boolean;
+  /**
+   * How the closed state is drawn.
+   *
+   * 「手動新增能不能跟截圖的按鈕一樣大」 — on the collection screen this sat as a
+   * small outlined chip beside the screenshot intake's full-width card, so the
+   * two ways of adding a place looked like a main one and an afterthought. They
+   * are not: typing a name is the only route for a place nobody screenshotted.
+   *
+   * `card` matches the screenshot intake's shape exactly — same radius, border,
+   * padding, icon tile and action-button sizing — so the pair reads as two
+   * doors to the same room. The default stays `button`, because on the planning
+   * screen it genuinely is a secondary action beside the day's own controls.
+   */
+  presentation?: 'button' | 'card';
 }
 
 const AddPlaceByName: React.FC<Props> = ({
-  context, onAdd, label, defaultQuery = '', searchOnOpen = false,
+  context, onAdd, label, defaultQuery = '', searchOnOpen = false, presentation = 'button',
 }) => {
   const { t } = useTranslation();
   // A default argument is evaluated before `t` exists, and a module-scope
@@ -142,15 +156,43 @@ const AddPlaceByName: React.FC<Props> = ({
   };
 
   if (!open) {
+    const openPicker = () => {
+      setOpen(true);
+      setError('');
+      if (searchOnOpen && defaultQuery.trim()) void runSearch(defaultQuery);
+    };
+
+    if (presentation === 'card') {
+      return (
+        <section className="rounded-[22px] border border-[#e8e7f4] bg-white p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f0edff] text-[#5b3df5]">
+                <MapPinPlus size={17} />
+              </span>
+              <div>
+                <h3 className="font-black text-[#11183d]">{t('placePicker.manualCardTitle')}</h3>
+                <p className="mt-0.5 text-[11px] font-medium text-slate-400">{t('placePicker.manualCardBlurb')}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="open-add-place"
+              onClick={openPicker}
+              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-[#f3f0ff] px-3 text-xs font-black text-[#5b3df5]"
+            >
+              <Plus size={14} />{buttonLabel}
+            </button>
+          </div>
+        </section>
+      );
+    }
+
     return (
       <button
         type="button"
         data-testid="open-add-place"
-        onClick={() => {
-          setOpen(true);
-          setError('');
-          if (searchOnOpen && defaultQuery.trim()) void runSearch(defaultQuery);
-        }}
+        onClick={openPicker}
         className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50/50 px-3 text-xs font-black text-[#5b3df5]"
       >
         <Plus size={14} />{buttonLabel}

@@ -3029,7 +3029,9 @@
     "manualInputPlaceholder": "店名・住所、または Google マップのリンクを貼り付け",
     "linkWouldNotExpand": "このリンクは展開できません。URL 全体を貼り付けるか、店名を直接入力してください。",
     "linkHasNoName": "このリンクには座標しかなく、店名が含まれていません。名前を入力して検索し直してください。",
-    "linkNameNotFound": "このリンクには店名がありますが、一致する場所が見つかりませんでした。別の書き方でお試しください。"
+    "linkNameNotFound": "このリンクには店名がありますが、一致する場所が見つかりませんでした。別の書き方でお試しください。",
+    "manualCardTitle": "手動で場所を追加",
+    "manualCardBlurb": "店名でも Google マップのリンクでも大丈夫"
   },
   "bookingImport": {
     "title": "予約を取り込む",
