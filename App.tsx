@@ -285,6 +285,10 @@ import {
   rememberDeletedSavedPlaces,
   withoutDeletedSavedPlaces,
 } from "./services/deletedSavedPlaces";
+import {
+  needsPlaceBackfill,
+  placeBackfillPatch,
+} from "./services/tripPlaceBackfill";
 import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
 import ExploreBottomNav from "./components/ExploreBottomNav";
@@ -969,6 +973,12 @@ const App: React.FC = () => {
     },
   );
   const ownershipMigrationAttemptedRef = useRef<string | null>(null);
+  /*
+    Which trips have already spent their one place lookup — including the ones
+    where it came back with nothing. A backfill that forgets its attempt still
+    renders a correct cover and bills a Place lookup on every pass doing it.
+  */
+  const placeBackfillAttemptedRef = useRef<Set<string>>(new Set());
   const [returnToCommunityComposer, setReturnToCommunityComposer] =
     useState(false);
   const currentUserId = authUser?.id ?? anonymousUserId;
@@ -1547,6 +1557,36 @@ const App: React.FC = () => {
   const [tripBudget, setTripBudget] = useState<number | undefined>(
     () => initialActiveDraft?.budget,
   );
+
+  /*
+    The place this trip is about, for the trips that never got one.
+
+    「首圖不見了」 — the cover draws a gradient with no placeId, which is right,
+    and until now there was no way out of it: only trip creation ever ran the
+    lookup, so a trip made before the field existed, or one whose lookup failed
+    at the time, stayed blank forever.
+
+    One lookup, once per trip, attempt recorded whether or not it answered. The
+    placeId may be kept indefinitely, so a trip that gets one never asks again.
+    See `tripPlaceBackfill`.
+  */
+  useEffect(() => {
+    const draft = tripDestinationDraft;
+    if (!draft || !needsPlaceBackfill(draft)) return;
+    if (placeBackfillAttemptedRef.current.has(draft.id)) return;
+    placeBackfillAttemptedRef.current.add(draft.id);
+    let active = true;
+    resolvePlace(draft.destination || "", draft.destinationCountry || travelCountry)
+      .catch(() => null)
+      .then((resolved) => {
+        if (!active) return;
+        const patch = placeBackfillPatch(draft, resolved);
+        if (!patch) return;
+        setDrafts((current) =>
+          current.map((entry) => (entry.id === draft.id ? { ...entry, ...patch } : entry)));
+      });
+    return () => { active = false; };
+  }, [tripDestinationDraft?.id, tripDestinationDraft?.destination, tripDestinationDraft?.destinationPlaceId]);
 
   // Destination context handed to the saved-inspiration planner. Memoized so the
   // filtering/grouping pass only reruns when the destination actually changes.
