@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Share2,
+  ShieldCheck,
   Users,
 } from 'lucide-react';
 import { Phase } from '../types';
@@ -36,6 +37,17 @@ interface Props {
   onShare: () => void;
   onSectionChange: (section: WorkspaceSection) => void;
   onQuickAdd: () => void;
+  /**
+   * 旅途安心 / Travel SOS.
+   *
+   * Reachable from 「更多」 at every width, and additionally as the mockup's
+   * shield in the header row — but only at `sm:` and above, with the four
+   * actions that are already conditional there. The comment below records why:
+   * five 44px targets and a title overlap on a 320px phone. The one screen a
+   * traveller may need in an emergency must not be the one that is hard to hit,
+   * so its guaranteed path is the bottom menu, not the pill.
+   */
+  onOpenSos?: () => void;
 }
 
 const TripWorkspaceShell: React.FC<Props> = ({
@@ -54,6 +66,7 @@ const TripWorkspaceShell: React.FC<Props> = ({
   onShare,
   onSectionChange,
   onQuickAdd,
+  onOpenSos,
 }) => {
   const { t } = useTranslation();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -107,6 +120,9 @@ const TripWorkspaceShell: React.FC<Props> = ({
               one of them is in 「更多」 at the bottom, which is within thumb
               reach anyway — so this is a duplicate, not the only way in. */}
           <div className="hidden shrink-0 gap-1.5 sm:flex">
+            {onOpenSos && (
+              <button className={actionClass} onClick={onOpenSos} aria-label={t('workspace.sosAria')}><ShieldCheck size={18} /></button>
+            )}
             <button className={actionClass} onClick={onEdit} aria-label={t('app.trip.edit')}><Pencil size={18} /></button>
             <button className={actionClass} onClick={onDestination} aria-label={t('workspace.destinationSettings')}><Globe size={18} /></button>
             <button className={`${actionClass} relative`} onClick={onTravelers} aria-label={t('app.trip.manageCompanions')}>
@@ -147,7 +163,14 @@ const TripWorkspaceShell: React.FC<Props> = ({
             // it on screen on the narrowest phone rather than trading a wrap for
             // a bleed.
             <div className="absolute bottom-16 right-0 w-max min-w-48 max-w-[min(17rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-              {[[Pencil, 'app.trip.edit', onEdit], [Globe, 'workspace.destinationSettings', onDestination], [Users, 'app.trip.manageCompanions', onTravelers], [Share2, 'trips.shareTrip', onShare]].map(([Icon, labelKey, handler]) => (
+              {([
+                // First, and at every width: this is the emergency one.
+                ...(onOpenSos ? [[ShieldCheck, 'sos.entry', onOpenSos]] : []),
+                [Pencil, 'app.trip.edit', onEdit],
+                [Globe, 'workspace.destinationSettings', onDestination],
+                [Users, 'app.trip.manageCompanions', onTravelers],
+                [Share2, 'trips.shareTrip', onShare],
+              ] as [React.ElementType, string, () => void][]).map(([Icon, labelKey, handler]) => (
                 <button key={labelKey as string} onClick={() => { (handler as () => void)(); setMoreOpen(false); }} className="flex min-h-11 w-full items-center gap-3 whitespace-nowrap rounded-xl px-3 text-left text-sm font-bold text-slate-700 hover:bg-slate-50">
                   {React.createElement(Icon as React.ElementType, { size: 17 })}{t(labelKey as string)}
                 </button>

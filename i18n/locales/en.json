@@ -3136,7 +3136,8 @@
     "navOverview": "Overview",
     "navPlanning": "Plan",
     "navRecords": "Ledger",
-    "quickAddAria": "Add a record"
+    "quickAddAria": "Add a record",
+    "sosAria": "Travel SOS"
   },
   "creator": {
     "blurb": "Who your travel notes have helped.",
@@ -3467,5 +3468,56 @@
     "trajectory": "Footprint",
     "narrative": "AI narrative",
     "share": "Share memoir"
+  },
+  "sos": {
+    "title": "Travel SOS",
+    "intro": "In an emergency on your trip, this is where to find local help.",
+    "entry": "Travel SOS",
+    "currentPlaceLabel": "Current location",
+    "placeUnknown": "No place set yet",
+    "changePlace": "Change place",
+    "emergencyNumbersTitle": "Local emergency numbers (24h)",
+    "notYetAvailable": "Not yet available",
+    "fromAbroad": "From abroad: {{number}}",
+    "checkedAt": "Checked {{date}}",
+    "purpose": {
+      "police": "Police",
+      "ambulance": "Ambulance",
+      "fire": "Fire",
+      "coastguard": "Coast guard",
+      "unified": "Emergency line",
+      "other": "Other"
+    },
+    "unavailable": {
+      "no_country": "We do not know which country you are in yet. Please choose a place.",
+      "no_data": "Emergency numbers for this country are not available yet.",
+      "not_verified": "The numbers for this country have not been confirmed against official sources, so they are not shown."
+    },
+    "blocks": {
+      "consulate": {
+        "title": "Consular help",
+        "subtitle": "Your country's representative office here"
+      },
+      "nearby": {
+        "title": "Help nearby",
+        "subtitle": "Police stations, hospitals and emergency rooms nearby"
+      },
+      "phrases": {
+        "title": "Emergency phrase card",
+        "subtitle": "Common phrases, translation and guidance"
+      },
+      "shareLocation": {
+        "title": "Share my location",
+        "subtitle": "Send your location to companions or an emergency contact"
+      },
+      "documents": {
+        "title": "Important documents",
+        "subtitle": "Passport, insurance, lodging address, emergency contact"
+      },
+      "offline": {
+        "title": "Offline emergency info",
+        "subtitle": "Viewable without a network connection"
+      }
+    }
   }
 }

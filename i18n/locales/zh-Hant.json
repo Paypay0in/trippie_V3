@@ -3050,7 +3050,8 @@
     "navOverview": "總覽",
     "navPlanning": "規劃",
     "navRecords": "記帳",
-    "quickAddAria": "新增記錄"
+    "quickAddAria": "新增記錄",
+    "sosAria": "旅途安心"
   },
   "creator": {
     "blurb": "你的旅行紀錄幫到了誰。",
@@ -3363,5 +3364,56 @@
     "trajectory": "足跡軌跡",
     "narrative": "AI 敘事",
     "share": "分享回憶"
+  },
+  "sos": {
+    "title": "旅途安心",
+    "intro": "旅途中遇到緊急狀況？這裡提供你在當地的即時協助。",
+    "entry": "旅途安心",
+    "currentPlaceLabel": "目前所在地",
+    "placeUnknown": "尚未設定地點",
+    "changePlace": "變更地點",
+    "emergencyNumbersTitle": "當地緊急電話（24小時）",
+    "notYetAvailable": "尚未提供",
+    "fromAbroad": "從國外撥打：{{number}}",
+    "checkedAt": "資料核對日 {{date}}",
+    "purpose": {
+      "police": "警察",
+      "ambulance": "救護車",
+      "fire": "消防",
+      "coastguard": "海上保安",
+      "unified": "緊急專線",
+      "other": "其他"
+    },
+    "unavailable": {
+      "no_country": "還不知道你在哪個國家，請先選擇地點。",
+      "no_data": "這個國家的緊急電話尚未提供。",
+      "not_verified": "這個國家的號碼還沒通過官方來源核對，暫不顯示。"
+    },
+    "blocks": {
+      "consulate": {
+        "title": "駐外協助",
+        "subtitle": "我國駐當地代表處"
+      },
+      "nearby": {
+        "title": "附近求助",
+        "subtitle": "附近的警察局、醫院、急診"
+      },
+      "phrases": {
+        "title": "當地語言求救卡",
+        "subtitle": "常用求助句、翻譯與情境指引"
+      },
+      "shareLocation": {
+        "title": "分享我的位置",
+        "subtitle": "將目前位置傳送給旅伴或緊急聯絡人"
+      },
+      "documents": {
+        "title": "重要資料",
+        "subtitle": "護照資訊、旅遊保險、住宿地址、緊急聯絡人"
+      },
+      "offline": {
+        "title": "離線緊急資訊",
+        "subtitle": "即使沒有網路也能查看"
+      }
+    }
   }
 }

@@ -289,6 +289,7 @@ import {
   needsPlaceBackfill,
   placeBackfillPatch,
 } from "./services/tripPlaceBackfill";
+import TravelSosScreen from "./components/TravelSosScreen";
 import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
 import ExploreBottomNav from "./components/ExploreBottomNav";
@@ -979,6 +980,8 @@ const App: React.FC = () => {
     renders a correct cover and bills a Place lookup on every pass doing it.
   */
   const placeBackfillAttemptedRef = useRef<Set<string>>(new Set());
+  /** 旅途安心, opened from inside a trip and returning to it. */
+  const [isSosOpen, setIsSosOpen] = useState(false);
   const [returnToCommunityComposer, setReturnToCommunityComposer] =
     useState(false);
   const currentUserId = authUser?.id ?? anonymousUserId;
@@ -7657,6 +7660,36 @@ const App: React.FC = () => {
 
   // --- RENDER ---
 
+  /*
+    旅途安心, rendered the way the saved-destination detail below is: opened
+    off a piece of state and returning to the trip, rather than a new entry in
+    the `viewMode` union — it belongs to the trip it was opened from.
+
+    The country comes from the trip, with `travelCountry` behind it, and
+    nothing substitutes a guess when both are empty: the screen says it does
+    not know and offers the picker. See Q1=A.
+  */
+  if (isSosOpen) {
+    return (
+      <TravelSosScreen
+        country={tripDestinationDraft?.destinationCountry || travelCountry || undefined}
+        /*
+          The trip has no city field — `destination` is what the traveller
+          wrote, which is the nearest honest thing to the mockup's 日本・東京.
+          The screen drops it when it just repeats the country.
+        */
+        city={tripDestination}
+        onBack={() => setIsSosOpen(false)}
+        /*
+          T1 has no picker of its own yet, so 變更地點 opens the destination
+          settings the trip already has. One place where the trip's country is
+          set — a second picker would be a second answer to the same question.
+        */
+        onChangePlace={() => { setIsSosOpen(false); setIsTravelIdentityOpen(true); }}
+      />
+    );
+  }
+
   if (selectedSavedDestination) {
     const destinationItems = savedTravelInspirations.filter(
       (item) =>
@@ -9346,6 +9379,7 @@ const App: React.FC = () => {
           onShare={handleOpenShareModal}
           onSectionChange={setWorkspaceSection}
           onQuickAdd={() => setIsGlobalActionOpen(true)}
+          onOpenSos={() => setIsSosOpen(true)}
         >
           {/*
             Said where she is, not where she happens to end up.
