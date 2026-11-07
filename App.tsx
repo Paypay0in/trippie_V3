@@ -280,6 +280,11 @@ import {
   rememberDeletedTrip,
   withoutDeleted,
 } from "./services/deletedTrips";
+import {
+  reconcileDeletedSavedPlaces,
+  rememberDeletedSavedPlaces,
+  withoutDeletedSavedPlaces,
+} from "./services/deletedSavedPlaces";
 import TravelHome from "./components/TravelHome";
 import AppBottomNav, { AppSection } from "./components/AppBottomNav";
 import ExploreBottomNav from "./components/ExploreBottomNav";
@@ -2087,6 +2092,13 @@ const App: React.FC = () => {
   }, [communityPosts]);
   useEffect(() => {
     saveSavedTravelInspirations(savedTravelInspirations);
+    /*
+      A place that is on the shelf is, by definition, not deleted. Driven off
+      the list rather than written into each of the four save paths — screenshot,
+      manual entry, a published trip, somebody's collection — because a rule
+      with four homes is a rule with four answers.
+    */
+    reconcileDeletedSavedPlaces(savedTravelInspirations);
     setSavePipelineDebug((current) => ({
       ...current,
       persistEffectTriggered: true,
@@ -4003,6 +4015,14 @@ const App: React.FC = () => {
   const handleRemoveInspirations = (inspirationIds: string[]) => {
     const removing = new Set(inspirationIds);
     if (removing.size === 0) return;
+    /*
+      Written down before the list changes, so the deletion outlives this
+      screen. A trip that is not open cannot prune its own rows, and the next
+      sync of the trip these places belong to replaces the shelf with the
+      server's copy. See `deletedSavedPlaces`.
+    */
+    rememberDeletedSavedPlaces(
+      savedTravelInspirations.filter((inspiration) => removing.has(inspiration.id)));
     setSavedTravelInspirations((current) =>
       current.filter((inspiration) => !removing.has(inspiration.id)));
   };
@@ -5249,7 +5269,14 @@ const App: React.FC = () => {
         setSavedTravelInspirations((current) =>
           applyTripInspirations(
             current,
-            snapshot.inspirations ?? [],
+            /*
+              Minus what this device deleted. The replacement below is what
+              hands a deleted place back — it is the server's copy, and the
+              server has not been told yet. Filtering here is also what lets
+              the next push prune the row: the prune deletes what this device
+              was holding and no longer holds.
+            */
+            withoutDeletedSavedPlaces(snapshot.inspirations ?? []),
             (inspiration) => matchesTripDestination(inspiration, tripInspirationContext).matched,
           ));
       }
@@ -6188,6 +6215,13 @@ const App: React.FC = () => {
     showToast(t('app.toast.postSavesResetDev'));
   };
   const removeSavedTravelInspiration = (itemId: string) => {
+    /*
+      「我剛剛刪除了首爾的收藏 又跑回來了」 — deleted here, on the shelf, where no
+      trip is open to carry the deletion to the server. The refusal is recorded
+      so the sync of the trip that owns the place honours it later.
+    */
+    rememberDeletedSavedPlaces(
+      savedTravelInspirations.filter((item) => item.id === itemId));
     setSavedTravelInspirations((current) =>
       current.filter((item) => item.id !== itemId),
     );
