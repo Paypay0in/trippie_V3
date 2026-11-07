@@ -25,6 +25,17 @@ export interface ConfirmRequest {
    * were not being checked at all.
    */
   onConfirm?: () => void;
+  /**
+   * The exact word the traveller must type before the action unlocks.
+   *
+   * It lives on the request, not only on the component, because the two
+   * ConfirmDialog render sites in App.tsx share one `confirmRequest`: a prop
+   * set at the render site would have to be written twice and kept agreeing
+   * forever, and the day they disagreed one screen would destroy something on
+   * a single tap. The handler that knows the action is unrecoverable is the
+   * one that says so.
+   */
+  requireTypedText?: string;
 }
 
 interface Props {
@@ -83,14 +94,17 @@ const ConfirmDialog: React.FC<Props> = ({
   // switching targets clears the box.
   useEffect(() => {
     setTyped('');
-  }, [request?.title, request?.description]);
+  }, [request?.title, request?.description, request?.requireTypedText]);
 
   if (!request) return null;
 
   const tone = request.tone || 'danger';
   const Icon = ICONS[request.icon || (tone === 'danger' ? 'trash' : 'warning')];
   const isDanger = tone === 'danger';
-  const isTypedOk = !requireTypedText || typed.trim() === requireTypedText;
+  // Either source arms the gate; the request wins nothing and loses nothing,
+  // it is simply the one a shared dialog can carry per action.
+  const typedTarget = requireTypedText ?? request.requireTypedText;
+  const isTypedOk = !typedTarget || typed.trim() === typedTarget;
 
   return (
     <div
@@ -134,18 +148,18 @@ const ConfirmDialog: React.FC<Props> = ({
           </p>
         )}
 
-        {requireTypedText && (
+        {typedTarget && (
           <>
             <label className="mt-6 block text-[15px] font-bold text-slate-500">
-              {t('common.typeToConfirm', { text: requireTypedText })}
+              {t('common.typeToConfirm', { text: typedTarget })}
             </label>
             <input
               type="text"
               data-testid={inputTestId}
               value={typed}
               onChange={event => setTyped(event.target.value)}
-              placeholder={requireTypedText}
-              aria-label={t('common.typeToConfirmAria', { text: requireTypedText })}
+              placeholder={typedTarget}
+              aria-label={t('common.typeToConfirmAria', { text: typedTarget })}
               className="mt-2 h-[52px] w-full rounded-2xl border border-slate-200 px-4 text-center text-[19px] font-black tracking-[.2em] outline-none placeholder:text-[17px] placeholder:font-medium placeholder:tracking-normal placeholder:text-slate-300 focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </>

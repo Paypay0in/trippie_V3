@@ -6414,6 +6414,11 @@ const App: React.FC = () => {
       confirmLabel: t('common.delete'),
       tone: "danger",
       icon: "trash",
+      // Unrecoverable: the record lives only in this device's trippie_history
+      // and nothing restores it. 「若刪除將完全無法恢復」 — so it is typed, not
+      // tapped. A deleted trip *draft* deliberately does not come here: the
+      // cloud still holds it and the recoverable-trip notice offers it back.
+      requireTypedText: t('common.delete'),
       onConfirm: () => {
         setTripHistory((prev) => prev.filter((t) => t.id !== id));
         showToast(t('app.toast.tripRecordDeleted'), "error");
@@ -7428,6 +7433,9 @@ const App: React.FC = () => {
       confirmLabel: t('common.delete'),
       tone: "danger",
       icon: "trash",
+      // The dialog already said 「刪除後無法復原」 and then took a single tap.
+      // Saying it and not gating it is worse than not saying it.
+      requireTypedText: t('common.delete'),
       onConfirm: () => {
         setPostComments((current) => {
           const next = current.filter((item) => item.id !== comment.id);
@@ -7446,6 +7454,9 @@ const App: React.FC = () => {
       confirmLabel: t('common.delete'),
       tone: "danger",
       icon: "trash",
+      // Local removal plus deleteRemotePost: gone for every reader, with no
+      // tombstone that could put it back.
+      requireTypedText: t('common.delete'),
       onConfirm: () => {
         setCommunityPosts((current) => current.filter((item) => item.id !== post.id));
         if (isSyncAvailable() && isPushablePost(post, authUser?.id)) void deleteRemotePost(post.id);
