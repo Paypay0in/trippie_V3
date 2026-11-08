@@ -119,10 +119,27 @@ const TripWorkspaceShell: React.FC<Props> = ({
               320px row: they overlapped the title instead of wrapping. Every
               one of them is in 「更多」 at the bottom, which is within thumb
               reach anyway — so this is a duplicate, not the only way in. */}
+          {/*
+            旅途安心, at every width — unlike the four beside it.
+
+            「要放在右上角 我跟你說了」. I had put it in the `sm:flex` group below,
+            reusing that group's reason: five 44px targets and a title overlap
+            at 320px. Wrong on both counts. On a phone this row holds the back
+            arrow and the wordmark, so one more target is not the five that
+            collided — and this is the screen somebody looks for in trouble, on
+            the device they are holding, which is a phone. Two taps deep is the
+            wrong place for it.
+          */}
+          {onOpenSos && (
+            <button
+              className={`${actionClass} shrink-0`}
+              onClick={onOpenSos}
+              aria-label={t('workspace.sosAria')}
+            >
+              <ShieldCheck size={18} />
+            </button>
+          )}
           <div className="hidden shrink-0 gap-1.5 sm:flex">
-            {onOpenSos && (
-              <button className={actionClass} onClick={onOpenSos} aria-label={t('workspace.sosAria')}><ShieldCheck size={18} /></button>
-            )}
             <button className={actionClass} onClick={onEdit} aria-label={t('app.trip.edit')}><Pencil size={18} /></button>
             <button className={actionClass} onClick={onDestination} aria-label={t('workspace.destinationSettings')}><Globe size={18} /></button>
             <button className={`${actionClass} relative`} onClick={onTravelers} aria-label={t('app.trip.manageCompanions')}>
