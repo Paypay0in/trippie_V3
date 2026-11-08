@@ -129,14 +129,22 @@ const TripWorkspaceShell: React.FC<Props> = ({
             collided — and this is the screen somebody looks for in trouble, on
             the device they are holding, which is a phone. Two taps deep is the
             wrong place for it.
+
+            「我覺得你只放盾牌不夠 要放字」. A shield alone is a guess — it reads
+            as security, verification or insurance before it reads as emergency
+            help, and the one moment this button matters is the moment nobody
+            is willing to guess. So the name rides with the icon at every
+            width. The four beside it stay icon-only: none of them is the one
+            somebody hunts for in trouble.
           */}
           {onOpenSos && (
             <button
-              className={`${actionClass} shrink-0`}
+              className={`${actionClass} shrink-0 gap-1.5 px-3`}
               onClick={onOpenSos}
               aria-label={t('workspace.sosAria')}
             >
               <ShieldCheck size={18} />
+              <span className="whitespace-nowrap text-xs font-black">{t('sos.entry')}</span>
             </button>
           )}
           <div className="hidden shrink-0 gap-1.5 sm:flex">

@@ -63,6 +63,15 @@ describe('the 旅途安心 entry in the trip header', () => {
     expect(hiddenOnPhone(entry)).toBe(false);
   });
 
+  it('names itself, because a bare shield is a guess', () => {
+    // 「我覺得你只放盾牌不夠 要放字」. The label lives inside the button, not
+    // beside it, so no layout change can leave the icon without its name.
+    shell();
+    const entry = screen.getByLabelText(i18n.t('workspace.sosAria'));
+    expect(entry.textContent).toContain(i18n.t('sos.entry'));
+    expect(hiddenOnPhone(entry.querySelector('span'))).toBe(false);
+  });
+
   it('leaves the four crowded actions hidden on phones, as they were', () => {
     // Not a licence to reopen the header. Those four overlapped the title at
     // 320px and are reachable from 「更多」; only the emergency one moves.
