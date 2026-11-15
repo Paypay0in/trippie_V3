@@ -29,10 +29,10 @@ Every GitHub Issue must contain: problem, scope, non-goals, acceptance criteria,
 - Agents should have least-privilege tokens and capped API spending.
 
 ## Current implementation status
-This repository contains protocol and CI foundations only. It does **not** yet contain an autonomous Claude/GPT orchestrator or API integrations. Do not describe it as unattended multi-agent automation.
+This repository contains protocol, CI, and a local interactive Claude Code task launcher (see `docs/CLAUDE_CODE_SETUP.md`). It does **not** contain an autonomous Claude/GPT orchestrator, automatic GPT PR reviewer, or API integrations. Do not describe it as unattended multi-agent automation.
 
 ## Next steps
 1. Audit and remove client-side Gemini API key injection.
 2. Add authenticated persistence and authorization to Socket.IO trip rooms.
 3. Add unit/integration/browser tests for Phase 1 collaboration.
-4. Add a separately hosted, budget-capped orchestrator after explicit Founder authorization.
+4. Use Claude Code locally under the existing subscription and submit Draft PRs for ChatGPT review. A separately hosted autonomous orchestrator would require its own authorization, credentials, and budget.
