@@ -1,4 +1,5 @@
 import { entryPoints, worthListing } from '../services/entryPoints';
+import type { BriefTransport } from '../services/tripPlanBrief';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n/config';
 import { isPassportAdvisory } from '../services/entryRuleGrouping';
@@ -207,6 +208,8 @@ interface Props {
    * that a traveller discovers at a border.
    */
   tripScope?: 'domestic' | 'international';
+  /** How the traveller said they would get around, so the boarding-pass ask and the 航班資訊 form reach the same answer. */
+  tripTransport?: BriefTransport[];
   /** Departure date, used to spot guidance whose period has already passed. */
   tripStartDate?: string;
   /**
@@ -283,7 +286,7 @@ const TIP_LABELS: Record<DestinationTip['kind'], string> = {
 const TripPlanOverview: React.FC<Props> = ({
   travellerBrief = '',
   briefChips = [],
-  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, tripScope, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, passportExpiry, passportExpiryState = 'absent', onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
+  promptQuestions = [], flightAnchors = [], stays = [], onAddAnchors, onAddRentalFromScreenshot, onSavePlacesFromScreenshot, onAddStayItemsFromScreenshot, onAddFlightAnchorsFromScreenshot, screenshotFlightArrivals = [], onStartTripFromScreenshotFlights, expenses, shoppingList, itinerary, companionCount, dateRange, onContinuePlanning, onEnterTripMode, onManageMembers, onExploreInspiration, destination, destinationCountry, tripScope, tripTransport, travelRules, variant = 'plan', onRequestHumanHelp, onToggleTicketBought, onPublishServiceRequest, hasPassport, passportLabel, passportExpiry, passportExpiryState = 'absent', onResearchEntryRules, onOpenIdentity, passportCountryCode, onSelectPassportCountry, onChangeDestination, tripStartDate, communityPosts, onOpenPost, savedInspirations, onTogglePreparationItem, onAddPreparationItems, onApplyPlanOption, budgetBrief, originLatitude, originLongitude, tripEndDate, onPlanOptionsShown, onPlanRevisionRequested, onPlanOptionSelected, onPlanOptionDismissed, onPlanAddedToItinerary }) => {
   const { t } = useTranslation();
   const shoppingPreTasks = shoppingList.filter(item => item.phase === 'pre');
   /*
@@ -598,7 +601,7 @@ const TripPlanOverview: React.FC<Props> = ({
     different: a plan written without knowing where the traveller sleeps reads
     exactly like one written with it, right up to the day they try to use it.
   */
-  const missing = missingAnchors({ flightAnchors, stays, tripScope });
+  const missing = missingAnchors({ flightAnchors, stays, tripScope, tripTransport });
 
   /*
     Flights that disagree with the trip they are on.

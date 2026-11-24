@@ -8458,7 +8458,12 @@ const App: React.FC = () => {
       onFlightModeChange={setFlightMode}
     />
   );
-  const flightAnchorsSection = sectionIsExpected('flights', tripTransport) || flightAnchors.length > 0
+  /*
+    「國內旅遊又出現了飛機」. The `|| flightAnchors.length > 0` that used to sit
+    here is inside the rule now: entered data outranking a guess is part of the
+    answer, not a correction applied at one of the two call sites that asked.
+  */
+  const flightAnchorsSection = sectionIsExpected('flights', tripTransport, { tripScope, flightAnchors })
     ? flightAnchorsForm
     : (
       <OptionalPlanSection label={t('plan.section.flights')} testId="flights-section-disclosure">
@@ -9469,6 +9474,7 @@ const App: React.FC = () => {
                   traveller discovers at the border.
                 */
                 tripScope={resolvedTripScope}
+                tripTransport={tripTransport}
                 travelRules={travelRules}
                 hasPassport={Boolean(resolvedPassportId)}
                 passportLabel={resolvedPassportLabel}
@@ -9631,6 +9637,7 @@ const App: React.FC = () => {
                 detectDestinationFromTripName(tripDestination)?.country
               }
               tripScope={resolvedTripScope}
+              tripTransport={tripTransport}
               travelRules={travelRules}
               hasPassport={Boolean(resolvedPassportId)}
               passportLabel={resolvedPassportLabel}

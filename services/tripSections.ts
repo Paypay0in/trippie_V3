@@ -1,4 +1,6 @@
 import type { BriefTransport } from './tripPlanBrief';
+import type { FlightAnchor } from '../types';
+import { tripInvolvesFlying } from './tripInvolvesFlying';
 
 /**
  * Which preparation sections a trip is expected to need.
@@ -26,6 +28,17 @@ const SECTION_MODES: Record<PlanSection, BriefTransport[]> = {
 export type PlanSection = 'flights' | 'rental';
 
 /**
+ * What else the trip knows, when the stated plan is not the whole answer.
+ *
+ * Only 'flights' reads these, and only through `tripInvolvesFlying`. They are
+ * optional so the rental call site stays exactly as it was.
+ */
+export interface SectionContext {
+  tripScope?: 'domestic' | 'international';
+  flightAnchors?: Partial<Pick<FlightAnchor, 'departureDate'>>[];
+}
+
+/**
  * Whether this trip is expected to need a section.
  *
  * Nobody said is not 'no'. An empty or absent selection shows everything, for
@@ -36,7 +49,22 @@ export type PlanSection = 'flights' | 'rental';
 export const sectionIsExpected = (
   section: PlanSection,
   transport?: BriefTransport[],
+  context: SectionContext = {},
 ): boolean => {
+  /*
+    Flying is not decided here. 「國內旅遊又出現了飛機」 — this function and
+    `missingAnchors` were both answering 「does this trip involve a plane?」,
+    from different fields, and disagreeing: the ask had gone quiet for a
+    domestic trip while this one still opened the boarding-pass form. One home
+    now, and `tests/oneHomeForFlying` asserts it stays one.
+  */
+  if (section === 'flights') {
+    return tripInvolvesFlying({
+      tripScope: context.tripScope,
+      tripTransport: transport,
+      flightAnchors: context.flightAnchors,
+    });
+  }
   if (!transport || transport.length === 0) return true;
   return transport.some(mode => SECTION_MODES[section].includes(mode));
 };

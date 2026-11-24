@@ -1,6 +1,8 @@
 import { FlightAnchor } from '../types';
 import { StaySpan } from './stayIntake';
 import { formatStayDates } from './stayDateWording';
+import { tripInvolvesFlying } from './tripInvolvesFlying';
+import type { BriefTransport } from './tripPlanBrief';
 
 /**
  * The two fixed points a trip is actually planned around.
@@ -37,18 +39,29 @@ export interface PlanningAnchorsInput {
    * the prompt — `anchorsBrief` reports what exists and never asks.
    */
   tripScope?: 'domestic' | 'international';
+  /**
+   * How the traveller said they would get around, if they said.
+   *
+   * Carried so the ask and the 航班資訊 form reach the same answer: a trip
+   * crossing a border by train is not asked for a boarding pass either.
+   */
+  tripTransport?: BriefTransport[];
 }
 
 export type MissingAnchor = 'flights' | 'stays';
 
 /** What the trip still needs before a plan can be shaped around anything. */
-export const missingAnchors = ({ flightAnchors = [], stays = [], tripScope }: PlanningAnchorsInput): MissingAnchor[] => {
+export const missingAnchors = ({ flightAnchors = [], stays = [], tripScope, tripTransport }: PlanningAnchorsInput): MissingAnchor[] => {
   const missing: MissingAnchor[] = [];
-  // A flight with no date anchors nothing: the point is knowing which hours
-  // of which day are already spent. A domestic trip is never asked — see
-  // `tripScope` above. `undefined` is not domestic, so an unclassified trip
-  // is still asked, exactly as the entry-rules block treats it.
-  if (tripScope !== 'domestic' && !flightAnchors.some(anchor => anchor.departureDate)) {
+  // A flight with no date anchors nothing: the point is knowing which hours of
+  // which day are already spent.
+  //
+  // Whether to bring flying up at all is not decided here any more. It was,
+  // and `tripSections` decided it a second time from a different field, so the
+  // app stopped asking a 花蓮 trip for a boarding pass and then showed it the
+  // form. See `tripInvolvesFlying` — one home, both callers.
+  if (tripInvolvesFlying({ tripScope, tripTransport, flightAnchors })
+    && !flightAnchors.some(anchor => anchor.departureDate)) {
     missing.push('flights');
   }
   // A stay is only an anchor once it says where. A name with no address and

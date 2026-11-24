@@ -15,9 +15,15 @@ import { sectionIsExpected } from '../services/tripSections';
  * 3. Said 火車 but a flight is already on the trip → the section shows anyway.
  *    A gate that hides data the traveller already entered is worse than no
  *    gate, and this is the half a careless reading deletes.
- * 4. Scope decides nothing here. 松山→澎湖 is a domestic flight and a border
- *    can be crossed by train, so the earlier tripScope-keyed version
- *    (ab4f2d8) was a guess wearing a rule's clothes.
+ * 4. Scope never overrides the stated plan. 松山→澎湖 is a domestic flight and
+ *    a border can be crossed by train, so a tripScope-keyed version would be a
+ *    guess wearing a rule's clothes.
+ *
+ * Corrected 2026-11-23: point 4 used to read 「scope decides nothing here」, and
+ * that sentence is why 「國內旅遊又出現了飛機」 came back. Scope does decide one
+ * case — the one where nobody answered — and it was already deciding it in
+ * `missingAnchors`, which is how the ask and the form came to disagree. Flying
+ * lives in `tripInvolvesFlying` now; see `tests/oneHomeForFlying`.
  */
 
 const APP = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
@@ -70,7 +76,15 @@ describe('the gate in App.tsx', () => {
     the module because the module cannot see the trip's anchors.
   */
   it('shows a section the trip already has data for', () => {
-    expect(APP).toContain("sectionIsExpected('flights', tripTransport) || flightAnchors.length > 0");
+    /*
+      Flying moved. 「國內旅遊又出現了飛機」 — the anchors check used to be an
+      `|| flightAnchors.length > 0` written here, beside a gate that answered
+      the same question `missingAnchors` was answering elsewhere from a field
+      this one never read. It is inside `tripInvolvesFlying` now, asserted as
+      behaviour in `tests/oneHomeForFlying`, so the trip's own flights are part
+      of the rule rather than a correction applied at one of its call sites.
+    */
+    expect(APP).toContain("sectionIsExpected('flights', tripTransport, { tripScope, flightAnchors })");
     expect(APP).toContain("sectionIsExpected('rental', tripTransport) || carRentals.length > 0");
   });
 
