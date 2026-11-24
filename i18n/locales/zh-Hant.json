@@ -1495,7 +1495,10 @@
     "invite": {
       "noLink": "沒有拿到邀請連結。",
       "joinFailed": "加入失敗，請再試一次。"
-    }
+    },
+    "cleanUpEmpty": "清掉空的旅程（{{count}}）",
+    "cleanUpEmptyTitle": "刪除 {{count}} 趟空的旅程？",
+    "cleanUpEmptyBody": "{{names}}。這些旅程沒有行程、記帳、收藏地點、購物清單、航班、租車或旅伴。刪除後無法復原。"
   },
   "app": {
     "action": {

@@ -1542,7 +1542,10 @@
     "invite": {
       "noLink": "No invite link came back.",
       "joinFailed": "Could not join. Try again."
-    }
+    },
+    "cleanUpEmpty": "Delete empty trips ({{count}})",
+    "cleanUpEmptyTitle": "Delete {{count}} empty trips?",
+    "cleanUpEmptyBody": "{{names}}. These trips have no itinerary, expenses, saved places, shopping list, flights, car hire or companions. This cannot be undone."
   },
   "app": {
     "action": {

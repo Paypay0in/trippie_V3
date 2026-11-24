@@ -285,7 +285,10 @@
     "invite": {
       "noLink": "招待リンクを取得できませんでした。",
       "joinFailed": "参加できませんでした。もう一度お試しください。"
-    }
+    },
+    "cleanUpEmpty": "空の旅程を削除（{{count}}）",
+    "cleanUpEmptyTitle": "{{count}} 件の空の旅程を削除しますか？",
+    "cleanUpEmptyBody": "{{names}}。これらの旅程には行程・記録・保存した場所・買い物リスト・フライト・レンタカー・同行者がありません。削除すると元に戻せません。"
   },
   "expense": {
     "me": "自分",

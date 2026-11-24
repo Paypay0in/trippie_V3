@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Trip } from '../types';
 import { TripDraft } from '../services/tripPersistence';
+import { emptyTripDrafts } from '../services/emptyTripDrafts';
 import {
   DestinationImage,
   fetchDestinationImage,
@@ -238,6 +239,14 @@ const TripSelectionScreen: React.FC<Props> = ({
   /** The trip awaiting an explicit delete confirmation. */
   const [pendingDeleteDraft, setPendingDeleteDraft] = useState<TripDraft | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  /**
+   * The batch waiting on a typed confirmation, frozen at the moment it was
+   * offered — not recomputed while the dialog is open. A trip that stops being
+   * empty behind the dialog must not be swept up by a sentence the traveller
+   * already read.
+   */
+  const [pendingEmptySweep, setPendingEmptySweep] = useState<TripDraft[] | null>(null);
+  const [sweepError, setSweepError] = useState('');
 
   const activeDraft = activeDraftId
     ? drafts.find(draft => draft.id === activeDraftId)
@@ -276,6 +285,15 @@ const TripSelectionScreen: React.FC<Props> = ({
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [drafts, primaryTrip?.draft?.id],
   );
+
+  /**
+   * The ones started and never filled in. One rule, in `emptyTripDrafts`.
+   *
+   * Scoped to `otherDrafts` so the trip the traveller is currently in is never
+   * a candidate: it is on screen above this list, and a sweep that takes the
+   * open trip reads as the app deleting itself.
+   */
+  const emptyDrafts = useMemo(() => emptyTripDrafts(otherDrafts), [otherDrafts]);
 
   const otherTrips = useMemo(
     () =>
@@ -734,6 +752,27 @@ const TripSelectionScreen: React.FC<Props> = ({
                 </p>
                 <h2 className="mt-1 text-lg font-black text-[#10204a]">{t('trips.otherTrips')}</h2>
               </div>
+              {/*
+                「先把之前的只要是空的都旅程都刪掉吧」.
+
+                Only offered when there is more than one, because clearing a
+                single empty trip is the card's own delete button and a second
+                way to do it is a second rule to keep in step.
+
+                It names them in the confirmation rather than counting them.
+                「delete 7 trips」 is not something anybody can check before
+                agreeing to it.
+              */}
+              {emptyDrafts.length > 1 && (
+                <button
+                  type="button"
+                  data-testid="clean-up-empty-drafts"
+                  onClick={() => setPendingEmptySweep(emptyDrafts)}
+                  className="shrink-0 rounded-full border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] font-black text-rose-600"
+                >
+                  {t('trips.cleanUpEmpty', { count: emptyDrafts.length })}
+                </button>
+              )}
             </div>
             <div className="space-y-2.5">
               {otherDrafts.map((draft) => (
@@ -871,6 +910,58 @@ const TripSelectionScreen: React.FC<Props> = ({
           }
           // The card stays, and the dialog explains why.
           setDeleteError(t('trips.deleteFailed'));
+        }}
+      />
+
+      {/*
+        Clearing the empty ones, behind the same typed gate as deleting one.
+
+        「若刪除將完全無法恢復！確認請輸入刪除」 (2026-11-05) was written for single
+        deletions and applies here with more force, not less: this is the only
+        control in the app that removes several trips on one tap.
+      */}
+      <ConfirmDialog
+        request={
+          pendingEmptySweep
+            ? {
+                title: t('trips.cleanUpEmptyTitle', { count: pendingEmptySweep.length }),
+                description: t('trips.cleanUpEmptyBody', {
+                  names: pendingEmptySweep.map(getDraftDisplayName).join('、'),
+                }),
+                confirmLabel: t('trips.deleteTrip'),
+                tone: 'danger',
+                icon: 'trash',
+              }
+            : null
+        }
+        error={sweepError}
+        requireTypedText={t('trips.deleteTypedConfirmation')}
+        dialogTestId="clean-up-empty-dialog"
+        cancelTestId="cancel-clean-up-empty"
+        confirmTestId="confirm-clean-up-empty"
+        inputTestId="clean-up-empty-confirm-input"
+        titleId="clean-up-empty-title"
+        onCancel={() => {
+          setPendingEmptySweep(null);
+          setSweepError('');
+        }}
+        onConfirm={() => {
+          if (!pendingEmptySweep) return;
+          /*
+            Every one that can go, goes. A batch that stopped at the first
+            refusal would leave the traveller with a list they already agreed
+            to delete and no way to know which part of it happened.
+          */
+          const refused = pendingEmptySweep.filter(draft => !onDeleteDraft(draft.id));
+          if (refused.length === 0) {
+            setPendingEmptySweep(null);
+            setSweepError('');
+            return;
+          }
+          // Narrowed to what is left, so a second attempt cannot re-delete
+          // the ones that already went.
+          setPendingEmptySweep(refused);
+          setSweepError(t('trips.deleteFailed'));
         }}
       />
 
