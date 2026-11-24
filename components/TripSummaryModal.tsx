@@ -7,7 +7,7 @@ import { isRefundableCategory } from '../services/refundableCategories';
 import { creditedRefundTwd, findDuplicateRefund, isRefundEntry } from '../services/refundSettlement';
 import { refundClaimableBy } from '../services/refundClaimant';
 import { sharedWithSomebody } from '../services/refundSharedNote';
-import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
+import { Expense, Category, PaymentMethod, Phase, SettlementBatch, TaxRule, TripMember } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { viewerSettlementBalance, viewerShareOfTrip } from '../services/viewerSettlementBalance';
 import { expenseCostToViewer } from '../services/viewerSpend';
@@ -30,6 +30,15 @@ interface Props {
    */
   viewerMemberId?: string;
   ownerMemberId?: string;
+  /**
+   * The roster and the settlements already recorded.
+   *
+   * 「已經結算完了結果還有數字」 — without these the 待補付 line states the
+   * balance before anybody paid anybody, while the settlement card beside it
+   * subtracts the batches. One screen, two answers.
+   */
+  members?: TripMember[];
+  batches?: SettlementBatch[];
   initialTripName?: string;
   allowArchive?: boolean;
   /**
@@ -45,7 +54,7 @@ interface Props {
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#84cc16'];
 
-const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true, viewerMemberId, ownerMemberId, onOpenExpense }) => {
+const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRule, variant = 'modal', initialTripName = '', allowArchive = true, viewerMemberId, ownerMemberId, members, batches, onOpenExpense }) => {
   const { t, i18n } = useTranslation();
   const displayLocale = displayLocaleFrom(i18n.language);
   /** The bill behind a line of the breakdown, for opening it. */
@@ -81,8 +90,8 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
     line below and that landing must never disagree about the same subtraction.
   */
   const balance = React.useMemo(
-    () => viewerSettlementBalance({ expenses, viewerMemberId, ownerMemberId }),
-    [expenses, viewerMemberId, ownerMemberId],
+    () => viewerSettlementBalance({ expenses, viewerMemberId, ownerMemberId, members, batches }),
+    [expenses, viewerMemberId, ownerMemberId, members, batches],
   );
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [tripName, setTripName] = useState(initialTripName);

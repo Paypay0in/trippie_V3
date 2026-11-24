@@ -9260,6 +9260,8 @@ const App: React.FC = () => {
             allowArchive={!currentLoadedTripId}
             viewerMemberId={viewerMemberId}
             ownerMemberId={activeOwnerMemberId}
+            members={settlementMembers}
+            batches={settlementBatches}
             onOpenExpense={handleEditExpense}
           />
         )}
@@ -9548,6 +9550,14 @@ const App: React.FC = () => {
                   expenses,
                   viewerMemberId,
                   ownerMemberId: activeOwnerMemberId,
+                  /*
+                    The settlements already recorded. 「已經結算完了結果還有數字」
+                    — without them this asks whether the trip ever owed
+                    anything, not whether it still does, and the fold could
+                    never open for a trip settled through the settlement flow.
+                  */
+                  members: settlementMembers,
+                  batches: settlementBatches,
                 })}
               >
                 <TripSummaryModal
@@ -9559,6 +9569,8 @@ const App: React.FC = () => {
                   allowArchive={!currentLoadedTripId}
                   viewerMemberId={viewerMemberId}
                   ownerMemberId={activeOwnerMemberId}
+                  members={settlementMembers}
+                  batches={settlementBatches}
                   onOpenExpense={handleEditExpense}
                 />
               </FinishedTripReport>
@@ -10264,6 +10276,8 @@ const App: React.FC = () => {
                   allowArchive={!currentLoadedTripId}
                   viewerMemberId={viewerMemberId}
                   ownerMemberId={activeOwnerMemberId}
+                  members={settlementMembers}
+                  batches={settlementBatches}
                   onOpenExpense={handleEditExpense}
                 />
                 <button

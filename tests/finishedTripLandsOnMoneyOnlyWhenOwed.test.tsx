@@ -12,17 +12,38 @@
  * the report folds when the balance is clear, and it is still there, one tap
  * behind the fold, because a settled balance can stop being settled.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import FinishedTripReport from '../components/FinishedTripReport';
 import { tripIsSettled, viewerSettlementBalance } from '../services/viewerSettlementBalance';
-import { Category, Expense, PaymentMethod } from '../types';
+import { calculateOutstandingDebts } from '../services/settlementConsumption';
+import { Category, Expense, PaymentMethod, SettlementBatch, TripMember } from '../types';
 
 import i18n from '../i18n/config';
 
 const ME = 'me';
 const FRIEND = 'friend';
+
+const ROSTER: TripMember[] = [
+  { id: ME, name: '我', type: 'owner' },
+  { id: FRIEND, name: 'Sherry', type: 'member' },
+];
+
+/** A batch that settles `expenseIds` with `FRIEND`, in the current format. */
+const settledBatch = (expenseIds: string[]): SettlementBatch => ({
+  id: 'batch-1',
+  tripId: 'trip-1',
+  title: '結清',
+  expenseIds,
+  memberIds: [FRIEND],
+  memberIdsKind: 'targets',
+  status: 'settled',
+  createdAt: '2026-10-25T00:00:00Z',
+  settledAt: '2026-10-25T00:00:00Z',
+});
 
 afterEach(cleanup);
 
@@ -72,6 +93,75 @@ describe('what the balance says', () => {
     // answers a question nobody asked.
     expect(viewerSettlementBalance({ expenses: [bill('a', ME, 1000)] })).toBeUndefined();
     expect(tripIsSettled({ expenses: [bill('a', ME, 1000)] })).toBe(true);
+  });
+});
+
+/**
+ * 「已經結算完了結果還有數字」.
+ *
+ * The first version of this module did its own subtraction — fronted minus
+ * share — and so could not see that the debt had already been paid. The
+ * settlement card beside it read `calculateOutstandingDebts`, which can, and
+ * the two printed different numbers for the same question. The fold built on
+ * `tripIsSettled` therefore never fired for any trip settled through the
+ * settlement flow, which is every trip that ever owed anything.
+ *
+ * These pin the balance to the module that owns settlement consumption, by
+ * asserting agreement with it rather than by restating its arithmetic here.
+ */
+describe('a balance that knows the money already changed hands', () => {
+  const expenses = [bill('a', ME, 1000)];
+
+  it('is zero once a batch settles the debt', () => {
+    const input = {
+      expenses,
+      viewerMemberId: ME,
+      ownerMemberId: ME,
+      members: ROSTER,
+      batches: [settledBatch(['a'])],
+    };
+    expect(viewerSettlementBalance(input)).toBe(0);
+    expect(tripIsSettled(input)).toBe(true);
+  });
+
+  it('still shows the debt while the batch is open', () => {
+    const openBatch: SettlementBatch = { ...settledBatch(['a']), status: 'open' };
+    const input = {
+      expenses,
+      viewerMemberId: ME,
+      ownerMemberId: ME,
+      members: ROSTER,
+      batches: [openBatch],
+    };
+    expect(viewerSettlementBalance(input)).toBe(500);
+    expect(tripIsSettled(input)).toBe(false);
+  });
+
+  it('agrees with the settlement card, which is the point', () => {
+    // The defect was two numbers on one screen. Whatever the arithmetic, the
+    // report and the card must not disagree.
+    const batches = [settledBatch(['a'])];
+    const card = calculateOutstandingDebts(expenses, ROSTER, batches);
+    expect(
+      viewerSettlementBalance({
+        expenses,
+        viewerMemberId: ME,
+        ownerMemberId: ME,
+        members: ROSTER,
+        batches,
+      }),
+    ).toBe(Math.round(card[ME]));
+  });
+
+  it('does not recompute the subtraction itself', () => {
+    // A rule with two homes is a rule with two answers. Read as source so a
+    // future edit cannot quietly reintroduce the second one.
+    const source = readFileSync(
+      resolve(__dirname, '../services/viewerSettlementBalance.ts'),
+      'utf8',
+    );
+    expect(source).toContain('calculateOutstandingDebts');
+    expect(source.match(/fronted\s*-\s*share/)).toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
-import { Expense } from '../types';
+import { Expense, SettlementBatch, TripMember } from '../types';
 import { expenseCostToViewer } from './viewerSpend';
-import { calculateExpenseLedger } from './splitCalculator';
+import { calculateOutstandingDebts } from './settlementConsumption';
 
 /**
  * What this traveller is still owed, or still owes, for the whole trip.
@@ -29,18 +29,11 @@ export interface ViewerSettlementInput {
   expenses: Expense[];
   viewerMemberId?: string;
   ownerMemberId?: string;
+  /** The roster, so settlement targets can be matched to seats. */
+  members?: TripMember[];
+  /** Settlements already recorded. Omitted means none are known yet. */
+  batches?: SettlementBatch[];
 }
-
-/** Money that actually left this traveller's pocket, across the trip. */
-const frontedBy = (
-  { expenses, viewerMemberId, ownerMemberId }: ViewerSettlementInput,
-): number | undefined => {
-  if (!viewerMemberId) return undefined;
-  return expenses.reduce((sum, expense) => {
-    const { paid } = calculateExpenseLedger(expense, ownerMemberId);
-    return sum + (paid[viewerMemberId] || 0);
-  }, 0);
-};
 
 /** What this traveller is actually responsible for, out of the trip's total. */
 export const viewerShareOfTrip = (
@@ -54,20 +47,40 @@ export const viewerShareOfTrip = (
 };
 
 /**
- * Fronted minus owed, rounded the way the report prints it.
+ * What is still outstanding for this traveller, after settlements.
  *
- * Positive: owed back to this traveller. Negative: this traveller owes.
+ * Positive: owed back to them. Negative: they still owe.
+ *
+ * 「已經結算完了結果還有數字」. The first version subtracted here — fronted
+ * minus share — which is the balance BEFORE anybody paid anybody. It had no
+ * way to know a settlement had been recorded, while the card beside it did,
+ * so one screen printed two answers to one question. Worse, the fold built on
+ * `tripIsSettled` could then never fire for a trip settled through the
+ * settlement flow, which is every trip that ever owed anything.
+ *
+ * `calculateOutstandingDebts` is the one place that consumes settlement
+ * batches, including the legacy format. This asks it rather than repeating
+ * it: the arithmetic has one home, and agreement is structural rather than
+ * maintained by hand.
+ *
  * Rounded here rather than at the caller, so 「the report shows no line」 and
- * 「the trip is settled」 can never be decided from differently rounded copies
- * of the same subtraction.
+ * 「the trip is settled」 cannot be decided from differently rounded copies of
+ * the same number.
  */
 export const viewerSettlementBalance = (
-  input: ViewerSettlementInput,
+  { expenses, viewerMemberId, ownerMemberId, members, batches }: ViewerSettlementInput,
 ): number | undefined => {
-  const fronted = frontedBy(input);
-  const share = viewerShareOfTrip(input);
-  if (fronted === undefined || share === undefined) return undefined;
-  return Math.round(fronted - share);
+  if (!viewerMemberId) return undefined;
+  // Without a roster the owner seat would be lost, and with it the rule that
+  // normalizes owner ids. Carry the caller's owner through instead of letting
+  // it be derived from an empty list.
+  const roster: TripMember[] = members?.length
+    ? members
+    : ownerMemberId
+      ? [{ id: ownerMemberId, name: '', type: 'owner' }]
+      : [];
+  const debts = calculateOutstandingDebts(expenses, roster, batches ?? []);
+  return Math.round(debts[viewerMemberId] || 0);
 };
 
 /**

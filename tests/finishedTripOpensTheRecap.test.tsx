@@ -22,7 +22,12 @@ const app = readFileSync(resolve(process.cwd(), 'App.tsx'), 'utf8');
 const finishedOverview = (() => {
   const start = app.indexOf('(currentPhase === "post" || currentPhase === "summary")');
   expect(start).toBeGreaterThan(-1);
-  return app.slice(start, start + 2600);
+  // To the end of the block, not a fixed number of characters: a window of
+  // 2600 silently stopped containing the report the first time a comment was
+  // added above it, and reported that as the report having been removed.
+  const end = app.indexOf('</FinishedTripReport>', start);
+  expect(end).toBeGreaterThan(start);
+  return app.slice(start, end);
 })();
 
 describe('the overview of a trip that is over', () => {
