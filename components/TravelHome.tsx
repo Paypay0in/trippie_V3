@@ -605,7 +605,10 @@ const TravelHome: React.FC<Props> = ({
               <DestinationImageLayer destination={coverImageQuery(activeDraft.destination, activeDraft.name)} />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/65" />
               <div className="absolute left-4 top-4">
-                <span className="inline-flex items-center rounded-full bg-black/45 px-3 py-1.5 text-[12px] font-bold text-white backdrop-blur-sm">
+                <span
+                  data-testid={`trip-shelf-status-${activeDraft.id}`}
+                  className="inline-flex items-center rounded-full bg-black/45 px-3 py-1.5 text-[12px] font-bold text-white backdrop-blur-sm"
+                >
                   {tripStatusLabel}
                 </span>
               </div>
@@ -662,9 +665,25 @@ const TravelHome: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => onContinueDraft(activeDraft.id)}
+                data-testid={`trip-shelf-open-${activeDraft.id}`}
                 className="absolute bottom-4 right-4 inline-flex h-[48px] items-center gap-2 rounded-[15px] bg-white px-5 text-[14px] font-extrabold text-violet-600 shadow-[0_6px_18px_rgba(0,0,0,0.12)] transition active:scale-[0.98]"
               >
-                {t("trips.continueTrip")}
+                {/*
+                  「已經結束的旅程」 with 繼續旅程 printed underneath it.
+
+                  The badge at the top of this same card already said the trip
+                  was over; the button was written for one state and never
+                  asked which one it was in. Both now read `tripStatus`, so a
+                  card cannot contradict itself — adding a fourth stage later
+                  changes one answer, not two.
+
+                  Only the finished case is narrowed. 繼續旅程 was right for a
+                  trip under way and for one not yet started: there is still
+                  something to go and do.
+                */}
+                {tripStatus === "completed"
+                  ? t("trips.openFinishedTrip")
+                  : t("trips.continueTrip")}
                 <span aria-hidden="true" className="text-xl leading-none">→</span>
               </button>
             </div>

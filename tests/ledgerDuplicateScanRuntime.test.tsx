@@ -66,7 +66,7 @@ it('開啟行程時，把帳本裡同日同額的兩筆圈出來問使用者', a
   render(<App />);
 
   await user.click(screen.getByText('旅行'));
-  await user.click(screen.getByText(/繼續旅程/));
+  await user.click(screen.getByText(/繼續旅程|查看這趟旅程/));
 
   const prompt = await screen.findByTestId('duplicate-receipt-prompt');
   expect(prompt.textContent).toContain('有 1 組可能是同一筆');

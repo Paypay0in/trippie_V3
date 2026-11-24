@@ -45,7 +45,7 @@ const openTrip = async () => {
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByText('旅行'));
-  await user.click(screen.getByText(/繼續旅程/));
+  await user.click(screen.getByText(/繼續旅程|查看這趟旅程/));
   return user;
 };
 

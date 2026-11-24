@@ -61,7 +61,7 @@ it('重新打開行程，10/03 的帳不會跑回回國機場消費', async () =
   render(<App />);
 
   await user.click(screen.getByText('旅行'));
-  await user.click(screen.getByText(/繼續旅程/));
+  await user.click(screen.getByText(/繼續旅程|查看這趟旅程/));
   /*
     A finished trip opens in the workspace now, on its overview. The ledger is
     where it always was — behind 記帳 — and reaching it is the point: the screen
