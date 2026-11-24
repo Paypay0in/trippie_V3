@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n/config";
 import ConfirmDialog from './ConfirmDialog';
 import { localToday, phaseForDate } from '../services/tripPhaseByDate';
+import { tripIsFinished } from '../services/tripIsFinished';
 import {
   ArrowRight,
   Bell,
@@ -246,6 +247,10 @@ const TravelHome: React.FC<Props> = ({
     difference between 返程中 and 結算 belongs inside the trip, not on a tile.
   */
   const tripStatus = (() => {
+    // 「完成」 asked here the same way the counters ask it. They used to read
+    // `tripHistory` — archived trips — so a traveller just home was 已結束 on
+    // this card and not 完成 on 我, at the same moment.
+    if (activeDraft && tripIsFinished(activeDraft)) return "completed";
     const phase = phaseForDate(
       localToday(),
       activeDraft?.startDate,

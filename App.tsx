@@ -311,6 +311,7 @@ import RentalUploadCard from "./components/RentalUploadCard";
 import OptionalPlanSection from "./components/OptionalPlanSection";
 import FinishedTripReport from "./components/FinishedTripReport";
 import { tripIsSettled } from "./services/viewerSettlementBalance";
+import { countFinishedTrips } from "./services/tripIsFinished";
 import { sectionIsExpected } from "./services/tripSections";
 import { ParsedRental } from "./services/rentalIntake";
 import { briefChips, promptQuestions, travellerBriefText } from "./services/travellerBrief";
@@ -8065,7 +8066,7 @@ const App: React.FC = () => {
               onSaveProfile={handleProfileSave}
               myPosts={myCommunityPosts}
               savedInspirations={savedTravelInspirations}
-              completedTripCount={tripHistory.length}
+              completedTripCount={countFinishedTrips(tripHistory, drafts)}
               onTogglePostVisibility={handleTogglePostVisibility}
               onDeletePost={handleDeleteCommunityPost}
               onCreatePost={openCommunityComposer}
