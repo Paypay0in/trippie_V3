@@ -9,6 +9,7 @@ import { refundClaimableBy } from '../services/refundClaimant';
 import { sharedWithSomebody } from '../services/refundSharedNote';
 import { Expense, Category, PaymentMethod, Phase, TaxRule } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { viewerSettlementBalance, viewerShareOfTrip } from '../services/viewerSettlementBalance';
 import { expenseCostToViewer } from '../services/viewerSpend';
 import { calculateExpenseLedger } from '../services/splitCalculator';
 import { partitionByConcern } from '../services/expenseConcernsMember';
@@ -53,14 +54,13 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
     [expenses],
   );
   /** What this reader is actually responsible for, out of the trip's total. */
-  const viewerShare = React.useMemo(() => {
-    if (!viewerMemberId) return undefined;
+  const viewerShare = React.useMemo(
     // One rule, shared with the ledger list and the dashboard. Computed here
     // separately, this dropped the reader's own unsplit spending: a bill with
     // no sharers has an empty responsibility map, which read as zero.
-    return expenses.reduce((sum, expense) =>
-      sum + expenseCostToViewer(expense, viewerMemberId, ownerMemberId), 0);
-  }, [expenses, viewerMemberId, ownerMemberId]);
+    () => viewerShareOfTrip({ expenses, viewerMemberId, ownerMemberId }),
+    [expenses, viewerMemberId, ownerMemberId],
+  );
   /**
    * Money that actually left this traveller's pocket.
    *
@@ -75,6 +75,15 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
       return sum + (paid[viewerMemberId] || 0);
     }, 0);
   }, [expenses, viewerMemberId, ownerMemberId]);
+  /*
+    Whether anything is still open, from the module that also decides whether a
+    finished trip opens on this report at all. Read rather than recomputed: the
+    line below and that landing must never disagree about the same subtraction.
+  */
+  const balance = React.useMemo(
+    () => viewerSettlementBalance({ expenses, viewerMemberId, ownerMemberId }),
+    [expenses, viewerMemberId, ownerMemberId],
+  );
   const [showSaveInput, setShowSaveInput] = useState(false);
   const [tripName, setTripName] = useState(initialTripName);
 
@@ -590,11 +599,11 @@ const TripSummaryModal: React.FC<Props> = ({ expenses, onClose, onArchive, taxRu
                     ${Math.round(viewerShare ?? totalExpense).toLocaleString()}
                 </div>
                 <div className="text-[10px] text-gray-400 mt-1 relative z-10">{t('summary.excludesHelpBuy')}</div>
-                {viewerShare !== undefined && frontedByViewer !== undefined && Math.round(frontedByViewer - viewerShare) !== 0 && (
+                {frontedByViewer !== undefined && balance !== undefined && balance !== 0 && (
                   <div data-testid="viewer-share" className="relative z-10 mt-3 space-y-1 border-t border-gray-100 pt-3 text-xs font-bold">
                     <p className="text-gray-500"><Trans i18nKey="summary.youPaidUpfront" values={{ amount: `$${Math.round(frontedByViewer).toLocaleString()}` }} components={{ strong: <span className="text-brand-900" /> }} /></p>
-                    <p className={Math.round(frontedByViewer - viewerShare) > 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                      {Math.round(frontedByViewer - viewerShare) > 0 ? t('summary.toRecover') : t('summary.toTopUp')} ${Math.abs(Math.round(frontedByViewer - viewerShare)).toLocaleString()}
+                    <p className={balance > 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                      {balance > 0 ? t('summary.toRecover') : t('summary.toTopUp')} ${Math.abs(balance).toLocaleString()}
                     </p>
                   </div>
                 )}

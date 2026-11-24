@@ -309,6 +309,8 @@ import FlightAnchorsForm from "./components/FlightAnchorsForm";
 import StayUploadCard from "./components/StayUploadCard";
 import RentalUploadCard from "./components/RentalUploadCard";
 import OptionalPlanSection from "./components/OptionalPlanSection";
+import FinishedTripReport from "./components/FinishedTripReport";
+import { tripIsSettled } from "./services/viewerSettlementBalance";
 import { sectionIsExpected } from "./services/tripSections";
 import { ParsedRental } from "./services/rentalIntake";
 import { briefChips, promptQuestions, travellerBriefText } from "./services/travellerBrief";
@@ -9532,17 +9534,34 @@ const App: React.FC = () => {
                   onOpenRecap={() => setRecapOpen(true)}
                 />
               </div>
-              <TripSummaryModal
-                expenses={expenses}
-                onArchive={handleArchiveTrip}
-                taxRule={resolvedTaxRule}
-                variant="embedded"
-                initialTripName={currentTripName}
-                allowArchive={!currentLoadedTripId}
-                viewerMemberId={viewerMemberId}
-                ownerMemberId={activeOwnerMemberId}
-                onOpenExpense={handleEditExpense}
-              />
+              {/*
+                「點進去都直接是結算金額的頁面 我覺得不太 OK」.
+
+                The balance decides, and it is read from the one module that
+                also prints the 待補付 line inside the report. Asking the
+                question again here is the shape that produced 「怎麼一直在修
+                重複的問題」 — the landing and the number would disagree the day
+                one of them rounded differently.
+              */}
+              <FinishedTripReport
+                settled={tripIsSettled({
+                  expenses,
+                  viewerMemberId,
+                  ownerMemberId: activeOwnerMemberId,
+                })}
+              >
+                <TripSummaryModal
+                  expenses={expenses}
+                  onArchive={handleArchiveTrip}
+                  taxRule={resolvedTaxRule}
+                  variant="embedded"
+                  initialTripName={currentTripName}
+                  allowArchive={!currentLoadedTripId}
+                  viewerMemberId={viewerMemberId}
+                  ownerMemberId={activeOwnerMemberId}
+                  onOpenExpense={handleEditExpense}
+                />
+              </FinishedTripReport>
             </div>
           )}
           {workspaceSection === "overview" && currentPhase === "during" && (
