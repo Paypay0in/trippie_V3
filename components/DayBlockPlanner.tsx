@@ -22,6 +22,7 @@ import { transitMinutesBetween } from '../services/itineraryScheduling';
 import { minutesToTime, timeToMinutes } from '../services/itineraryTimeline';
 import { dayAreaSpread, daySpansTooManyAreas } from '../services/dayAreaSpread';
 import { TripAreas } from '../services/tripAreas';
+import { dayBlockPlannerCollapsed, rememberDayBlockPlannerCollapsed } from '../services/dayBlockPlannerCollapsed';
 
 /**
  * A day built by filling blocks, instead of by placing times.
@@ -284,6 +285,7 @@ const DayBlockPlanner: React.FC<Props> = ({
     are what is in it.
   */
   const [chosenStart, setChosenStart] = useState('');
+  const [collapsed, setCollapsed] = useState(() => dayBlockPlannerCollapsed());
   /*
     A time chosen for one day is not a time chosen for the next.
 
@@ -655,10 +657,37 @@ const DayBlockPlanner: React.FC<Props> = ({
         Nothing here looked too wide; one thing simply refused to be narrower.
       */}
       <div className="flex min-w-0 items-center justify-between gap-2">
-        <h3 className="flex shrink-0 items-center gap-1.5 text-sm font-black text-[#11183d]">
-          <Clock3 size={14} className="text-[#5b3df5]" />{t('itinerary.dayBlocks.title')}
-        </h3>
-        {(
+        {/*
+          「這邊要可以收合」.
+
+          The whole card is the day's grid — every slot, filled or offering a
+          place — and it sits above the itinerary somebody came here to read.
+          So the title is the handle: tapping it folds the planner away and the
+          answer is remembered, because a fold that reopens on the next render
+          is not a fold.
+
+          Nothing is thrown away by folding. The slots, the shift offer and the
+          area summary are all derived from the day on every render, so the
+          card comes back saying exactly what it said before.
+        */}
+        <button
+          type="button"
+          data-testid="day-block-planner-toggle"
+          aria-expanded={!collapsed}
+          onClick={() => {
+            const next = !collapsed;
+            setCollapsed(next);
+            rememberDayBlockPlannerCollapsed(next);
+          }}
+          className="flex min-w-0 shrink-0 items-center gap-1.5 text-sm font-black text-[#11183d]"
+        >
+          <Clock3 size={14} className="text-[#5b3df5]" />
+          <h3>{t('itinerary.dayBlocks.title')}</h3>
+          {collapsed
+            ? <ChevronDown size={14} className="text-slate-400" />
+            : <ChevronUp size={14} className="text-slate-400" />}
+        </button>
+        {!collapsed && (
           <label className="flex min-w-0 items-center gap-1.5 text-[11px] font-bold text-slate-500">
             <span className="shrink-0">{t('itinerary.dayBlocks.dayStart')}</span>
             {/*
@@ -684,6 +713,8 @@ const DayBlockPlanner: React.FC<Props> = ({
           </label>
         )}
       </div>
+
+      {!collapsed && <>
 
       {/*
         What 幾點出門 does to the things already on the day.
@@ -1287,6 +1318,8 @@ const DayBlockPlanner: React.FC<Props> = ({
       <p className="mt-2 text-[10px] leading-4 text-slate-400">
         {t('itinerary.dayBlocks.blockDefault', { length: minutesLabel(BLOCK_MINUTES) })}
       </p>
+
+      </>}
     </section>
   );
 };
